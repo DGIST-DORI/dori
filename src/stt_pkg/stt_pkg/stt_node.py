@@ -14,7 +14,7 @@ import os
 
 import pvporcupine
 from faster_whisper import WhisperModel
-from faster_whisper.vad import Vad
+from silero_vad import VoiceActivityDetector
 
 
 SAMPLE_RATE = 16000
@@ -83,7 +83,7 @@ class STTNode(Node):
         
         # VAD
         try:
-            self.vad = Vad(
+            self.vad = VoiceActivityDetector(
                 sample_rate=SAMPLE_RATE,
                 threshold=vad_threshold
             )
