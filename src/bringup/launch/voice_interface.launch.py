@@ -7,26 +7,16 @@ import os
 
 def generate_launch_description():
 
-    # Package directories
-    try:
-        stt_pkg_dir = get_package_share_directory('stt_pkg')
-    except:
-        stt_pkg_dir = None
-        
+    bringup_dir = get_package_share_directory('bringup')
+
+    # Package directories and Configuration file path
     try:
         llm_pkg_dir = get_package_share_directory('llm_pkg')
+        knowledge_file_default = os.path.join(
+            llm_pkg_dir, 'config', 'campus_knowledge.json'
+        )
     except:
-        llm_pkg_dir = None
-    
-    try:
-        tts_pkg_dir = get_package_share_directory('tts_pkg')
-    except:
-        tts_pkg_dir = None
-    
-    # Configuration file path
-    knowledge_file_default = os.path.join(
-        llm_pkg_dir, 'config', 'campus_knowledge.json'
-    )
+        knowledge_file_default = ''
     
     # Launch arguments
     use_external_llm_arg = DeclareLaunchArgument(

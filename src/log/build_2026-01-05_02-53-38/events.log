@@ -1,0 +1,8 @@
+[0.000000] (-) TimerEvent: {}
+[0.000325] (-) JobUnselected: {'identifier': 'llm_pkg'}
+[0.000348] (-) JobUnselected: {'identifier': 'stt_pkg'}
+[0.000359] (-) JobUnselected: {'identifier': 'tts_pkg'}
+[0.000370] (bringup) JobQueued: {'identifier': 'bringup', 'dependencies': OrderedDict([('llm_pkg', '/home/ofbt/ros2_ws/src/install/llm_pkg'), ('stt_pkg', '/home/ofbt/ros2_ws/src/install/stt_pkg'), ('tts_pkg', '/home/ofbt/ros2_ws/src/install/tts_pkg')])}
+[0.000386] (bringup) JobStarted: {'identifier': 'bringup'}
+[0.021596] (bringup) JobEnded: {'identifier': 'bringup', 'rc': 1}
+[0.022638] (-) EventReactorShutdown: {}
