@@ -8,8 +8,20 @@ import os
 def generate_launch_description():
 
     # Package directories
-    stt_pkg_dir = get_package_share_directory('stt_pkg')
-    llm_pkg_dir = get_package_share_directory('llm_pkg')
+    try:
+        stt_pkg_dir = get_package_share_directory('stt_pkg')
+    except:
+        stt_pkg_dir = None
+        
+    try:
+        llm_pkg_dir = get_package_share_directory('llm_pkg')
+    except:
+        llm_pkg_dir = None
+    
+    try:
+        tts_pkg_dir = get_package_share_directory('tts_pkg')
+    except:
+        tts_pkg_dir = None
     
     # Configuration file path
     knowledge_file_default = os.path.join(
@@ -20,7 +32,7 @@ def generate_launch_description():
     use_external_llm_arg = DeclareLaunchArgument(
         'use_external_llm',
         default_value='false',
-        description='Use external LLM API ()'
+        description='Use external LLM API ()' # TODO
     )
     
     knowledge_file_arg = DeclareLaunchArgument(
@@ -41,6 +53,18 @@ def generate_launch_description():
         description='Wake word for voice activation'
     )
     
+    tts_engine_arg = DeclareLaunchArgument(
+        'tts_engine',
+        default_value='gtts',
+        description='TTS engine (gtts/pyttsx3)'
+    )
+    
+    tts_language_arg = DeclareLaunchArgument(
+        'tts_language',
+        default_value='ko',
+        description='TTS language (ko/en)'
+    )
+
     # STT Node
     stt_node = Node(
         package='stt_pkg',
@@ -69,7 +93,8 @@ def generate_launch_description():
         parameters=[{
             'knowledge_file': LaunchConfiguration('knowledge_file'),
             'use_external_llm': LaunchConfiguration('use_external_llm'),
-            'model_name': 'gpt-3.5-turbo'
+            'model_name': 'gpt-3.5-turbo',
+            'confidence_threshold': 0.4
         }],
         remappings=[
             ('/stt/text', '/stt/text'),
@@ -79,17 +104,23 @@ def generate_launch_description():
         ]
     )
     
-    # TTS Node (별도 구현 필요)
-    # tts_node = Node(
-    #     package='tts_pkg',
-    #     executable='tts_node',
-    #     name='tts_node',
-    #     output='screen',
-    #     remappings=[
-    #         ('/llm/response', '/llm/response'),
-    #         ('/robot/speaking', '/robot/speaking')
-    #     ]
-    # )
+    # TTS Node
+    tts_node = Node(
+        package='tts_pkg',
+        executable='tts_node',
+        name='tts_node',
+        output='screen',
+        parameters=[{
+            'tts_engine': LaunchConfiguration('tts_engine'),
+            'language': LaunchConfiguration('tts_language'),
+            'speech_rate': 150,
+            'volume': 0.9
+        }],
+        remappings=[
+            ('/llm/response', '/llm/response'),
+            ('/robot/speaking', '/robot/speaking')
+        ]
+    )
     
     return LaunchDescription([
         # Arguments
@@ -97,9 +128,11 @@ def generate_launch_description():
         knowledge_file_arg,
         whisper_model_arg,
         wake_word_arg,
+        tts_engine_arg,
+        tts_language_arg,
         
         # Nodes
         stt_node,
         llm_node,
-        # tts_node,  # 추가 구현 필요
+        tts_node
     ])
