@@ -1,3 +1,10 @@
+from launch import LaunchDescription
+from launch_ros.actions import Node
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
+from ament_index_python.packages import get_package_share_directory
+import os
+
 def generate_launch_description():
 
     # Package directories
@@ -13,7 +20,7 @@ def generate_launch_description():
     use_external_llm_arg = DeclareLaunchArgument(
         'use_external_llm',
         default_value='false',
-        description='Use external LLM API (OpenAI/Claude)'
+        description='Use external LLM API ()'
     )
     
     knowledge_file_arg = DeclareLaunchArgument(
@@ -62,7 +69,7 @@ def generate_launch_description():
         parameters=[{
             'knowledge_file': LaunchConfiguration('knowledge_file'),
             'use_external_llm': LaunchConfiguration('use_external_llm'),
-            'model_name': 'gpt-3.5-turbo'  # or 'claude-3-sonnet'
+            'model_name': 'gpt-3.5-turbo'
         }],
         remappings=[
             ('/stt/text', '/stt/text'),

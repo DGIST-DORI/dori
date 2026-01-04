@@ -165,9 +165,22 @@ class LLMNode(Node):
         self.get_logger().info("External LLM API initialized")
     
     def stt_callback(self, msg: String):
-        user_text = msg.data
-        self.get_logger().info(f"Received: {user_text}")
-        
+        try:
+            data = json.loads(msg.data)
+            user_text = data.get("text", "")
+            confidence = data.get("confidence", 0.0)
+            language = data.get("language", "unknown")
+            
+            self.get_logger().info(f"Received [{language}] (conf: {confidence:.2f}): {user_text}")
+            
+            if confidence < 0.4:
+                self.get_logger().warn("Low confidence, ignoring...")
+                return
+            
+        except json.JSONDecodeError:
+            user_text = msg.data
+            self.get_logger().info(f"Received: {user_text}")
+            
         self.speaking_pub.publish(Bool(data=True)) # publish that the robot is talking
         
         response = self.generate_response(user_text)
