@@ -41,6 +41,19 @@ def generate_launch_description():
         default_value='ko',
         description='TTS language (ko/en)'
     )
+
+    # Navigation arguments
+    max_speed_arg = DeclareLaunchArgument(
+        'max_speed',
+        default_value='0.5',
+        description='Maximum linear speed (m/s)'
+    )
+    
+    enable_navigation_arg = DeclareLaunchArgument(
+        'enable_navigation',
+        default_value='true',
+        description='Enable navigation system'
+    )
     
     # Include voice interface launch
     voice_interface_launch = IncludeLaunchDescription(
@@ -56,18 +69,38 @@ def generate_launch_description():
         }.items()
     )
     
-    # TODO: Navigation launch
-    # navigation_launch = IncludeLaunchDescription(...)
+    # Include navigation launch
+    try:
+        navigation_pkg_dir = get_package_share_directory('navigation_pkg')
+        navigation_launch = IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                os.path.join(navigation_pkg_dir, 'launch', 'navigation.launch.py')
+            ),
+            launch_arguments={
+                'max_speed': LaunchConfiguration('max_speed'),
+            }.items(),
+            condition=launch.conditions.IfCondition(
+                LaunchConfiguration('enable_navigation')
+            )
+        )
+    except:
+        navigation_launch = None
     
-    return LaunchDescription([
+    launch_list = [
         # Arguments
         use_external_llm_arg,
         whisper_model_arg,
         wake_word_arg,
         tts_engine_arg,
         tts_language_arg,
+        max_speed_arg,
+        enable_navigation_arg,
         
         # Launch files
         voice_interface_launch,
-        # navigation_launch,
-    ])
+    ]
+    
+    if navigation_launch:
+        launch_list.append(navigation_launch)
+    
+    return LaunchDescription(launch_list)

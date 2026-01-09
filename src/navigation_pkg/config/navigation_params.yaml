@@ -1,0 +1,26 @@
+navigator_node:
+  ros__parameters:
+    # Speed limits
+    max_speed: 0.5               # m/s
+    max_angular_speed: 1.0       # rad/s
+    
+    # Goal tolerance
+    goal_tolerance: 0.2          # m
+    
+    # Obstacle detection
+    obstacle_distance: 0.5       # m
+    
+    # Control parameters
+    control_frequency: 20.0      # Hz
+    
+    # Path planning
+    planning_timeout: 5.0        # seconds
+    replan_distance: 2.0         # m - replan if deviated from path
+    
+    # Controller gains
+    linear_p_gain: 0.5
+    angular_p_gain: 2.0
+    
+    # Safety
+    min_obstacle_distance: 0.3   # m
+    emergency_stop_distance: 0.2 # m
