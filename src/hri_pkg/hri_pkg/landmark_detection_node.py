@@ -97,25 +97,25 @@ class LandmarkDetectionNode(Node):
 
         # Subscribers
         self.image_sub = self.create_subscription(
-            Image, '/cube/camera/color/image_raw', self.image_callback, 10
+            Image, '/dori/camera/color/image_raw', self.image_callback, 10
         )
         self.depth_sub = self.create_subscription(
-            Image, '/cube/camera/depth/image_raw', self.depth_callback, 10
+            Image, '/dori/camera/depth/image_raw', self.depth_callback, 10
         )
         # internal topic for camera intrinsics (published by camera node or RealSense node)
         from sensor_msgs.msg import CameraInfo
         self.camera_info_sub = self.create_subscription(
-            CameraInfo, '/cube/camera/color/camera_info', self.camera_info_callback, 10
+            CameraInfo, '/dori/camera/color/camera_info', self.camera_info_callback, 10
         )
 
         # Publishers
-        self.detections_pub = self.create_publisher(String, '/cube/landmark/detections', 10)
-        self.localization_pub = self.create_publisher(String, '/cube/landmark/localization', 10)
-        self.context_pub = self.create_publisher(String, '/cube/landmark/context', 10)
+        self.detections_pub = self.create_publisher(String, '/dori/landmark/detections', 10)
+        self.localization_pub = self.create_publisher(String, '/dori/landmark/localization', 10)
+        self.context_pub = self.create_publisher(String, '/dori/landmark/context', 10)
 
         if self.visualize:
             self.annotated_pub = self.create_publisher(
-                Image, '/cube/hri/annotated_landmark', 10
+                Image, '/dori/hri/annotated_landmark', 10
             )
 
         self.get_logger().info('Landmark Detection Node started')

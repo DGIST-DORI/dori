@@ -38,19 +38,19 @@ class FaceDetectionNode(Node):
         # Subscriber: camera images
         self.image_sub = self.create_subscription(
             Image,
-            '/cube/camera/image_raw',
+            '/dori/camera/image_raw',
             self.image_callback,
             10
         )
         
         # Publishers
-        self.face_detected_pub = self.create_publisher(Bool, '/cube/hri/face_detected', 10)
-        self.face_position_pub = self.create_publisher(Point, '/cube/hri/face_position', 10)
+        self.face_detected_pub = self.create_publisher(Bool, '/dori/hri/face_detected', 10)
+        self.face_position_pub = self.create_publisher(Point, '/dori/hri/face_position', 10)
         
         if self.visualize:
             self.annotated_image_pub = self.create_publisher(
                 Image, 
-                '/cube/hri/annotated_image', 
+                '/dori/hri/annotated_image', 
                 10
             )
         

@@ -183,7 +183,7 @@ class LLMNode(Node):
         # ROS Publishers
         self.response_pub = self.create_publisher(String, '/llm/response', 10)
         self.destination_pub = self.create_publisher(PoseStamped, '/navigation/destination', 10)
-        self.speaking_pub = self.create_publisher(Bool, '/robot/speaking', 10)
+        self.speaking_pub = self.create_publisher(Bool, '/dori/speaking', 10)
         
         # ROS Subscribers
         self.stt_sub = self.create_subscription(

@@ -65,34 +65,34 @@ class PersonDetectionNode(Node):
         # Subscribers
         self.image_sub = self.create_subscription(
             Image,
-            '/cube/camera/color/image_raw',   # RealSense color topic
+            '/dori/camera/color/image_raw',   # RealSense color topic
             self.image_callback,
             10
         )
         if self.use_depth:
             self.depth_sub = self.create_subscription(
                 Image,
-                '/cube/camera/depth/image_raw',
+                '/dori/camera/depth/image_raw',
                 self.depth_callback,
                 10
             )
             self.depth_scale_sub = self.create_subscription(
                 Float32,
-                '/cube/camera/depth_scale',
+                '/dori/camera/depth_scale',
                 lambda msg: setattr(self, '_depth_scale', msg.data),
                 10
             )
 
         # Publishers
-        self.person_detected_pub = self.create_publisher(Bool, '/cube/hri/face_detected', 10)
-        self.person_position_pub = self.create_publisher(Point, '/cube/hri/face_position', 10)
+        self.person_detected_pub = self.create_publisher(Bool, '/dori/hri/face_detected', 10)
+        self.person_position_pub = self.create_publisher(Point, '/dori/hri/face_position', 10)
 
         # Additional publishers for detailed info and HRI trigger
-        self.persons_detail_pub = self.create_publisher(String, '/cube/hri/persons', 10)
-        self.hri_trigger_pub = self.create_publisher(Bool, '/cube/hri/interaction_trigger', 10)
+        self.persons_detail_pub = self.create_publisher(String, '/dori/hri/persons', 10)
+        self.hri_trigger_pub = self.create_publisher(Bool, '/dori/hri/interaction_trigger', 10)
 
         if self.visualize:
-            self.annotated_pub = self.create_publisher(Image, '/cube/hri/annotated_image', 10)
+            self.annotated_pub = self.create_publisher(Image, '/dori/hri/annotated_image', 10)
 
         self.get_logger().info('Person Detection Node started (YOLOv8)')
 

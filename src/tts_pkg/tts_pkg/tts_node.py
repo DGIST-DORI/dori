@@ -52,7 +52,7 @@ class TTSNode(Node):
         self.speaking_lock = threading.Lock()
         
         # ROS Publishers
-        self.speaking_pub = self.create_publisher(Bool, '/robot/speaking', 10)
+        self.speaking_pub = self.create_publisher(Bool, '/dori/speaking', 10)
         self.done_pub = self.create_publisher(Bool, '/tts/done', 10)
         
         # ROS Subscribers

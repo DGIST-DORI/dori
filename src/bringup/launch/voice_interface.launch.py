@@ -70,7 +70,7 @@ def generate_launch_description():
         }],
         remappings=[
             ('/stt/text', '/stt/text'),
-            ('/robot/speaking', '/robot/speaking')
+            ('/dori/speaking', '/dori/speaking')
         ]
     )
     
@@ -90,7 +90,7 @@ def generate_launch_description():
             ('/stt/text', '/stt/text'),
             ('/llm/response', '/llm/response'),
             ('/navigation/destination', '/navigation/destination'),
-            ('/robot/speaking', '/robot/speaking')
+            ('/dori/speaking', '/dori/speaking')
         ]
     )
     
@@ -108,7 +108,7 @@ def generate_launch_description():
         }],
         remappings=[
             ('/llm/response', '/llm/response'),
-            ('/robot/speaking', '/robot/speaking')
+            ('/dori/speaking', '/dori/speaking')
         ]
     )
     

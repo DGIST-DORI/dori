@@ -45,7 +45,7 @@ class CameraNode(Node):
         self.get_logger().info(f'Camera initialized with settings: {actual_width}x{actual_height} @ {actual_fps}fps')
         
         # Publisher setup
-        self.image_pub = self.create_publisher(Image, '/cube/camera/image_raw', 10)
+        self.image_pub = self.create_publisher(Image, '/dori/camera/image_raw', 10)
         
         # CvBridge initialization
         self.bridge = CvBridge()

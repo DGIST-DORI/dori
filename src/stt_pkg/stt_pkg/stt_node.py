@@ -52,7 +52,7 @@ class STTNode(Node):
 
         self.speaking_sub = self.create_subscription(
             Bool,
-            '/robot/speaking',
+            '/dori/speaking',
             self.speaking_callback,
             10
         )

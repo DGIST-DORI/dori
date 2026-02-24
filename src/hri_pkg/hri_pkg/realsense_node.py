@@ -25,7 +25,7 @@ class RealSenseNode(Node):
         self.declare_parameter('enable_depth', True)
         self.declare_parameter('enable_color', True)
         self.declare_parameter('align_depth_to_color', True)
-        self.declare_parameter('depth_scale_publish', True)  # /cube/camera/depth_scale
+        self.declare_parameter('depth_scale_publish', True)  # /dori/camera/depth_scale
 
         self.width = self.get_parameter('width').value
         self.height = self.get_parameter('height').value
@@ -65,11 +65,11 @@ class RealSenseNode(Node):
         self.bridge = CvBridge()
 
         # Publishers
-        self.color_pub = self.create_publisher(Image, '/cube/camera/color/image_raw', 10)
-        self.depth_pub = self.create_publisher(Image, '/cube/camera/depth/image_raw', 10)
-        self.depth_colormap_pub = self.create_publisher(Image, '/cube/camera/depth/image_colormap', 10)
-        self.color_info_pub = self.create_publisher(CameraInfo, '/cube/camera/color/camera_info', 10)
-        self.depth_info_pub = self.create_publisher(CameraInfo, '/cube/camera/depth/camera_info', 10)
+        self.color_pub = self.create_publisher(Image, '/dori/camera/color/image_raw', 10)
+        self.depth_pub = self.create_publisher(Image, '/dori/camera/depth/image_raw', 10)
+        self.depth_colormap_pub = self.create_publisher(Image, '/dori/camera/depth/image_colormap', 10)
+        self.color_info_pub = self.create_publisher(CameraInfo, '/dori/camera/color/camera_info', 10)
+        self.depth_info_pub = self.create_publisher(CameraInfo, '/dori/camera/depth/camera_info', 10)
 
         # Cache for intrinsics (to avoid repeated conversion)
         self._color_intrinsics = None
