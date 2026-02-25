@@ -10,6 +10,14 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/launch', [
+            'launch/hri.launch.py',
+            'launch/hri_jetson.launch.py',
+        ]),
+        ('share/' + package_name + '/config', [
+            'config/landmark_db.json',
+            'config/data.yaml',
+        ]),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -25,7 +33,12 @@ setup(
     entry_points={
         'console_scripts': [
             'camera_node = hri_pkg.camera_node:main',
-            'face_detection_node = hri_pkg.face_detection_node:main',
+            'realsense_node = hri_pkg.realsense_node:main',
+            'person_detection_node = hri_pkg.person_detection_node:main',
+            'landmark_detection_node = hri_pkg.landmark_detection_node:main',
+            'gesture_recognition_node = hri_pkg.gesture_recognition_node:main',
+            'facial_expression_node = hri_pkg.facial_expression_node:main',
+            'hri_manager_node = hri_pkg.hri_manager_node:main',
         ],
     },
 )

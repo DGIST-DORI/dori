@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 
-import rclpy
-from rclpy.node import Node
-from sensor_msgs.msg import Image
-from geometry_msgs.msg import Point, PointStamped
-from std_msgs.msg import Bool, Float32
-from cv_bridge import CvBridge
+import json
+import time
+
 import cv2
 import numpy as np
+import rclpy
+from cv_bridge import CvBridge
+from geometry_msgs.msg import Point
+from rclpy.node import Node
+from sensor_msgs.msg import Image
+from std_msgs.msg import Bool, Float32, String
 
 try:
     from ultralytics import YOLO
@@ -15,9 +18,10 @@ try:
 except ImportError:
     YOLO_AVAILABLE = False
 
-
-from std_msgs.msg import String
-import json
+class TrackingState:
+    IDLE      = 'idle'
+    TRACKING  = 'tracking'
+    LOST      = 'lost'
 
 
 class PersonDetectionNode(Node):
@@ -31,13 +35,21 @@ class PersonDetectionNode(Node):
         self.declare_parameter('visualize', True)
         self.declare_parameter('interaction_distance_m', 2.0)
         self.declare_parameter('use_depth', True)                 # RealSense depth
+        self.declare_parameter('tracker_config', 'bytetrack.yaml')
+        self.declare_parameter('lost_timeout_sec', 5.0)
+        self.declare_parameter('follow_distance_m', 1.2)
+        self.declare_parameter('reacquire_iou_thresh', 0.3)
 
-        model_path = self.get_parameter('model_path').value
-        self.conf_thresh = self.get_parameter('confidence_threshold').value
-        device = self.get_parameter('device').value
-        self.visualize = self.get_parameter('visualize').value
+        model_path            = self.get_parameter('model_path').value
+        self.conf_thresh      = self.get_parameter('confidence_threshold').value
+        device                = self.get_parameter('device').value
+        self.visualize        = self.get_parameter('visualize').value
         self.interaction_dist = self.get_parameter('interaction_distance_m').value
-        self.use_depth = self.get_parameter('use_depth').value
+        self.use_depth        = self.get_parameter('use_depth').value
+        self.tracker_config   = self.get_parameter('tracker_config').value
+        self.lost_timeout     = self.get_parameter('lost_timeout_sec').value
+        self.follow_dist      = self.get_parameter('follow_distance_m').value
+        self.reacquire_iou    = self.get_parameter('reacquire_iou_thresh').value
 
         if not YOLO_AVAILABLE:
             self.get_logger().error('ultralytics has not been found. Please install with pip install ultralytics.')
@@ -55,6 +67,14 @@ class PersonDetectionNode(Node):
         # COCO class index for 'person' = 0
         self.PERSON_CLASS_ID = 0
 
+        # State Variations
+        self.target_id: int | None       = None
+        self.tracking_state: str         = TrackingState.IDLE
+        self.lost_since: float | None    = None
+        self.last_target_bbox: list | None = None
+        self.last_target_dist: float | None = None
+        self._pending_register: bool     = False 
+
         # CvBridge
         self.bridge = CvBridge()
 
@@ -63,34 +83,24 @@ class PersonDetectionNode(Node):
         self._depth_scale: float = 0.001  # Initial default, will be updated from RealSenseNode if available
 
         # Subscribers
-        self.image_sub = self.create_subscription(
-            Image,
-            '/dori/camera/color/image_raw',   # RealSense color topic
-            self.image_callback,
-            10
-        )
+        self.create_subscription(
+            Image, '/dori/camera/color/image_raw', self.image_callback, 10)
         if self.use_depth:
-            self.depth_sub = self.create_subscription(
-                Image,
-                '/dori/camera/depth/image_raw',
-                self.depth_callback,
-                10
-            )
-            self.depth_scale_sub = self.create_subscription(
-                Float32,
-                '/dori/camera/depth_scale',
-                lambda msg: setattr(self, '_depth_scale', msg.data),
-                10
-            )
+            self.create_subscription(
+                Image, '/dori/camera/depth/image_raw', self.depth_callback, 10)
+            self.create_subscription(
+                Float32, '/dori/camera/depth_scale',
+                lambda msg: setattr(self, '_depth_scale', msg.data), 10)
+        self.create_subscription(
+            Bool, '/dori/hri/set_follow_mode', self._follow_mode_callback, 10)
 
         # Publishers
-        self.person_detected_pub = self.create_publisher(Bool, '/dori/hri/face_detected', 10)
-        self.person_position_pub = self.create_publisher(Point, '/dori/hri/face_position', 10)
-
-        # Additional publishers for detailed info and HRI trigger
-        self.persons_detail_pub = self.create_publisher(String, '/dori/hri/persons', 10)
-        self.hri_trigger_pub = self.create_publisher(Bool, '/dori/hri/interaction_trigger', 10)
-
+        self.person_detected_pub = self.create_publisher(Bool,   '/dori/hri/face_detected', 10)
+        self.person_position_pub = self.create_publisher(Point,  '/dori/hri/face_position', 10)
+        self.persons_detail_pub  = self.create_publisher(String, '/dori/hri/persons', 10)
+        self.hri_trigger_pub     = self.create_publisher(Bool,   '/dori/hri/interaction_trigger', 10)
+        self.tracking_state_pub  = self.create_publisher(String, '/dori/hri/tracking_state', 10)
+        self.follow_offset_pub   = self.create_publisher(Point,  '/dori/follow/target_offset', 10)
         if self.visualize:
             self.annotated_pub = self.create_publisher(Image, '/dori/hri/annotated_image', 10)
 
@@ -102,6 +112,13 @@ class PersonDetectionNode(Node):
         except Exception as e:
             self.get_logger().error(f'Failed to convert depth image: {e}')
 
+    def _follow_mode_callback(self, msg: Bool):
+        if msg.data:
+            self._pending_register = True
+            self.get_logger().info('Request follow mode — register target in next frame')
+        else:
+            self._release_target('Unfollow by external command')
+
     def image_callback(self, msg: Image):
         try:
             cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
@@ -112,68 +129,173 @@ class PersonDetectionNode(Node):
         h, w = cv_image.shape[:2]
 
         # YOLOv8 inference
-        results = self.model(cv_image, conf=self.conf_thresh, classes=[self.PERSON_CLASS_ID], verbose=False)
+        results = self.model.track(
+            cv_image,
+            conf=self.conf_thresh,
+            classes=[self.PERSON_CLASS_ID],
+            tracker=self.tracker_config,
+            persist=True,
+            verbose=False,
+        )
 
-        detections = []
-        closest_person = None
-        min_distance = float('inf')
+        detections: list[dict] = []
+        target_det: dict | None = None
+        closest_person: dict | None = None
+        min_dist = float('inf')
 
         for result in results:
+            if result.boxes is None:
+                continue
             for box in result.boxes:
                 x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
-                conf = float(box.conf[0])
+                conf     = float(box.conf[0])
+                track_id = int(box.id[0]) if box.id is not None else -1
 
-                # normalized center and area for ROS message
-                cx_norm = ((x1 + x2) / 2) / w
-                cy_norm = ((y1 + y2) / 2) / h
+                cx_norm   = ((x1 + x2) / 2) / w
+                cy_norm   = ((y1 + y2) / 2) / h
                 bbox_area = ((x2 - x1) * (y2 - y1)) / (w * h)
-
-                # estimate distance using depth if available
-                distance_m = self._estimate_distance(x1, y1, x2, y2)
+                dist_m    = self._estimate_distance(x1, y1, x2, y2)
 
                 det = {
-                    'bbox': [x1, y1, x2, y2],
-                    'confidence': round(conf, 3),
-                    'center_norm': [round(cx_norm, 3), round(cy_norm, 3)],
+                    'track_id':       track_id,
+                    'bbox':           [x1, y1, x2, y2],
+                    'confidence':     round(conf, 3),
+                    'center_norm':    [round(cx_norm, 3), round(cy_norm, 3)],
                     'bbox_area_norm': round(bbox_area, 4),
-                    'distance_m': round(distance_m, 3) if distance_m is not None else None,
+                    'distance_m':     round(dist_m, 3) if dist_m is not None else None,
                 }
                 detections.append(det)
 
-                # estimate closest person based on distance (or fallback to bbox area if distance is not available)
-                d = distance_m if distance_m is not None else (1.0 / (bbox_area + 1e-6))
-                if d < min_distance:
-                    min_distance = d
-                    closest_person = det
+                if self.target_id is not None and track_id == self.target_id:
+                    target_det = det
 
-        # face_detected (Bool)
+                d = dist_m if dist_m is not None else (1.0 / (bbox_area + 1e-6))
+                if d < min_dist:
+                    min_dist = d
+                    closest_person = det
+        
+        # target 등록 로직
+        # Case 1: 외부 명령(_pending_register)으로 closest 등록
+        if self._pending_register and closest_person:
+            self._register_target(closest_person)
+            self._pending_register = False
+
+        # Case 2: 자동 등록 — interaction_distance 이내 첫 감지 시
+        if (self.target_id is None
+                and closest_person
+                and closest_person['distance_m'] is not None
+                and closest_person['distance_m'] < self.interaction_dist):
+            self._register_target(closest_person)
+
+        self._update_tracking_state(target_det, detections)
+        self._publish_all(detections, closest_person, target_det, w, h, msg)
+
+    def _register_target(self, det: dict):
+        self.target_id      = det['track_id']
+        self.tracking_state = TrackingState.TRACKING
+        self.lost_since     = None
+        self.last_target_bbox = det['bbox']
+        self.last_target_dist = det['distance_m']
+        self.get_logger().info(
+            f'Target 등록: ID={self.target_id}, 거리={det["distance_m"]}m'
+        )
+
+    def _release_target(self, reason: str = ''):
+        self.get_logger().info(f'Target 해제 (ID={self.target_id}): {reason}')
+        self.target_id        = None
+        self.tracking_state   = TrackingState.IDLE
+        self.lost_since       = None
+        self.last_target_bbox = None
+        self.last_target_dist = None
+
+    def _update_tracking_state(self, target_det: dict | None, all_dets: list):
+        if self.target_id is None:
+            return
+
+        now = time.time()
+
+        if target_det is not None:
+            if self.tracking_state == TrackingState.LOST:
+                self.get_logger().info(f'Target 재획득: ID={self.target_id}')
+            self.tracking_state   = TrackingState.TRACKING
+            self.lost_since       = None
+            self.last_target_bbox = target_det['bbox']
+            self.last_target_dist = target_det['distance_m']
+
+        else:
+            if self.tracking_state == TrackingState.TRACKING:
+                self.tracking_state = TrackingState.LOST
+                self.lost_since     = now
+                self.get_logger().warn(
+                    f'Target 소실: ID={self.target_id} — {self.lost_timeout:.0f}초 대기'
+                )
+            elif self.tracking_state == TrackingState.LOST:
+                elapsed = now - self.lost_since
+                if elapsed > self.lost_timeout:
+                    self._release_target(f'{self.lost_timeout:.0f}초 초과')
+                else:
+                    self._try_reacquire(all_dets)
+
+    def _try_reacquire(self, detections: list) -> bool:
+        if not self.last_target_bbox or not detections:
+            return False
+
+        best_iou, best_det = self.reacquire_iou, None
+        for det in detections:
+            iou = self._calc_iou(self.last_target_bbox, det['bbox'])
+            if iou > best_iou:
+                best_iou, best_det = iou, det
+
+        if best_det:
+            old_id = self.target_id
+            self.target_id      = best_det['track_id']
+            self.tracking_state = TrackingState.TRACKING
+            self.lost_since     = None
+            self.get_logger().info(
+                f'Target ID 재할당: {old_id} → {self.target_id} (IoU={best_iou:.2f})'
+            )
+            return True
+        return False
+
+    @staticmethod
+    def _calc_iou(a: list, b: list) -> float:
+        ix1, iy1 = max(a[0], b[0]), max(a[1], b[1])
+        ix2, iy2 = min(a[2], b[2]), min(a[3], b[3])
+        inter = max(0, ix2 - ix1) * max(0, iy2 - iy1)
+        if inter == 0:
+            return 0.0
+        area_a = (a[2] - a[0]) * (a[3] - a[1])
+        area_b = (b[2] - b[0]) * (b[3] - b[1])
+        return inter / (area_a + area_b - inter)
+
+    # Publish
+    def _publish_all(self, detections, closest_person, target_det, w, h, original_msg):
+
+        # ① face_detected (하위 호환)
         detected_msg = Bool()
         detected_msg.data = len(detections) > 0
         self.person_detected_pub.publish(detected_msg)
 
-        # face_position (Point): Closest person's normalized center offset and distance
-        if closest_person:
+        # ② face_position (하위 호환) — target 우선, 없으면 closest
+        ref = target_det or closest_person
+        if ref:
             pos = Point()
-            pos.x = closest_person['center_norm'][0] - 0.5   # -0.5 ~ 0.5
-            pos.y = closest_person['center_norm'][1] - 0.5
-            pos.z = closest_person['distance_m'] if closest_person['distance_m'] else \
-                    closest_person['bbox_area_norm']
+            pos.x = ref['center_norm'][0] - 0.5
+            pos.y = ref['center_norm'][1] - 0.5
+            pos.z = ref['distance_m'] if ref['distance_m'] else ref['bbox_area_norm']
             self.person_position_pub.publish(pos)
 
-            self.get_logger().debug(
-                f'person detected: pos=({pos.x:.2f}, {pos.y:.2f}), '
-                f'dist={closest_person["distance_m"]}m, conf={closest_person["confidence"]}'
-            )
+        # persons detail JSON
+        detail = String()
+        detail.data = json.dumps({
+            'count':      len(detections),
+            'target_id':  self.target_id,
+            'state':      self.tracking_state,
+            'detections': detections,
+        }, ensure_ascii=False)
+        self.persons_detail_pub.publish(detail)
 
-        # persons detail (JSON String)
-        detail_msg = String()
-        detail_msg.data = json.dumps({
-            'count': len(detections),
-            'detections': detections
-        })
-        self.persons_detail_pub.publish(detail_msg)
-
-        # HRI trigger (Bool): True if closest person is within interaction distance
+        # interaction_trigger
         trigger = Bool()
         if closest_person and closest_person['distance_m'] is not None:
             trigger.data = closest_person['distance_m'] < self.interaction_dist
@@ -181,44 +303,94 @@ class PersonDetectionNode(Node):
             trigger.data = False
         self.hri_trigger_pub.publish(trigger)
 
-        # visualization
+        # tracking_state JSON
+        now = time.time()
+        lost_elapsed = round(now - self.lost_since, 2) if self.lost_since else 0.0
+        state_msg = String()
+        state_msg.data = json.dumps({
+            'state':            self.tracking_state,
+            'target_id':        self.target_id,
+            'lost_elapsed_sec': lost_elapsed,
+            'lost_timeout_sec': self.lost_timeout,
+            'last_distance_m':  self.last_target_dist,
+        }, ensure_ascii=False)
+        self.tracking_state_pub.publish(state_msg)
+
+        # follow/target_offset
+        if target_det and target_det['distance_m'] is not None:
+            offset = Point()
+            offset.x = target_det['center_norm'][0] - 0.5  # 좌우 편차
+            offset.y = target_det['center_norm'][1] - 0.5  # 상하 편차
+            offset.z = target_det['distance_m']             # 현재 거리(m)
+            self.follow_offset_pub.publish(offset)
+
         if self.visualize:
-            annotated = cv_image.copy()
-            for det in detections:
-                x1, y1, x2, y2 = det['bbox']
-                dist_str = f"{det['distance_m']:.2f}m" if det['distance_m'] else 'N/A'
-                color = (0, 255, 0) if (det['distance_m'] and det['distance_m'] < self.interaction_dist) \
-                        else (255, 200, 0)
-                cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 2)
-                label = f"person {det['confidence']:.2f} {dist_str}"
-                cv2.putText(annotated, label, (x1, y1 - 8),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+            self._publish_annotated(
+                original_msg.header,
+                cv2.cvtColor(
+                    self.bridge.imgmsg_to_cv2(original_msg, desired_encoding='bgr8'),
+                    cv2.COLOR_BGR2BGR,
+                ) if False else self.bridge.imgmsg_to_cv2(original_msg, 'bgr8'),
+                detections,
+                target_det,
+                original_msg,
+            )
 
-            ann_msg = self.bridge.cv2_to_imgmsg(annotated, encoding='bgr8')
-            ann_msg.header = msg.header
-            self.annotated_pub.publish(ann_msg)
+    def _publish_annotated(self, header, image, detections, target_det, original_msg):
+        annotated = image.copy()
 
-    # Depth-based distance estimation
-    def _estimate_distance(self, x1: int, y1: int, x2: int, y2: int) -> float | None:
+        for det in detections:
+            x1, y1, x2, y2 = det['bbox']
+            is_target = (det['track_id'] == self.target_id)
+
+            if is_target and self.tracking_state == TrackingState.LOST:
+                color, thick = (0, 165, 255), 3   # 주황: 소실 중
+            elif is_target:
+                color, thick = (0, 255, 0), 3     # 초록: 추적 중
+            else:
+                color, thick = (255, 200, 0), 1   # 파랑: 일반
+
+            cv2.rectangle(annotated, (x1, y1), (x2, y2), color, thick)
+
+            dist_str = f'{det["distance_m"]:.1f}m' if det['distance_m'] else 'N/A'
+            id_str   = f'ID:{det["track_id"]}' if det['track_id'] != -1 else 'ID:?'
+            label    = f'{"[T] " if is_target else ""}{id_str} {det["confidence"]:.2f} {dist_str}'
+            cv2.putText(annotated, label, (x1, max(y1 - 8, 12)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+
+        state_colors = {
+            TrackingState.IDLE:     (180, 180, 180),
+            TrackingState.TRACKING: (0, 255, 0),
+            TrackingState.LOST:     (0, 165, 255),
+        }
+        sc = state_colors.get(self.tracking_state, (255, 255, 255))
+        overlay = f'[{self.tracking_state.upper()}]'
+        if self.target_id is not None:
+            overlay += f' Target={self.target_id}'
+        if self.tracking_state == TrackingState.LOST and self.lost_since:
+            overlay += f' ({time.time() - self.lost_since:.1f}s / {self.lost_timeout:.0f}s)'
+        cv2.putText(annotated, overlay, (10, 28),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.65, sc, 2)
+
+        ann_msg = self.bridge.cv2_to_imgmsg(annotated, encoding='bgr8')
+        ann_msg.header = original_msg.header
+        self.annotated_pub.publish(ann_msg)
+
+    # Depth 거리 추정
+    def _estimate_distance(self, x1, y1, x2, y2) -> float | None:
         if self._latest_depth is None or not self.use_depth:
             return None
-
-        # using a small region around the center of the bounding box to get a more robust depth estimate
         cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
-        margin_x = max(1, (x2 - x1) // 6)
-        margin_y = max(1, (y2 - y1) // 6)
-
+        mx = max(1, (x2 - x1) // 6)
+        my = max(1, (y2 - y1) // 6)
         roi = self._latest_depth[
-            max(0, cy - margin_y): min(self._latest_depth.shape[0], cy + margin_y),
-            max(0, cx - margin_x): min(self._latest_depth.shape[1], cx + margin_x)
+            max(0, cy - my): min(self._latest_depth.shape[0], cy + my),
+            max(0, cx - mx): min(self._latest_depth.shape[1], cx + mx),
         ]
-
         valid = roi[roi > 0]
         if valid.size == 0:
             return None
-
-        median_depth = float(np.median(valid))
-        return median_depth * self._depth_scale
+        return float(np.median(valid)) * self._depth_scale
 
     def destroy_node(self):
         super().destroy_node()
