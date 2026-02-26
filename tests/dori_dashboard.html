@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DORI — Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;700;800&display=swap');
+
+  :root {
+    --bg:        #0a0c10;
+    --bg1:       #0f1218;
+    --bg2:       #161b24;
+    --border:    #1e2530;
+    --accent:    #00e5ff;
+    --accent2:   #7c3aed;
+    --warn:      #f59e0b;
+    --danger:    #ef4444;
+    --ok:        #22c55e;
+    --text:      #e2e8f0;
+    --muted:     #4a5568;
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-ui:   'Syne', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg1);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: var(--font-ui);
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--accent);
+  }
+  .logo span { color: var(--text); opacity: 0.5; }
+
+  .conn-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .conn-row input {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 5px 10px;
+    border-radius: 4px;
+    width: 220px;
+    outline: none;
+  }
+  .conn-row input:focus { border-color: var(--accent); }
+
+  .btn {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 5px 14px;
+    border-radius: 4px;
+    border: 1px solid var(--accent);
+    background: transparent;
+    color: var(--accent);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .btn:hover { background: var(--accent); color: var(--bg); }
+  .btn.danger { border-color: var(--danger); color: var(--danger); }
+  .btn.danger:hover { background: var(--danger); color: #fff; }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--bg2);
+  }
+  .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--muted);
+    transition: background 0.3s;
+  }
+  .dot.connected { background: var(--ok); box-shadow: 0 0 6px var(--ok); animation: pulse 2s infinite; }
+  .dot.error     { background: var(--danger); }
+
+  @keyframes pulse {
+    0%,100% { opacity: 1; }
+    50%      { opacity: 0.4; }
+  }
+
+  /* Layout */
+  main {
+    display: grid;
+    grid-template-columns: 260px 1fr 280px;
+    grid-template-rows: auto auto 1fr;
+    gap: 1px;
+    background: var(--border);
+    height: calc(100vh - 53px);
+    overflow: hidden;
+  }
+
+  .panel {
+    background: var(--bg1);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panel-header {
+    font-family: var(--font-ui);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 10px 14px 8px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .panel-body {
+    padding: 12px 14px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  /* State Machine */
+  .state-display {
+    text-align: center;
+    padding: 20px 14px;
+  }
+
+  .state-name {
+    font-family: var(--font-ui);
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    color: var(--accent);
+    transition: color 0.3s;
+    line-height: 1;
+  }
+
+  .state-elapsed {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  .state-transitions {
+    margin-top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .state-node {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    font-size: 11px;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .state-node.active {
+    border-color: var(--accent);
+    background: rgba(0, 229, 255, 0.06);
+    color: var(--accent);
+  }
+  .state-node .sn-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+  }
+  .state-node.active .sn-dot {
+    background: var(--accent);
+    box-shadow: 0 0 5px var(--accent);
+  }
+
+  /* Topic Cards */
+  .topic-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px;
+  }
+
+  .topic-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    transition: border-color 0.3s;
+  }
+  .topic-card.flash { border-color: var(--accent); }
+
+  .tc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .tc-name {
+    font-size: 10px;
+    color: var(--accent2);
+    opacity: 0.9;
+    word-break: break-all;
+  }
+  .tc-hz {
+    font-size: 10px;
+    color: var(--muted);
+    flex-shrink: 0;
+    margin-left: 8px;
+  }
+  .tc-value {
+    font-size: 11px;
+    color: var(--text);
+    word-break: break-word;
+    white-space: pre-wrap;
+    max-height: 60px;
+    overflow: hidden;
+    line-height: 1.5;
+  }
+  .tc-value.bool-true  { color: var(--ok); }
+  .tc-value.bool-false { color: var(--muted); }
+
+  /* Person Tracking */
+  .tracking-viz {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4/3;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 10px;
+  }
+
+  .tracking-viz canvas { width: 100%; height: 100%; display: block; }
+
+  .tracking-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .stat-cell {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 10px;
+  }
+  .stat-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .stat-value { font-size: 14px; font-weight: 500; margin-top: 2px; }
+
+  /* Event Log */
+  .log-list {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 3px;
+    padding: 8px 14px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .log-item {
+    display: grid;
+    grid-template-columns: 72px 60px 1fr;
+    gap: 6px;
+    font-size: 10px;
+    padding: 4px 6px;
+    border-radius: 3px;
+    animation: fadeIn 0.2s ease;
+  }
+  .log-item:hover { background: var(--bg2); }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .log-time  { color: var(--muted); }
+  .log-tag   {
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 9px;
+    font-weight: 700;
+    text-align: center;
+    align-self: start;
+  }
+  .log-tag.WAKE     { background: rgba(0,229,255,0.15); color: var(--accent); }
+  .log-tag.STT      { background: rgba(124,58,237,0.2); color: #a78bfa; }
+  .log-tag.LLM      { background: rgba(245,158,11,0.15); color: var(--warn); }
+  .log-tag.TTS      { background: rgba(34,197,94,0.15); color: var(--ok); }
+  .log-tag.GESTURE  { background: rgba(239,68,68,0.15); color: var(--danger); }
+  .log-tag.EXPR     { background: rgba(251,191,36,0.15); color: #fbbf24; }
+  .log-tag.STATE    { background: rgba(100,116,139,0.2); color: #94a3b8; }
+  .log-tag.TRACK    { background: rgba(16,185,129,0.15); color: #34d399; }
+  .log-msg { color: var(--text); line-height: 1.4; }
+
+  /* Chart area */
+  .chart-wrap {
+    padding: 12px 14px;
+    height: 120px;
+    flex-shrink: 0;
+  }
+
+  /* Gesture / Expression badges */
+  .badge-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+  .badge {
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    transition: all 0.2s;
+  }
+  .badge.active-STOP      { border-color: var(--danger); color: var(--danger); background: rgba(239,68,68,0.1); }
+  .badge.active-WAVE      { border-color: var(--accent); color: var(--accent); background: rgba(0,229,255,0.1); }
+  .badge.active-POINT     { border-color: var(--warn);   color: var(--warn);   background: rgba(245,158,11,0.1); }
+  .badge.active-THUMBS_UP { border-color: var(--ok);     color: var(--ok);     background: rgba(34,197,94,0.1); }
+  .badge.active-SATISFIED { border-color: var(--ok);     color: var(--ok);     background: rgba(34,197,94,0.1); }
+  .badge.active-CONFUSED  { border-color: var(--danger); color: var(--danger); background: rgba(239,68,68,0.1); }
+  .badge.active-NEUTRAL   { border-color: var(--muted);  color: var(--text); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Grid layout assignments */
+  #panel-state    { grid-column: 1; grid-row: 1 / 4; }
+  #panel-center   { grid-column: 2; grid-row: 1 / 3; overflow-y: auto; }
+  #panel-log      { grid-column: 3; grid-row: 1 / 4; }
+  #panel-chart    { grid-column: 2; grid-row: 3; }
+
+  .no-data { color: var(--muted); font-size: 11px; text-align: center; padding: 20px 0; }
+
+  /* Mock mode banner */
+  .mock-banner {
+    background: rgba(245,158,11,0.1);
+    border-bottom: 1px solid rgba(245,158,11,0.3);
+    color: var(--warn);
+    font-size: 10px;
+    padding: 4px 24px;
+    letter-spacing: 1px;
+    display: none;
+  }
+  .mock-banner.visible { display: block; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">DORI <span>/ HRI Debug</span></div>
+  <div class="conn-row">
+    <input id="wsUrl" value="ws://localhost:9090" placeholder="ws://localhost:9090" />
+    <button class="btn" id="connBtn" onclick="toggleConnection()">Connect</button>
+    <button class="btn danger" onclick="runMockDemo()">Demo</button>
+    <div class="status-pill">
+      <div class="dot" id="connDot"></div>
+      <span id="connLabel">Disconnected</span>
+    </div>
+  </div>
+</header>
+
+<div class="mock-banner" id="mockBanner">⚠ DEMO MODE — simulated data, not connected to ROS2</div>
+
+<main>
+
+  <!-- Left: State Machine -->
+  <div class="panel" id="panel-state">
+    <div class="panel-header">
+      HRI State Machine
+      <span id="targetBadge" style="font-size:10px;color:var(--muted)">no target</span>
+    </div>
+    <div class="state-display">
+      <div class="state-name" id="stateName">IDLE</div>
+      <div class="state-elapsed" id="stateElapsed">—</div>
+    </div>
+
+    <div style="padding: 0 14px;">
+      <div class="state-transitions" id="stateNodes">
+        <!-- generated by JS -->
+      </div>
+    </div>
+
+    <div class="panel-header" style="margin-top: 16px;">Gesture</div>
+    <div style="padding: 10px 14px;">
+      <div class="badge-row" id="gestureBadges"></div>
+      <div style="font-size:10px;color:var(--muted)" id="gestureDir">—</div>
+    </div>
+
+    <div class="panel-header">Expression</div>
+    <div style="padding: 10px 14px;">
+      <div class="badge-row" id="exprBadges"></div>
+    </div>
+
+    <div class="panel-header">Follow Offset</div>
+    <div class="panel-body" style="flex:0;padding:10px 14px;">
+      <div class="tracking-stats">
+        <div class="stat-cell">
+          <div class="stat-label">X (left/right)</div>
+          <div class="stat-value" id="offsetX">—</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-label">Z dist (m)</div>
+          <div class="stat-value" id="offsetZ">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Center: Topics + Tracking Viz -->
+  <div class="panel" id="panel-center">
+    <div class="panel-header">Live Topics</div>
+    <div class="topic-grid" id="topicGrid">
+      <div class="no-data">Not connected — click Connect or Demo</div>
+    </div>
+
+    <div class="panel-header" style="margin-top:4px;">
+      Person Tracking
+      <span style="font-size:10px" id="personCount">0 persons</span>
+    </div>
+    <div style="padding:10px 14px 0;">
+      <div class="tracking-viz">
+        <canvas id="trackingCanvas"></canvas>
+      </div>
+      <div class="tracking-stats">
+        <div class="stat-cell">
+          <div class="stat-label">Target ID</div>
+          <div class="stat-value" id="trackTargetId">—</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-label">Track State</div>
+          <div class="stat-value" id="trackState">—</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-label">Closest (m)</div>
+          <div class="stat-value" id="trackDist">—</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-label">Lost (s)</div>
+          <div class="stat-value" id="trackLost">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Event Log -->
+  <div class="panel" id="panel-log">
+    <div class="panel-header">
+      Event Log
+      <button class="btn" style="padding:2px 8px;font-size:9px" onclick="clearLog()">Clear</button>
+    </div>
+    <div class="log-list" id="logList">
+      <div class="no-data">Waiting for events...</div>
+    </div>
+  </div>
+
+  <!-- Bottom: Hz Chart -->
+  <div class="panel" id="panel-chart">
+    <div class="panel-header">Topic Frequency (Hz)</div>
+    <div class="chart-wrap">
+      <canvas id="hzChart"></canvas>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// Constants
+const STATES = ['IDLE', 'LISTENING', 'RESPONDING', 'NAVIGATING'];
+
+const STATE_COLORS = {
+  IDLE:       'var(--muted)',
+  LISTENING:  'var(--accent)',
+  RESPONDING: 'var(--warn)',
+  NAVIGATING: 'var(--ok)',
+};
+
+const TOPICS = {
+  '/dori/hri/manager_state':       { tag: 'STATE',   label: 'HRI State' },
+  '/dori/stt/wake_word_detected':  { tag: 'WAKE',    label: 'Wake Word' },
+  '/dori/stt/result':              { tag: 'STT',     label: 'STT Result' },
+  '/dori/llm/query':               { tag: 'LLM',     label: 'LLM Query' },
+  '/dori/llm/response':            { tag: 'LLM',     label: 'LLM Response' },
+  '/dori/tts/text':                { tag: 'TTS',     label: 'TTS Text' },
+  '/dori/tts/speaking':            { tag: 'TTS',     label: 'TTS Speaking' },
+  '/dori/tts/done':                { tag: 'TTS',     label: 'TTS Done' },
+  '/dori/hri/interaction_trigger': { tag: 'TRACK',   label: 'Interaction Trigger' },
+  '/dori/hri/tracking_state':      { tag: 'TRACK',   label: 'Tracking State' },
+  '/dori/hri/persons':             { tag: 'TRACK',   label: 'Persons' },
+  '/dori/hri/gesture':             { tag: 'GESTURE', label: 'Gesture' },
+  '/dori/hri/gesture_command':     { tag: 'GESTURE', label: 'Gesture Cmd' },
+  '/dori/hri/expression':          { tag: 'EXPR',    label: 'Expression' },
+  '/dori/hri/expression_command':  { tag: 'EXPR',    label: 'Expression Cmd' },
+  '/dori/follow/target_offset':    { tag: 'TRACK',   label: 'Follow Offset' },
+};
+
+// State
+let ros = null;
+let connected = false;
+let mockTimer = null;
+let topicSubs = {};
+let topicLastSeen = {};
+let topicHz = {};
+let hriState = 'IDLE';
+let logItems = [];
+const MAX_LOG = 200;
+
+// DOM refs
+const connDot    = document.getElementById('connDot');
+const connLabel  = document.getElementById('connLabel');
+const stateName  = document.getElementById('stateName');
+const stateElapsed = document.getElementById('stateElapsed');
+const topicGrid  = document.getElementById('topicGrid');
+const logList    = document.getElementById('logList');
+const mockBanner = document.getElementById('mockBanner');
+
+// State machine panel
+const stateNodesEl = document.getElementById('stateNodes');
+STATES.forEach(s => {
+  const el = document.createElement('div');
+  el.className = 'state-node';
+  el.id = 'sn-' + s;
+  el.innerHTML = `<div class="sn-dot"></div><span>${s}</span>`;
+  stateNodesEl.appendChild(el);
+});
+
+function setHRIState(s) {
+  hriState = s;
+  stateName.textContent = s;
+  stateName.style.color = STATE_COLORS[s] || 'var(--accent)';
+  STATES.forEach(name => {
+    document.getElementById('sn-' + name)?.classList.toggle('active', name === s);
+  });
+}
+
+// Gesture badges
+function initBadges(containerId, values) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = values.map(v =>
+    `<div class="badge" id="badge-${containerId}-${v}">${v}</div>`
+  ).join('');
+}
+initBadges('gestureBadges', ['STOP', 'WAVE', 'POINT', 'THUMBS_UP', 'NONE']);
+initBadges('exprBadges', ['SATISFIED', 'CONFUSED', 'NEUTRAL']);
+
+function activateBadge(containerId, value) {
+  document.querySelectorAll(`#${containerId} .badge`).forEach(b => {
+    b.className = 'badge';
+  });
+  const target = document.getElementById(`badge-${containerId}-${value}`);
+  if (target) target.className = `badge active-${value}`;
+}
+
+// Topic cards
+function ensureTopicCard(topic) {
+  const id = 'tc-' + topic.replace(/\//g, '-');
+  if (document.getElementById(id)) return;
+
+  if (document.querySelector('#topicGrid .no-data')) {
+    topicGrid.innerHTML = '';
+  }
+
+  const info = TOPICS[topic] || { tag: 'STATE', label: topic };
+  const card = document.createElement('div');
+  card.className = 'topic-card';
+  card.id = id;
+  card.innerHTML = `
+    <div class="tc-header">
+      <span class="tc-name">${topic}</span>
+      <span class="tc-hz" id="${id}-hz">— Hz</span>
+    </div>
+    <div class="tc-value" id="${id}-val">—</div>
+  `;
+  topicGrid.appendChild(card);
+}
+
+function updateTopicCard(topic, value) {
+  const id = 'tc-' + topic.replace(/\//g, '-');
+  ensureTopicCard(topic);
+
+  const valEl = document.getElementById(`${id}-val`);
+  if (!valEl) return;
+
+  // Flash border
+  const card = document.getElementById(id);
+  card.classList.add('flash');
+  setTimeout(() => card.classList.remove('flash'), 300);
+
+  // Format value
+  let display = value;
+  let cls = '';
+  if (typeof value === 'boolean') {
+    display = value ? 'TRUE' : 'FALSE';
+    cls = value ? 'bool-true' : 'bool-false';
+  } else if (typeof value === 'object') {
+    display = JSON.stringify(value, null, 1);
+  }
+  if (String(display).length > 120) display = String(display).slice(0, 120) + '…';
+
+  valEl.textContent = display;
+  valEl.className = 'tc-value ' + cls;
+
+  // Hz tracking
+  const now = Date.now();
+  if (!topicHz[topic]) topicHz[topic] = [];
+  topicHz[topic].push(now);
+  topicHz[topic] = topicHz[topic].filter(t => now - t < 2000);
+  const hz = (topicHz[topic].length / 2).toFixed(1);
+  const hzEl = document.getElementById(`${id}-hz`);
+  if (hzEl) hzEl.textContent = `${hz} Hz`;
+}
+
+// Event log
+function addLog(tag, msg) {
+  const now = new Date();
+  const time = now.toTimeString().slice(0, 8) + '.' + String(now.getMilliseconds()).padStart(3, '0');
+
+  if (document.querySelector('#logList .no-data')) logList.innerHTML = '';
+
+  const item = document.createElement('div');
+  item.className = 'log-item';
+  item.innerHTML = `
+    <span class="log-time">${time}</span>
+    <span class="log-tag ${tag}">${tag}</span>
+    <span class="log-msg">${msg}</span>
+  `;
+  logList.prepend(item);
+
+  logItems.push(item);
+  if (logItems.length > MAX_LOG) {
+    logList.removeChild(logItems.shift());
+  }
+}
+
+function clearLog() {
+  logList.innerHTML = '<div class="no-data">Log cleared</div>';
+  logItems = [];
+}
+
+// Tracking canvas
+const trackCanvas = document.getElementById('trackingCanvas');
+const ctx = trackCanvas.getContext('2d');
+
+function drawTracking(detections, targetId) {
+  const W = trackCanvas.offsetWidth  || 320;
+  const H = trackCanvas.offsetHeight || 240;
+  trackCanvas.width  = W;
+  trackCanvas.height = H;
+
+  ctx.fillStyle = '#0f1218';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid lines
+  ctx.strokeStyle = '#1e2530';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += W / 4) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  for (let y = 0; y < H; y += H / 3) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+
+  // Camera center crosshair
+  ctx.strokeStyle = '#2d3748';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(W/2-10,H/2); ctx.lineTo(W/2+10,H/2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(W/2,H/2-10); ctx.lineTo(W/2,H/2+10); ctx.stroke();
+
+  detections.forEach(det => {
+    const isTarget = det.track_id === targetId;
+    const cx = W / 2 + (det.center_norm[0] - 0.5) * W * 0.9;
+    const cy = H * 0.85; // project to bottom plane for top-down feel
+
+    // Distance circle
+    const dist = det.distance_m || 2;
+    const r = Math.max(8, 30 - dist * 8);
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = isTarget ? '#00e5ff' : '#7c3aed';
+    ctx.lineWidth = isTarget ? 2 : 1;
+    ctx.stroke();
+
+    if (isTarget) {
+      ctx.fillStyle = 'rgba(0,229,255,0.15)';
+      ctx.fill();
+    }
+
+    // ID label
+    ctx.fillStyle = isTarget ? '#00e5ff' : '#7c3aed';
+    ctx.font = '10px JetBrains Mono';
+    ctx.textAlign = 'center';
+    ctx.fillText(`ID:${det.track_id}`, cx, cy - r - 4);
+
+    // Distance label
+    ctx.fillStyle = '#4a5568';
+    ctx.font = '9px JetBrains Mono';
+    ctx.fillText(`${dist.toFixed(1)}m`, cx, cy + r + 12);
+  });
+
+  // Robot position
+  ctx.fillStyle = '#00e5ff';
+  ctx.beginPath();
+  ctx.arc(W/2, H - 12, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#0a0c10';
+  ctx.font = 'bold 7px JetBrains Mono';
+  ctx.textAlign = 'center';
+  ctx.fillText('R', W/2, H - 9);
+}
+
+// Hz Chart
+const hzCtx = document.getElementById('hzChart').getContext('2d');
+const KEY_TOPICS = [
+  '/dori/hri/persons',
+  '/dori/hri/tracking_state',
+  '/dori/hri/gesture',
+  '/dori/hri/expression',
+  '/dori/stt/result',
+  '/dori/llm/response',
+];
+const hzChart = new Chart(hzCtx, {
+  type: 'bar',
+  data: {
+    labels: KEY_TOPICS.map(t => t.split('/').pop()),
+    datasets: [{
+      data: KEY_TOPICS.map(() => 0),
+      backgroundColor: '#00e5ff22',
+      borderColor: '#00e5ff',
+      borderWidth: 1,
+      borderRadius: 3,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: '#4a5568', font: { family: 'JetBrains Mono', size: 9 } },
+           grid: { color: '#1e2530' } },
+      y: { min: 0, max: 35,
+           ticks: { color: '#4a5568', font: { family: 'JetBrains Mono', size: 9 } },
+           grid: { color: '#1e2530' } }
+    }
+  }
+});
+
+function updateHzChart() {
+  const now = Date.now();
+  hzChart.data.datasets[0].data = KEY_TOPICS.map(t => {
+    const times = (topicHz[t] || []).filter(ts => now - ts < 2000);
+    return (times.length / 2).toFixed(1);
+  });
+  hzChart.update('none');
+}
+setInterval(updateHzChart, 1000);
+
+// Topic message handler
+function handleMessage(topic, msg) {
+  updateTopicCard(topic, msg);
+
+  try {
+    // HRI Manager state
+    if (topic === '/dori/hri/manager_state') {
+      const d = typeof msg === 'string' ? JSON.parse(msg) : msg;
+      setHRIState(d.state || 'IDLE');
+      stateElapsed.textContent = `${d.state_elapsed_sec?.toFixed(1) || 0}s in state`;
+      if (d.target_id != null) {
+        document.getElementById('targetBadge').textContent = `target: ${d.target_id}`;
+        document.getElementById('targetBadge').style.color = 'var(--accent)';
+      } else {
+        document.getElementById('targetBadge').textContent = 'no target';
+        document.getElementById('targetBadge').style.color = 'var(--muted)';
+      }
+      addLog('STATE', `→ ${d.state} (${d.state_elapsed_sec?.toFixed(1)}s)`);
+    }
+
+    // Wake word
+    if (topic === '/dori/stt/wake_word_detected' && (msg === true || msg?.data === true)) {
+      addLog('WAKE', 'Wake word detected!');
+    }
+
+    // STT result
+    if (topic === '/dori/stt/result') {
+      const d = typeof msg === 'string' ? JSON.parse(msg) : msg;
+      const text = d.text || msg;
+      addLog('STT', `"${text}" (${d.language || '?'}, ${(d.confidence*100||0).toFixed(0)}%)`);
+    }
+
+    // LLM query
+    if (topic === '/dori/llm/query') {
+      const d = typeof msg === 'string' ? JSON.parse(msg) : msg;
+      addLog('LLM', `query: "${d.user_text?.slice(0,40) || ''}"`);
+    }
+
+    // LLM response
+    if (topic === '/dori/llm/response') {
+      const text = typeof msg === 'string' ? msg : JSON.stringify(msg);
+      addLog('LLM', `response: "${text.slice(0,60)}"`);
+    }
+
+    // TTS
+    if (topic === '/dori/tts/text') {
+      addLog('TTS', `speak: "${String(msg).slice(0,60)}"`);
+    }
+    if (topic === '/dori/tts/done' && (msg === true || msg?.data === true)) {
+      addLog('TTS', 'done');
+    }
+
+    // Tracking state
+    if (topic === '/dori/hri/tracking_state') {
+      const d = typeof msg === 'string' ? JSON.parse(msg) : msg;
+      document.getElementById('trackTargetId').textContent = d.target_id ?? '—';
+      document.getElementById('trackState').textContent = d.state || '—';
+      document.getElementById('trackLost').textContent =
+        d.state === 'lost' ? (d.lost_elapsed_sec?.toFixed(1) || '0') : '—';
+      if (d.last_distance_m != null) {
+        document.getElementById('trackDist').textContent = d.last_distance_m.toFixed(2);
+      }
+      if (d.state === 'lost') addLog('TRACK', `Target lost (${d.lost_elapsed_sec?.toFixed(1)}s)`);
+    }
+
+    // Persons
+    if (topic === '/dori/hri/persons') {
+      const d = typeof msg === 'string' ? JSON.parse(msg) : msg;
+      document.getElementById('personCount').textContent = `${d.count || 0} person(s)`;
+      drawTracking(d.detections || [], d.target_id);
+    }
+
+    // Follow offset
+    if (topic === '/dori/follow/target_offset') {
+      const d = typeof msg === 'object' ? msg : {};
+      document.getElementById('offsetX').textContent = d.x != null ? d.x.toFixed(3) : '—';
+      document.getElementById('offsetZ').textContent = d.z != null ? d.z.toFixed(2) + 'm' : '—';
+    }
+
+    // Gesture
+    if (topic === '/dori/hri/gesture') {
+      const d = typeof msg === 'string' ? JSON.parse(msg) : msg;
+      activateBadge('gestureBadges', d.gesture || 'NONE');
+      if (d.direction) {
+        document.getElementById('gestureDir').textContent =
+          `${d.direction.label} (${d.direction.angle_deg}°)`;
+      } else {
+        document.getElementById('gestureDir').textContent = '—';
+      }
+      if (d.gesture && d.gesture !== 'NONE') addLog('GESTURE', d.gesture);
+    }
+
+    // Expression
+    if (topic === '/dori/hri/expression') {
+      const d = typeof msg === 'string' ? JSON.parse(msg) : msg;
+      activateBadge('exprBadges', d.expression || 'NEUTRAL');
+      if (d.expression && d.expression !== 'NEUTRAL') addLog('EXPR', d.expression);
+    }
+
+  } catch (e) {
+    // Non-JSON message — already displayed in card
+  }
+}
+
+// ROS2 Bridge connection
+function toggleConnection() {
+  if (connected) {
+    disconnect();
+  } else {
+    connect();
+  }
+}
+
+function connect() {
+  stopMock();
+  const url = document.getElementById('wsUrl').value.trim();
+  if (!url) return;
+
+  // roslibjs CDN — loaded lazily
+  if (!window.ROSLIB) {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/roslibjs/1.3.0/roslib.min.js';
+    script.onload = () => doConnect(url);
+    document.head.appendChild(script);
+  } else {
+    doConnect(url);
+  }
+}
+
+function doConnect(url) {
+  ros = new ROSLIB.Ros({ url });
+
+  ros.on('connection', () => {
+    connected = true;
+    connDot.className = 'dot connected';
+    connLabel.textContent = 'Connected';
+    document.getElementById('connBtn').textContent = 'Disconnect';
+    mockBanner.classList.remove('visible');
+    addLog('STATE', `Connected to ${url}`);
+    subscribeTopics();
+  });
+
+  ros.on('error', e => {
+    connDot.className = 'dot error';
+    connLabel.textContent = 'Error';
+    addLog('STATE', `Connection error: ${e}`);
+  });
+
+  ros.on('close', () => {
+    connected = false;
+    connDot.className = 'dot';
+    connLabel.textContent = 'Disconnected';
+    document.getElementById('connBtn').textContent = 'Connect';
+    addLog('STATE', 'Disconnected');
+  });
+}
+
+function disconnect() {
+  if (ros) ros.close();
+  Object.values(topicSubs).forEach(s => { try { s.unsubscribe(); } catch(e){} });
+  topicSubs = {};
+}
+
+function subscribeTopics() {
+  Object.entries(TOPICS).forEach(([topic]) => {
+    const msgType = topic.includes('image') ? 'sensor_msgs/Image' :
+                    topic.includes('offset') ? 'geometry_msgs/Point' :
+                    topic.includes('wake_word') || topic.includes('speaking') ||
+                    topic.includes('done') || topic.includes('trigger') ?
+                    'std_msgs/Bool' : 'std_msgs/String';
+
+    const sub = new ROSLIB.Topic({ ros, name: topic, messageType: msgType });
+    sub.subscribe(msg => {
+      const val = msg.data !== undefined ? msg.data : msg;
+      handleMessage(topic, val);
+    });
+    topicSubs[topic] = sub;
+  });
+}
+
+// Demo / Mock mode
+const MOCK_SCRIPT = [
+  { delay: 800,  fn: () => { handleMessage('/dori/hri/manager_state', JSON.stringify({state:'IDLE',state_elapsed_sec:0,target_id:null,location_context:''})); } },
+  { delay: 2000, fn: () => { handleMessage('/dori/stt/wake_word_detected', true); } },
+  { delay: 2200, fn: () => { handleMessage('/dori/hri/manager_state', JSON.stringify({state:'LISTENING',state_elapsed_sec:0,target_id:null})); handleMessage('/dori/tts/text','안녕하세요! 저는 캠퍼스 안내 로봇 도리입니다.'); } },
+  { delay: 3500, fn: () => { handleMessage('/dori/tts/speaking', true); } },
+  { delay: 5200, fn: () => { handleMessage('/dori/tts/speaking', false); handleMessage('/dori/tts/done', true); } },
+  { delay: 5800, fn: () => { handleMessage('/dori/hri/persons', JSON.stringify({count:1,target_id:3,detections:[{track_id:3,bbox:[120,80,320,400],center_norm:[0.47,0.5],bbox_area_norm:0.14,distance_m:1.8}],state:'tracking'})); } },
+  { delay: 6200, fn: () => { handleMessage('/dori/hri/tracking_state', JSON.stringify({state:'tracking',target_id:3,lost_elapsed_sec:0,last_distance_m:1.8})); } },
+  { delay: 7000, fn: () => { handleMessage('/dori/stt/result', JSON.stringify({text:'도서관 어디야',language:'ko',confidence:0.92})); } },
+  { delay: 7100, fn: () => { handleMessage('/dori/hri/manager_state', JSON.stringify({state:'RESPONDING',state_elapsed_sec:0,target_id:3})); } },
+  { delay: 7200, fn: () => { handleMessage('/dori/llm/query', JSON.stringify({user_text:'도서관 어디야',location_context:'공학관 앞'})); } },
+  { delay: 8500, fn: () => { handleMessage('/dori/llm/response', '도서관으로 안내하겠습니다. 직진 후 우회전하세요.'); } },
+  { delay: 8600, fn: () => { handleMessage('/dori/hri/manager_state', JSON.stringify({state:'NAVIGATING',state_elapsed_sec:0,target_id:3})); } },
+  { delay: 9000, fn: () => { handleMessage('/dori/hri/gesture', JSON.stringify({gesture:'WAVE',direction:null})); } },
+  { delay: 9800, fn: () => { handleMessage('/dori/hri/expression', JSON.stringify({expression:'SATISFIED',metrics:{mouth_slope:0.04,brow_distance:0.31,ear:0.28}})); } },
+  { delay: 10200,fn: () => { handleMessage('/dori/follow/target_offset', {x:-0.05,y:0.1,z:1.8}); } },
+  { delay: 11000,fn: () => { handleMessage('/dori/hri/persons', JSON.stringify({count:1,target_id:3,detections:[{track_id:3,bbox:[110,75,310,395],center_norm:[0.45,0.5],bbox_area_norm:0.13,distance_m:1.6}],state:'tracking'})); } },
+  { delay: 12000,fn: () => { handleMessage('/dori/hri/tracking_state', JSON.stringify({state:'lost',target_id:3,lost_elapsed_sec:1.2,last_distance_m:1.6})); } },
+  { delay: 14000,fn: () => { handleMessage('/dori/hri/manager_state', JSON.stringify({state:'IDLE',state_elapsed_sec:0,target_id:null})); } },
+];
+
+function runMockDemo() {
+  stopMock();
+  mockBanner.classList.add('visible');
+  connDot.className = 'dot connected';
+  connLabel.textContent = 'Demo';
+  clearLog();
+  addLog('STATE', 'Demo mode started');
+  topicGrid.innerHTML = '';
+  drawTracking([], null);
+
+  MOCK_SCRIPT.forEach(({ delay, fn }) => {
+    const t = setTimeout(fn, delay);
+    mockTimers.push(t);
+  });
+
+  // Loop
+  const total = MOCK_SCRIPT[MOCK_SCRIPT.length - 1].delay + 1500;
+  mockTimer = setTimeout(() => runMockDemo(), total);
+}
+
+const mockTimers = [];
+function stopMock() {
+  mockTimers.forEach(clearTimeout);
+  mockTimers.length = 0;
+  if (mockTimer) { clearTimeout(mockTimer); mockTimer = null; }
+  mockBanner.classList.remove('visible');
+}
+
+// Init
+setHRIState('IDLE');
+drawTracking([], null);
+</script>
+</body>
+</html>
