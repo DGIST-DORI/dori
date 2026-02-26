@@ -1,14 +1,31 @@
-import rclpy
-from rclpy.node import Node
-from std_msgs.msg import String, Bool
+#!/usr/bin/env python3
+"""
+Text-to-speech playback with speaking state management.
 
+Engines (priority order):
+  1. pyttsx3  - offline, fast, lower quality
+  2. gTTS     - online (requires internet), better Korean quality
+  NOTE: Consider replacing gTTS with Piper TTS for fully offline operation.
+
+Subscribe topics:
+  /dori/llm/response     (String) - response text from LLM node
+  /dori/tts/text         (String) - direct TTS from HRI Manager (bypasses LLM)
+
+Publish topics:
+  /dori/tts/speaking     (Bool)   - True while speaking (STT mutes itself)
+  /dori/tts/done         (Bool)   - True when playback finishes (HRI Manager transitions state)
+"""
+
+import os
 import queue
+import tempfile
 import threading
 import time
-import os
-import tempfile
 
-# select TTS engine
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import Bool, String
+
 try:
     from gtts import gTTS
     GTTS_AVAILABLE = True
@@ -24,94 +41,96 @@ except ImportError:
 try:
     import sounddevice as sd
     import soundfile as sf
-    AUDIO_PLAYBACK_AVAILABLE = True
+    AUDIO_AVAILABLE = True
 except ImportError:
-    AUDIO_PLAYBACK_AVAILABLE = False
+    AUDIO_AVAILABLE = False
 
 
 class TTSNode(Node):
     def __init__(self):
         super().__init__('tts_node')
-        
+
         # Parameters
-        self.declare_parameter('tts_engine', 'gtts')  # 'gtts' or 'pyttsx3'
+        self.declare_parameter('tts_engine', 'gtts')   # 'gtts' or 'pyttsx3'
         self.declare_parameter('language', 'ko')
         self.declare_parameter('speech_rate', 150)
         self.declare_parameter('volume', 0.9)
-        
-        self.tts_engine = self.get_parameter('tts_engine').value
-        self.language = self.get_parameter('language').value
-        self.speech_rate = self.get_parameter('speech_rate').value
-        self.volume = self.get_parameter('volume').value
-        
+
+        self.engine_name  = self.get_parameter('tts_engine').value
+        self.language     = self.get_parameter('language').value
+        self.speech_rate  = self.get_parameter('speech_rate').value
+        self.volume       = self.get_parameter('volume').value
+
         # State
-        self.is_speaking = False
-        self.text_queue = queue.Queue()
-        
-        # Thread safety
-        self.speaking_lock = threading.Lock()
-        
-        # ROS Publishers
-        self.speaking_pub = self.create_publisher(Bool, '/dori/speaking', 10)
-        self.done_pub = self.create_publisher(Bool, '/tts/done', 10)
-        
-        # ROS Subscribers
-        self.text_sub = self.create_subscription(
-            String,
-            '/llm/response',
-            self.text_callback,
-            10
-        )
-        
-        # Initialize TTS engine
-        self._init_tts_engine()
-        
-        # TTS processing thread
-        self.tts_thread = threading.Thread(target=self._process_tts_queue, daemon=True)
-        self.tts_thread.start()
-        
-        self.get_logger().info(f"TTS node started with engine: {self.tts_engine}")
-    
-    def _init_tts_engine(self):
-        if self.tts_engine == 'pyttsx3':
+        self.is_speaking   = False
+        self.text_queue    = queue.Queue()
+        self.speak_lock    = threading.Lock()
+
+        # Publishers
+        self.speaking_pub = self.create_publisher(Bool, '/dori/tts/speaking', 10)
+        self.done_pub     = self.create_publisher(Bool, '/dori/tts/done', 10)
+
+        # Subscribers
+        # LLM response (main path)
+        self.create_subscription(
+            String, '/dori/llm/response', self._on_text, 10)
+        # Direct TTS from HRI Manager (greetings, system messages)
+        self.create_subscription(
+            String, '/dori/tts/text', self._on_text, 10)
+
+        # Engine init
+        self._init_engine()
+
+        # TTS worker thread
+        self._worker = threading.Thread(
+            target=self._process_queue, daemon=True)
+        self._worker.start()
+
+        self.get_logger().info(f'TTS Node started (engine: {self.engine_name})')
+
+    # Engine initialization
+    def _init_engine(self):
+        if self.engine_name == 'pyttsx3':
             if not PYTTSX3_AVAILABLE:
-                self.get_logger().error("pyttsx3 not available, falling back to gTTS")
-                self.tts_engine = 'gtts'
+                self.get_logger().warn('pyttsx3 not available — falling back to gTTS')
+                self.engine_name = 'gtts'
             else:
                 try:
-                    self.pyttsx3_engine = pyttsx3.init()
-                    self.pyttsx3_engine.setProperty('rate', self.speech_rate)
-                    self.pyttsx3_engine.setProperty('volume', self.volume)
-                    
-                    # Korean voice setup (if available)
-                    voices = self.pyttsx3_engine.getProperty('voices')
-                    for voice in voices:
+                    self._pyttsx3 = pyttsx3.init()
+                    self._pyttsx3.setProperty('rate', self.speech_rate)
+                    self._pyttsx3.setProperty('volume', self.volume)
+                    # Use Korean voice if available
+                    for voice in self._pyttsx3.getProperty('voices'):
                         if 'korean' in voice.name.lower() or 'ko' in voice.id.lower():
-                            self.pyttsx3_engine.setProperty('voice', voice.id)
+                            self._pyttsx3.setProperty('voice', voice.id)
                             break
-                    
-                    self.get_logger().info("pyttsx3 engine initialized")
+                    self.get_logger().info('pyttsx3 engine ready')
+                    return
                 except Exception as e:
-                    self.get_logger().error(f"Failed to init pyttsx3: {e}")
-                    self.tts_engine = 'gtts'
-        
-        if self.tts_engine == 'gtts':
+                    self.get_logger().error(f'pyttsx3 init failed: {e}')
+                    self.engine_name = 'gtts'
+
+        if self.engine_name == 'gtts':
             if not GTTS_AVAILABLE:
-                self.get_logger().error("gTTS not available!")
-                raise RuntimeError("No TTS engine available")
-            self.get_logger().info("Using gTTS engine")
-    
-    def text_callback(self, msg: String):
+                self.get_logger().error(
+                    'gTTS not available. Install with: pip install gtts\n'
+                    'NOTE: gTTS requires internet. Consider Piper TTS for offline use.'
+                )
+                raise RuntimeError('No TTS engine available')
+            self.get_logger().info(
+                'gTTS engine ready (requires internet connection)'
+            )
+
+    # Callbacks
+    def _on_text(self, msg: String):
         text = msg.data.strip()
-        
         if not text:
-            self.get_logger().warn("Empty text received, skipping TTS")
             return
-        
-        self.get_logger().info(f"Received text: {text}")
+        self.get_logger().info(f'Queued: "{text[:50]}"')
         self.text_queue.put(text)
-    
-    def _process_tts_queue(self):
+
+    # Worker thread
+    def _process_queue(self):
         while True:
             try:
                 text = self.text_queue.get(timeout=0.1)
@@ -119,84 +138,73 @@ class TTSNode(Node):
             except queue.Empty:
                 continue
             except Exception as e:
-                self.get_logger().error(f"Error in TTS thread: {e}")
-    
-    def _speak(self, text: str): # text to speech and playback
-        with self.speaking_lock:
+                self.get_logger().error(f'TTS worker error: {e}')
+
+    def _speak(self, text: str):
+        with self.speak_lock:
             try:
-                # speaking start signal
                 self.is_speaking = True
-                self.speaking_pub.publish(Bool(data=True))
-                self.get_logger().info(f"Speaking: {text}")
-                
-                if self.tts_engine == 'pyttsx3':
+                self._pub_speaking(True)
+                self.get_logger().info(f'Speaking: "{text[:60]}"')
+
+                if self.engine_name == 'pyttsx3':
                     self._speak_pyttsx3(text)
-                elif self.tts_engine == 'gtts':
+                elif self.engine_name == 'gtts':
                     self._speak_gtts(text)
-                
-                # speaking end signal
-                time.sleep(0.5)
-                self.is_speaking = False
-                self.speaking_pub.publish(Bool(data=False))
-                self.done_pub.publish(Bool(data=True))
-                self.get_logger().info("Speech completed")
-                
+
+                time.sleep(0.3)  # brief pause after speech
             except Exception as e:
-                self.get_logger().error(f"TTS failed: {e}")
+                self.get_logger().error(f'Speech error: {e}')
+            finally:
                 self.is_speaking = False
-                self.speaking_pub.publish(Bool(data=False))
-                self.done_pub.publish(Bool(data=True))
-    
+                self._pub_speaking(False)
+                self._pub_done()
+                self.get_logger().info('Speech complete')
+
     def _speak_pyttsx3(self, text: str):
-        try:
-            self.pyttsx3_engine.say(text)
-            self.pyttsx3_engine.runAndWait()
-        except Exception as e:
-            self.get_logger().error(f"pyttsx3 error: {e}")
-            raise
-    
+        self._pyttsx3.say(text)
+        self._pyttsx3.runAndWait()
+
     def _speak_gtts(self, text: str):
+        with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as fp:
+            tmp = fp.name
         try:
-            # generate temp audio file
-            with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as fp:
-                temp_file = fp.name
-            
-            # generate TTS audio file
-            tts = gTTS(text=text, lang=self.language, slow=False)
-            tts.save(temp_file)
-            
-            # playback
-            if AUDIO_PLAYBACK_AVAILABLE:
-                self._play_audio(temp_file)
+            gTTS(text=text, lang=self.language, slow=False).save(tmp)
+            if AUDIO_AVAILABLE:
+                data, sr = sf.read(tmp)
+                sd.play(data, sr)
+                sd.wait()
             else:
-                # fallback: use system command
-                os.system(f"mpg123 -q {temp_file} 2>/dev/null || afplay {temp_file} 2>/dev/null")
-            
-            # delete temp file
-            os.unlink(temp_file)
-            
-        except Exception as e:
-            self.get_logger().error(f"gTTS error: {e}")
-            raise
-    
-    def _play_audio(self, filepath: str):
-        try:
-            data, samplerate = sf.read(filepath)
-            sd.play(data, samplerate)
-            sd.wait()
-        except Exception as e:
-            self.get_logger().error(f"Audio playback error: {e}")
-            # fallback
-            os.system(f"mpg123 -q {filepath} 2>/dev/null || afplay {filepath} 2>/dev/null")
+                # Fallback: system audio command
+                os.system(
+                    f'mpg123 -q {tmp} 2>/dev/null || '
+                    f'ffplay -nodisp -autoexit {tmp} 2>/dev/null'
+                )
+        finally:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+
+    # Publisher helpers
+    def _pub_speaking(self, value: bool):
+        msg = Bool()
+        msg.data = value
+        self.speaking_pub.publish(msg)
+
+    def _pub_done(self):
+        msg = Bool()
+        msg.data = True
+        self.done_pub.publish(msg)
 
 
-def main():
-    rclpy.init()
+def main(args=None):
+    rclpy.init(args=args)
     node = TTSNode()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
-        node.get_logger().info("Shutting down...")
+        pass
     finally:
         node.destroy_node()
         rclpy.shutdown()
