@@ -35,7 +35,7 @@ User speaks
 | Component | Spec |
 |---|---|
 | Compute | NVIDIA Jetson Orin Nano (6-core ARM, 1024 CUDA cores, 8 GB RAM) |
-| Camera | Intel RealSense D435i × 2 (front: HRI, rear: SLAM) |
+| Camera | Intel RealSense D435i × 2 |
 | Robot form | Spherical, 540 mm diameter, dual-shell cube mechanism |
 | Camera height | 270 mm |
 
@@ -60,9 +60,9 @@ All topics are namespaced under `/dori/`.
 ```
 /dori/
 ├── camera/
-│   ├── color/image_raw          (front, → HRI nodes)
+│   ├── color/image_raw
 │   ├── depth/image_raw
-│   └── rear/color/image_raw     (rear, → SLAM)
+│   └── rear/color/image_raw
 ├── stt/
 │   ├── wake_word_detected  (Bool)    wake word trigger
 │   └── result              (String)  JSON {text, language, confidence}
@@ -155,7 +155,7 @@ ros2 launch bringup robot.launch.py
 ### Common Launch Options
 
 ```bash
-# Use external LLM (OpenAI/Anthropic) instead of local model
+# Use external LLM instead of local model
 ros2 launch bringup robot.launch.py use_external_llm:=true
 
 # SW development without navigation hardware
