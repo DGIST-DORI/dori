@@ -68,6 +68,7 @@ User speaks
 | Bearing | C-E6004ZZ Bearing | – | – | – | 1,903 | 8 | Mechanical support |
 | Bearing | C-E6701ZZ Bearing | – | – | – | 1,276 | 8 | Mechanical support |
 | Tool | Pipe Cutter | – | – | – | 17,500 | 1 | Assembly tool |
+based on: https://www.notion.so/2f869a97d828815ea997c18536e5388d?v=2f869a97d8288142962f000c1662184d March 10, 2026.
 
 #### 
 |||
