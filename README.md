@@ -35,6 +35,7 @@ User speaks
 #### Component
 
 Based on: https://www.notion.so/2f869a97d828815ea997c18536e5388d?v=2f869a97d8288142962f000c1662184d
+
 Last updated: March 10, 2026.
 
 **Total Estimated Cost:** ₩4,387,816  
@@ -72,7 +73,7 @@ Last updated: March 10, 2026.
 | Bearing | C-E6701ZZ Bearing | – | – | – | 1,276 | 8 | Mechanical support |
 | Tool | Pipe Cutter | – | – | – | 17,500 | 1 | Assembly tool |
 
-#### 
+#### Robot Infomation
 |||
 |---|---|
 | Robot form | Spherical, 540 mm diameter, dual-shell cube mechanism |
