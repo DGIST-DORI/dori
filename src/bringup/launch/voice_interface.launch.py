@@ -98,11 +98,12 @@ def generate_launch_description():
         name='llm_node',
         output='screen',
         parameters=[{
-            'knowledge_file':      LaunchConfiguration('knowledge_file'),
-            'use_external_llm':    LaunchConfiguration('use_external_llm'),
-            'model_name':          'claude-sonnet-4-6',
-            'confidence_threshold': 0.4,
-        }],
+            'knowledge_file':   '/path/to/campus_knowledge.json', # TODO
+            'rag_index_dir':    '/path/to/rag_index', # TODO
+            'use_external_llm': True,
+            'model_name':       'gemini-2.5-flash',
+            'rag_top_k':        3,
+        }]
     )
 
     # TTS Node
