@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useStore } from '../core/store';
+import { LOG_TAGS, useStore } from '../core/store';
 import { connectROS, disconnectROS } from '../core/ros';
 import { startDemo, stopDemo } from '../core/demo';
 import './Header.css';
@@ -16,13 +16,13 @@ export default function Header({ onLogoClick, themeMode, onThemeModeChange }) {
 
   function handleConnect() {
     if (connected) {
-      disconnectROS(); setConnected(false); addLog('SYS', 'Disconnected from ROS');
+      disconnectROS(); setConnected(false); addLog(LOG_TAGS.SYS, 'Disconnected from ROS');
     } else {
       stopDemo();
       connectROS(urlInput, {
-        onConnect: () => { setConnected(true); addLog('SYS', `Connected → ${urlInput}`); },
-        onError:   (e) => addLog('ERROR', `WebSocket error: ${e}`),
-        onClose:   () => { setConnected(false); addLog('SYS', 'Connection closed'); },
+        onConnect: () => { setConnected(true); addLog(LOG_TAGS.SYS, `Connected → ${urlInput}`); },
+        onError:   (e) => addLog(LOG_TAGS.ERROR, `WebSocket error: ${e}`),
+        onClose:   () => { setConnected(false); addLog(LOG_TAGS.SYS, 'Connection closed'); },
       });
       setWsUrl(urlInput);
     }

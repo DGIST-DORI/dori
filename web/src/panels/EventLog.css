@@ -54,6 +54,7 @@
 .el-filter-btn.active.tag-EXPR    { background: var(--purple-dim);  border-color: var(--purple);  color: var(--purple); }
 .el-filter-btn.active.tag-TRACK   { background: var(--green-dim);   border-color: var(--green);   color: var(--green); }
 .el-filter-btn.active.tag-NAV     { background: var(--yellow-dim);  border-color: var(--yellow);  color: var(--yellow); }
+.el-filter-btn.active.tag-DEMO    { background: var(--yellow-dim);  border-color: var(--yellow);  color: var(--yellow); }
 .el-filter-btn.active.tag-ERROR   { background: var(--red-dim);     border-color: var(--red);     color: var(--red); }
 
 .el-actions {
@@ -165,6 +166,10 @@
   flex-shrink: 0;
   letter-spacing: 0.5px;
   min-width: 52px;
+}
+
+.el-tag.tag-DEMO {
+  color: var(--yellow);
 }
 
 .el-text {

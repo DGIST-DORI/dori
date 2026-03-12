@@ -14,25 +14,55 @@ import { create } from 'zustand';
 // ─── Constants ──────────────────────────────────────────────────────────────
 export const HRI_STATES = ['IDLE', 'LISTENING', 'RESPONDING', 'NAVIGATING'];
 
+export const LOG_TAGS = Object.freeze({
+  STATE: 'STATE',
+  WAKE: 'WAKE',
+  STT: 'STT',
+  LLM: 'LLM',
+  TTS: 'TTS',
+  GESTURE: 'GESTURE',
+  EXPR: 'EXPR',
+  TRACK: 'TRACK',
+  NAV: 'NAV',
+  SYS: 'SYS',
+  DEMO: 'DEMO',
+  ERROR: 'ERROR',
+});
+
+export const LOG_TAG_ORDER = Object.freeze([
+  LOG_TAGS.STATE,
+  LOG_TAGS.WAKE,
+  LOG_TAGS.STT,
+  LOG_TAGS.LLM,
+  LOG_TAGS.TTS,
+  LOG_TAGS.GESTURE,
+  LOG_TAGS.EXPR,
+  LOG_TAGS.TRACK,
+  LOG_TAGS.NAV,
+  LOG_TAGS.SYS,
+  LOG_TAGS.DEMO,
+  LOG_TAGS.ERROR,
+]);
+
 export const TOPIC_META = {
-  '/dori/hri/manager_state':       { tag: 'STATE',   label: 'HRI State' },
-  '/dori/stt/wake_word_detected':  { tag: 'WAKE',    label: 'Wake Word' },
-  '/dori/stt/result':              { tag: 'STT',     label: 'STT Result' },
-  '/dori/llm/query':               { tag: 'LLM',     label: 'LLM Query' },
-  '/dori/llm/response':            { tag: 'LLM',     label: 'LLM Response' },
-  '/dori/tts/text':                { tag: 'TTS',     label: 'TTS Text' },
-  '/dori/tts/speaking':            { tag: 'TTS',     label: 'TTS Speaking' },
-  '/dori/tts/done':                { tag: 'TTS',     label: 'TTS Done' },
-  '/dori/hri/interaction_trigger': { tag: 'TRACK',   label: 'Interaction Trigger' },
-  '/dori/hri/tracking_state':      { tag: 'TRACK',   label: 'Tracking State' },
-  '/dori/hri/persons':             { tag: 'TRACK',   label: 'Persons' },
-  '/dori/hri/gesture':             { tag: 'GESTURE', label: 'Gesture' },
-  '/dori/hri/gesture_command':     { tag: 'GESTURE', label: 'Gesture Cmd' },
-  '/dori/hri/expression':          { tag: 'EXPR',    label: 'Expression' },
-  '/dori/hri/expression_command':  { tag: 'EXPR',    label: 'Expression Cmd' },
-  '/dori/follow/target_offset':    { tag: 'TRACK',   label: 'Follow Offset' },
-  '/dori/nav/command':             { tag: 'NAV',     label: 'Nav Command' },
-  '/dori/landmark/context':        { tag: 'NAV',     label: 'Landmark Context' },
+  '/dori/hri/manager_state':       { tag: LOG_TAGS.STATE,   label: 'HRI State' },
+  '/dori/stt/wake_word_detected':  { tag: LOG_TAGS.WAKE,    label: 'Wake Word' },
+  '/dori/stt/result':              { tag: LOG_TAGS.STT,     label: 'STT Result' },
+  '/dori/llm/query':               { tag: LOG_TAGS.LLM,     label: 'LLM Query' },
+  '/dori/llm/response':            { tag: LOG_TAGS.LLM,     label: 'LLM Response' },
+  '/dori/tts/text':                { tag: LOG_TAGS.TTS,     label: 'TTS Text' },
+  '/dori/tts/speaking':            { tag: LOG_TAGS.TTS,     label: 'TTS Speaking' },
+  '/dori/tts/done':                { tag: LOG_TAGS.TTS,     label: 'TTS Done' },
+  '/dori/hri/interaction_trigger': { tag: LOG_TAGS.TRACK,   label: 'Interaction Trigger' },
+  '/dori/hri/tracking_state':      { tag: LOG_TAGS.TRACK,   label: 'Tracking State' },
+  '/dori/hri/persons':             { tag: LOG_TAGS.TRACK,   label: 'Persons' },
+  '/dori/hri/gesture':             { tag: LOG_TAGS.GESTURE, label: 'Gesture' },
+  '/dori/hri/gesture_command':     { tag: LOG_TAGS.GESTURE, label: 'Gesture Cmd' },
+  '/dori/hri/expression':          { tag: LOG_TAGS.EXPR,    label: 'Expression' },
+  '/dori/hri/expression_command':  { tag: LOG_TAGS.EXPR,    label: 'Expression Cmd' },
+  '/dori/follow/target_offset':    { tag: LOG_TAGS.TRACK,   label: 'Follow Offset' },
+  '/dori/nav/command':             { tag: LOG_TAGS.NAV,     label: 'Nav Command' },
+  '/dori/landmark/context':        { tag: LOG_TAGS.NAV,     label: 'Landmark Context' },
 };
 
 const MAX_LOG = 300;
@@ -108,10 +138,10 @@ export const useStore = create((set, get) => ({
 
     let parsed = rawVal;
     if (typeof rawVal === 'string') {
-      try { parsed = JSON.parse(rawVal); } catch (_) { parsed = rawVal; }
+      try { parsed = JSON.parse(rawVal); } catch { parsed = rawVal; }
     }
 
-    const meta = TOPIC_META[topic] || { tag: 'SYS', label: topic };
+    const meta = TOPIC_META[topic] || { tag: LOG_TAGS.SYS, label: topic };
 
     // ── Per-topic handling ──────────────────────────────────────────────
     try {
@@ -125,53 +155,53 @@ export const useStore = create((set, get) => ({
             hriTargetId: d.target_id ?? null,
             hriLocationContext: d.location_context || '',
           });
-          addLog('STATE', `→ ${d.state}  [${(d.state_elapsed_sec ?? 0).toFixed(1)}s]`, rawVal);
+          addLog(LOG_TAGS.STATE, `→ ${d.state}  [${(d.state_elapsed_sec ?? 0).toFixed(1)}s]`, rawVal);
           break;
         }
 
         case '/dori/stt/wake_word_detected':
           if (rawVal === true || parsed === true) {
-            addLog('WAKE', 'Wake word detected!', rawVal);
+            addLog(LOG_TAGS.WAKE, 'Wake word detected!', rawVal);
           }
           break;
 
         case '/dori/stt/result': {
           const text = parsed?.text || parsed;
           set({ lastSttText: text });
-          addLog('STT', `"${text}"  [conf: ${parsed?.confidence?.toFixed(2) ?? '?'}]`, rawVal);
+          addLog(LOG_TAGS.STT, `"${text}"  [conf: ${parsed?.confidence?.toFixed(2) ?? '?'}]`, rawVal);
           break;
         }
 
         case '/dori/llm/query':
-          addLog('LLM', `query: "${parsed?.user_text || parsed}"`, rawVal);
+          addLog(LOG_TAGS.LLM, `query: "${parsed?.user_text || parsed}"`, rawVal);
           break;
 
         case '/dori/llm/response': {
           const text = typeof parsed === 'string' ? parsed : JSON.stringify(parsed);
           set({ lastLlmResponse: text });
-          addLog('LLM', `response: "${text.slice(0, 80)}${text.length > 80 ? '…' : ''}"`, rawVal);
+          addLog(LOG_TAGS.LLM, `response: "${text.slice(0, 80)}${text.length > 80 ? '…' : ''}"`, rawVal);
           break;
         }
 
         case '/dori/tts/text': {
           const text = typeof parsed === 'string' ? parsed : JSON.stringify(parsed);
           set({ lastTtsText: text });
-          addLog('TTS', `speak: "${text.slice(0, 80)}${text.length > 80 ? '…' : ''}"`, rawVal);
+          addLog(LOG_TAGS.TTS, `speak: "${text.slice(0, 80)}${text.length > 80 ? '…' : ''}"`, rawVal);
           break;
         }
 
         case '/dori/tts/speaking':
           set({ ttsActive: !!parsed });
-          if (parsed) addLog('TTS', 'TTS speaking…', rawVal);
+          if (parsed) addLog(LOG_TAGS.TTS, 'TTS speaking…', rawVal);
           break;
 
         case '/dori/tts/done':
-          if (parsed) addLog('TTS', 'TTS done', rawVal);
+          if (parsed) addLog(LOG_TAGS.TTS, 'TTS done', rawVal);
           break;
 
         case '/dori/hri/tracking_state':
           set({ trackingState: parsed });
-          if (parsed?.state === 'lost') addLog('TRACK', `Target lost (id:${parsed?.target_id})`, rawVal);
+          if (parsed?.state === 'lost') addLog(LOG_TAGS.TRACK, `Target lost (id:${parsed?.target_id})`, rawVal);
           break;
 
         case '/dori/hri/persons':
@@ -181,14 +211,14 @@ export const useStore = create((set, get) => ({
         case '/dori/hri/gesture': {
           const g = parsed?.gesture || 'NONE';
           set({ gesture: g, gestureDirection: parsed?.direction || null });
-          if (g !== 'NONE') addLog('GESTURE', g, rawVal);
+          if (g !== 'NONE') addLog(LOG_TAGS.GESTURE, g, rawVal);
           break;
         }
 
         case '/dori/hri/expression': {
           const expr = parsed?.expression || 'NEUTRAL';
           set({ expression: expr });
-          if (expr !== 'NEUTRAL') addLog('EXPR', expr, rawVal);
+          if (expr !== 'NEUTRAL') addLog(LOG_TAGS.EXPR, expr, rawVal);
           break;
         }
 
@@ -197,14 +227,14 @@ export const useStore = create((set, get) => ({
           break;
 
         case '/dori/nav/command':
-          addLog('NAV', `cmd: ${typeof parsed === 'string' ? parsed : JSON.stringify(parsed)}`, rawVal);
+          addLog(LOG_TAGS.NAV, `cmd: ${typeof parsed === 'string' ? parsed : JSON.stringify(parsed)}`, rawVal);
           break;
 
         default:
           addLog(meta.tag, `${meta.label}: ${typeof parsed === 'string' ? parsed.slice(0, 60) : JSON.stringify(parsed).slice(0, 60)}`, rawVal);
       }
     } catch (e) {
-      addLog('ERROR', `Parse error on ${topic}: ${e.message}`);
+      addLog(LOG_TAGS.ERROR, `Parse error on ${topic}: ${e.message}`);
     }
   },
 }));
