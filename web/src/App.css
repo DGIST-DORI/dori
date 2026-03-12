@@ -11,7 +11,7 @@
   display: grid;
   grid-template-columns: var(--sb-width, 48px) 1fr;
   grid-template-rows: 44px 1fr;
-  width: 100vw;
+  width: 100%;
   height: 100vh;
   overflow: hidden;
   transition: grid-template-columns 0.22s cubic-bezier(0.4, 0, 0.2, 1);
@@ -40,4 +40,17 @@
   overflow: hidden;
   min-height: 0;
   background: var(--bg-0);
+}
+
+@media (max-width: 1024px) {
+  .app.sb-expanded {
+    --sb-width: 180px;
+  }
+}
+
+@media (max-width: 768px) {
+  .app,
+  .app.sb-expanded {
+    --sb-width: 48px;
+  }
 }

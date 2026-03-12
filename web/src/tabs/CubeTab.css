@@ -23,3 +23,24 @@
   color: var(--text-2);
   font-size: 12px;
 }
+
+
+@media (max-width: 900px) {
+  .cube-layout {
+    grid-template-columns: 1fr;
+    overflow: auto;
+    align-content: start;
+  }
+
+  .cube-viewer {
+    min-height: 280px;
+  }
+
+  .cube-side {
+    min-height: 0;
+  }
+
+  .cube-side-panel {
+    min-height: 160px;
+  }
+}

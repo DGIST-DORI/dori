@@ -93,3 +93,50 @@
   font-family: var(--font-mono);
   font-size: 10px;
 }
+
+
+@media (max-width: 900px) {
+  .home-root {
+    gap: 24px;
+    padding: 24px 16px;
+    justify-content: flex-start;
+    overflow: auto;
+  }
+
+  .home-hero-title {
+    font-size: clamp(32px, 10vw, 46px);
+    letter-spacing: 4px;
+  }
+
+  .home-cards {
+    width: 100%;
+    max-width: 560px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .home-card {
+    flex: 1 1 150px;
+    min-width: 0;
+    padding: 14px 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  .home-root {
+    gap: 18px;
+    padding: 18px 12px;
+  }
+
+  .home-hero-sub {
+    font-size: 11px;
+  }
+
+  .home-hint {
+    gap: 4px;
+  }
+
+  .home-hint p {
+    font-size: 10px;
+  }
+}

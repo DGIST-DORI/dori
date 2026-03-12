@@ -73,3 +73,67 @@
 .hdr-btn.connected   { border-color: var(--green);  color: var(--green);  background: var(--green-dim); }
 .hdr-btn.demo:hover  { border-color: var(--yellow); color: var(--yellow); background: var(--yellow-dim); }
 .hdr-btn.demo.active { border-color: var(--yellow); color: var(--yellow); background: var(--yellow-dim); }
+
+
+@media (max-width: 900px) {
+  .hdr {
+    padding: 0 10px;
+    gap: 8px;
+  }
+
+  .hdr-logo {
+    padding: 4px 6px;
+  }
+
+  .hdr-logo-dori {
+    font-size: 13px;
+    letter-spacing: 1px;
+  }
+
+  .hdr-logo-sub,
+  .hdr-logo-sep {
+    display: none;
+  }
+
+  .hdr-conn {
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .hdr-theme-label {
+    display: none;
+  }
+
+  .hdr-theme {
+    min-width: 72px;
+    padding: 4px 6px;
+  }
+
+  .hdr-url {
+    width: min(34vw, 140px);
+    min-width: 0;
+  }
+
+  .hdr-btn {
+    padding: 4px 8px;
+  }
+}
+
+@media (max-width: 640px) {
+  .hdr {
+    padding: 0 8px;
+  }
+
+  .hdr-theme-wrap {
+    display: none;
+  }
+
+  .hdr-url {
+    width: min(40vw, 120px);
+  }
+
+  .hdr-btn {
+    font-size: 9px;
+    padding: 4px 6px;
+  }
+}
