@@ -1,0 +1,225 @@
+/* ── Sidebar container ── */
+.sidebar {
+  background: var(--bg-1);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  height: 100%;
+  /* width is driven by the grid column in App.css — no width here */
+}
+.sidebar.collapsed { cursor: pointer; }
+.sidebar.expanded  { cursor: default; }
+
+/* ── Top cell: same height as Header (44px) ── */
+.sb-top {
+  height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  overflow: visible;
+}
+
+/* Collapsed: ☰ open button fills the cell */
+.sb-open {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  color: var(--text-1);
+  font-size: 16px;
+  overflow: visible;
+  transition: background 0.12s, color 0.12s;
+}
+.sb-open:hover { background: var(--bg-2); color: var(--text-0); }
+
+/* Expanded: logo + close */
+.sb-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 14px;
+  flex: 1;
+  animation: sb-fade-in 0.18s ease;
+}
+.sb-logo-mark { font-size: 16px; color: var(--accent); opacity: 0.8; }
+.sb-logo-text { font-size: 13px; font-weight: 600; color: var(--accent); letter-spacing: 2px; }
+
+.sb-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin-right: 4px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12px;
+  border-radius: var(--radius);
+  flex-shrink: 0;
+  transition: background 0.12s, color 0.12s;
+}
+.sb-close:hover { background: var(--red-dim); color: var(--red); }
+
+/* ── Nav ── */
+.sb-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+  gap: 2px;
+  overflow: visible;
+}
+
+/* ── Nav item ── */
+.sb-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0 10px 14px;
+  background: transparent;
+  color: var(--text-1);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.3px;
+  border-radius: 0;
+  transition: background 0.12s, color 0.12s;
+  text-align: left;
+  width: 100%;
+  overflow: visible;
+}
+.sb-item:hover  { background: var(--bg-2); color: var(--text-0); }
+.sb-item.active { background: var(--accent-dim); color: var(--accent); }
+
+.sb-icon {
+  font-size: 15px;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sb-icon svg { width: 18px; height: 18px; }
+
+.sb-open svg  { width: 18px; height: 18px; }
+.sb-close svg { width: 13px; height: 13px; }
+
+.sb-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: sb-fade-in 0.15s ease;
+}
+
+/* ── Tooltip ── */
+.sb-tooltip {
+  pointer-events: none;
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-4px);
+  white-space: nowrap;
+  background: var(--bg-3);
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius);
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--text-0);
+  opacity: 0;
+  transition: opacity 0.12s, transform 0.12s;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+.sb-tooltip::before {
+  content: '';
+  position: absolute;
+  right: 100%; top: 50%;
+  transform: translateY(-50%);
+  border: 5px solid transparent;
+  border-right-color: var(--border-bright);
+}
+.sb-tooltip::after {
+  content: '';
+  position: absolute;
+  right: calc(100% - 1px); top: 50%;
+  transform: translateY(-50%);
+  border: 5px solid transparent;
+  border-right-color: var(--bg-3);
+}
+
+/* Show tooltip on hover — collapsed only */
+.sidebar.collapsed .sb-open:hover  .sb-tooltip,
+.sidebar.collapsed .sb-item:hover  .sb-tooltip,
+.sidebar.collapsed .sb-status:hover .sb-tooltip {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+/* ── Active bar ── */
+.sb-active-bar {
+  position: absolute;
+  left: 0; top: 20%; height: 60%; width: 2px;
+  background: var(--accent);
+  border-radius: 0 2px 2px 0;
+  box-shadow: 0 0 6px var(--accent-glow);
+}
+
+/* ── Bottom status ── */
+.sb-bottom {
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.sb-status {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;          /* 고정 높이 — collapsed/expanded 동일 */
+  padding: 0 0 0 16px;
+  overflow: visible;
+  cursor: default;
+}
+.sb-status-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--text-2);
+  flex-shrink: 0;
+  transition: background 0.3s, box-shadow 0.3s;
+}
+.sb-status.connected .sb-status-dot {
+  background: var(--green); box-shadow: 0 0 6px var(--green);
+  animation: sb-pulse-green 2s ease-in-out infinite;
+}
+.sb-status.demo .sb-status-dot {
+  background: var(--yellow); box-shadow: 0 0 6px var(--yellow);
+  animation: sb-pulse-yellow 1.5s ease-in-out infinite;
+}
+.sb-status-label {
+  font-size: 10px; font-weight: 600; letter-spacing: 1.5px;
+  color: var(--text-2); transition: color 0.3s;
+  animation: sb-fade-in 0.15s ease;
+}
+.sb-status.connected .sb-status-label { color: var(--green); }
+.sb-status.demo      .sb-status-label { color: var(--yellow); }
+.sb-tooltip-status { top: 50%; }
+
+/* ── Animations ── */
+@keyframes sb-fade-in {
+  from { opacity: 0; transform: translateX(-4px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes sb-pulse-green {
+  0%,100% { box-shadow: 0 0 4px var(--green); }
+  50%     { box-shadow: 0 0 10px var(--green); }
+}
+@keyframes sb-pulse-yellow {
+  0%,100% { box-shadow: 0 0 4px var(--yellow); }
+  50%     { box-shadow: 0 0 10px var(--yellow); }
+}

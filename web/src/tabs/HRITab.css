@@ -1,0 +1,49 @@
+.hri-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr 240px;
+  gap: 8px;
+  height: 100%;
+  padding: 8px;
+  overflow: hidden;
+}
+
+.hri-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+/* Column sizing */
+.hri-col-center { min-width: 0; }
+
+/* Panel height splits */
+.hri-panel-state  { flex: 1.2; }
+.hri-panel-convo  { flex: 0.8; }
+.hri-panel-log    { flex: 1; }
+.hri-panel-track  { flex: 1.4; }
+.hri-panel-gesture{ flex: 0.6; }
+
+/* EventLog fills the panel-body */
+.hri-panel-log .panel-body {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Placeholder */
+.hri-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 100%;
+  color: var(--text-2);
+  font-size: 11px;
+  padding: 20px;
+  text-align: center;
+}
+.hri-placeholder-icon { font-size: 24px; opacity: 0.3; }
+.hri-placeholder-hint { font-size: 10px; color: var(--text-2); opacity: 0.6; }

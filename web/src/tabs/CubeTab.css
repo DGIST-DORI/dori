@@ -1,0 +1,25 @@
+.cube-layout {
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  gap: 8px;
+  height: 100%;
+  padding: 8px;
+  overflow: hidden;
+}
+.cube-viewer { height: 100%; }
+.cube-side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cube-side-panel { flex: 1; }
+.cube-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 100%;
+  color: var(--text-2);
+  font-size: 12px;
+}

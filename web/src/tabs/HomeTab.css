@@ -1,0 +1,95 @@
+.home-root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 32px;
+  padding: 40px;
+}
+
+/* Hero */
+.home-hero { text-align: center; }
+
+.home-hero-title {
+  font-size: 52px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 8px;
+  line-height: 1;
+  text-shadow: 0 0 40px var(--accent-glow);
+}
+
+.home-hero-sub {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--text-1);
+  letter-spacing: 1px;
+}
+
+.home-hero-org {
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--text-2);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+/* Status cards */
+.home-cards {
+  display: flex;
+  gap: 12px;
+}
+
+.home-card {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 24px;
+  min-width: 140px;
+  text-align: center;
+  transition: border-color 0.3s;
+}
+.home-card.ok   { border-color: var(--green);  background: var(--green-dim); }
+.home-card.demo { border-color: var(--yellow); background: var(--yellow-dim); }
+
+.home-card-label {
+  font-size: 10px;
+  color: var(--text-2);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.home-card-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-0);
+  letter-spacing: 1px;
+}
+.home-card-value.hri-IDLE       { color: var(--text-1); }
+.home-card-value.hri-LISTENING  { color: var(--accent); }
+.home-card-value.hri-RESPONDING { color: var(--yellow); }
+.home-card-value.hri-NAVIGATING { color: var(--green); }
+
+/* Hint */
+.home-hint {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.home-hint p {
+  font-size: 11px;
+  color: var(--text-2);
+  line-height: 1.6;
+}
+.home-hint code {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: var(--yellow);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
