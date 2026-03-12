@@ -1,2 +1,10 @@
 numpy>=1.24.0
-openai>=1.0.0 # TODO
+openai>=1.0.0
+
+# RAG index/retrieval
+faiss-cpu>=1.7.4
+sentence-transformers>=2.2.2
+
+# Optional external LLM providers (selected by model_name)
+google-generativeai>=0.8.0
+anthropic>=0.34.0
