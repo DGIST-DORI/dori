@@ -82,11 +82,13 @@ Last updated: March 10, 2026.
 ### Software Packages
 
 ```
-ros2_ws/src/
+src/
 ├── hri_pkg/              # Perception: person detection, gesture, expression, landmark
 ├── stt_pkg/              # Wake word (Porcupine) + transcription (Whisper)
 ├── llm_pkg/              # Intent classification + RAG + LLM response
 ├── tts_pkg/              # Text-to-speech playback
+├── navigation_pkg/       # Navigation execution node
+├── dashboard_pkg/        # ROS ↔ web dashboard bridge
 └── bringup/              # Launch files
     ├── robot.launch.py           # Full robot (top-level)
     ├── hri.launch.py             # HRI perception only
@@ -156,9 +158,32 @@ cd dori
 
 ### 3. Install Python Dependencies
 
+#### 필수 (공통)
+
+아래 한 번으로 음성 인터페이스 핵심 패키지(`stt_pkg`, `tts_pkg`, `llm_pkg`) 의존성을 모두 설치합니다.
+
 ```bash
 pip3 install -r requirements.txt
 ```
+
+루트 `requirements.txt`는 다음 파일을 참조합니다.
+
+- `src/stt_pkg/requirements.txt`
+- `src/tts_pkg/requirements.txt`
+- `src/llm_pkg/requirements.txt`
+
+#### 선택 (패키지별 추가 설치)
+
+기능별로 아래를 추가 설치하세요.
+
+- `hri_pkg` (카메라/비전 기능):
+
+  ```bash
+  pip3 install opencv-python mediapipe ultralytics pyrealsense2
+  ```
+
+- `llm_pkg` 외부 모델 API 사용 시: API 키 설정 필요 (`OPENAI_API_KEY`, `GEMINI_API_KEY` 등)
+- `stt_pkg` Silero VAD 사용 시: `torch` 설치 권장
 
 ### 4. Set API Keys
 
@@ -166,8 +191,9 @@ pip3 install -r requirements.txt
 # Porcupine wake word (required)
 echo 'export PORCUPINE_ACCESS_KEY="your_key_here"' >> ~/.bashrc
 
-# Optional: external LLM
+# Optional: external LLM providers
 echo 'export OPENAI_API_KEY="your_key_here"' >> ~/.bashrc
+echo 'export GEMINI_API_KEY="your_key_here"' >> ~/.bashrc
 
 source ~/.bashrc
 ```

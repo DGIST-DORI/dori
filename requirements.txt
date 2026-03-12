@@ -1,0 +1,4 @@
+# Team-wide Python dependencies for core voice pipeline packages
+-r src/stt_pkg/requirements.txt
+-r src/tts_pkg/requirements.txt
+-r src/llm_pkg/requirements.txt
