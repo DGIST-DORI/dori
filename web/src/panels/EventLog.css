@@ -197,3 +197,24 @@
   line-height: 1.6;
   margin: 0;
 }
+
+
+@media (max-width: 640px) {
+  .el-toolbar {
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .el-actions {
+    flex-wrap: wrap;
+  }
+
+  .el-search {
+    min-width: 0;
+  }
+
+  .el-action-btn {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+}

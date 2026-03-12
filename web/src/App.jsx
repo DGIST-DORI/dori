@@ -26,6 +26,9 @@ const TABS = [
 export default function App() {
   const [activeTab,       setActiveTab]       = useState('home');
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [isOverlaySidebar, setIsOverlaySidebar] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches
+  );
   const [themeMode, setThemeMode] = useState(() => localStorage.getItem('theme-mode') || 'auto');
 
   const connected        = useStore(s => s.connected);
@@ -58,21 +61,50 @@ export default function App() {
     return () => mediaQuery.removeEventListener('change', applyTheme);
   }, [themeMode]);
 
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 768px)');
+
+    const applySidebarMode = (event) => {
+      const isMobile = typeof event?.matches === 'boolean' ? event.matches : mediaQuery.matches;
+      setIsOverlaySidebar(isMobile);
+    };
+
+    applySidebarMode();
+    mediaQuery.addEventListener('change', applySidebarMode);
+    return () => mediaQuery.removeEventListener('change', applySidebarMode);
+  }, []);
+
   const ActiveComponent =
     TABS.find(t => t.id === activeTab)?.component ?? HomeTab;
 
+  function handleTabChange(nextTab) {
+    setActiveTab(nextTab);
+    if (isOverlaySidebar) {
+      setSidebarExpanded(false);
+    }
+  }
+
   return (
-    <div className={`app ${sidebarExpanded ? 'sb-expanded' : ''}`}>
+    <div className={`app ${sidebarExpanded ? 'sb-expanded' : ''} ${isOverlaySidebar ? 'sb-overlay' : ''}`}>
       <div className="app-sidebar">
         <Sidebar
           expanded={sidebarExpanded}
           onExpand={() => setSidebarExpanded(true)}
           onCollapse={() => setSidebarExpanded(false)}
           activeTab={activeTab}
-          onTabChange={setActiveTab}
+          onTabChange={handleTabChange}
           tabs={TABS}
         />
       </div>
+
+      {isOverlaySidebar && sidebarExpanded && (
+        <button
+          className="app-sidebar-backdrop"
+          type="button"
+          aria-label="Close sidebar"
+          onClick={() => setSidebarExpanded(false)}
+        />
+      )}
 
       <div className="app-header">
         <Header

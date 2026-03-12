@@ -11,7 +11,7 @@
   display: grid;
   grid-template-columns: var(--sb-width, 48px) 1fr;
   grid-template-rows: 44px 1fr;
-  width: 100vw;
+  width: 100%;
   height: 100vh;
   overflow: hidden;
   transition: grid-template-columns 0.22s cubic-bezier(0.4, 0, 0.2, 1);
@@ -31,6 +31,8 @@
 .app-sidebar {
   grid-column: 1;
   grid-row: 1 / 3;   /* spans header row AND main row */
+  min-height: 0;
+  z-index: 20;
 }
 
 /* Main content — bottom-right */
@@ -40,4 +42,39 @@
   overflow: hidden;
   min-height: 0;
   background: var(--bg-0);
+}
+
+/* Dimmed area shown when overlay sidebar is open */
+.app-sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  border: 0;
+  background: rgba(2, 6, 14, 0.52);
+  backdrop-filter: blur(1px);
+  z-index: 15;
+}
+
+@media (max-width: 1024px) {
+  .app.sb-expanded {
+    --sb-width: 180px;
+  }
+}
+
+/* Mobile/tablet overlay mode: sidebar opens above content instead of pushing layout */
+.app.sb-overlay,
+.app.sb-overlay.sb-expanded {
+  --sb-width: 48px;
+}
+
+.app.sb-overlay .app-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 48px;
+  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.app.sb-overlay.sb-expanded .app-sidebar {
+  width: min(280px, calc(100vw - 40px));
 }

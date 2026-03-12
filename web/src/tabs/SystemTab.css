@@ -69,3 +69,25 @@
 }
 .sys-info-row span:first-child { color: var(--text-1); }
 .sys-info-row span:last-child  { color: var(--text-0); }
+
+
+@media (max-width: 900px) {
+  .sys-layout {
+    grid-template-columns: 1fr;
+    overflow: auto;
+    align-content: start;
+  }
+
+  .sys-hz-row {
+    grid-template-columns: 50px minmax(0, 1fr) 64px;
+    grid-template-areas:
+      "tag topic val"
+      "bar bar bar";
+    row-gap: 4px;
+  }
+
+  .sys-hz-tag { grid-area: tag; }
+  .sys-hz-topic { grid-area: topic; }
+  .sys-hz-bar-wrap { grid-area: bar; }
+  .sys-hz-val { grid-area: val; }
+}
