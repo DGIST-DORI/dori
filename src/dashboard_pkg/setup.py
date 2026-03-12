@@ -28,7 +28,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'cube_bridge = dashboard_pkg.cube_bridge:main',
+            'dori_bridge = dashboard_pkg.dori_bridge:main',
         ],
     },
 )
