@@ -4,7 +4,7 @@ import { connectROS, disconnectROS } from '../core/ros';
 import { startDemo, stopDemo } from '../core/demo';
 import './Header.css';
 
-export default function Header({ onLogoClick }) {
+export default function Header({ onLogoClick, themeMode, onThemeModeChange }) {
   const connected    = useStore(s => s.connected);
   const isDemoMode   = useStore(s => s.isDemoMode);
   const wsUrl        = useStore(s => s.wsUrl);
@@ -45,6 +45,19 @@ export default function Header({ onLogoClick }) {
       <div className="hdr-spacer" />
 
       <div className="hdr-conn">
+        <label className="hdr-theme-wrap">
+          <span className="hdr-theme-label">theme</span>
+          <select
+            className="hdr-theme"
+            value={themeMode}
+            onChange={e => onThemeModeChange(e.target.value)}
+          >
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+            <option value="auto">Automatic</option>
+          </select>
+        </label>
+
         <input
           className="hdr-url"
           value={urlInput}
