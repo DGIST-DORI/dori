@@ -16,7 +16,7 @@ except ImportError:
 
 class RealSenseNode(Node):
     def __init__(self):
-        super().__init__('realsense_node')
+        super().__init__('depth_camera_node')
 
         # Parameters
         self.declare_parameter('width', 640)

@@ -39,8 +39,8 @@ def generate_launch_description():
     visualize     = LaunchConfiguration('visualize')
     debug         = LaunchConfiguration('debug')
 
-    realsense_node = Node(
-        package='hri_pkg', executable='realsense_node', name='realsense_node',
+    depth_camera_node = Node(
+        package='hri_pkg', executable='depth_camera_node', name='depth_camera_node',
         output='screen',
         parameters=[{
             'width':                LaunchConfiguration('width'),
@@ -123,7 +123,7 @@ def generate_launch_description():
     return LaunchDescription([
         *args,
         log_start,
-        realsense_node,
+        depth_camera_node,
         person_detection_node,
         landmark_detection_node,
         gesture_recognition_node,

@@ -3,7 +3,7 @@ Camera input + HRI perception pipeline.
 Starts RealSense nodes and all HRI perception nodes.
 
 Nodes started:
-  realsense_node           (hri_pkg) × 2  - front / rear cameras
+  depth_camera_node           (hri_pkg) × 2  - front / rear cameras
   person_detection_node    (hri_pkg)
   landmark_detection_node  (hri_pkg)
   gesture_recognition_node (hri_pkg)
@@ -83,7 +83,7 @@ def generate_launch_description():
     # Each camera publishes on its own namespace.
     realsense_front = Node(
         package='hri_pkg',
-        executable='realsense_node',
+        executable='depth_camera_node',
         name='realsense_front',
         namespace='dori/camera/front',
         output='screen',
@@ -103,7 +103,7 @@ def generate_launch_description():
 
     realsense_rear = Node(
         package='hri_pkg',
-        executable='realsense_node',
+        executable='depth_camera_node',
         name='realsense_rear',
         namespace='dori/camera/rear',
         output='screen',
