@@ -314,14 +314,40 @@ Korean TTS with `gtts` (online) or `pyttsx3` (offline). Publishes `/dori/tts/spe
 A browser-based debug dashboard is available, serving both an HRI monitor and a 3×3 cube simulator.
 
 ```bash
-# Start rosbridge + HTTP server
-ros2 launch cubesim_pkg cubesim.launch.py
+# 1) Build the frontend assets first (required)
+cd web
+npm ci   # or: npm install
+npm run build
 
-# Access from any device on the same network
-http://[Robot IP]:3000
+# 2) Return to ROS workspace root
+cd ..
+
+# 3) Build workspace and source overlay
+colcon build --symlink-install
+source install/setup.bash
+
+# 4) Start dashboard backend (rosbridge + HTTP server)
+ros2 launch dashboard_pkg dashboard.launch.py
 ```
 
-The dashboard connects to ROS2 via WebSocket (`ws://[Robot IP]:9090`) and displays real-time topic values, HRI state, person tracking, gesture/expression state, and event log.
+Dashboard access endpoints:
+
+- Dashboard URL: `http://[Robot IP]:3000`
+- ROS WebSocket URL: `ws://[Robot IP]:9090`
+
+Connection examples:
+
+```text
+# Local access on robot host
+http://localhost:3000
+ws://localhost:9090
+
+# Remote access from another device on the same network
+http://[Robot IP]:3000
+ws://[Robot IP]:9090
+```
+
+The dashboard displays real-time topic values, HRI state, person tracking, gesture/expression state, and event log through the ROS WebSocket bridge.
 
 ---
 

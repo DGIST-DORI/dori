@@ -1,16 +1,41 @@
-# React + Vite
+# DORI Dashboard Frontend (`web`)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This directory contains the Vite/React frontend for the DORI dashboard.
 
-Currently, two official plugins are available:
+## Build (Required before ROS launch)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Build frontend assets before launching `dashboard_pkg` from the ROS workspace root.
 
-## React Compiler
+```bash
+cd web
+npm ci   # or: npm install
+npm run build
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+After the build completes, continue from the ROS workspace root:
 
-## Expanding the ESLint configuration
+```bash
+cd ..
+colcon build --symlink-install
+source install/setup.bash
+ros2 launch dashboard_pkg dashboard.launch.py
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Access
+
+- Dashboard: `http://[Robot IP]:3000`
+- ROS WebSocket bridge: `ws://[Robot IP]:9090`
+
+Examples:
+
+```text
+# Same machine (robot/local)
+http://localhost:3000
+ws://localhost:9090
+
+# Another device on same network (remote)
+http://[Robot IP]:3000
+ws://[Robot IP]:9090
+```
+
+For broader project context, see the root README: `../README.md`.
