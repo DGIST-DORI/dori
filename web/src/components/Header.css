@@ -29,6 +29,22 @@
 
 .hdr-conn { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
+.hdr-theme-wrap { display: flex; align-items: center; gap: 6px; }
+.hdr-theme-label { color: var(--text-2); font-size: 10px; letter-spacing: 0.3px; }
+
+.hdr-theme {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-1);
+  font-size: 10px;
+  padding: 4px 8px;
+  min-width: 92px;
+  transition: border-color 0.12s, color 0.12s;
+}
+.hdr-theme:hover,
+.hdr-theme:focus { border-color: var(--border-bright); color: var(--text-0); }
+
 .hdr-url {
   background: var(--bg-3);
   border: 1px solid var(--border);

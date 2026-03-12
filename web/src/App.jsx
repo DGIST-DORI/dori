@@ -26,6 +26,7 @@ const TABS = [
 export default function App() {
   const [activeTab,       setActiveTab]       = useState('home');
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [themeMode, setThemeMode] = useState(() => localStorage.getItem('theme-mode') || 'auto');
 
   const connected        = useStore(s => s.connected);
   const handleROSMessage = useStore(s => s.handleROSMessage);
@@ -37,6 +38,25 @@ export default function App() {
     );
     return () => unsubs.forEach(fn => fn());
   }, [connected, handleROSMessage]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+    const applyTheme = () => {
+      const resolvedTheme = themeMode === 'auto'
+        ? (mediaQuery.matches ? 'dark' : 'light')
+        : themeMode;
+      document.documentElement.dataset.theme = resolvedTheme;
+    };
+
+    applyTheme();
+    localStorage.setItem('theme-mode', themeMode);
+
+    if (themeMode !== 'auto') return undefined;
+
+    mediaQuery.addEventListener('change', applyTheme);
+    return () => mediaQuery.removeEventListener('change', applyTheme);
+  }, [themeMode]);
 
   const ActiveComponent =
     TABS.find(t => t.id === activeTab)?.component ?? HomeTab;
@@ -55,7 +75,11 @@ export default function App() {
       </div>
 
       <div className="app-header">
-        <Header onLogoClick={() => setActiveTab('home')} />
+        <Header
+          onLogoClick={() => setActiveTab('home')}
+          themeMode={themeMode}
+          onThemeModeChange={setThemeMode}
+        />
       </div>
 
       <main className="app-main">
