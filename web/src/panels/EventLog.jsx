@@ -5,10 +5,10 @@
  */
 
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { useStore } from '../core/store';
+import { LOG_TAG_ORDER, useStore } from '../core/store';
 import './EventLog.css';
 
-const TAG_ORDER = ['ALL', 'STATE', 'STT', 'LLM', 'TTS', 'GESTURE', 'EXPR', 'TRACK', 'NAV', 'SYS', 'ERROR'];
+const TAG_ORDER = ['ALL', ...LOG_TAG_ORDER];
 
 function fmtTime(date) {
   const h  = String(date.getHours()).padStart(2, '0');

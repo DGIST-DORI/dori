@@ -6,7 +6,7 @@
  * To add new demo events: just push an object to MOCK_SCRIPT.
  */
 
-import { useStore } from './store';
+import { LOG_TAGS, useStore } from './store';
 
 let timers = [];
 
@@ -80,7 +80,7 @@ export function startDemo() {
   stopDemo();
   const { handleROSMessage, addLog, setDemoMode } = useStore.getState();
   setDemoMode(true);
-  addLog('DEMO', '── DEMO MODE STARTED ──');
+  addLog(LOG_TAGS.DEMO, '── DEMO MODE STARTED ──');
 
   timers = MOCK_SCRIPT.map(({ delay, topic, data }) =>
     setTimeout(() => handleROSMessage(topic, data), delay)
