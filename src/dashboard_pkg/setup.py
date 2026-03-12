@@ -18,7 +18,11 @@ def collect_web_data_files():
     for src_path in sorted(p for p in web_dist_dir.rglob('*') if p.is_file()):
         relative_parent = src_path.parent.relative_to(web_dist_dir)
         install_dir = Path('share') / package_name / 'web' / relative_parent
-        collected.append((str(install_dir), [str(src_path)]))
+        try:
+            relative_src = src_path.relative_to(setup_dir)
+        except ValueError:
+            relative_src = Path(os.path.relpath(src_path, setup_dir))
+        collected.append((str(install_dir), [str(relative_src)]))
 
     return collected
 
