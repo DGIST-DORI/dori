@@ -11,6 +11,7 @@ Publish topics:
 """
 
 import json
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -140,7 +141,11 @@ class VectorRetriever:
             return
         try:
             # Import here so missing deps only fail at search time, not import time
-            from build_index import Retriever
+            try:
+                from .build_index import Retriever
+            except ImportError:
+                # Fallback when run as a standalone script
+                from build_index import Retriever
             self._retriever = Retriever(self.index_dir)
             if self.logger:
                 self.logger.info(f'Vector retriever ready: {self.index_dir}')
@@ -480,7 +485,6 @@ class LLMNode(Node):
 # Entry point
 
 def main(args=None):
-    import os
     rclpy.init(args=args)
     node = LLMNode()
     try:
