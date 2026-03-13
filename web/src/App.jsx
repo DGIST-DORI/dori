@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Header    from './components/Header';
 import Sidebar   from './components/Sidebar';
 import HomeTab   from './tabs/HomeTab';
+import FaceTab   from './tabs/FaceTab';
 import HRITab    from './tabs/HRITab';
 import CubeTab   from './tabs/CubeTab';
 import SystemTab from './tabs/SystemTab';
@@ -9,7 +10,8 @@ import { useStore, TOPIC_META } from './core/store';
 import { subscribeROS } from './core/ros';
 
 import HriIcon       from './assets/icons/icon-hri.svg?react';
-import HriActiveIcon from './assets/icons/icon-hri-active.svg?react';
+import FaceIcon      from './assets/icons/icon-face.svg?react';
+import FaceActiveIcon from './assets/icons/icon-face-active.svg?react';
 import CubeIcon      from './assets/icons/icon-cube.svg?react';
 import SystemIcon    from './assets/icons/icon-system.svg?react';
 
@@ -18,9 +20,10 @@ import './App.css';
 
 // icon: 기본 아이콘 / iconActive: 선택됐을 때 아이콘 (없으면 icon 그대로)
 const TABS = [
-  { id: 'hri',    label: 'HRI Monitor', icon: <HriIcon />,    iconActive: <HriActiveIcon />, component: HRITab },
-  { id: 'cube',   label: 'Cube Sim',    icon: <CubeIcon />,                                  component: CubeTab },
-  { id: 'system', label: 'System',      icon: <SystemIcon />,                                component: SystemTab },
+  { id: 'face',   label: 'Face Display', icon: <FaceIcon />,  iconActive: <FaceActiveIcon />, component: FaceTab },
+  { id: 'hri',    label: 'HRI Monitor',  icon: <HriIcon />,                                   component: HRITab },
+  { id: 'cube',   label: 'Cube Sim',     icon: <CubeIcon />,                                  component: CubeTab },
+  { id: 'system', label: 'System',       icon: <SystemIcon />,                                component: SystemTab },
 ];
 
 export default function App() {

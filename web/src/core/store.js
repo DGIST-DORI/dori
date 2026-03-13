@@ -136,6 +136,7 @@ export const TOPIC_META = {
   '/dori/hri/persons':             { tag: LOG_TAGS.TRACK,   label: 'Persons' },
   '/dori/hri/gesture':             { tag: LOG_TAGS.GESTURE, label: 'Gesture' },
   '/dori/hri/gesture_command':     { tag: LOG_TAGS.GESTURE, label: 'Gesture Cmd' },
+  '/dori/hri/emotion':             { tag: LOG_TAGS.EXPR,    label: 'Emotion' },
   '/dori/hri/expression':          { tag: LOG_TAGS.EXPR,    label: 'Expression' },
   '/dori/hri/expression_command':  { tag: LOG_TAGS.EXPR,    label: 'Expression Cmd' },
   '/dori/follow/target_offset':    { tag: LOG_TAGS.TRACK,   label: 'Follow Offset' },
@@ -193,6 +194,19 @@ export const useStore = create((set, get) => ({
   gestureDirection: null,
   expression: 'NEUTRAL',
 
+  // ── Emotion (robot display face) ─────────────────────────────────────────
+  emotion: 'CALM',
+  emotionSource: 'state',   // 'state' | 'override'
+  _emotionOverride: null,   // manually set from FaceTab palette
+
+  setEmotionOverride: (em) => set({ emotion: em, emotionSource: 'override', _emotionOverride: em }),
+  clearEmotionOverride: () => {
+    // Revert to state-driven emotion
+    const { hriState } = get();
+    const STATE_TO_EMOTION = { IDLE: 'CALM', LISTENING: 'ATTENTIVE', RESPONDING: 'THINKING', NAVIGATING: 'HAPPY' };
+    set({ emotion: STATE_TO_EMOTION[hriState] || 'CALM', emotionSource: 'state', _emotionOverride: null });
+  },
+
   // ── Event Log ────────────────────────────────────────────────────────────
   // Each entry: { id, ts, tag, text, raw? }
   log: [],
@@ -248,6 +262,12 @@ export const useStore = create((set, get) => ({
             hriTargetId: d.target_id ?? null,
             hriLocationContext: d.location_context || '',
           });
+          // Auto-update emotion from state (only if not overriding)
+          if (!get()._emotionOverride) {
+            const STATE_TO_EMOTION = { IDLE: 'CALM', LISTENING: 'ATTENTIVE', RESPONDING: 'THINKING', NAVIGATING: 'HAPPY' };
+            const nextEmotion = STATE_TO_EMOTION[d.state] || 'CALM';
+            set({ emotion: nextEmotion, emotionSource: 'state' });
+          }
           addLog(LOG_TAGS.STATE, `→ ${d.state}  [${(d.state_elapsed_sec ?? 0).toFixed(1)}s]`, rawVal);
           break;
         }
@@ -312,6 +332,17 @@ export const useStore = create((set, get) => ({
           const expr = parsed?.expression || 'NEUTRAL';
           set({ expression: expr });
           if (expr !== 'NEUTRAL') addLog(LOG_TAGS.EXPR, expr, rawVal);
+          break;
+        }
+
+        case '/dori/hri/emotion': {
+          const { _emotionOverride } = get();
+          // Respect manual override from palette
+          if (_emotionOverride) break;
+          const em = parsed?.emotion || 'CALM';
+          const src = parsed?.source || 'state';
+          set({ emotion: em, emotionSource: src });
+          addLog(LOG_TAGS.EXPR, `emotion: ${em} [${src}]`, rawVal);
           break;
         }
 
