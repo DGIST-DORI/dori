@@ -7,8 +7,8 @@
  *
  * Emotions:
  *   CALM       - IDLE: half-closed eyes, slow blink
- *   ATTENTIVE  - LISTENING: wide open eyes, raised brows
- *   THINKING   - RESPONDING: asymmetric brows, scanning eyes
+ *   ATTENTIVE  - LISTENING: wide open eyes
+ *   THINKING   - RESPONDING: focused eyes, scanning eyes
  *   HAPPY      - NAVIGATING: arc eyes (^_^), cheeks, big smile
  *
  * Extensible: add new emotion configs to EMOTION_CONFIG below.
@@ -25,15 +25,14 @@ const FACE_GLOW  = 'rgba(232,234,240,0.25)';
 
 // ── Emotion configuration ─────────────────────────────────────────────────────
 // Numeric fields are lerp-interpolated during transitions.
-// Non-numeric fields (type, blink, scan, drift, cheeks) snap at 50% of transition.
+// Non-numeric fields (type, blink, scan, drift, cheeks, showMouth) snap at 50% of transition.
 const EMOTION_CONFIG = {
   CALM: {
     label: 'Calm',
     leftEye:  { type: 'ellipse', rx: 36, ry: 18, offsetY: 0 },
     rightEye: { type: 'ellipse', rx: 36, ry: 18, offsetY: 0 },
-    leftBrow:  { dx1: -28, dy1: -34, dx2: 28, dy2: -34, curve: 0 },
-    rightBrow: { dx1: -28, dy1: -34, dx2: 28, dy2: -34, curve: 0 },
     mouth: { type: 'curve', halfW: 38, startY: 0, endY: 0, curveY: 10 },
+    showMouth: false,
     blink: true,
     blinkInterval: 4000,
     drift: true,
@@ -44,9 +43,8 @@ const EMOTION_CONFIG = {
     label: 'Attentive',
     leftEye:  { type: 'ellipse', rx: 38, ry: 32, offsetY: -5 },
     rightEye: { type: 'ellipse', rx: 38, ry: 32, offsetY: -5 },
-    leftBrow:  { dx1: -30, dy1: -48, dx2: 30, dy2: -54, curve: -4 },
-    rightBrow: { dx1: -30, dy1: -54, dx2: 30, dy2: -48, curve: -4 },
     mouth: { type: 'curve', halfW: 32, startY: 2, endY: 2, curveY: 6 },
+    showMouth: false,
     blink: true,
     blinkInterval: 6000,
     drift: false,
@@ -57,9 +55,8 @@ const EMOTION_CONFIG = {
     label: 'Thinking',
     leftEye:  { type: 'ellipse', rx: 34, ry: 22, offsetY: 0 },
     rightEye: { type: 'ellipse', rx: 34, ry: 22, offsetY: 0 },
-    leftBrow:  { dx1: -28, dy1: -32, dx2: 28, dy2: -32, curve: 0 },
-    rightBrow: { dx1: -28, dy1: -48, dx2: 28, dy2: -38, curve: -6 },
     mouth: { type: 'flat', halfW: 30, startY: 4, endY: 4, curveY: 0 },
+    showMouth: false,
     blink: false,
     blinkInterval: 0,
     drift: true,
@@ -70,9 +67,8 @@ const EMOTION_CONFIG = {
     label: 'Happy',
     leftEye:  { type: 'arc', rx: 38, ry: 26, offsetY: 0 },
     rightEye: { type: 'arc', rx: 38, ry: 26, offsetY: 0 },
-    leftBrow:  { dx1: -28, dy1: -44, dx2: 28, dy2: -52, curve: -8 },
-    rightBrow: { dx1: -28, dy1: -52, dx2: 28, dy2: -44, curve: -8 },
     mouth: { type: 'smile', halfW: 50, startY: 0, endY: 0, curveY: 26 },
+    showMouth: true,
     blink: true,
     blinkInterval: 3000,
     drift: false,
@@ -87,12 +83,12 @@ const FALLBACK_EMOTION = 'CALM';
 const W  = 320;
 const H  = 280;
 const CX = W / 2;
-const CY = H / 2 - 10;
+const CY = H / 2 - 4;
 
 const LEFT_EYE_X  = CX - 78;
 const RIGHT_EYE_X = CX + 78;
-const EYE_Y       = CY - 22;
-const MOUTH_Y     = CY + 58;
+const EYE_Y       = CY - 10;
+const MOUTH_Y     = CY + 62;
 
 // ── Lerp ─────────────────────────────────────────────────────────────────────
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -101,10 +97,6 @@ function flattenNumerics(cfg) {
   return {
     le_rx: cfg.leftEye.rx,   le_ry: cfg.leftEye.ry,   le_oY: cfg.leftEye.offsetY,
     re_rx: cfg.rightEye.rx,  re_ry: cfg.rightEye.ry,  re_oY: cfg.rightEye.offsetY,
-    lb_dx1: cfg.leftBrow.dx1, lb_dy1: cfg.leftBrow.dy1,
-    lb_dx2: cfg.leftBrow.dx2, lb_dy2: cfg.leftBrow.dy2, lb_c: cfg.leftBrow.curve,
-    rb_dx1: cfg.rightBrow.dx1, rb_dy1: cfg.rightBrow.dy1,
-    rb_dx2: cfg.rightBrow.dx2, rb_dy2: cfg.rightBrow.dy2, rb_c: cfg.rightBrow.curve,
     m_halfW: cfg.mouth.halfW, m_startY: cfg.mouth.startY,
     m_endY: cfg.mouth.endY,   m_curveY: cfg.mouth.curveY,
   };
@@ -130,22 +122,6 @@ function EyeShape({ x, eyeY, rx, ry, type, blinkProgress, driftX, driftY }) {
   }
   return (
     <ellipse cx={cx} cy={cy} rx={rx} ry={ryFinal} fill="currentColor" />
-  );
-}
-
-function BrowShape({ eyeX, eyeY, dx1, dy1, dx2, dy2, curve }) {
-  const x1 = eyeX + dx1, y1 = eyeY + dy1;
-  const x2 = eyeX + dx2, y2 = eyeY + dy2;
-  const mx = (x1 + x2) / 2;
-  const my = (y1 + y2) / 2 + curve;
-  return (
-    <path
-      d={`M ${x1} ${y1} Q ${mx} ${my} ${x2} ${y2}`}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="7"
-      strokeLinecap="round"
-    />
   );
 }
 
@@ -337,28 +313,16 @@ function FaceCanvas({ emotion }) {
         driftX={driftX} driftY={driftY}
       />
 
-      {/* Brows */}
-      <BrowShape
-        eyeX={LEFT_EYE_X} eyeY={EYE_Y}
-        dx1={vals.lb_dx1} dy1={vals.lb_dy1}
-        dx2={vals.lb_dx2} dy2={vals.lb_dy2}
-        curve={vals.lb_c}
-      />
-      <BrowShape
-        eyeX={RIGHT_EYE_X} eyeY={EYE_Y}
-        dx1={vals.rb_dx1} dy1={vals.rb_dy1}
-        dx2={vals.rb_dx2} dy2={vals.rb_dy2}
-        curve={vals.rb_c}
-      />
-
       {/* Mouth */}
-      <MouthShape
-        type={dispCfg.mouth.type}
-        halfW={vals.m_halfW}
-        startY={vals.m_startY}
-        endY={vals.m_endY}
-        curveY={vals.m_curveY}
-      />
+      {dispCfg.showMouth && (
+        <MouthShape
+          type={dispCfg.mouth.type}
+          halfW={vals.m_halfW}
+          startY={vals.m_startY}
+          endY={vals.m_endY}
+          curveY={vals.m_curveY}
+        />
+      )}
 
       {/* Extras */}
       {dispCfg.cheeks && <Cheeks />}
