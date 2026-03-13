@@ -42,7 +42,7 @@ export default function SystemTab() {
             <h4>GPU</h4>
             <div className="sys-metric-row"><span>Provider</span><span className="sys-metric-value">{fmt(systemMetrics?.gpu?.provider)}</span></div>
             <div className="sys-metric-row"><span>Usage</span><span className={thresholdClass(systemMetrics?.gpu?.utilization_pct, 90)}>{fmt(systemMetrics?.gpu?.utilization_pct, '%')}</span></div>
-            <div className="sys-metric-row"><span>Memory</span><span className="sys-metric-value">{systemMetrics?.gpu?.memory_used_mb !== null && systemMetrics?.gpu?.memory_total_mb !== null ? `${systemMetrics.gpu.memory_used_mb} / ${systemMetrics.gpu.memory_total_mb} MB` : 'N/A'}</span></div>
+            <div className="sys-metric-row"><span>Memory</span><span className="sys-metric-value">{systemMetrics?.gpu?.memory_used_mb !== null && systemMetrics?.gpu?.memory_total_mb !== null ? `${systemMetrics?.gpu?.memory_used_mb} / ${systemMetrics?.gpu?.memory_total_mb} MB` : 'N/A'}</span></div>
             <div className="sys-metric-row"><span>Temp</span><span className={thresholdClass(systemMetrics?.gpu?.temperature_c, 80)}>{fmt(systemMetrics?.gpu?.temperature_c, '°C')}</span></div>
           </div>
 
