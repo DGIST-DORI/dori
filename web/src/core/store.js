@@ -150,6 +150,46 @@ export const TOPIC_META = {
 };
 
 const MAX_LOG = 300;
+const TOPIC_HZ_WINDOW_MS = 2000;
+const TOPIC_STATS_WINDOW_MS = 10000;
+
+const toNumberOrNull = (v) => (Number.isFinite(v) ? +v.toFixed(2) : null);
+
+function computeTopicStats(samples) {
+  if (!samples?.length) {
+    return {
+      avgHz: null,
+      jitterMs: null,
+      bwBps: null,
+      avgMsgBytes: null,
+    };
+  }
+
+  const firstTs = samples[0].ts;
+  const lastTs = samples[samples.length - 1].ts;
+  const durationSec = (lastTs - firstTs) / 1000;
+  const totalBytes = samples.reduce((acc, s) => acc + s.size, 0);
+  const avgMsgBytes = totalBytes / samples.length;
+
+  const intervals = [];
+  for (let i = 1; i < samples.length; i += 1) {
+    intervals.push(samples[i].ts - samples[i - 1].ts);
+  }
+
+  const meanInterval = intervals.length
+    ? intervals.reduce((acc, v) => acc + v, 0) / intervals.length
+    : null;
+  const variance = meanInterval && intervals.length > 1
+    ? intervals.reduce((acc, v) => acc + ((v - meanInterval) ** 2), 0) / intervals.length
+    : null;
+
+  return {
+    avgHz: durationSec > 0 ? toNumberOrNull(samples.length / durationSec) : null,
+    jitterMs: variance !== null ? toNumberOrNull(Math.sqrt(variance)) : null,
+    bwBps: durationSec > 0 ? toNumberOrNull(totalBytes / durationSec) : null,
+    avgMsgBytes: toNumberOrNull(avgMsgBytes),
+  };
+}
 
 // ─── Store ───────────────────────────────────────────────────────────────────
 export const useStore = create((set, get) => ({
@@ -231,21 +271,56 @@ export const useStore = create((set, get) => ({
   // ── Topic Hz tracking ───────────────────────────────────────────────────
   topicHz: {},   // topic -> number (msgs/sec, rolling 2s)
   _topicTimes: {}, // topic -> timestamp[]
+  topicStats: {}, // topic -> diagnostics info
+  _topicSamples: {}, // topic -> [{ ts, size }] (rolling 10s)
 
-  recordTopicHit: (topic) => {
+  setTopicMeta: (topic, meta = {}) => {
+    set((s) => ({
+      topicStats: {
+        ...s.topicStats,
+        [topic]: {
+          msgType: meta.msgType ?? s.topicStats[topic]?.msgType ?? null,
+          pubCount: meta.pubCount ?? s.topicStats[topic]?.pubCount ?? null,
+          subCount: meta.subCount ?? s.topicStats[topic]?.subCount ?? null,
+          qosSummary: meta.qosSummary ?? s.topicStats[topic]?.qosSummary ?? 'N/A (rosbridge)',
+          ...s.topicStats[topic],
+          ...meta,
+        },
+      },
+    }));
+  },
+
+  recordTopicHit: (topic, msgPayload) => {
     const now = Date.now();
     const times = [...(get()._topicTimes[topic] || []), now]
-      .filter(t => now - t < 2000);
+      .filter(t => now - t < TOPIC_HZ_WINDOW_MS);
+    const msgBytes = JSON.stringify(msgPayload ?? null)?.length ?? 0;
+    const samples = [...(get()._topicSamples[topic] || []), { ts: now, size: msgBytes }]
+      .filter(({ ts }) => now - ts < TOPIC_STATS_WINDOW_MS);
+    const stats = computeTopicStats(samples);
+
     set(s => ({
       _topicTimes: { ...s._topicTimes, [topic]: times },
+      _topicSamples: { ...s._topicSamples, [topic]: samples },
       topicHz:     { ...s.topicHz, [topic]: +(times.length / 2).toFixed(1) },
+      topicStats: {
+        ...s.topicStats,
+        [topic]: {
+          msgType: s.topicStats[topic]?.msgType ?? null,
+          pubCount: s.topicStats[topic]?.pubCount ?? null,
+          subCount: s.topicStats[topic]?.subCount ?? null,
+          qosSummary: s.topicStats[topic]?.qosSummary ?? 'N/A (rosbridge)',
+          ...stats,
+          lastSeenMs: now,
+        },
+      },
     }));
   },
 
   // ── Master message handler ───────────────────────────────────────────────
   handleROSMessage: (topic, rawVal) => {
     const { addLog, recordTopicHit } = get();
-    recordTopicHit(topic);
+    recordTopicHit(topic, rawVal);
 
     let parsed = rawVal;
     if (typeof rawVal === 'string') {

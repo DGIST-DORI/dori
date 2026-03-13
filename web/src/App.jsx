@@ -7,7 +7,7 @@ import HRITab    from './tabs/HRITab';
 import CubeTab   from './tabs/CubeTab';
 import SystemTab from './tabs/SystemTab';
 import { useStore, TOPIC_META } from './core/store';
-import { subscribeROS } from './core/ros';
+import { fetchTopicDiagnostics, subscribeROS } from './core/ros';
 
 import HriIcon       from './assets/icons/icon-hri.svg?react';
 import FaceIcon      from './assets/icons/icon-face.svg?react';
@@ -36,14 +36,29 @@ export default function App() {
 
   const connected        = useStore(s => s.connected);
   const handleROSMessage = useStore(s => s.handleROSMessage);
+  const setTopicMeta = useStore(s => s.setTopicMeta);
 
   useEffect(() => {
     if (!connected) return;
+
+    let cancelled = false;
+    fetchTopicDiagnostics(Object.keys(TOPIC_META))
+      .then((metaMap) => {
+        if (cancelled) return;
+        Object.entries(metaMap).forEach(([topic, meta]) => setTopicMeta(topic, meta));
+      })
+      .catch(() => {
+        // rosapi may be unavailable; diagnostics panel will show N/A for metadata.
+      });
+
     const unsubs = Object.keys(TOPIC_META).map(topic =>
-      subscribeROS(topic, undefined, (val) => handleROSMessage(topic, val))
+      subscribeROS(topic, undefined, (val, rawMsg) => handleROSMessage(topic, rawMsg ?? val))
     );
-    return () => unsubs.forEach(fn => fn());
-  }, [connected, handleROSMessage]);
+    return () => {
+      cancelled = true;
+      unsubs.forEach(fn => fn());
+    };
+  }, [connected, handleROSMessage, setTopicMeta]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');

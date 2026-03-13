@@ -1,36 +1,75 @@
+import { useEffect, useState } from 'react';
 import Panel from '../components/Panel';
 import { useStore, TOPIC_META } from '../core/store';
 import { parseWsUrl } from '../core/url';
 import './SystemTab.css';
 
+const fmt = (val, suffix = '') => (val === null || val === undefined ? 'N/A' : `${val}${suffix}`);
+
 export default function SystemTab() {
-  const topicHz  = useStore(s => s.topicHz);
-  const connected = useStore(s => s.connected);
-  const isDemoMode = useStore(s => s.isDemoMode);
-  const wsUrl = useStore(s => s.wsUrl);
+  const topicStats = useStore((s) => s.topicStats);
+  const connected = useStore((s) => s.connected);
+  const isDemoMode = useStore((s) => s.isDemoMode);
+  const wsUrl = useStore((s) => s.wsUrl);
 
   const topics = Object.keys(TOPIC_META);
   const parsedWsUrl = parseWsUrl(wsUrl);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   return (
     <div className="sys-layout">
-      <Panel title="Topic Hz Monitor">
-        <div className="sys-hz-list">
-          {topics.map(topic => {
-            const hz  = topicHz[topic] ?? 0;
-            const meta = TOPIC_META[topic];
-            const pct  = Math.min(hz / 30, 1) * 100;
-            return (
-              <div key={topic} className="sys-hz-row">
-                <span className={`sys-hz-tag tag-${meta.tag}`}>{meta.tag}</span>
-                <span className="sys-hz-topic">{topic}</span>
-                <div className="sys-hz-bar-wrap">
-                  <div className="sys-hz-bar" style={{ width: `${pct}%` }} />
-                </div>
-                <span className="sys-hz-val">{hz} Hz</span>
-              </div>
-            );
-          })}
+      <Panel title="Topic Diagnostics">
+        <div className="sys-topic-diag">
+          <div className="sys-topic-diag-header">
+            <span
+              className="sys-tooltip"
+              title="Estimated bandwidth (B/s) = total JSON payload bytes / rolling window seconds. Payload bytes use JSON.stringify(msg).length."
+            >
+              ⓘ
+            </span>
+          </div>
+
+          <div className="sys-topic-diag-table-wrap">
+            <table className="sys-topic-diag-table">
+              <thead>
+                <tr>
+                  <th>Topic</th>
+                  <th>Type</th>
+                  <th>Pub/Sub</th>
+                  <th>Avg Hz</th>
+                  <th>Jitter</th>
+                  <th>BW (B/s)</th>
+                  <th>Avg Msg</th>
+                  <th>QoS</th>
+                  <th>Last Seen</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topics.map((topic) => {
+                  const stat = topicStats[topic] || {};
+                  const lastSeenText = stat.lastSeenMs ? `${Math.max(0, Math.round((nowMs - stat.lastSeenMs) / 1000))}s ago` : 'N/A';
+                  return (
+                    <tr key={`diag-${topic}`}>
+                      <td className="sys-topic-cell">{topic}</td>
+                      <td>{fmt(stat.msgType)}</td>
+                      <td>{`${fmt(stat.pubCount)}/${fmt(stat.subCount)}`}</td>
+                      <td>{fmt(stat.avgHz)}</td>
+                      <td>{fmt(stat.jitterMs, ' ms')}</td>
+                      <td>{fmt(stat.bwBps)}</td>
+                      <td>{fmt(stat.avgMsgBytes, ' B')}</td>
+                      <td>{fmt(stat.qosSummary)}</td>
+                      <td>{lastSeenText}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       </Panel>
 

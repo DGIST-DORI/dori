@@ -48,6 +48,49 @@ export function isConnected() {
   return !!ros;
 }
 
+function callService(name, serviceType, request = {}) {
+  if (!ros) {
+    return Promise.reject(new Error('ROS is not connected.'));
+  }
+  const roslib = getROSLib();
+  const service = new roslib.Service({ ros, name, serviceType });
+  const req = new roslib.ServiceRequest(request);
+  return new Promise((resolve, reject) => {
+    service.callService(req, resolve, reject);
+  });
+}
+
+export async function fetchTopicDiagnostics(topics = []) {
+  const requested = new Set(topics);
+  const [{ topics: allTopics = [] }, { types = [] }] = await Promise.all([
+    callService('/rosapi/topics', 'rosapi/Topics', {}),
+    callService('/rosapi/topics_and_raw_types', 'rosapi/TopicsAndRawTypes', {}),
+  ]);
+
+  const topicToType = allTopics.reduce((acc, topic, idx) => {
+    acc[topic] = types[idx] || null;
+    return acc;
+  }, {});
+
+  const sourceTopics = requested.size ? [...requested] : allTopics;
+  const validTopics = sourceTopics.filter((topic) => allTopics.includes(topic));
+
+  const [publishers, subscribers] = await Promise.all([
+    Promise.all(validTopics.map((topic) => callService('/rosapi/publishers', 'rosapi/Publishers', { topic }))),
+    Promise.all(validTopics.map((topic) => callService('/rosapi/subscribers', 'rosapi/Subscribers', { topic }))),
+  ]);
+
+  return validTopics.reduce((acc, topic, idx) => {
+    acc[topic] = {
+      msgType: topicToType[topic] || null,
+      pubCount: publishers[idx]?.publishers?.length ?? 0,
+      subCount: subscribers[idx]?.subscribers?.length ?? 0,
+      qosSummary: 'N/A (rosbridge)',
+    };
+    return acc;
+  }, {});
+}
+
 // ─── Subscribe ──────────────────────────────────────────────────────────────
 /**
  * Subscribe to a ROS topic.
@@ -79,7 +122,7 @@ function _subscribe(topic, msgType) {
   const sub = new roslib.Topic({ ros, name: topic, messageType: type });
   sub.subscribe(msg => {
     const val = msg.data !== undefined ? msg.data : msg;
-    listeners[topic]?.forEach(cb => cb(val));
+    listeners[topic]?.forEach(cb => cb(val, msg));
   });
   subscribers[topic] = sub;
 }

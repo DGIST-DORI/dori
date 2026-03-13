@@ -7,54 +7,6 @@
   overflow: hidden;
 }
 
-.sys-hz-list {
-  padding: 8px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.sys-hz-row {
-  display: grid;
-  grid-template-columns: 52px 240px 1fr 52px;
-  align-items: center;
-  gap: 8px;
-  padding: 3px 0;
-}
-
-.sys-hz-tag {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-}
-
-.sys-hz-topic {
-  font-size: 10px;
-  color: var(--text-1);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sys-hz-bar-wrap {
-  height: 4px;
-  background: var(--bg-3);
-  border-radius: 2px;
-  overflow: hidden;
-}
-.sys-hz-bar {
-  height: 100%;
-  background: var(--accent);
-  border-radius: 2px;
-  transition: width 0.5s ease;
-  opacity: 0.7;
-}
-
-.sys-hz-val {
-  font-size: 10px;
-  color: var(--text-1);
-  text-align: right;
-}
 
 .sys-info {
   padding: 12px;
@@ -78,16 +30,56 @@
     align-content: start;
   }
 
-  .sys-hz-row {
-    grid-template-columns: 50px minmax(0, 1fr) 64px;
-    grid-template-areas:
-      "tag topic val"
-      "bar bar bar";
-    row-gap: 4px;
-  }
+}
 
-  .sys-hz-tag { grid-area: tag; }
-  .sys-hz-topic { grid-area: topic; }
-  .sys-hz-bar-wrap { grid-area: bar; }
-  .sys-hz-val { grid-area: val; }
+.sys-topic-diag {
+  padding: 8px 12px 0;
+}
+
+.sys-topic-diag-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
+
+
+.sys-tooltip {
+  font-size: 12px;
+  color: var(--text-1);
+  cursor: help;
+}
+
+.sys-topic-diag-table-wrap {
+  overflow: auto;
+  border: 1px solid var(--bg-3);
+  border-radius: 6px;
+  max-height: 420px;
+}
+
+.sys-topic-diag-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+}
+
+.sys-topic-diag-table th,
+.sys-topic-diag-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--bg-3);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.sys-topic-diag-table th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-2);
+  z-index: 1;
+}
+
+.sys-topic-cell {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
