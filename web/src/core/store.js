@@ -265,6 +265,11 @@ export const useStore = create((set, get) => ({
   // Each entry: { id, ts, tag, text, raw? }
   log: [],
 
+  // ── Topic Publisher Status ───────────────────────────────────────────────
+  isPublishing: false,
+  lastPublishAt: null,
+  publishError: null,
+
   addLog: (tag, text, raw = null) => {
     const entry = {
       id:  Date.now() + Math.random(),
@@ -277,6 +282,12 @@ export const useStore = create((set, get) => ({
   },
 
   clearLog: () => set({ log: [] }),
+
+  setPublishState: ({ isPublishing, lastPublishAt, publishError } = {}) => set((s) => ({
+    isPublishing: typeof isPublishing === 'boolean' ? isPublishing : s.isPublishing,
+    lastPublishAt: lastPublishAt === undefined ? s.lastPublishAt : lastPublishAt,
+    publishError: publishError === undefined ? s.publishError : publishError,
+  })),
 
   // ── Topic Hz tracking ───────────────────────────────────────────────────
   topicHz: {},   // topic -> number (msgs/sec, rolling 2s)
