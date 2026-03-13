@@ -36,43 +36,25 @@
   max-height: 100%;
 }
 
+/* Circle and background removed — just a transparent container */
 .face-canvas-inner {
   width: 100%;
-  max-width: 360px;
+  max-width: 380px;
   aspect-ratio: 16 / 14;
-  background:
-    radial-gradient(ellipse at 50% 40%,
-      color-mix(in srgb, var(--emotion-color, #7eb8d4) 8%, transparent) 0%,
-      transparent 70%),
-    var(--bg-0);
-  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  position: relative;
-  transition: background 0.6s ease;
 }
 
-.face-canvas-inner::before {
-  content: '';
-  position: absolute;
-  inset: -1px;
-  border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--emotion-color, #7eb8d4) 20%, transparent);
-  pointer-events: none;
-}
-
+/* Emotion label — fixed color matching the face */
 .face-emotion-label {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 3px;
   text-transform: uppercase;
-  opacity: 0.75;
-  transition: color 0.4s ease;
+  color: #e8eaf0;
+  opacity: 0.6;
 }
-
-/* ── Blink animation ─────────────────────────────────────────────────────── */
-/* Handled in JS via blinkProgress state — no CSS needed */
 
 /* ── Thinking dots ───────────────────────────────────────────────────────── */
 .face-dot {
@@ -84,7 +66,7 @@
 .face-dot-2 { animation-delay: 0.44s; }
 
 @keyframes face-dot-pulse {
-  0%, 80%, 100% { opacity: 0.15; transform: translateY(0); }
+  0%, 80%, 100% { opacity: 0.15; transform: translateY(0px); }
   40%            { opacity: 1;    transform: translateY(-4px); }
 }
 
@@ -113,31 +95,35 @@
 }
 
 .face-palette-btn:hover {
-  border-color: var(--btn-color, var(--accent));
+  border-color: var(--accent);
   color: var(--text-0);
   background: var(--bg-3);
 }
 
 .face-palette-btn.active {
-  border-color: var(--btn-color, var(--accent));
-  background: color-mix(in srgb, var(--btn-color, var(--accent)) 12%, var(--bg-2));
-  color: var(--btn-color, var(--accent));
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--accent);
 }
 
 .face-palette-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--btn-color, var(--accent));
+  background: #e8eaf0;
   flex-shrink: 0;
-  box-shadow: 0 0 6px var(--btn-glow, transparent);
+  opacity: 0.6;
+}
+.face-palette-btn.active .face-palette-dot {
+  background: var(--accent);
+  opacity: 1;
 }
 
 .face-palette-name { flex: 1; }
 
 .face-palette-active-mark {
   font-size: 7px;
-  color: var(--btn-color, var(--accent));
+  color: var(--accent);
 }
 
 /* ── Status ──────────────────────────────────────────────────────────────── */
@@ -186,7 +172,6 @@
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
 }
-
 .face-clear-override:hover {
   background: color-mix(in srgb, var(--red, #d66b66) 20%, var(--bg-2));
 }

@@ -6,10 +6,10 @@
  * Subscribes to /dori/hri/emotion via store.
  *
  * Emotions:
- *   CALM       - IDLE: soft eyes, slow blink
+ *   CALM       - IDLE: half-closed eyes, slow blink
  *   ATTENTIVE  - LISTENING: wide open eyes, raised brows
- *   THINKING   - RESPONDING: one brow up, scanning eyes
- *   HAPPY      - NAVIGATING: arc eyes (^_^), cheeks
+ *   THINKING   - RESPONDING: asymmetric brows, scanning eyes
+ *   HAPPY      - NAVIGATING: arc eyes (^_^), cheeks, big smile
  *
  * Extensible: add new emotion configs to EMOTION_CONFIG below.
  */
@@ -19,187 +19,169 @@ import Panel from '../components/Panel';
 import { useStore } from '../core/store';
 import './FaceTab.css';
 
+// ── Single face color (always the same regardless of emotion) ─────────────────
+const FACE_COLOR = '#e8eaf0';
+const FACE_GLOW  = 'rgba(232,234,240,0.25)';
+
 // ── Emotion configuration ─────────────────────────────────────────────────────
-// Each emotion defines SVG path params for the face renderer.
-// Add new emotions here without touching render logic.
+// Numeric fields are lerp-interpolated during transitions.
+// Non-numeric fields (type, blink, scan, drift, cheeks) snap at 50% of transition.
 const EMOTION_CONFIG = {
   CALM: {
     label: 'Calm',
-    color: '#7eb8d4',
-    glowColor: 'rgba(126,184,212,0.35)',
-    // Eyes: half-closed ellipse (rx, ry, offsetY)
-    leftEye:  { type: 'ellipse', rx: 28, ry: 14, offsetY: 0 },
-    rightEye: { type: 'ellipse', rx: 28, ry: 14, offsetY: 0 },
-    // Brows: flat line (x1,y1,x2,y2 relative to eye center)
-    leftBrow:  { dx1: -22, dy1: -30, dx2: 22, dy2: -30, curve: 0 },
-    rightBrow: { dx1: -22, dy1: -30, dx2: 22, dy2: -30, curve: 0 },
-    // Mouth: gentle curve
-    mouth: { type: 'curve', y: 0, curve: 8 },
+    leftEye:  { type: 'ellipse', rx: 36, ry: 18, offsetY: 0 },
+    rightEye: { type: 'ellipse', rx: 36, ry: 18, offsetY: 0 },
+    leftBrow:  { dx1: -28, dy1: -34, dx2: 28, dy2: -34, curve: 0 },
+    rightBrow: { dx1: -28, dy1: -34, dx2: 28, dy2: -34, curve: 0 },
+    mouth: { type: 'curve', halfW: 38, startY: 0, endY: 0, curveY: 10 },
     blink: true,
     blinkInterval: 4000,
-    // Subtle eye drift animation
     drift: true,
+    scan: false,
+    cheeks: false,
   },
   ATTENTIVE: {
     label: 'Attentive',
-    color: '#7de8c8',
-    glowColor: 'rgba(125,232,200,0.40)',
-    leftEye:  { type: 'ellipse', rx: 30, ry: 26, offsetY: -4 },
-    rightEye: { type: 'ellipse', rx: 30, ry: 26, offsetY: -4 },
-    leftBrow:  { dx1: -24, dy1: -38, dx2: 24, dy2: -44, curve: -4 },
-    rightBrow: { dx1: -24, dy1: -44, dx2: 24, dy2: -38, curve: -4 },
-    mouth: { type: 'curve', y: 2, curve: 5 },
+    leftEye:  { type: 'ellipse', rx: 38, ry: 32, offsetY: -5 },
+    rightEye: { type: 'ellipse', rx: 38, ry: 32, offsetY: -5 },
+    leftBrow:  { dx1: -30, dy1: -48, dx2: 30, dy2: -54, curve: -4 },
+    rightBrow: { dx1: -30, dy1: -54, dx2: 30, dy2: -48, curve: -4 },
+    mouth: { type: 'curve', halfW: 32, startY: 2, endY: 2, curveY: 6 },
     blink: true,
     blinkInterval: 6000,
     drift: false,
+    scan: false,
+    cheeks: false,
   },
   THINKING: {
     label: 'Thinking',
-    color: '#c4a8f5',
-    glowColor: 'rgba(196,168,245,0.38)',
-    leftEye:  { type: 'ellipse', rx: 26, ry: 18, offsetY: 0 },
-    rightEye: { type: 'ellipse', rx: 26, ry: 18, offsetY: 0 },
-    // Asymmetric brows — one raised
-    leftBrow:  { dx1: -22, dy1: -28, dx2: 22, dy2: -28, curve: 0 },
-    rightBrow: { dx1: -22, dy1: -40, dx2: 22, dy2: -32, curve: -5 },
-    mouth: { type: 'flat', y: 4 },
+    leftEye:  { type: 'ellipse', rx: 34, ry: 22, offsetY: 0 },
+    rightEye: { type: 'ellipse', rx: 34, ry: 22, offsetY: 0 },
+    leftBrow:  { dx1: -28, dy1: -32, dx2: 28, dy2: -32, curve: 0 },
+    rightBrow: { dx1: -28, dy1: -48, dx2: 28, dy2: -38, curve: -6 },
+    mouth: { type: 'flat', halfW: 30, startY: 4, endY: 4, curveY: 0 },
     blink: false,
+    blinkInterval: 0,
     drift: true,
-    // Scanning: eyes move left-right
     scan: true,
+    cheeks: false,
   },
   HAPPY: {
     label: 'Happy',
-    color: '#f5d96e',
-    glowColor: 'rgba(245,217,110,0.42)',
-    // Arc eyes (^_^)
-    leftEye:  { type: 'arc', rx: 30, ry: 20, offsetY: 0 },
-    rightEye: { type: 'arc', rx: 30, ry: 20, offsetY: 0 },
-    leftBrow:  { dx1: -22, dy1: -36, dx2: 22, dy2: -42, curve: -6 },
-    rightBrow: { dx1: -22, dy1: -42, dx2: 22, dy2: -36, curve: -6 },
-    mouth: { type: 'smile', y: 0, curve: 20 },
+    leftEye:  { type: 'arc', rx: 38, ry: 26, offsetY: 0 },
+    rightEye: { type: 'arc', rx: 38, ry: 26, offsetY: 0 },
+    leftBrow:  { dx1: -28, dy1: -44, dx2: 28, dy2: -52, curve: -8 },
+    rightBrow: { dx1: -28, dy1: -52, dx2: 28, dy2: -44, curve: -8 },
+    mouth: { type: 'smile', halfW: 50, startY: 0, endY: 0, curveY: 26 },
     blink: true,
     blinkInterval: 3000,
     drift: false,
+    scan: false,
     cheeks: true,
   },
 };
 
 const FALLBACK_EMOTION = 'CALM';
 
-// ── SVG Face Renderer ─────────────────────────────────────────────────────────
-const W = 320;
-const H = 280;
+// ── SVG layout constants ──────────────────────────────────────────────────────
+const W  = 320;
+const H  = 280;
 const CX = W / 2;
 const CY = H / 2 - 10;
 
-// Eye center positions
-const LEFT_EYE_X  = CX - 72;
-const RIGHT_EYE_X = CX + 72;
-const EYE_Y = CY - 20;
+const LEFT_EYE_X  = CX - 78;
+const RIGHT_EYE_X = CX + 78;
+const EYE_Y       = CY - 22;
+const MOUTH_Y     = CY + 58;
 
-function EyeShape({ x, y, cfg, blinkProgress, driftX = 0, driftY = 0 }) {
-  const ry = cfg.type === 'arc'
-    ? cfg.ry * (1 - blinkProgress)
-    : cfg.ry * (1 - blinkProgress);
-  const eyeY = y + cfg.offsetY + driftY;
+// ── Lerp ─────────────────────────────────────────────────────────────────────
+const lerp = (a, b, t) => a + (b - a) * t;
 
-  if (cfg.type === 'arc') {
-    // Arc eye: top half only (^)
-    const rx = cfg.rx;
-    const ryA = Math.max(1, ry);
+function flattenNumerics(cfg) {
+  return {
+    le_rx: cfg.leftEye.rx,   le_ry: cfg.leftEye.ry,   le_oY: cfg.leftEye.offsetY,
+    re_rx: cfg.rightEye.rx,  re_ry: cfg.rightEye.ry,  re_oY: cfg.rightEye.offsetY,
+    lb_dx1: cfg.leftBrow.dx1, lb_dy1: cfg.leftBrow.dy1,
+    lb_dx2: cfg.leftBrow.dx2, lb_dy2: cfg.leftBrow.dy2, lb_c: cfg.leftBrow.curve,
+    rb_dx1: cfg.rightBrow.dx1, rb_dy1: cfg.rightBrow.dy1,
+    rb_dx2: cfg.rightBrow.dx2, rb_dy2: cfg.rightBrow.dy2, rb_c: cfg.rightBrow.curve,
+    m_halfW: cfg.mouth.halfW, m_startY: cfg.mouth.startY,
+    m_endY: cfg.mouth.endY,   m_curveY: cfg.mouth.curveY,
+  };
+}
+
+// ── SVG sub-components ────────────────────────────────────────────────────────
+
+function EyeShape({ x, eyeY, rx, ry, type, blinkProgress, driftX, driftY }) {
+  const ryFinal = Math.max(1, ry * (1 - blinkProgress));
+  const cx = x + driftX;
+  const cy = eyeY + driftY;
+
+  if (type === 'arc') {
     return (
       <path
-        d={`M ${x - rx} ${eyeY} A ${rx} ${ryA} 0 0 1 ${x + rx} ${eyeY}`}
+        d={`M ${cx - rx} ${cy} A ${rx} ${Math.max(1, ryFinal)} 0 0 1 ${cx + rx} ${cy}`}
         fill="none"
         stroke="currentColor"
-        strokeWidth="5"
+        strokeWidth="7"
         strokeLinecap="round"
       />
     );
   }
-
-  // Ellipse eye (normal or blinking)
-  const ryVal = Math.max(1, ry);
   return (
-    <ellipse
-      cx={x + driftX}
-      cy={eyeY}
-      rx={cfg.rx}
-      ry={ryVal}
-      fill="currentColor"
-    />
+    <ellipse cx={cx} cy={cy} rx={rx} ry={ryFinal} fill="currentColor" />
   );
 }
 
-function BrowShape({ eyeX, eyeY, cfg }) {
-  const x1 = eyeX + cfg.dx1;
-  const y1 = eyeY + cfg.dy1;
-  const x2 = eyeX + cfg.dx2;
-  const y2 = eyeY + cfg.dy2;
+function BrowShape({ eyeX, eyeY, dx1, dy1, dx2, dy2, curve }) {
+  const x1 = eyeX + dx1, y1 = eyeY + dy1;
+  const x2 = eyeX + dx2, y2 = eyeY + dy2;
   const mx = (x1 + x2) / 2;
-  const my = (y1 + y2) / 2 + cfg.curve;
+  const my = (y1 + y2) / 2 + curve;
   return (
     <path
       d={`M ${x1} ${y1} Q ${mx} ${my} ${x2} ${y2}`}
       fill="none"
       stroke="currentColor"
-      strokeWidth="4"
+      strokeWidth="7"
       strokeLinecap="round"
     />
   );
 }
 
-function MouthShape({ cfg }) {
-  const mx = CX;
-  const my = CY + 55;
+function MouthShape({ type, halfW, startY, endY, curveY }) {
+  const x1 = CX - halfW, x2 = CX + halfW;
+  const y1 = MOUTH_Y + startY, y2 = MOUTH_Y + endY;
+  const cy = MOUTH_Y + (startY + endY) / 2 + curveY;
 
-  if (cfg.type === 'smile') {
+  if (type === 'flat') {
     return (
-      <path
-        d={`M ${mx - 45} ${my} Q ${mx} ${my + cfg.curve} ${mx + 45} ${my}`}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="5"
-        strokeLinecap="round"
+      <line
+        x1={x1} y1={y1} x2={x2} y2={y2}
+        stroke="currentColor" strokeWidth="7" strokeLinecap="round"
       />
     );
   }
-  if (cfg.type === 'curve') {
-    const cy2 = my + cfg.y;
-    return (
-      <path
-        d={`M ${mx - 35} ${cy2} Q ${mx} ${cy2 + cfg.curve} ${mx + 35} ${cy2}`}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="4"
-        strokeLinecap="round"
-      />
-    );
-  }
-  // flat
   return (
-    <line
-      x1={mx - 28} y1={my + cfg.y}
-      x2={mx + 28} y2={my + cfg.y}
+    <path
+      d={`M ${x1} ${y1} Q ${CX} ${cy} ${x2} ${y2}`}
+      fill="none"
       stroke="currentColor"
-      strokeWidth="4"
+      strokeWidth="7"
       strokeLinecap="round"
     />
   );
 }
 
-function DotIndicator({ emotion }) {
-  // Thinking: 3 animated dots
-  if (emotion !== 'THINKING') return null;
+function ThinkingDots() {
   return (
-    <g className="face-thinking-dots">
+    <g>
       {[0, 1, 2].map(i => (
         <circle
           key={i}
-          cx={CX - 16 + i * 16}
-          cy={CY + 82}
-          r={4}
+          cx={CX - 18 + i * 18}
+          cy={CY + 90}
+          r={5}
           fill="currentColor"
           className={`face-dot face-dot-${i}`}
         />
@@ -211,26 +193,70 @@ function DotIndicator({ emotion }) {
 function Cheeks() {
   return (
     <>
-      <ellipse cx={LEFT_EYE_X + 10}  cy={EYE_Y + 46} rx={22} ry={10} fill="rgba(255,150,150,0.28)" />
-      <ellipse cx={RIGHT_EYE_X - 10} cy={EYE_Y + 46} rx={22} ry={10} fill="rgba(255,150,150,0.28)" />
+      <ellipse cx={LEFT_EYE_X + 12}  cy={EYE_Y + 58} rx={26} ry={12}
+        fill="rgba(255,140,140,0.22)" />
+      <ellipse cx={RIGHT_EYE_X - 12} cy={EYE_Y + 58} rx={26} ry={12}
+        fill="rgba(255,140,140,0.22)" />
     </>
   );
 }
 
+// ── Face canvas with morph transition ────────────────────────────────────────
+const TRANSITION_MS = 380;
+
 function FaceCanvas({ emotion }) {
   const cfg = EMOTION_CONFIG[emotion] || EMOTION_CONFIG[FALLBACK_EMOTION];
-  const color = cfg.color;
 
-  // Blink state
+  // Interpolated numeric values (what we render)
+  const [vals, setVals] = useState(() => flattenNumerics(cfg));
+  // Display emotion (type-fields snap at 50% of transition)
+  const [displayEmotion, setDisplayEmotion] = useState(emotion);
+
+  const animRef    = useRef(null);
+  const fromVals   = useRef(vals);
+  const startTime  = useRef(null);
+
+  useEffect(() => {
+    const to     = EMOTION_CONFIG[emotion] || EMOTION_CONFIG[FALLBACK_EMOTION];
+    const toFlat = flattenNumerics(to);
+    fromVals.current = { ...vals };
+    startTime.current = null;
+    let snapped = false;
+
+    cancelAnimationFrame(animRef.current);
+
+    const animate = (now) => {
+      if (!startTime.current) startTime.current = now;
+      const raw = Math.min((now - startTime.current) / TRANSITION_MS, 1);
+      // Ease-out cubic
+      const t = 1 - Math.pow(1 - raw, 3);
+
+      const next = {};
+      for (const k in toFlat) next[k] = lerp(fromVals.current[k], toFlat[k], t);
+      setVals(next);
+
+      if (!snapped && t >= 0.5) {
+        snapped = true;
+        setDisplayEmotion(emotion);
+      }
+
+      if (raw < 1) {
+        animRef.current = requestAnimationFrame(animate);
+      } else {
+        setVals(toFlat);
+        setDisplayEmotion(emotion);
+      }
+    };
+
+    animRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animRef.current);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emotion]);
+
+  // Blink
   const [blinkProgress, setBlinkProgress] = useState(0);
   const blinkRef = useRef(null);
 
-  // Drift / scan state
-  const [driftX, setDriftX] = useState(0);
-  const [driftY, setDriftY] = useState(0);
-  const driftRef = useRef(null);
-
-  // Animate blink
   useEffect(() => {
     if (!cfg.blink) { setBlinkProgress(0); return; }
     let mounted = true;
@@ -238,9 +264,8 @@ function FaceCanvas({ emotion }) {
     const scheduleBlink = () => {
       blinkRef.current = setTimeout(() => {
         if (!mounted) return;
-        // Quick close-open animation
         let frame = 0;
-        const frames = [0, 0.3, 0.7, 1.0, 0.7, 0.3, 0];
+        const frames = [0, 0.35, 0.75, 1.0, 0.75, 0.35, 0];
         const step = () => {
           if (!mounted || frame >= frames.length) {
             setBlinkProgress(0);
@@ -248,32 +273,31 @@ function FaceCanvas({ emotion }) {
             return;
           }
           setBlinkProgress(frames[frame++]);
-          blinkRef.current = setTimeout(step, 40);
+          blinkRef.current = setTimeout(step, 38);
         };
         step();
       }, cfg.blinkInterval || 4000);
     };
 
     scheduleBlink();
-    return () => {
-      mounted = false;
-      clearTimeout(blinkRef.current);
-    };
+    return () => { mounted = false; clearTimeout(blinkRef.current); };
   }, [emotion, cfg.blink, cfg.blinkInterval]);
 
-  // Drift animation
+  // Drift / scan
+  const [driftX, setDriftX] = useState(0);
+  const [driftY, setDriftY] = useState(0);
+  const driftRef = useRef(null);
+
   useEffect(() => {
-    if (!cfg.drift && !cfg.scan) {
-      setDriftX(0); setDriftY(0); return;
-    }
+    if (!cfg.drift && !cfg.scan) { setDriftX(0); setDriftY(0); return; }
     let mounted = true;
     let t = 0;
 
     const tick = () => {
       if (!mounted) return;
-      t += 0.012;
+      t += 0.013;
       if (cfg.scan) {
-        setDriftX(Math.sin(t * 1.4) * 12);
+        setDriftX(Math.sin(t * 1.3) * 14);
         setDriftY(0);
       } else {
         setDriftX(Math.sin(t) * 5);
@@ -283,65 +307,71 @@ function FaceCanvas({ emotion }) {
     };
 
     driftRef.current = requestAnimationFrame(tick);
-    return () => {
-      mounted = false;
-      cancelAnimationFrame(driftRef.current);
-    };
+    return () => { mounted = false; cancelAnimationFrame(driftRef.current); };
   }, [emotion, cfg.drift, cfg.scan]);
+
+  const dispCfg = EMOTION_CONFIG[displayEmotion] || EMOTION_CONFIG[FALLBACK_EMOTION];
 
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
       width="100%"
       height="100%"
-      style={{ color, filter: `drop-shadow(0 0 18px ${cfg.glowColor})` }}
-      aria-label={`DORI face: ${cfg.label}`}
+      style={{ color: FACE_COLOR, filter: `drop-shadow(0 0 14px ${FACE_GLOW})` }}
+      aria-label={`DORI face: ${dispCfg.label}`}
     >
-      {/* Subtle face outline */}
-      <ellipse
-        cx={CX} cy={CY + 10}
-        rx={120} ry={108}
-        fill="none"
-        stroke={color}
-        strokeWidth="1.5"
-        opacity="0.12"
-      />
-
       {/* Left eye */}
       <EyeShape
-        x={LEFT_EYE_X}  y={EYE_Y}
-        cfg={cfg.leftEye}
+        x={LEFT_EYE_X} eyeY={EYE_Y + vals.le_oY}
+        rx={vals.le_rx} ry={vals.le_ry}
+        type={dispCfg.leftEye.type}
         blinkProgress={blinkProgress}
         driftX={driftX} driftY={driftY}
       />
       {/* Right eye */}
       <EyeShape
-        x={RIGHT_EYE_X} y={EYE_Y}
-        cfg={cfg.rightEye}
+        x={RIGHT_EYE_X} eyeY={EYE_Y + vals.re_oY}
+        rx={vals.re_rx} ry={vals.re_ry}
+        type={dispCfg.rightEye.type}
         blinkProgress={blinkProgress}
         driftX={driftX} driftY={driftY}
       />
 
       {/* Brows */}
-      <BrowShape eyeX={LEFT_EYE_X}  eyeY={EYE_Y} cfg={cfg.leftBrow} />
-      <BrowShape eyeX={RIGHT_EYE_X} eyeY={EYE_Y} cfg={cfg.rightBrow} />
+      <BrowShape
+        eyeX={LEFT_EYE_X} eyeY={EYE_Y}
+        dx1={vals.lb_dx1} dy1={vals.lb_dy1}
+        dx2={vals.lb_dx2} dy2={vals.lb_dy2}
+        curve={vals.lb_c}
+      />
+      <BrowShape
+        eyeX={RIGHT_EYE_X} eyeY={EYE_Y}
+        dx1={vals.rb_dx1} dy1={vals.rb_dy1}
+        dx2={vals.rb_dx2} dy2={vals.rb_dy2}
+        curve={vals.rb_c}
+      />
 
       {/* Mouth */}
-      <MouthShape cfg={cfg.mouth} />
+      <MouthShape
+        type={dispCfg.mouth.type}
+        halfW={vals.m_halfW}
+        startY={vals.m_startY}
+        endY={vals.m_endY}
+        curveY={vals.m_curveY}
+      />
 
-      {/* Emotion-specific extras */}
-      {cfg.cheeks && <Cheeks />}
-      <DotIndicator emotion={emotion} />
+      {/* Extras */}
+      {dispCfg.cheeks && <Cheeks />}
+      {displayEmotion === 'THINKING' && <ThinkingDots />}
     </svg>
   );
 }
 
 // ── Main Tab ──────────────────────────────────────────────────────────────────
 export default function FaceTab() {
-  const emotion  = useStore(s => s.emotion);
-  const hriState = useStore(s => s.hriState);
+  const emotion       = useStore(s => s.emotion);
+  const hriState      = useStore(s => s.hriState);
   const emotionSource = useStore(s => s.emotionSource);
-
   const cfg = EMOTION_CONFIG[emotion] || EMOTION_CONFIG[FALLBACK_EMOTION];
 
   return (
@@ -351,17 +381,10 @@ export default function FaceTab() {
       <div className="face-main">
         <Panel title="DORI Face" className="face-panel-main">
           <div className="face-canvas-wrap">
-            <div
-              className="face-canvas-inner"
-              style={{ '--emotion-color': cfg.color, '--emotion-glow': cfg.glowColor }}
-            >
+            <div className="face-canvas-inner">
               <FaceCanvas emotion={emotion} />
             </div>
-
-            {/* Emotion label */}
-            <div className="face-emotion-label" style={{ color: cfg.color }}>
-              {cfg.label}
-            </div>
+            <div className="face-emotion-label">{cfg.label}</div>
           </div>
         </Panel>
       </div>
@@ -369,17 +392,12 @@ export default function FaceTab() {
       {/* ── Side info ── */}
       <div className="face-side">
 
-        {/* Emotion selector (preview / manual override) */}
         <Panel title="Emotion Palette">
           <div className="face-palette">
             {Object.entries(EMOTION_CONFIG).map(([key, ecfg]) => (
               <button
                 key={key}
                 className={`face-palette-btn ${emotion === key ? 'active' : ''}`}
-                style={{
-                  '--btn-color': ecfg.color,
-                  '--btn-glow':  ecfg.glowColor,
-                }}
                 onClick={() => useStore.getState().setEmotionOverride(key)}
                 title={ecfg.label}
               >
@@ -391,12 +409,11 @@ export default function FaceTab() {
           </div>
         </Panel>
 
-        {/* Status info */}
         <Panel title="Status">
           <div className="face-status-list">
             <div className="face-status-row">
               <span className="face-status-key">Emotion</span>
-              <span className="face-status-val" style={{ color: cfg.color }}>{emotion}</span>
+              <span className="face-status-val">{emotion}</span>
             </div>
             <div className="face-status-row">
               <span className="face-status-key">Source</span>
