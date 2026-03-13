@@ -192,6 +192,36 @@ function computeTopicStats(samples) {
   };
 }
 
+function normalizePayload(rawVal) {
+  const payload = rawVal && typeof rawVal === 'object' && 'data' in rawVal
+    ? rawVal.data
+    : rawVal;
+
+  if (typeof payload !== 'string') {
+    return { payload, parsed: payload };
+  }
+
+  try {
+    return { payload, parsed: JSON.parse(payload) };
+  } catch {
+    return { payload, parsed: payload };
+  }
+}
+
+function parseBoolPayload(value) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
+    if (['false', '0', 'no', 'off', ''].includes(normalized)) return false;
+  }
+  if (value && typeof value === 'object' && 'data' in value) {
+    return parseBoolPayload(value.data);
+  }
+  return false;
+}
+
 // ─── Store ───────────────────────────────────────────────────────────────────
 export const useStore = create((set, get) => ({
 
@@ -343,10 +373,7 @@ export const useStore = create((set, get) => ({
     const { addLog, recordTopicHit } = get();
     recordTopicHit(topic, rawVal);
 
-    let parsed = rawVal;
-    if (typeof rawVal === 'string') {
-      try { parsed = JSON.parse(rawVal); } catch { parsed = rawVal; }
-    }
+    const { payload, parsed } = normalizePayload(rawVal);
 
     const meta = TOPIC_META[topic] || { tag: LOG_TAGS.SYS, label: topic };
 
@@ -355,7 +382,7 @@ export const useStore = create((set, get) => ({
       switch (topic) {
 
         case '/dori/hri/manager_state': {
-          const d = parsed;
+          const d = parsed && typeof parsed === 'object' ? parsed : {};
           set({
             hriState: d.state || 'IDLE',
             hriStateElapsed: d.state_elapsed_sec ?? 0,
@@ -367,25 +394,27 @@ export const useStore = create((set, get) => ({
             const nextEmotion = resolveEmotionFromState(d.state);
             set({ emotion: nextEmotion, emotionSource: 'state' });
           }
-          addLog(LOG_TAGS.STATE, `→ ${d.state}  [${(d.state_elapsed_sec ?? 0).toFixed(1)}s]`, rawVal);
+          addLog(LOG_TAGS.STATE, `manager_state: state=${d.state || 'IDLE'} elapsed=${(d.state_elapsed_sec ?? 0).toFixed(1)}s target=${d.target_id ?? '-'} text=${d.text ?? '-'}`, rawVal);
           break;
         }
 
-        case '/dori/stt/wake_word_detected':
-          if (rawVal === true || parsed === true) {
+        case '/dori/stt/wake_word_detected': {
+          const detected = parseBoolPayload(parsed);
+          if (detected) {
             addLog(LOG_TAGS.WAKE, 'Wake word detected!', rawVal);
           }
           break;
+        }
 
         case '/dori/stt/result': {
-          const text = parsed?.text || parsed;
+          const text = parsed?.text || payload;
           set({ lastSttText: text });
-          addLog(LOG_TAGS.STT, `"${text}"  [conf: ${parsed?.confidence?.toFixed(2) ?? '?'}]`, rawVal);
+          addLog(LOG_TAGS.STT, `stt_result: text="${text}" conf=${parsed?.confidence?.toFixed(2) ?? '?'}`, rawVal);
           break;
         }
 
         case '/dori/llm/query':
-          addLog(LOG_TAGS.LLM, `query: "${parsed?.user_text || parsed}"`, rawVal);
+          addLog(LOG_TAGS.LLM, `llm_query: user_text="${parsed?.user_text || payload}"`, rawVal);
           break;
 
         case '/dori/llm/response': {
@@ -403,18 +432,25 @@ export const useStore = create((set, get) => ({
         }
 
         case '/dori/tts/speaking':
-          set({ ttsActive: !!parsed });
-          if (parsed) addLog(LOG_TAGS.TTS, 'TTS speaking…', rawVal);
+        {
+          const speaking = parseBoolPayload(parsed);
+          set({ ttsActive: speaking });
+          if (speaking) addLog(LOG_TAGS.TTS, 'tts_speaking: true', rawVal);
           break;
+        }
 
-        case '/dori/tts/done':
-          if (parsed) addLog(LOG_TAGS.TTS, 'TTS done', rawVal);
+        case '/dori/tts/done': {
+          const done = parseBoolPayload(parsed);
+          if (done) addLog(LOG_TAGS.TTS, 'tts_done: true', rawVal);
           break;
+        }
 
-        case '/dori/hri/tracking_state':
+        case '/dori/hri/tracking_state': {
           set({ trackingState: parsed });
+          addLog(LOG_TAGS.TRACK, `tracking_state: state=${parsed?.state ?? '-'} target=${parsed?.target_id ?? '-'} text=${parsed?.text ?? '-'}`, rawVal);
           if (parsed?.state === 'lost') addLog(LOG_TAGS.TRACK, `Target lost (id:${parsed?.target_id})`, rawVal);
           break;
+        }
 
         case '/dori/hri/persons':
           set({ persons: parsed });
@@ -466,6 +502,7 @@ export const useStore = create((set, get) => ({
                 gpu: parsed.gpu ?? null,
               },
             });
+            addLog(LOG_TAGS.SYS, `system_metrics: cpu=${parsed?.cpu ?? '-'} ram=${parsed?.ram ?? '-'} disk=${parsed?.disk ?? '-'} gpu=${parsed?.gpu ?? '-'}`, rawVal);
           }
           break;
         }

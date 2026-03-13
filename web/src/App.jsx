@@ -56,7 +56,7 @@ export default function App() {
       });
 
     const unsubs = Object.keys(TOPIC_META).map(topic =>
-      subscribeROS(topic, undefined, (val, rawMsg) => handleROSMessage(topic, rawMsg ?? val))
+      subscribeROS(topic, undefined, (_, rawMsg) => handleROSMessage(topic, rawMsg))
     );
     return () => {
       cancelled = true;
