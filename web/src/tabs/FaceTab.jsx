@@ -9,7 +9,7 @@
  *   CALM       - IDLE: half-closed eyes, slow blink
  *   ATTENTIVE  - LISTENING: wide open eyes
  *   THINKING   - RESPONDING: focused eyes, scanning eyes
- *   HAPPY      - NAVIGATING: arc eyes (^_^), cheeks, big smile
+ *   HAPPY      - NAVIGATING: energetic square-ish eyes, blush marks
  *
  * Extensible: add new emotion configs to EMOTION_CONFIG below.
  */
@@ -29,8 +29,8 @@ const FACE_GLOW  = 'rgba(232,234,240,0.25)';
 const EMOTION_CONFIG = {
   CALM: {
     label: 'Calm',
-    leftEye:  { type: 'ellipse', rx: 36, ry: 18, offsetY: 0 },
-    rightEye: { type: 'ellipse', rx: 36, ry: 18, offsetY: 0 },
+    leftEye:  { type: 'roundedRect', width: 102, height: 78, cornerRadius: 24, tilt: -2, upperLid: 0.9, lowerLid: 1.0, pupilScale: 1, offsetY: 0 },
+    rightEye: { type: 'roundedRect', width: 102, height: 78, cornerRadius: 24, tilt: 2, upperLid: 0.9, lowerLid: 1.0, pupilScale: 1, offsetY: 0 },
     mouth: { type: 'curve', halfW: 38, startY: 0, endY: 0, curveY: 10 },
     showMouth: false,
     blink: true,
@@ -41,8 +41,8 @@ const EMOTION_CONFIG = {
   },
   ATTENTIVE: {
     label: 'Attentive',
-    leftEye:  { type: 'ellipse', rx: 38, ry: 32, offsetY: -5 },
-    rightEye: { type: 'ellipse', rx: 38, ry: 32, offsetY: -5 },
+    leftEye:  { type: 'roundedRect', width: 114, height: 90, cornerRadius: 28, tilt: -1, upperLid: 1, lowerLid: 1, pupilScale: 1.1, offsetY: -8 },
+    rightEye: { type: 'roundedRect', width: 114, height: 90, cornerRadius: 28, tilt: 1, upperLid: 1, lowerLid: 1, pupilScale: 1.1, offsetY: -8 },
     mouth: { type: 'curve', halfW: 32, startY: 2, endY: 2, curveY: 6 },
     showMouth: false,
     blink: true,
@@ -53,8 +53,8 @@ const EMOTION_CONFIG = {
   },
   THINKING: {
     label: 'Thinking',
-    leftEye:  { type: 'ellipse', rx: 34, ry: 22, offsetY: 0 },
-    rightEye: { type: 'ellipse', rx: 34, ry: 22, offsetY: 0 },
+    leftEye:  { type: 'roundedRect', width: 102, height: 78, cornerRadius: 24, tilt: -3, upperLid: 0.94, lowerLid: 0.98, pupilScale: 0.96, offsetY: 0 },
+    rightEye: { type: 'roundedRect', width: 102, height: 78, cornerRadius: 24, tilt: 3, upperLid: 0.94, lowerLid: 0.98, pupilScale: 0.96, offsetY: 0 },
     mouth: { type: 'flat', halfW: 30, startY: 4, endY: 4, curveY: 0 },
     showMouth: false,
     blink: false,
@@ -65,10 +65,10 @@ const EMOTION_CONFIG = {
   },
   HAPPY: {
     label: 'Happy',
-    leftEye:  { type: 'arc', rx: 38, ry: 26, offsetY: 0 },
-    rightEye: { type: 'arc', rx: 38, ry: 26, offsetY: 0 },
+    leftEye:  { type: 'roundedRect', width: 108, height: 84, cornerRadius: 30, tilt: -2, upperLid: 1, lowerLid: 1, pupilScale: 1.04, offsetY: -2 },
+    rightEye: { type: 'roundedRect', width: 108, height: 84, cornerRadius: 30, tilt: 2, upperLid: 1, lowerLid: 1, pupilScale: 1.04, offsetY: -2 },
     mouth: { type: 'smile', halfW: 50, startY: 0, endY: 0, curveY: 26 },
-    showMouth: true,
+    showMouth: false,
     blink: true,
     blinkInterval: 3000,
     drift: false,
@@ -80,23 +80,41 @@ const EMOTION_CONFIG = {
 const FALLBACK_EMOTION = 'CALM';
 
 // ── SVG layout constants ──────────────────────────────────────────────────────
-const W  = 320;
-const H  = 280;
+const W  = 400;
+const H  = 300;
 const CX = W / 2;
 const CY = H / 2 - 4;
 
-const LEFT_EYE_X  = CX - 78;
-const RIGHT_EYE_X = CX + 78;
-const EYE_Y       = CY - 10;
+const LEFT_EYE_X  = CX - 98;
+const RIGHT_EYE_X = CX + 98;
+const EYE_Y       = CY - 16;
 const MOUTH_Y     = CY + 62;
 
 // ── Lerp ─────────────────────────────────────────────────────────────────────
 const lerp = (a, b, t) => a + (b - a) * t;
 
 function flattenNumerics(cfg) {
+  const leftEyeWidth = cfg.leftEye.width ?? 72;
+  const leftEyeHeight = cfg.leftEye.height ?? 36;
+  const rightEyeWidth = cfg.rightEye.width ?? 72;
+  const rightEyeHeight = cfg.rightEye.height ?? 36;
   return {
-    le_rx: cfg.leftEye.rx,   le_ry: cfg.leftEye.ry,   le_oY: cfg.leftEye.offsetY,
-    re_rx: cfg.rightEye.rx,  re_ry: cfg.rightEye.ry,  re_oY: cfg.rightEye.offsetY,
+    le_w: leftEyeWidth,
+    le_h: leftEyeHeight,
+    le_cr: cfg.leftEye.cornerRadius ?? 14,
+    le_tilt: cfg.leftEye.tilt ?? 0,
+    le_uLid: cfg.leftEye.upperLid ?? 1,
+    le_lLid: cfg.leftEye.lowerLid ?? 1,
+    le_pupil: cfg.leftEye.pupilScale ?? 1,
+    le_oY: cfg.leftEye.offsetY ?? 0,
+    re_w: rightEyeWidth,
+    re_h: rightEyeHeight,
+    re_cr: cfg.rightEye.cornerRadius ?? 14,
+    re_tilt: cfg.rightEye.tilt ?? 0,
+    re_uLid: cfg.rightEye.upperLid ?? 1,
+    re_lLid: cfg.rightEye.lowerLid ?? 1,
+    re_pupil: cfg.rightEye.pupilScale ?? 1,
+    re_oY: cfg.rightEye.offsetY ?? 0,
     m_halfW: cfg.mouth.halfW, m_startY: cfg.mouth.startY,
     m_endY: cfg.mouth.endY,   m_curveY: cfg.mouth.curveY,
   };
@@ -104,24 +122,50 @@ function flattenNumerics(cfg) {
 
 // ── SVG sub-components ────────────────────────────────────────────────────────
 
-function EyeShape({ x, eyeY, rx, ry, type, blinkProgress, driftX, driftY }) {
-  const ryFinal = Math.max(1, ry * (1 - blinkProgress));
+function roundedRectPath(cx, cy, width, height, cornerRadius) {
+  const halfW = width / 2;
+  const halfH = height / 2;
+  const r = Math.max(0, Math.min(cornerRadius, halfW, halfH));
+  return [
+    `M ${cx - halfW + r} ${cy - halfH}`,
+    `H ${cx + halfW - r}`,
+    `Q ${cx + halfW} ${cy - halfH} ${cx + halfW} ${cy - halfH + r}`,
+    `V ${cy + halfH - r}`,
+    `Q ${cx + halfW} ${cy + halfH} ${cx + halfW - r} ${cy + halfH}`,
+    `H ${cx - halfW + r}`,
+    `Q ${cx - halfW} ${cy + halfH} ${cx - halfW} ${cy + halfH - r}`,
+    `V ${cy - halfH + r}`,
+    `Q ${cx - halfW} ${cy - halfH} ${cx - halfW + r} ${cy - halfH}`,
+    'Z',
+  ].join(' ');
+}
+
+function EyeShape({ x, eyeY, eye, blinkProgress, driftX, driftY }) {
+  const type = eye.type || 'roundedRect';
+  const width = eye.width ?? 72;
+  const height = eye.height ?? 36;
+  const cornerRadius = eye.cornerRadius ?? 14;
+  const tilt = eye.tilt ?? 0;
+  const upperLid = eye.upperLid ?? 1;
+  const lowerLid = eye.lowerLid ?? 1;
+  const pupilScale = eye.pupilScale ?? 1;
+
+  const baseHeight = Math.max(2, height * (1 - blinkProgress));
+  const lidAdjustedHeight = baseHeight * ((Math.max(0.2, upperLid) + Math.max(0.2, lowerLid)) / 2);
+  const finalWidth = width * Math.max(0.3, pupilScale);
+  const finalHeight = Math.max(2, lidAdjustedHeight * Math.max(0.3, pupilScale));
   const cx = x + driftX;
   const cy = eyeY + driftY;
+  const transform = `rotate(${tilt} ${cx} ${cy})`;
 
-  if (type === 'arc') {
-    return (
-      <path
-        d={`M ${cx - rx} ${cy} A ${rx} ${Math.max(1, ryFinal)} 0 0 1 ${cx + rx} ${cy}`}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="7"
-        strokeLinecap="round"
-      />
-    );
-  }
+  if (type !== 'roundedRect' && type !== 'squircle') return null;
+
   return (
-    <ellipse cx={cx} cy={cy} rx={rx} ry={ryFinal} fill="currentColor" />
+    <path
+      d={roundedRectPath(cx, cy, finalWidth, finalHeight, cornerRadius)}
+      fill="currentColor"
+      transform={transform}
+    />
   );
 }
 
@@ -167,13 +211,34 @@ function ThinkingDots() {
 }
 
 function Cheeks() {
+  const stroke = 'rgba(255,140,140,0.42)';
+  const leftBaseX = LEFT_EYE_X - 34;
+  const rightBaseX = RIGHT_EYE_X + 34;
+  const baseY = EYE_Y + 54;
+  const lineGap = 10;
+  const slashLen = 13;
+
   return (
-    <>
-      <ellipse cx={LEFT_EYE_X + 12}  cy={EYE_Y + 58} rx={26} ry={12}
-        fill="rgba(255,140,140,0.22)" />
-      <ellipse cx={RIGHT_EYE_X - 12} cy={EYE_Y + 58} rx={26} ry={12}
-        fill="rgba(255,140,140,0.22)" />
-    </>
+    <g stroke={stroke} strokeWidth="5" strokeLinecap="round">
+      {[0, 1, 2].map(i => (
+        <line
+          key={`l-${i}`}
+          x1={leftBaseX + i * lineGap}
+          y1={baseY}
+          x2={leftBaseX + i * lineGap + slashLen}
+          y2={baseY + slashLen}
+        />
+      ))}
+      {[0, 1, 2].map(i => (
+        <line
+          key={`r-${i}`}
+          x1={rightBaseX + i * lineGap}
+          y1={baseY}
+          x2={rightBaseX + i * lineGap + slashLen}
+          y2={baseY + slashLen}
+        />
+      ))}
+    </g>
   );
 }
 
@@ -299,16 +364,32 @@ function FaceCanvas({ emotion }) {
       {/* Left eye */}
       <EyeShape
         x={LEFT_EYE_X} eyeY={EYE_Y + vals.le_oY}
-        rx={vals.le_rx} ry={vals.le_ry}
-        type={dispCfg.leftEye.type}
+        eye={{
+          ...dispCfg.leftEye,
+          width: vals.le_w,
+          height: vals.le_h,
+          cornerRadius: vals.le_cr,
+          tilt: vals.le_tilt,
+          upperLid: vals.le_uLid,
+          lowerLid: vals.le_lLid,
+          pupilScale: vals.le_pupil,
+        }}
         blinkProgress={blinkProgress}
         driftX={driftX} driftY={driftY}
       />
       {/* Right eye */}
       <EyeShape
         x={RIGHT_EYE_X} eyeY={EYE_Y + vals.re_oY}
-        rx={vals.re_rx} ry={vals.re_ry}
-        type={dispCfg.rightEye.type}
+        eye={{
+          ...dispCfg.rightEye,
+          width: vals.re_w,
+          height: vals.re_h,
+          cornerRadius: vals.re_cr,
+          tilt: vals.re_tilt,
+          upperLid: vals.re_uLid,
+          lowerLid: vals.re_lLid,
+          pupilScale: vals.re_pupil,
+        }}
         blinkProgress={blinkProgress}
         driftX={driftX} driftY={driftY}
       />
