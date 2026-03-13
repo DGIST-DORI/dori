@@ -1,0 +1,524 @@
+/* tabs/KnowledgeTab.css
+ * Knowledge Manager tab styles.
+ * Follows the existing DORI dashboard design tokens.
+ */
+
+/* ── Layout ───────────────────────────────────────────────────────────────── */
+
+.km-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  height: 100%;
+  padding: 8px;
+  overflow: hidden;
+}
+
+.km-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.km-col-left  { /* Menu Parser + Index Builder */ }
+.km-col-right { /* Doc Browser + Building Editor */ flex: 1; }
+
+.km-panel {
+  flex: 1;
+  min-height: 0;
+}
+
+.km-panel-wide {
+  flex: 2;
+}
+
+/* ── Section wrapper ──────────────────────────────────────────────────────── */
+
+.km-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  height: 100%;
+  overflow: auto;
+}
+
+.km-hint {
+  font-size: 11px;
+  color: var(--text-2);
+  margin: 0;
+  line-height: 1.6;
+}
+
+.km-hint code {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 10px;
+  background: var(--bg-3);
+  border-radius: 3px;
+  padding: 1px 4px;
+  color: var(--text-1);
+}
+
+/* ── Drop zone ────────────────────────────────────────────────────────────── */
+
+.km-dropzone {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  min-height: 72px;
+  background: var(--bg-2);
+}
+
+.km-dropzone:hover {
+  border-color: var(--accent);
+  background: var(--accent-dim, rgba(0,200,255,0.04));
+}
+
+.km-dropzone.has-files {
+  border-style: solid;
+  border-color: var(--border-bright);
+  align-items: flex-start;
+  cursor: default;
+}
+
+.km-dropzone-hint {
+  font-size: 11px;
+  color: var(--text-2);
+  text-align: center;
+}
+
+/* ── File list ────────────────────────────────────────────────────────────── */
+
+.km-file-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.km-file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  padding: 4px 6px;
+  border-radius: var(--radius);
+  background: var(--bg-3);
+}
+
+.km-file-name {
+  flex: 1;
+  color: var(--text-0);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.km-file-size {
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+}
+
+.km-file-remove {
+  background: transparent;
+  border: none;
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  line-height: 1;
+  transition: color 0.1s, background 0.1s;
+}
+
+.km-file-remove:hover {
+  color: var(--red, #d66b66);
+  background: var(--red-dim, rgba(214,107,102,0.12));
+}
+
+/* ── Actions row ──────────────────────────────────────────────────────────── */
+
+.km-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+
+.km-btn {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  color: var(--text-0);
+  border-radius: var(--radius);
+  font-size: 11px;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  white-space: nowrap;
+}
+
+.km-btn:hover:not(:disabled) {
+  background: var(--bg-3);
+  border-color: var(--border-bright);
+}
+
+.km-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.km-btn-primary {
+  background: var(--accent-dim, rgba(0,200,255,0.08));
+  border-color: var(--accent, #00c8ff);
+  color: var(--accent, #00c8ff);
+}
+
+.km-btn-primary:hover:not(:disabled) {
+  background: rgba(0, 200, 255, 0.16);
+}
+
+/* ── Status badges ────────────────────────────────────────────────────────── */
+
+.km-badge {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  border-radius: var(--radius);
+  padding: 2px 8px;
+  border: 1px solid transparent;
+}
+
+.km-badge-idle    { color: var(--text-2); background: var(--bg-3); border-color: var(--border); }
+.km-badge-running { color: var(--yellow,  #ecd85b); background: var(--yellow-dim,  rgba(236,216,91,0.1)); border-color: var(--yellow,  #ecd85b); }
+.km-badge-ok      { color: var(--green,   #53c87a); background: var(--green-dim,   rgba(83,200,122,0.1)); border-color: var(--green,   #53c87a); }
+.km-badge-error   { color: var(--red,     #d66b66); background: var(--red-dim,     rgba(214,107,102,0.1)); border-color: var(--red,     #d66b66); }
+
+/* ── Log pane ─────────────────────────────────────────────────────────────── */
+
+.km-log {
+  flex: 1;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--text-1);
+  background: var(--bg-0, #0d0d0d);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  overflow-y: auto;
+  min-height: 72px;
+  max-height: 140px;
+}
+
+.km-log-empty {
+  color: var(--text-2);
+  font-style: italic;
+}
+
+.km-log-line {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ── Index info cards ─────────────────────────────────────────────────────── */
+
+.km-index-info {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.km-info-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  min-width: 80px;
+}
+
+.km-info-row span:first-child {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.km-info-row span:last-child {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-0);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Checkbox ─────────────────────────────────────────────────────────────── */
+
+.km-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-1);
+  cursor: pointer;
+}
+
+.km-checkbox-row input[type="checkbox"] {
+  accent-color: var(--accent, #00c8ff);
+}
+
+/* ── Toolbar / search ─────────────────────────────────────────────────────── */
+
+.km-toolbar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.km-search {
+  flex: 1;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-0);
+  font-size: 11px;
+  padding: 4px 8px;
+  transition: border-color 0.12s;
+}
+
+.km-search:focus {
+  outline: none;
+  border-color: var(--border-bright);
+}
+
+.km-search::placeholder { color: var(--text-2); }
+
+/* ── Document list ────────────────────────────────────────────────────────── */
+
+.km-doc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.km-doc-item {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.km-doc-source {
+  font-size: 11px;
+  color: var(--text-0);
+  font-family: 'JetBrains Mono', monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.km-doc-meta {
+  display: flex;
+  gap: 10px;
+  font-size: 10px;
+  color: var(--text-2);
+}
+
+.km-doc-mtime {
+  margin-left: auto;
+}
+
+/* ── Building editor ──────────────────────────────────────────────────────── */
+
+.km-building-layout {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  height: 100%;
+  overflow: hidden;
+}
+
+.km-building-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 8px 10px 12px;
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.km-building-keys {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.km-building-key {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 5px 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.km-building-key:hover {
+  background: var(--bg-2);
+  border-color: var(--border);
+}
+
+.km-building-key.active {
+  background: var(--accent-dim, rgba(0,200,255,0.08));
+  border-color: var(--accent, #00c8ff);
+}
+
+.km-building-key.empty .km-key-id {
+  color: var(--text-2);
+}
+
+.km-key-id {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-0);
+}
+
+.km-key-name {
+  font-size: 10px;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.km-key-empty {
+  font-size: 9px;
+  color: var(--yellow, #ecd85b);
+  font-style: italic;
+}
+
+/* ── Field grid ───────────────────────────────────────────────────────────── */
+
+.km-building-editor {
+  padding: 12px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.km-field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.km-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.km-field-full {
+  grid-column: 1 / -1;
+}
+
+.km-field-label {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-2);
+}
+
+.km-input {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-0);
+  font-size: 11px;
+  padding: 5px 8px;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.12s;
+  font-family: inherit;
+}
+
+.km-input:focus {
+  outline: none;
+  border-color: var(--border-bright);
+}
+
+.km-textarea {
+  resize: vertical;
+  min-height: 54px;
+}
+
+/* ── Empty states ─────────────────────────────────────────────────────────── */
+
+.km-empty {
+  font-size: 11px;
+  color: var(--text-2);
+  font-style: italic;
+  text-align: center;
+  padding: 12px;
+}
+
+.km-empty-center {
+  margin: auto;
+  align-self: center;
+}
+
+/* ── Responsive ───────────────────────────────────────────────────────────── */
+
+@media (max-width: 1100px) {
+  .km-layout {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+
+  .km-col {
+    overflow: visible;
+  }
+
+  .km-panel {
+    min-height: 260px;
+  }
+}
+
+@media (max-width: 700px) {
+  .km-building-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .km-building-list {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    max-height: 160px;
+  }
+}

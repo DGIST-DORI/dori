@@ -5,6 +5,7 @@ import HomeTab   from './tabs/HomeTab';
 import FaceTab   from './tabs/FaceTab';
 import HRITab    from './tabs/HRITab';
 import CubeTab   from './tabs/CubeTab';
+import KnowledgeTab from './tabs/KnowledgeTab';
 import SystemTab from './tabs/SystemTab';
 import { useStore, TOPIC_META } from './core/store';
 import { fetchTopicDiagnostics, subscribeROS } from './core/ros';
@@ -13,6 +14,7 @@ import HriIcon       from './assets/icons/icon-hri.svg?react';
 import FaceIcon      from './assets/icons/icon-face.svg?react';
 import FaceActiveIcon from './assets/icons/icon-face-active.svg?react';
 import CubeIcon      from './assets/icons/icon-cube.svg?react';
+import KnowledgeIcon  from './assets/icons/icon-knowledge.svg?react';
 import SystemIcon    from './assets/icons/icon-system.svg?react';
 
 import './index.css';
@@ -23,6 +25,7 @@ const TABS = [
   { id: 'face',   label: 'Face Display', icon: <FaceIcon />,  iconActive: <FaceActiveIcon />, component: FaceTab },
   { id: 'hri',    label: 'HRI Monitor',  icon: <HriIcon />,                                   component: HRITab },
   { id: 'cube',   label: 'Cube Sim',     icon: <CubeIcon />,                                  component: CubeTab },
+  { id: 'knowledge', label: 'Knowledge', icon: <KnowledgeIcon />,                             component: KnowledgeTab },
   { id: 'system', label: 'System',       icon: <SystemIcon />,                                component: SystemTab },
 ];
 
