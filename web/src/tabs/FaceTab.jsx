@@ -39,6 +39,11 @@ const EMOTION_CONFIG = {
     drift: true,
     scan: false,
     cheeks: false,
+    pupilScale: 1,
+    pupilOffsetX: 0,
+    pupilOffsetY: 0,
+    highlightOpacity: 0.35,
+    eyelidDrop: 8,
   },
   ATTENTIVE: {
     label: 'Attentive',
@@ -52,6 +57,11 @@ const EMOTION_CONFIG = {
     drift: false,
     scan: false,
     cheeks: false,
+    pupilScale: 1,
+    pupilOffsetX: 0,
+    pupilOffsetY: 0,
+    highlightOpacity: 0.45,
+    eyelidDrop: 2,
   },
   THINKING: {
     label: 'Thinking',
@@ -65,11 +75,16 @@ const EMOTION_CONFIG = {
     drift: true,
     scan: true,
     cheeks: false,
+    pupilScale: 0.95,
+    pupilOffsetX: 4,
+    pupilOffsetY: 0,
+    highlightOpacity: 0.28,
+    eyelidDrop: 4,
   },
   HAPPY: {
     label: 'Happy',
-    leftEye:  { type: 'arc', rx: 38, ry: 26, offsetY: 0 },
-    rightEye: { type: 'arc', rx: 38, ry: 26, offsetY: 0 },
+    leftEye:  { type: 'ellipse', rx: 38, ry: 26, offsetY: 0 },
+    rightEye: { type: 'ellipse', rx: 38, ry: 26, offsetY: 0 },
     leftBrow:  { dx1: -28, dy1: -44, dx2: 28, dy2: -52, curve: -8 },
     rightBrow: { dx1: -28, dy1: -52, dx2: 28, dy2: -44, curve: -8 },
     mouth: { type: 'smile', halfW: 50, startY: 0, endY: 0, curveY: 26 },
@@ -78,6 +93,11 @@ const EMOTION_CONFIG = {
     drift: false,
     scan: false,
     cheeks: true,
+    pupilScale: 0.9,
+    pupilOffsetX: 0,
+    pupilOffsetY: 1,
+    highlightOpacity: 0.85,
+    eyelidDrop: 1,
   },
 };
 
@@ -107,12 +127,20 @@ function flattenNumerics(cfg) {
     rb_dx2: cfg.rightBrow.dx2, rb_dy2: cfg.rightBrow.dy2, rb_c: cfg.rightBrow.curve,
     m_halfW: cfg.mouth.halfW, m_startY: cfg.mouth.startY,
     m_endY: cfg.mouth.endY,   m_curveY: cfg.mouth.curveY,
+    pupilScale: cfg.pupilScale,
+    pupilOffsetX: cfg.pupilOffsetX,
+    pupilOffsetY: cfg.pupilOffsetY,
+    highlightOpacity: cfg.highlightOpacity,
+    eyelidDrop: cfg.eyelidDrop,
   };
 }
 
 // ── SVG sub-components ────────────────────────────────────────────────────────
 
-function EyeShape({ x, eyeY, rx, ry, type, blinkProgress, driftX, driftY }) {
+function EyeShape({
+  x, eyeY, rx, ry, type, blinkProgress, driftX, driftY,
+  pupilScale, pupilOffsetX, pupilOffsetY, highlightOpacity, eyelidDrop,
+}) {
   const ryFinal = Math.max(1, ry * (1 - blinkProgress));
   const cx = x + driftX;
   const cy = eyeY + driftY;
@@ -128,8 +156,36 @@ function EyeShape({ x, eyeY, rx, ry, type, blinkProgress, driftX, driftY }) {
       />
     );
   }
+
+  const pupilRadius = Math.max(1.5, Math.min(rx, ryFinal) * 0.42 * pupilScale);
+  const pupilCx = cx + pupilOffsetX + driftX * 0.18;
+  const pupilCy = cy + pupilOffsetY + driftY * 0.18;
+  const upperLidY = cy - ryFinal * 0.88 + eyelidDrop;
+  const upperLidCtrlY = cy - ryFinal * 1.4 + eyelidDrop;
+
   return (
-    <ellipse cx={cx} cy={cy} rx={rx} ry={ryFinal} fill="currentColor" />
+    <g>
+      <ellipse cx={cx} cy={cy} rx={rx} ry={ryFinal} fill="#f9fbff" />
+      {ryFinal > 2 && (
+        <>
+          <circle cx={pupilCx} cy={pupilCy} r={pupilRadius} fill="#151922" />
+          <circle
+            cx={pupilCx - pupilRadius * 0.35}
+            cy={pupilCy - pupilRadius * 0.4}
+            r={Math.max(1.2, pupilRadius * 0.28)}
+            fill="#ffffff"
+            opacity={highlightOpacity}
+          />
+        </>
+      )}
+      <path
+        d={`M ${cx - rx} ${upperLidY} Q ${cx} ${upperLidCtrlY} ${cx + rx} ${upperLidY}`}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="5"
+        strokeLinecap="round"
+      />
+    </g>
   );
 }
 
@@ -327,6 +383,11 @@ function FaceCanvas({ emotion }) {
         type={dispCfg.leftEye.type}
         blinkProgress={blinkProgress}
         driftX={driftX} driftY={driftY}
+        pupilScale={vals.pupilScale}
+        pupilOffsetX={vals.pupilOffsetX}
+        pupilOffsetY={vals.pupilOffsetY}
+        highlightOpacity={vals.highlightOpacity}
+        eyelidDrop={vals.eyelidDrop}
       />
       {/* Right eye */}
       <EyeShape
@@ -335,6 +396,11 @@ function FaceCanvas({ emotion }) {
         type={dispCfg.rightEye.type}
         blinkProgress={blinkProgress}
         driftX={driftX} driftY={driftY}
+        pupilScale={vals.pupilScale}
+        pupilOffsetX={vals.pupilOffsetX}
+        pupilOffsetY={vals.pupilOffsetY}
+        highlightOpacity={vals.highlightOpacity}
+        eyelidDrop={vals.eyelidDrop}
       />
 
       {/* Brows */}
