@@ -7,6 +7,7 @@ import HRITab    from './tabs/HRITab';
 import CubeTab   from './tabs/CubeTab';
 import KnowledgeTab from './tabs/KnowledgeTab';
 import SystemTab from './tabs/SystemTab';
+import TopicPublisher from './components/TopicPublisher';
 import { useStore, TOPIC_META } from './core/store';
 import { fetchTopicDiagnostics, subscribeROS } from './core/ros';
 
@@ -138,6 +139,8 @@ export default function App() {
       <main className="app-main">
         <ActiveComponent />
       </main>
+
+      <TopicPublisher />
     </div>
   );
 }
