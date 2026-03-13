@@ -23,11 +23,10 @@ const FACE_COORD = {
 const STICKER_CLASS = { W:'sticker-white', Y:'sticker-yellow', G:'sticker-green', B:'sticker-blue', R:'sticker-red', O:'sticker-orange' };
 const COLOR_LABEL   = { W:'White', Y:'Yellow', G:'Green', B:'Blue', R:'Red', O:'Orange' };
 const MOVE_BUTTONS  = [['U',"U'"],['R',"R'"],['L',"L'"],['B',"B'"]];
-const MODEL_POSE   = { x: -24, y: 32 };
 
 // ── Axis indicator (3D gizmo, orbit-synced) ───────────────────────────────────
 function AxisIndicator({ orbitX, orbitY }) {
-  const transform = `rotateX(${MODEL_POSE.x + orbitX}deg) rotateY(${MODEL_POSE.y + orbitY}deg)`;
+  const transform = `rotateX(${orbitX}deg) rotateY(${orbitY}deg)`;
 
   return (
     <div className="axis-gizmo-wrap">
@@ -45,7 +44,7 @@ function AxisIndicator({ orbitX, orbitY }) {
 function CubeViewerPanel() {
   const cubeState = useStore((s) => s.cubeState);
 
-  const [orbit,      setOrbit]      = useState({ x: 0, y: 0 });
+  const [orbit,      setOrbit]      = useState({ x: -24, y: -32 });
   const [drag,       setDrag]       = useState(null);
   const [zoom,       setZoom]       = useState(1.0);
   const [showLabels, setShowLabels] = useState(false);
@@ -101,19 +100,17 @@ function CubeViewerPanel() {
       >
         {/* 큐브 */}
         <div className="cube-3d" style={{ transform }}>
-          <div className="cube-model">
-            {FACE_ORDER.map((face) => (
-              <div key={face} className={`cube-face cube-face-${face}`}>
-                {cubeState[face].map((sticker, i) => (
-                  <span key={`${face}-${i}`}
-                    className={`cube-sticker ${STICKER_CLASS[sticker] || ''}`}
-                    title={`${face}${i + 1}: ${sticker}`}
-                  />
-                ))}
-                {showLabels && <div className="cube-face-label">{face}</div>}
-              </div>
-            ))}
-          </div>
+          {FACE_ORDER.map((face) => (
+            <div key={face} className={`cube-face cube-face-${face}`}>
+              {cubeState[face].map((sticker, i) => (
+                <span key={`${face}-${i}`}
+                  className={`cube-sticker ${STICKER_CLASS[sticker] || ''}`}
+                  title={`${face}${i + 1}: ${sticker}`}
+                />
+              ))}
+              {showLabels && <div className="cube-face-label">{face}</div>}
+            </div>
+          ))}
         </div>
 
         {/* 우측 상단 — 레이블 / 축 토글 버튼 */}
