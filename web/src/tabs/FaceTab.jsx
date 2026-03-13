@@ -35,8 +35,13 @@ const EMOTION_CONFIG = {
     showMouth: false,
     blink: true,
     blinkInterval: 4000,
+    blinkProfile: 'CALM',
     drift: true,
     scan: false,
+    motionProfile: {
+      x: [{ amp: 3.8, speed: 0.95 }, { amp: 1.9, speed: 1.74 }],
+      y: [{ amp: 2.6, speed: 0.72 }, { amp: 1.2, speed: 1.28 }],
+    },
     cheeks: false,
   },
   ATTENTIVE: {
@@ -47,8 +52,13 @@ const EMOTION_CONFIG = {
     showMouth: false,
     blink: true,
     blinkInterval: 6000,
+    blinkProfile: 'ATTENTIVE',
     drift: false,
     scan: false,
+    motionProfile: {
+      x: [{ amp: 0.8, speed: 1.34 }, { amp: 0.45, speed: 2.18 }],
+      y: [{ amp: 0.65, speed: 1.02 }, { amp: 0.3, speed: 1.87 }],
+    },
     cheeks: false,
   },
   THINKING: {
@@ -59,8 +69,13 @@ const EMOTION_CONFIG = {
     showMouth: false,
     blink: false,
     blinkInterval: 0,
+    blinkProfile: 'ATTENTIVE',
     drift: true,
     scan: true,
+    motionProfile: {
+      x: [{ amp: 12.5, speed: 1.18 }, { amp: 3.6, speed: 2.04 }],
+      y: [{ amp: 0.75, speed: 1.12 }, { amp: 0.35, speed: 2.43 }],
+    },
     cheeks: false,
   },
   HAPPY: {
@@ -71,8 +86,14 @@ const EMOTION_CONFIG = {
     showMouth: false,
     blink: true,
     blinkInterval: 3000,
+    blinkProfile: 'HAPPY',
     drift: false,
     scan: false,
+    motionProfile: {
+      x: [{ amp: 1.4, speed: 1.42 }, { amp: 0.9, speed: 2.36 }],
+      y: [{ amp: 1.1, speed: 0.96 }, { amp: 0.65, speed: 1.68 }],
+    },
+    transitionEasing: 'overshoot',
     cheeks: true,
   },
 };
@@ -244,6 +265,34 @@ function Cheeks() {
 
 // ── Face canvas with morph transition ────────────────────────────────────────
 const TRANSITION_MS = 380;
+const BLINK_INTERVAL_JITTER = 0.35;
+
+const BLINK_PROFILES = {
+  CALM: {
+    frames: [0, 0.2, 0.55, 0.88, 1.0, 0.88, 0.55, 0.2, 0],
+    frameMs: 52,
+  },
+  ATTENTIVE: {
+    frames: [0, 0.45, 1.0, 0.4, 0],
+    frameMs: 30,
+  },
+  HAPPY: {
+    frames: [0, 0.5, 1.0, 0.42, 0, 0.25, 0.62, 0.22, 0],
+    frameMs: 32,
+  },
+};
+
+const easeOutCubic = (x) => 1 - Math.pow(1 - x, 3);
+const easeOutBack = (x) => {
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+};
+
+const sumWave = (waves, t) => waves.reduce(
+  (acc, wave, idx) => acc + Math.sin(t * wave.speed + idx * 1.618) * wave.amp,
+  0,
+);
 
 function FaceCanvas({ emotion }) {
   const cfg = EMOTION_CONFIG[emotion] || EMOTION_CONFIG[FALLBACK_EMOTION];
@@ -269,8 +318,8 @@ function FaceCanvas({ emotion }) {
     const animate = (now) => {
       if (!startTime.current) startTime.current = now;
       const raw = Math.min((now - startTime.current) / TRANSITION_MS, 1);
-      // Ease-out cubic
-      const t = 1 - Math.pow(1 - raw, 3);
+      const useOvershoot = to.transitionEasing === 'overshoot';
+      const t = useOvershoot ? easeOutBack(raw) : easeOutCubic(raw);
 
       const next = {};
       for (const k in toFlat) next[k] = lerp(fromVals.current[k], toFlat[k], t);
@@ -301,12 +350,17 @@ function FaceCanvas({ emotion }) {
   useEffect(() => {
     if (!cfg.blink) { setBlinkProgress(0); return; }
     let mounted = true;
+    const blinkProfile = BLINK_PROFILES[cfg.blinkProfile] || BLINK_PROFILES.CALM;
+    const frames = blinkProfile.frames;
+    const frameMs = blinkProfile.frameMs;
 
     const scheduleBlink = () => {
+      const baseInterval = cfg.blinkInterval || 4000;
+      const jitter = (Math.random() * 2 - 1) * BLINK_INTERVAL_JITTER;
+      const delay = Math.max(250, baseInterval * (1 + jitter));
       blinkRef.current = setTimeout(() => {
         if (!mounted) return;
         let frame = 0;
-        const frames = [0, 0.35, 0.75, 1.0, 0.75, 0.35, 0];
         const step = () => {
           if (!mounted || frame >= frames.length) {
             setBlinkProgress(0);
@@ -314,15 +368,15 @@ function FaceCanvas({ emotion }) {
             return;
           }
           setBlinkProgress(frames[frame++]);
-          blinkRef.current = setTimeout(step, 38);
+          blinkRef.current = setTimeout(step, frameMs);
         };
         step();
-      }, cfg.blinkInterval || 4000);
+      }, delay);
     };
 
     scheduleBlink();
     return () => { mounted = false; clearTimeout(blinkRef.current); };
-  }, [emotion, cfg.blink, cfg.blinkInterval]);
+  }, [emotion, cfg.blink, cfg.blinkInterval, cfg.blinkProfile]);
 
   // Drift / scan
   const [driftX, setDriftX] = useState(0);
@@ -333,23 +387,27 @@ function FaceCanvas({ emotion }) {
     if (!cfg.drift && !cfg.scan) { setDriftX(0); setDriftY(0); return; }
     let mounted = true;
     let t = 0;
+    const motion = cfg.motionProfile || {
+      x: [{ amp: 5, speed: 1.0 }, { amp: 2.1, speed: 1.8 }],
+      y: [{ amp: 3, speed: 0.7 }, { amp: 1.3, speed: 1.27 }],
+    };
 
     const tick = () => {
       if (!mounted) return;
       t += 0.013;
       if (cfg.scan) {
-        setDriftX(Math.sin(t * 1.3) * 14);
-        setDriftY(0);
+        setDriftX(sumWave(motion.x, t));
+        setDriftY(sumWave(motion.y, t));
       } else {
-        setDriftX(Math.sin(t) * 5);
-        setDriftY(Math.sin(t * 0.7) * 3);
+        setDriftX(sumWave(motion.x, t));
+        setDriftY(sumWave(motion.y, t));
       }
       driftRef.current = requestAnimationFrame(tick);
     };
 
     driftRef.current = requestAnimationFrame(tick);
     return () => { mounted = false; cancelAnimationFrame(driftRef.current); };
-  }, [emotion, cfg.drift, cfg.scan]);
+  }, [emotion, cfg.drift, cfg.scan, cfg.motionProfile]);
 
   const dispCfg = EMOTION_CONFIG[displayEmotion] || EMOTION_CONFIG[FALLBACK_EMOTION];
 
