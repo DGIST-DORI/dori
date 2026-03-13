@@ -32,8 +32,9 @@ function AxisIndicator({ orbitX, orbitY }) {
   const LEN    = 20;
 
   // Convert orbit angles (deg) to radians
-  const rx = (orbitX * Math.PI) / 180;
-  const ry = (orbitY * Math.PI) / 180;
+  // Indicator should follow camera orbit direction (inverse of cube rotation).
+  const rx = (-orbitX * Math.PI) / 180;
+  const ry = (-orbitY * Math.PI) / 180;
 
   // Rotation matrix: Ry then Rx (same order as CSS transform)
   const project = ([wx, wy, wz]) => {
@@ -98,6 +99,15 @@ function CubeViewerPanel() {
   const transform  = `scale(${zoom}) rotateX(${orbit.x}deg) rotateY(${orbit.y}deg)`;
   const clampZoom  = (z) => Math.max(0.4, Math.min(2.2, z));
   const zoomPct    = Math.round(zoom * 100);
+  const zoomToSlider = (value) => {
+    if (value <= 1) return ((value - 0.4) / 0.6) * 50;
+    return 50 + ((value - 1) / 1.2) * 50;
+  };
+  const sliderToZoom = (value) => {
+    if (value <= 50) return 0.4 + (value / 50) * 0.6;
+    return 1 + ((value - 50) / 50) * 1.2;
+  };
+  const sliderValue = Math.round(zoomToSlider(zoom));
 
   const onPointerDown = (e) => {
     setDrag({ x: e.clientX, y: e.clientY, ox: orbit.x, oy: orbit.y });
@@ -156,14 +166,14 @@ function CubeViewerPanel() {
             onClick={() => setShowLabels(v => !v)}
             title="면 레이블 표시/숨기기"
           >
-            <span className="vp-icon-text">F</span>
+            <span className="vp-icon-text">LBL</span>
           </button>
           <button
             className={`vp-icon-btn ${showAxes ? 'active' : ''}`}
             onClick={() => setShowAxes(v => !v)}
             title="좌표축 표시/숨기기"
           >
-            <span className="vp-icon-text">⌖</span>
+            <span className="vp-icon-text">AXIS</span>
           </button>
         </div>
 
@@ -178,12 +188,13 @@ function CubeViewerPanel() {
         <div className="vp-zoom-controls" onPointerDown={e => e.stopPropagation()}>
           <button className="vp-zoom-btn" onClick={() => setZoom(z => clampZoom(z + 0.15))} title="확대">＋</button>
           <div className="vp-zoom-track">
+            <div className="vp-zoom-marker" title="100% 기준점">100%</div>
             <input
               type="range"
               className="vp-zoom-slider"
-              min={40} max={220} step={5}
-              value={zoomPct}
-              onChange={e => setZoom(Number(e.target.value) / 100)}
+              min={0} max={100} step={1}
+              value={sliderValue}
+              onChange={e => setZoom(clampZoom(sliderToZoom(Number(e.target.value))))}
               title={`${zoomPct}%`}
             />
           </div>
