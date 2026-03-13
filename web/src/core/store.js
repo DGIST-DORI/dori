@@ -11,6 +11,84 @@
 
 import { create } from 'zustand';
 
+const FACE_KEYS = ['U', 'R', 'F', 'D', 'L', 'B'];
+const FACE_COLORS = Object.freeze({
+  U: 'W',
+  R: 'R',
+  F: 'G',
+  D: 'Y',
+  L: 'O',
+  B: 'B',
+});
+
+const rotateFaceCW = (face) => ([
+  face[6], face[3], face[0],
+  face[7], face[4], face[1],
+  face[8], face[5], face[2],
+]);
+
+const createSolvedCube = () => Object.fromEntries(
+  FACE_KEYS.map((k) => [k, new Array(9).fill(FACE_COLORS[k])]),
+);
+
+const applyMove = (cube, move) => {
+  const next = Object.fromEntries(FACE_KEYS.map((k) => [k, [...cube[k]]]));
+
+  const turn = () => {
+    switch (move) {
+      case 'U': {
+        next.U = rotateFaceCW(next.U);
+        const temp = [cube.F[0], cube.F[1], cube.F[2]];
+        [next.F[0], next.F[1], next.F[2]] = [cube.L[0], cube.L[1], cube.L[2]];
+        [next.L[0], next.L[1], next.L[2]] = [cube.B[0], cube.B[1], cube.B[2]];
+        [next.B[0], next.B[1], next.B[2]] = [cube.R[0], cube.R[1], cube.R[2]];
+        [next.R[0], next.R[1], next.R[2]] = temp;
+        break;
+      }
+      case 'R': {
+        next.R = rotateFaceCW(next.R);
+        const temp = [cube.U[2], cube.U[5], cube.U[8]];
+        [next.U[2], next.U[5], next.U[8]] = [cube.F[2], cube.F[5], cube.F[8]];
+        [next.F[2], next.F[5], next.F[8]] = [cube.D[2], cube.D[5], cube.D[8]];
+        [next.D[2], next.D[5], next.D[8]] = [cube.B[6], cube.B[3], cube.B[0]];
+        [next.B[6], next.B[3], next.B[0]] = temp;
+        break;
+      }
+      case 'L': {
+        next.L = rotateFaceCW(next.L);
+        const temp = [cube.U[0], cube.U[3], cube.U[6]];
+        [next.U[0], next.U[3], next.U[6]] = [cube.B[8], cube.B[5], cube.B[2]];
+        [next.B[8], next.B[5], next.B[2]] = [cube.D[6], cube.D[3], cube.D[0]];
+        [next.D[6], next.D[3], next.D[0]] = [cube.F[0], cube.F[3], cube.F[6]];
+        [next.F[0], next.F[3], next.F[6]] = temp;
+        break;
+      }
+      case 'B': {
+        next.B = rotateFaceCW(next.B);
+        const temp = [cube.U[0], cube.U[1], cube.U[2]];
+        [next.U[0], next.U[1], next.U[2]] = [cube.R[2], cube.R[5], cube.R[8]];
+        [next.R[2], next.R[5], next.R[8]] = [cube.D[8], cube.D[7], cube.D[6]];
+        [next.D[8], next.D[7], next.D[6]] = [cube.L[6], cube.L[3], cube.L[0]];
+        [next.L[6], next.L[3], next.L[0]] = temp;
+        break;
+      }
+      default:
+        break;
+    }
+  };
+
+  if (move.endsWith("'")) {
+    const base = move[0];
+    for (let i = 0; i < 3; i += 1) {
+      Object.assign(next, applyMove(next, base));
+    }
+    return next;
+  }
+
+  turn();
+  return next;
+};
+
 // ─── Constants ──────────────────────────────────────────────────────────────
 export const HRI_STATES = ['IDLE', 'LISTENING', 'RESPONDING', 'NAVIGATING'];
 
@@ -78,6 +156,21 @@ export const useStore = create((set, get) => ({
   setConnected: (v) => set({ connected: v }),
   setDemoMode:  (v) => set({ isDemoMode: v }),
   setWsUrl:     (v) => set({ wsUrl: v }),
+
+  // ── Cube Sim ────────────────────────────────────────────────────────────
+  cubeState: createSolvedCube(),
+  cubeMoveHistory: [],
+  resetCube: () => set({ cubeState: createSolvedCube(), cubeMoveHistory: [] }),
+  rotateCube: (move) => set((s) => {
+    const normalized = (move || '').trim().toUpperCase();
+    if (!['U', "U'", 'R', "R'", 'L', "L'", 'B', "B'"].includes(normalized)) {
+      return s;
+    }
+    return {
+      cubeState: applyMove(s.cubeState, normalized),
+      cubeMoveHistory: [...s.cubeMoveHistory, normalized].slice(-100),
+    };
+  }),
 
   // ── HRI State Machine ───────────────────────────────────────────────────
   hriState: 'IDLE',
