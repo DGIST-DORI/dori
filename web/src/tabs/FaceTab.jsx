@@ -611,6 +611,36 @@ function FaceCanvas({ emotion }) {
   }, [emotion, cfg.drift, cfg.scan, cfg.motionProfile]);
 
   const dispCfg = EMOTION_CONFIG[displayEmotion] || EMOTION_CONFIG[FALLBACK_EMOTION];
+  const elapsedMs = Math.max(0, motionT * 1000 / 0.78);
+
+  const eyeFx = {
+    headTilt: 0,
+    headDrop: 0,
+    ldx: 0, ldy: 0, rdx: 0, rdy: 0,
+    lTilt: 0, rTilt: 0,
+    lHeightMul: 1, rHeightMul: 1,
+  };
+
+  if (displayEmotion === 'HAPPY') {
+    eyeFx.ldy = Math.sin(motionT * 2.8) * 2.8;
+    eyeFx.rdy = Math.cos(motionT * 2.8) * 2.8;
+  } else if (displayEmotion === 'SHY') {
+    eyeFx.ldx = Math.sin(motionT * 1.7) * 2.5;
+    eyeFx.rdx = -Math.sin(motionT * 1.7) * 2.5;
+    eyeFx.lTilt = -2;
+    eyeFx.rTilt = 2;
+  } else if (displayEmotion === 'CURIOUS') {
+    eyeFx.headTilt = Math.sin(motionT * 1.4) * 9;
+    eyeFx.ldy = Math.sin(motionT * 2.1) * 2;
+    eyeFx.rdy = -Math.sin(motionT * 2.1) * 2.6;
+    eyeFx.lHeightMul = 0.94 + (Math.sin(motionT * 2.2) + 1) * 0.08;
+    eyeFx.rHeightMul = 1.03;
+  } else if (displayEmotion === 'SLEEPY') {
+    const drowse = Math.min(1, elapsedMs / 7000);
+    eyeFx.headDrop = drowse * 22 + Math.sin(motionT * 1.2) * 2;
+    eyeFx.lHeightMul = 1 - drowse * 0.55;
+    eyeFx.rHeightMul = 1 - drowse * 0.55;
+  }
 
   const eyeFx = {
     headTilt: 0,
