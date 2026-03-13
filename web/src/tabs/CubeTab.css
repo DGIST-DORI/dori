@@ -22,9 +22,12 @@
 /* Viewport */
 .cube-viewport {
   position: relative;            /* anchor for overlay controls */
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
   border-radius: var(--radius-lg);
-  background: radial-gradient(circle at 50% 20%, #2f3d52, #11161e 72%);
+  background:
+    radial-gradient(circle at 50% 20%, #324563 0%, #131b27 64%, #0e141d 100%),
+    linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06), 0 12px 24px rgba(0,0,0,0.28);
   display: grid;
   place-items: center;
   perspective: 1000px;
@@ -87,23 +90,32 @@
 /* Top-right: icon toggles */
 .vp-controls-tr {
   position: absolute;
-  top: 8px; right: 8px;
-  display: flex; flex-direction: row; gap: 4px;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
   z-index: 10;
 }
 
 .vp-icon-btn {
-  width: 26px; height: 26px;
-  display: flex; align-items: center; justify-content: center;
-  background: rgba(13,17,23,0.72);
+  min-width: 42px;
+  height: 26px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(9,12,19,0.72);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: 999px;
   color: var(--text-2);
-  font-size: 13px;
-  backdrop-filter: blur(4px);
-  transition: border-color 0.12s, color 0.12s, background 0.12s;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  backdrop-filter: blur(6px);
+  transition: border-color 0.12s, color 0.12s, background 0.12s, transform 0.12s;
 }
-.vp-icon-btn:hover { border-color: var(--border-bright); color: var(--text-0); }
+.vp-icon-btn:hover { border-color: var(--border-bright); color: var(--text-0); transform: translateY(-1px); }
 .vp-icon-btn.active {
   border-color: var(--accent);
   color: var(--accent);
@@ -112,30 +124,38 @@
 
 .vp-icon-text { line-height: 1; }
 
+
 /* Bottom-left: axis indicator */
 .vp-axis-indicator {
   position: absolute;
-  bottom: 8px; left: 8px;
+  bottom: 10px;
+  left: 10px;
   z-index: 10;
-  background: rgba(13,17,23,0.60);
+  background: rgba(13,17,23,0.66);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 2px;
-  backdrop-filter: blur(4px);
+  border-radius: calc(var(--radius) + 2px);
+  padding: 4px;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.24);
+  backdrop-filter: blur(6px);
 }
 .axis-svg { display: block; }
 
 /* Bottom-right: zoom controls (vertical bar) */
 .vp-zoom-controls {
   position: absolute;
-  bottom: 8px; right: 8px;
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  bottom: 10px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
   z-index: 10;
-  background: rgba(13,17,23,0.72);
+  background: rgba(13,17,23,0.74);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 6px 4px;
-  backdrop-filter: blur(4px);
+  border-radius: calc(var(--radius) + 2px);
+  padding: 7px 6px;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.24);
+  backdrop-filter: blur(6px);
 }
 
 .vp-zoom-btn {
@@ -151,10 +171,34 @@
 .vp-zoom-btn:hover { border-color: var(--border-bright); color: var(--text-0); }
 
 .vp-zoom-track {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 72px;          /* vertical slider height */
+  height: 78px;
+}
+
+.vp-zoom-marker {
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 0;
+  border-top: 1px dashed color-mix(in srgb, var(--accent) 65%, #fff 35%);
+  color: color-mix(in srgb, var(--accent) 78%, #fff 22%);
+  pointer-events: none;
+}
+.vp-zoom-marker::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  width: 4px;
+  height: 4px;
+  transform: translateX(-50%);
+  background: currentColor;
+  border-radius: 50%;
 }
 
 /* Vertical range slider */
@@ -163,11 +207,11 @@
   direction: rtl;
   appearance: slider-vertical;
   -webkit-appearance: slider-vertical;
-  width: 4px;
-  height: 64px;
+  width: 6px;
+  height: 70px;
   cursor: pointer;
   accent-color: var(--accent);
-  background: var(--bg-3);
+  background: transparent;
 }
 
 .vp-zoom-reset {
