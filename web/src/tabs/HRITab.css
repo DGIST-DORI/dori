@@ -1,6 +1,15 @@
+/* ── HRITab.css ───────────────────────────────────────────────────────────────
+ * Layout: 3 equal columns
+ *   Col 1 : STT Test + Wake Word
+ *   Col 2 : Vision Test + LLM/TTS Inject
+ *   Col 3 : State Monitor + Event Log
+ */
+
+/* ── Root layout ─────────────────────────────────────────────────────────── */
+
 .hri-layout {
   display: grid;
-  grid-template-columns: 240px 1fr 240px;
+  grid-template-columns: 1fr 1fr 320px;
   gap: 8px;
   height: 100%;
   padding: 8px;
@@ -12,81 +21,440 @@
   flex-direction: column;
   gap: 8px;
   min-height: 0;
-}
-
-/* Column sizing */
-.hri-col-center { min-width: 0; }
-
-/* Panel height splits */
-.hri-panel-state  { flex: 1.2; }
-.hri-panel-convo  { flex: 0.8; }
-.hri-panel-log    { flex: 1; }
-.hri-panel-track  { flex: 1.4; }
-.hri-panel-gesture{ flex: 0.6; }
-
-/* EventLog fills the panel-body */
-.hri-panel-log .panel-body {
-  padding: 0;
-  display: flex;
-  flex-direction: column;
   overflow: hidden;
 }
 
-/* Placeholder */
-.hri-placeholder {
+/* Right col: State Monitor fixed height + Event Log fills rest */
+.hri-col-right {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.hri-panel-log {
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Panel inner wrapper ─────────────────────────────────────────────────── */
+
+.hri-test-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  height: 100%;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+/* ── Section label ───────────────────────────────────────────────────────── */
+
+.hri-section-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-2);
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+}
+.hri-test-panel > .hri-section-label:first-child {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+/* ── Row / field helpers ─────────────────────────────────────────────────── */
+
+.hri-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.hri-row-wrap { flex-wrap: wrap; }
+
+.hri-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.hri-field-full { width: 100%; }
+
+.hri-field label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-2);
+}
+
+.hri-field input,
+.hri-field select {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-0);
+  font-size: 10px;
+  font-family: var(--font-mono);
+  padding: 4px 7px;
+  width: 80px;
+  transition: border-color 0.12s;
+  box-sizing: border-box;
+}
+
+.hri-field-full input,
+.hri-field-full select { width: 100%; }
+
+.hri-field input:focus,
+.hri-field select:focus { outline: none; border-color: var(--border-bright); }
+
+/* ── Textarea ────────────────────────────────────────────────────────────── */
+
+.hri-input-text {
+  width: 100%;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-0);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  padding: 7px 9px;
+  resize: none;
+  transition: border-color 0.12s;
+  box-sizing: border-box;
+}
+.hri-input-text:focus { outline: none; border-color: var(--border-bright); }
+.hri-input-text::placeholder { color: var(--text-2); }
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+
+.hri-btn {
+  padding: 5px 14px;
+  border-radius: var(--radius);
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text-0);
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+}
+.hri-btn:hover:not(:disabled) { background: var(--bg-3); border-color: var(--border-bright); }
+.hri-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.hri-btn.primary {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.hri-btn.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 20%, var(--bg-2)); }
+
+.hri-btn.accent {
+  background: color-mix(in srgb, var(--green) 10%, var(--bg-2));
+  border-color: var(--green);
+  color: var(--green);
+}
+.hri-btn.accent:hover:not(:disabled) { background: color-mix(in srgb, var(--green) 20%, var(--bg-2)); }
+
+.hri-btn.danger {
+  background: var(--red-dim);
+  border-color: var(--red);
+  color: var(--red);
+}
+.hri-btn.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--red) 22%, var(--bg-2)); }
+
+.hri-btn.warning {
+  background: var(--yellow-dim);
+  border-color: var(--yellow);
+  color: var(--yellow);
+}
+.hri-btn.warning:hover:not(:disabled) { background: color-mix(in srgb, var(--yellow) 22%, var(--bg-2)); }
+
+/* ── Badge ───────────────────────────────────────────────────────────────── */
+
+.hri-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  background: var(--bg-2);
+}
+.hri-badge.ok {
+  border-color: var(--green);
+  color: var(--green);
+  background: var(--green-dim);
+}
+
+/* ── Recording dot pulse ─────────────────────────────────────────────────── */
+
+.hri-recording-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: 0 0 6px var(--red);
+  animation: hri-pulse 1s ease-in-out infinite;
+}
+@keyframes hri-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+/* ── Error / hint ────────────────────────────────────────────────────────── */
+
+.hri-error {
+  font-size: 10px;
+  color: var(--red);
+  background: var(--red-dim);
+  border: 1px solid color-mix(in srgb, var(--red) 30%, transparent);
+  border-radius: var(--radius);
+  padding: 5px 8px;
+}
+
+.hri-hint {
+  font-size: 9px;
+  color: var(--text-2);
+  line-height: 1.6;
+}
+
+.hri-hint code {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 4px;
+  color: var(--yellow);
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+.hri-hint-inline {
+  font-size: 9px;
+  color: var(--text-2);
+}
+
+/* ── Result rows ─────────────────────────────────────────────────────────── */
+
+.hri-result-row {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 5px 8px;
+  font-size: 10px;
+}
+
+.hri-result-multiline { align-items: flex-start; flex-direction: column; gap: 3px; }
+
+.hri-result-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-2);
+  flex-shrink: 0;
+}
+
+.hri-result-val {
+  color: var(--text-0);
+  word-break: break-word;
+  line-height: 1.5;
+}
+
+/* ── State row (Wake Word panel) ─────────────────────────────────────────── */
+
+.hri-state-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+}
+
+.hri-state-key { color: var(--text-2); font-size: 10px; }
+.hri-state-val { font-weight: 700; }
+.hri-state-IDLE       { color: var(--text-1); }
+.hri-state-LISTENING  { color: var(--accent); }
+.hri-state-RESPONDING { color: var(--yellow); }
+.hri-state-NAVIGATING { color: var(--green); }
+
+/* ── Camera preview ──────────────────────────────────────────────────────── */
+
+.hri-cam-preview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.hri-cam-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.hri-cam-canvas {
+  display: none; /* only used for frame capture, not shown */
+}
+
+.hri-cam-placeholder {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 100%;
   color: var(--text-2);
   font-size: 11px;
-  padding: 20px;
+}
+
+.hri-cam-placeholder span:first-child { font-size: 28px; }
+
+/* ── LLM/TTS tab row ─────────────────────────────────────────────────────── */
+
+.hri-tab-row {
+  display: flex;
+  gap: 4px;
+}
+
+.hri-tab-btn {
+  flex: 1;
+  padding: 4px 0;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-2);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.hri-tab-btn:hover { color: var(--text-0); border-color: var(--border-bright); }
+.hri-tab-btn.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── State Monitor Panel ─────────────────────────────────────────────────── */
+
+.hri-monitor-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px 12px;
+}
+
+/* Big state indicator */
+.hri-state-indicator {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  margin-bottom: 4px;
+  transition: border-color 0.3s;
+}
+
+.hri-state-indicator-label {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--text-2);
+  text-transform: uppercase;
+}
+
+.hri-state-indicator-value {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 2px;
   text-align: center;
-}
-.hri-placeholder-icon { font-size: 24px; opacity: 0.3; }
-.hri-placeholder-hint { font-size: 10px; color: var(--text-2); opacity: 0.6; }
-
-
-@media (max-width: 1200px) {
-  .hri-layout {
-    grid-template-columns: minmax(200px, 1fr) minmax(0, 1.5fr);
-    grid-template-areas:
-      "left center"
-      "right center";
-  }
-
-  .hri-col-left { grid-area: left; }
-  .hri-col-center { grid-area: center; }
-  .hri-col-right { grid-area: right; }
+  transition: color 0.25s;
 }
 
-@media (max-width: 900px) {
+.hri-state-indicator-elapsed {
+  font-size: 10px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* Monitor rows */
+.hri-monitor-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
+}
+.hri-monitor-row:last-child { border-bottom: none; }
+
+.hri-monitor-key {
+  color: var(--text-2);
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  flex-shrink: 0;
+}
+
+.hri-monitor-val {
+  color: var(--text-0);
+  text-align: right;
+  word-break: break-word;
+  max-width: 200px;
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+
+@media (max-width: 1100px) {
   .hri-layout {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      "center"
-      "left"
-      "right";
-    overflow: auto;
-    align-content: start;
+    grid-template-columns: 1fr 1fr;
+    overflow-y: auto;
   }
 
-  .hri-col {
-    min-height: 220px;
-  }
-
-  .hri-panel-state,
-  .hri-panel-convo,
-  .hri-panel-log,
-  .hri-panel-track,
-  .hri-panel-gesture {
-    flex: 1;
-    min-height: 180px;
+  .hri-col-right {
+    grid-column: 1 / -1;
+    overflow: visible;
   }
 
   .hri-panel-log {
-    min-height: 360px;
+    min-height: 280px;
+  }
+}
+
+@media (max-width: 700px) {
+  .hri-layout {
+    grid-template-columns: 1fr;
   }
 }
