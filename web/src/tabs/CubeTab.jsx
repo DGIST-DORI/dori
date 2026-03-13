@@ -1,7 +1,7 @@
 /**
  * tabs/CubeTab.jsx  —  Cube Simulator
  */
-import { useMemo, useState, useRef, useCallback } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import Panel from '../components/Panel';
 import { useStore } from '../core/store';
 import './CubeTab.css';
@@ -24,64 +24,19 @@ const STICKER_CLASS = { W:'sticker-white', Y:'sticker-yellow', G:'sticker-green'
 const COLOR_LABEL   = { W:'White', Y:'Yellow', G:'Green', B:'Blue', R:'Red', O:'Orange' };
 const MOVE_BUTTONS  = [['U',"U'"],['R',"R'"],['L',"L'"],['B',"B'"]];
 
-// ── Axis indicator (SVG, orbit-aware) ─────────────────────────────────────────
-// Projects X/Y/Z unit vectors given current orbit angles, draws arrows in SVG.
+// ── Axis indicator (3D gizmo, orbit-synced) ───────────────────────────────────
 function AxisIndicator({ orbitX, orbitY }) {
-  const SIZE   = 56;
-  const ORIGIN = { x: SIZE / 2, y: SIZE / 2 };
-  const LEN    = 20;
-
-  // Convert orbit angles (deg) to radians
-  const rx = (orbitX * Math.PI) / 180;
-  const ry = (orbitY * Math.PI) / 180;
-
-  // Rotation matrix: Ry then Rx (same order as CSS transform)
-  const project = ([wx, wy, wz]) => {
-    // Rotate around Y
-    const x1 =  wx * Math.cos(ry) + wz * Math.sin(ry);
-    const y1 =  wy;
-    const z1 = -wx * Math.sin(ry) + wz * Math.cos(ry);
-    // Rotate around X
-    const x2 =  x1;
-    const y2 =  y1 * Math.cos(rx) - z1 * Math.sin(rx);
-    // Project: just use x2, y2 (ignore z depth for 2D indicator)
-    return { x: ORIGIN.x + x2 * LEN, y: ORIGIN.y - y2 * LEN };
-  };
-
-  const axes = [
-    { vec: [1,0,0], color: '#f87171', label: 'X' },
-    { vec: [0,1,0], color: '#4ade80', label: 'Y' },
-    { vec: [0,0,1], color: '#60a5fa', label: 'Z' },
-  ];
+  const transform = `rotateX(${orbitX}deg) rotateY(${orbitY}deg)`;
 
   return (
-    <svg width={SIZE} height={SIZE} className="axis-svg" viewBox={`0 0 ${SIZE} ${SIZE}`}>
-      {axes.map(({ vec, color, label }) => {
-        const tip = project(vec);
-        const dx  = tip.x - ORIGIN.x;
-        const dy  = tip.y - ORIGIN.y;
-        const len = Math.sqrt(dx*dx + dy*dy);
-        const nx  = dx / len;
-        const ny  = dy / len;
-        // Arrow head
-        const ah = 5;
-        const aw = 3;
-        const px1 = tip.x - nx * ah + ny * aw;
-        const py1 = tip.y - ny * ah - nx * aw;
-        const px2 = tip.x - nx * ah - ny * aw;
-        const py2 = tip.y - ny * ah + nx * aw;
-        return (
-          <g key={label}>
-            <line x1={ORIGIN.x} y1={ORIGIN.y} x2={tip.x} y2={tip.y}
-              stroke={color} strokeWidth="1.8" strokeLinecap="round" />
-            <polygon points={`${tip.x},${tip.y} ${px1},${py1} ${px2},${py2}`} fill={color} />
-            <text x={tip.x + nx*6} y={tip.y + ny*6 + 3.5}
-              fill={color} fontSize="9" fontWeight="700"
-              textAnchor="middle" fontFamily="monospace">{label}</text>
-          </g>
-        );
-      })}
-    </svg>
+    <div className="axis-gizmo-wrap">
+      <div className="axis-gizmo" style={{ transform }}>
+        <div className="axis-arm axis-arm-x"><span className="axis-label">X</span></div>
+        <div className="axis-arm axis-arm-y"><span className="axis-label">Y</span></div>
+        <div className="axis-arm axis-arm-z"><span className="axis-label">Z</span></div>
+        <span className="axis-origin" />
+      </div>
+    </div>
   );
 }
 
@@ -98,6 +53,15 @@ function CubeViewerPanel() {
   const transform  = `scale(${zoom}) rotateX(${orbit.x}deg) rotateY(${orbit.y}deg)`;
   const clampZoom  = (z) => Math.max(0.4, Math.min(2.2, z));
   const zoomPct    = Math.round(zoom * 100);
+  const zoomToSlider = (value) => {
+    if (value <= 1) return ((value - 0.4) / 0.6) * 50;
+    return 50 + ((value - 1) / 1.2) * 50;
+  };
+  const sliderToZoom = (value) => {
+    if (value <= 50) return 0.4 + (value / 50) * 0.6;
+    return 1 + ((value - 50) / 50) * 1.2;
+  };
+  const sliderValue = Math.round(zoomToSlider(zoom));
 
   const onPointerDown = (e) => {
     setDrag({ x: e.clientX, y: e.clientY, ox: orbit.x, oy: orbit.y });
@@ -156,14 +120,14 @@ function CubeViewerPanel() {
             onClick={() => setShowLabels(v => !v)}
             title="면 레이블 표시/숨기기"
           >
-            <span className="vp-icon-text">F</span>
+            <span className="vp-icon-text">LBL</span>
           </button>
           <button
             className={`vp-icon-btn ${showAxes ? 'active' : ''}`}
             onClick={() => setShowAxes(v => !v)}
             title="좌표축 표시/숨기기"
           >
-            <span className="vp-icon-text">⌖</span>
+            <span className="vp-icon-text">AXIS</span>
           </button>
         </div>
 
@@ -178,12 +142,13 @@ function CubeViewerPanel() {
         <div className="vp-zoom-controls" onPointerDown={e => e.stopPropagation()}>
           <button className="vp-zoom-btn" onClick={() => setZoom(z => clampZoom(z + 0.15))} title="확대">＋</button>
           <div className="vp-zoom-track">
+            <div className="vp-zoom-marker" title="100% 기준점" />
             <input
               type="range"
               className="vp-zoom-slider"
-              min={40} max={220} step={5}
-              value={zoomPct}
-              onChange={e => setZoom(Number(e.target.value) / 100)}
+              min={0} max={100} step={1}
+              value={sliderValue}
+              onChange={e => setZoom(clampZoom(sliderToZoom(Number(e.target.value))))}
               title={`${zoomPct}%`}
             />
           </div>
