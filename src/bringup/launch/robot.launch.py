@@ -16,6 +16,7 @@ from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
 
 
 def generate_launch_description():
@@ -49,6 +50,11 @@ def generate_launch_description():
     args_nav = [
         DeclareLaunchArgument('max_speed',          default_value='0.5'),
         DeclareLaunchArgument('enable_navigation',  default_value='true'),
+    ]
+
+    args_system = [
+        DeclareLaunchArgument('enable_system_monitor', default_value='true'),
+        DeclareLaunchArgument('system_metrics_interval_sec', default_value='1.0'),
     ]
 
     # Sub-launch files
@@ -110,5 +116,20 @@ def generate_launch_description():
 
     if nav_launch:
         launch_list.append(nav_launch)
+
+    launch_list.extend([
+        *args_system,
+        Node(
+            package='system_monitor_pkg',
+            executable='system_monitor_node',
+            name='system_monitor_node',
+            output='screen',
+            parameters=[{
+                'interval_sec': LaunchConfiguration('system_metrics_interval_sec'),
+                'publish_topic': '/dori/system/metrics',
+            }],
+            condition=IfCondition(LaunchConfiguration('enable_system_monitor')),
+        ),
+    ])
 
     return LaunchDescription(launch_list)

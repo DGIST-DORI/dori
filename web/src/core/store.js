@@ -147,6 +147,7 @@ export const TOPIC_META = {
   '/dori/follow/target_offset':    { tag: LOG_TAGS.TRACK,   label: 'Follow Offset' },
   '/dori/nav/command':             { tag: LOG_TAGS.NAV,     label: 'Nav Command' },
   '/dori/landmark/context':        { tag: LOG_TAGS.NAV,     label: 'Landmark Context' },
+  '/dori/system/metrics':         { tag: LOG_TAGS.SYS,     label: 'System Metrics' },
 };
 
 const MAX_LOG = 300;
@@ -238,6 +239,15 @@ export const useStore = create((set, get) => ({
   gesture: 'NONE',
   gestureDirection: null,
   expression: 'NEUTRAL',
+
+  // ── System Metrics ──────────────────────────────────────────────────────
+  systemMetrics: {
+    timestamp: null,
+    cpu: null,
+    ram: null,
+    disk: null,
+    gpu: null,
+  },
 
   // ── Emotion (robot display face) ─────────────────────────────────────────
   emotion: DEFAULT_EMOTION,
@@ -433,6 +443,21 @@ export const useStore = create((set, get) => ({
         case '/dori/landmark/context':
           set({ hriLocationContext: typeof parsed === 'string' ? parsed : JSON.stringify(parsed) });
           break;
+
+        case '/dori/system/metrics': {
+          if (parsed && typeof parsed === 'object') {
+            set({
+              systemMetrics: {
+                timestamp: parsed.timestamp ?? null,
+                cpu: parsed.cpu ?? null,
+                ram: parsed.ram ?? null,
+                disk: parsed.disk ?? null,
+                gpu: parsed.gpu ?? null,
+              },
+            });
+          }
+          break;
+        }
 
         case '/dori/nav/command':
           addLog(LOG_TAGS.NAV, `cmd: ${typeof parsed === 'string' ? parsed : JSON.stringify(parsed)}`, rawVal);

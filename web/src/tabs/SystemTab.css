@@ -1,12 +1,46 @@
 .sys-layout {
   display: grid;
-  grid-template-columns: 1fr 300px;
+  grid-template-columns: 1.2fr 1fr 300px;
   gap: 8px;
   height: 100%;
   padding: 8px;
   overflow: hidden;
 }
 
+.sys-metrics-grid {
+  padding: 12px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.sys-metric-card {
+  border: 1px solid var(--bg-3);
+  border-radius: 8px;
+  background: var(--bg-2);
+  padding: 10px;
+}
+
+.sys-metric-card h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+}
+
+.sys-metric-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+
+.sys-metric-value {
+  color: var(--text-0);
+}
+
+.sys-metric-value.is-warning {
+  color: var(--red);
+  font-weight: 700;
+}
 
 .sys-info {
   padding: 12px;
@@ -22,14 +56,16 @@
 .sys-info-row span:first-child { color: var(--text-1); }
 .sys-info-row span:last-child  { color: var(--text-0); }
 
-
-@media (max-width: 900px) {
+@media (max-width: 1200px) {
   .sys-layout {
     grid-template-columns: 1fr;
     overflow: auto;
     align-content: start;
   }
 
+  .sys-metrics-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .sys-topic-diag {

@@ -6,11 +6,17 @@ import './SystemTab.css';
 
 const fmt = (val, suffix = '') => (val === null || val === undefined ? 'N/A' : `${val}${suffix}`);
 
+const thresholdClass = (value, warningThreshold) => {
+  if (value === null || value === undefined) return '';
+  return value >= warningThreshold ? 'sys-metric-value is-warning' : 'sys-metric-value';
+};
+
 export default function SystemTab() {
   const topicStats = useStore((s) => s.topicStats);
   const connected = useStore((s) => s.connected);
   const isDemoMode = useStore((s) => s.isDemoMode);
   const wsUrl = useStore((s) => s.wsUrl);
+  const systemMetrics = useStore((s) => s.systemMetrics);
 
   const topics = Object.keys(TOPIC_META);
   const parsedWsUrl = parseWsUrl(wsUrl);
@@ -23,6 +29,32 @@ export default function SystemTab() {
 
   return (
     <div className="sys-layout">
+      <Panel title="System Metrics">
+        <div className="sys-metrics-grid">
+          <div className="sys-metric-card">
+            <h4>CPU</h4>
+            <div className="sys-metric-row"><span>Usage</span><span className={thresholdClass(systemMetrics?.cpu?.usage_pct, 85)}>{fmt(systemMetrics?.cpu?.usage_pct, '%')}</span></div>
+            <div className="sys-metric-row"><span>Logical Cores</span><span className="sys-metric-value">{fmt(systemMetrics?.cpu?.count_logical)}</span></div>
+            <div className="sys-metric-row"><span>Load Avg (1/5/15)</span><span className="sys-metric-value">{systemMetrics?.cpu?.load_avg_1_5_15?.join(' / ') || 'N/A'}</span></div>
+          </div>
+
+          <div className="sys-metric-card">
+            <h4>GPU</h4>
+            <div className="sys-metric-row"><span>Provider</span><span className="sys-metric-value">{fmt(systemMetrics?.gpu?.provider)}</span></div>
+            <div className="sys-metric-row"><span>Usage</span><span className={thresholdClass(systemMetrics?.gpu?.utilization_pct, 90)}>{fmt(systemMetrics?.gpu?.utilization_pct, '%')}</span></div>
+            <div className="sys-metric-row"><span>Memory</span><span className="sys-metric-value">{systemMetrics?.gpu?.memory_used_mb !== null && systemMetrics?.gpu?.memory_total_mb !== null ? `${systemMetrics.gpu.memory_used_mb} / ${systemMetrics.gpu.memory_total_mb} MB` : 'N/A'}</span></div>
+            <div className="sys-metric-row"><span>Temp</span><span className={thresholdClass(systemMetrics?.gpu?.temperature_c, 80)}>{fmt(systemMetrics?.gpu?.temperature_c, '°C')}</span></div>
+          </div>
+
+          <div className="sys-metric-card">
+            <h4>RAM</h4>
+            <div className="sys-metric-row"><span>Usage</span><span className={thresholdClass(systemMetrics?.ram?.usage_pct, 85)}>{fmt(systemMetrics?.ram?.usage_pct, '%')}</span></div>
+            <div className="sys-metric-row"><span>Used</span><span className="sys-metric-value">{fmt(systemMetrics?.ram?.used_mb, ' MB')}</span></div>
+            <div className="sys-metric-row"><span>Total</span><span className="sys-metric-value">{fmt(systemMetrics?.ram?.total_mb, ' MB')}</span></div>
+          </div>
+        </div>
+      </Panel>
+
       <Panel title="Topic Diagnostics">
         <div className="sys-topic-diag">
           <div className="sys-topic-diag-header">
