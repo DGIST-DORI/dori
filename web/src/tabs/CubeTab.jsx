@@ -27,13 +27,14 @@ const MOVE_BUTTONS  = [['U',"U'"],['R',"R'"],['L',"L'"],['B',"B'"]];
 // ── Axis indicator (3D gizmo, orbit-synced) ───────────────────────────────────
 function AxisIndicator({ orbitX, orbitY }) {
   const transform = `rotateX(${orbitX}deg) rotateY(${orbitY}deg)`;
+  const labelTransform = `rotateY(${-orbitY}deg) rotateX(${-orbitX}deg)`;
 
   return (
     <div className="axis-gizmo-wrap">
       <div className="axis-gizmo" style={{ transform }}>
-        <div className="axis-arm axis-arm-x"><span className="axis-label">X</span></div>
-        <div className="axis-arm axis-arm-y"><span className="axis-label">Y</span></div>
-        <div className="axis-arm axis-arm-z"><span className="axis-label">Z</span></div>
+        <div className="axis-arm axis-arm-x"><span className="axis-label" style={{ transform: `${labelTransform} translateY(-50%)` }}>X</span></div>
+        <div className="axis-arm axis-arm-y"><span className="axis-label" style={{ transform: `${labelTransform} translateY(-50%)` }}>Y</span></div>
+        <div className="axis-arm axis-arm-z"><span className="axis-label" style={{ transform: `${labelTransform} translateY(-50%)` }}>Z</span></div>
         <span className="axis-origin" />
       </div>
     </div>

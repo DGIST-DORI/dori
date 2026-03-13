@@ -177,22 +177,25 @@
 .axis-arm-x { color: #f87171; background: currentColor; transform: translateZ(0); }
 .axis-arm-x::after { border-left: 5px solid #f87171; }
 
-.axis-arm-y { color: #4ade80; background: currentColor; transform: rotateZ(-90deg); }
-.axis-arm-y::after { border-left: 5px solid #4ade80; }
+.axis-arm-y { color: #f8fafc; background: currentColor; transform: rotateZ(-90deg); }
+.axis-arm-y::after { border-left: 5px solid #f8fafc; }
 
-.axis-arm-z { color: #60a5fa; background: currentColor; transform: rotateY(90deg); }
-.axis-arm-z::after { border-left: 5px solid #60a5fa; }
+.axis-arm-z { color: #53c87a; background: currentColor; transform: rotateY(-90deg); }
+.axis-arm-z::after { border-left: 5px solid #53c87a; }
 
 .axis-label {
   position: absolute;
   right: -12px;
   top: 50%;
   transform: translateY(-50%);
+  transform-style: preserve-3d;
   font-size: 8px;
   font-family: var(--font-mono);
   font-weight: 700;
   letter-spacing: 0.2px;
   color: currentColor;
+  text-shadow: 0 0 4px rgba(0,0,0,0.9);
+  backface-visibility: hidden;
 }
 
 .axis-origin {
@@ -250,6 +253,7 @@
   right: -2px;
   top: 50%;
   transform: translateY(-50%);
+  transform-style: preserve-3d;
   height: 0;
   border-top: 1px dashed color-mix(in srgb, var(--accent) 65%, #fff 35%);
   color: color-mix(in srgb, var(--accent) 78%, #fff 22%);
