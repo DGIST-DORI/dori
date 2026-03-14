@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import Panel from '../components/Panel';
 import { TOPIC_META, useStore } from '../core/store';
 import { parseWsUrl } from '../core/url';
@@ -176,7 +177,11 @@ export default function SystemTab() {
                         {col.label}
                         {sortable && (
                           <span className="sys-sort-arrow">
-                            {active ? (sortDir === 1 ? ' ↑' : ' ↓') : ' ↕'}
+                            {active
+                              ? (sortDir === 1
+                                  ? <ArrowUp size={9} strokeWidth={2.5} />
+                                  : <ArrowDown size={9} strokeWidth={2.5} />)
+                              : <ArrowUpDown size={9} strokeWidth={2} />}
                           </span>
                         )}
                       </th>

@@ -17,6 +17,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { Check, X, AlertCircle, Upload, RefreshCw } from 'lucide-react';
 import Panel from '../components/Panel';
 import './KnowledgeTab.css';
 
@@ -78,10 +79,10 @@ function MenuParserPanel() {
 
       data.results.forEach(r => {
         if (r.ok) {
-          appendLog(`✓ ${r.filename}  →  ${r.out_json}`);
+          appendLog(`[OK] ${r.filename}  →  ${r.out_json}`);
           appendLog(`  └ ${r.out_txt}`);
         } else {
-          appendLog(`✗ ${r.filename}  —  ${r.error}`);
+          appendLog(`[ERR] ${r.filename}  —  ${r.error}`);
         }
       });
       setStatus(data.results.every(r => r.ok) ? 'ok' : 'error');
@@ -134,7 +135,9 @@ function MenuParserPanel() {
                   <li key={i} className="km-file-item">
                     <span className="km-file-name">{f.name}</span>
                     <span className="km-file-size">{(f.size / 1024).toFixed(1)} KB</span>
-                    <button className="km-file-remove" onClick={() => removeFile(i)}>✕</button>
+                    <button className="km-file-remove" onClick={() => removeFile(i)} aria-label="Remove">
+                      <X size={10} strokeWidth={2.5} />
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -212,12 +215,12 @@ function IndexBuilderPanel() {
         d.new_lines?.forEach(l => appendLog(l));
         if (d.status === 'done') {
           clearInterval(pollRef.current);
-          appendLog(`✓ Done — ${d.total_chunks} chunks indexed.`);
+          appendLog(`[OK] Done — ${d.total_chunks} chunks indexed.`);
           setStatus('ok');
           fetchIndexInfo();
         } else if (d.status === 'error') {
           clearInterval(pollRef.current);
-          appendLog(`✗ Build failed: ${d.error}`);
+          appendLog(`[ERR] Build failed: ${d.error}`);
           setStatus('error');
         }
       }, 800);

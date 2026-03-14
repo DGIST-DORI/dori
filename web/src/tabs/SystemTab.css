@@ -123,8 +123,11 @@
 .sys-topic-diag-table th.sorted { color: var(--accent, #00c8ff); }
 
 .sys-sort-arrow {
-  font-size: 8px;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 3px;
   opacity: 0.7;
+  vertical-align: middle;
 }
 
 /* Cells */

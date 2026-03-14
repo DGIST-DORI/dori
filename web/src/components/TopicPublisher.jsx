@@ -9,6 +9,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { X } from 'lucide-react';
 import { LOG_TAGS, useStore } from '../core/store';
 import { publishROS } from '../core/ros';
 import './TopicPublisher.css';
@@ -138,7 +139,9 @@ export default function TopicPublisher() {
       <div className={`tp-panel ${open ? 'visible' : ''}`} role="complementary" aria-label="Topic Publisher">
         <div className="tp-panel-header">
           <span className="tp-panel-title">Topic Publisher</span>
-          <button className="tp-panel-close" onClick={() => setOpen(false)} aria-label="Close">✕</button>
+          <button className="tp-panel-close" onClick={() => setOpen(false)} aria-label="Close">
+            <X size={11} strokeWidth={2} />
+          </button>
         </div>
 
         <div className="tp-body">
