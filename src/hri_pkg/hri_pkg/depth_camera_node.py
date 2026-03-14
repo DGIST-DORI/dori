@@ -14,7 +14,7 @@ except ImportError:
     REALSENSE_AVAILABLE = False
 
 
-class RealSenseNode(Node):
+class DepthCameraNode(Node):
     def __init__(self):
         super().__init__('depth_camera_node')
 
@@ -81,7 +81,7 @@ class RealSenseNode(Node):
         self.timer = self.create_timer(timer_period, self.timer_callback)
 
         self.get_logger().info(
-            f'RealSense Node started: {self.width}x{self.height} @ {self.fps}fps, '
+            f'Depth Camera Node started: {self.width}x{self.height} @ {self.fps}fps, '
             f'align={self.align_to_color}'
         )
 
@@ -182,7 +182,7 @@ class RealSenseNode(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = RealSenseNode()
+    node = DepthCameraNode()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:

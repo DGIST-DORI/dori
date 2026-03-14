@@ -102,7 +102,7 @@ class LandmarkDetectionNode(Node):
         self.depth_sub = self.create_subscription(
             Image, '/dori/camera/depth/image_raw', self.depth_callback, 10
         )
-        # internal topic for camera intrinsics (published by camera node or RealSense node)
+        # internal topic for camera intrinsics (published by camera node or DepthCamera node)
         from sensor_msgs.msg import CameraInfo
         self.camera_info_sub = self.create_subscription(
             CameraInfo, '/dori/camera/color/camera_info', self.camera_info_callback, 10

@@ -81,10 +81,10 @@ def generate_launch_description():
     # Front camera: primary camera for HRI (person detection, landmarks)
     # Rear camera: secondary (obstacle avoidance, wider coverage)
     # Each camera publishes on its own namespace.
-    realsense_front = Node(
+    depth_camera_front = Node(
         package='hri_pkg',
         executable='depth_camera_node',
-        name='realsense_front',
+        name='depth_camera_front',
         namespace='dori/camera/front',
         output='screen',
         parameters=[{
@@ -101,10 +101,10 @@ def generate_launch_description():
         ],
     )
 
-    realsense_rear = Node(
+    depth_camera_rear = Node(
         package='hri_pkg',
         executable='depth_camera_node',
-        name='realsense_rear',
+        name='depth_camera_rear',
         namespace='dori/camera/rear',
         output='screen',
         parameters=[{
@@ -178,8 +178,8 @@ def generate_launch_description():
 
     return LaunchDescription([
         *args,
-        realsense_front,
-        realsense_rear,
+        depth_camera_front,
+        depth_camera_rear,
         person_detection_node,
         landmark_detection_node,
         gesture_recognition_node,

@@ -33,7 +33,7 @@ setup(
     entry_points={
         'console_scripts': [
             'camera_node = hri_pkg.camera_node:main',
-            'realsense_node = hri_pkg.realsense_node:main',
+            'depth_camera_node = hri_pkg.depth_camera_node:main',
             'person_detection_node = hri_pkg.person_detection_node:main',
             'landmark_detection_node = hri_pkg.landmark_detection_node:main',
             'gesture_recognition_node = hri_pkg.gesture_recognition_node:main',
