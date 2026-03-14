@@ -19,6 +19,7 @@ import Panel from '../components/Panel';
 import { useStore } from '../core/store';
 import { DEFAULT_EMOTION } from '../core/emotion';
 import './FaceTab.css';
+import { Zap, Radio, RefreshCw, Circle } from 'lucide-react';
 
 // ── Single face color (always the same regardless of emotion) ─────────────────
 const FACE_COLOR = '#e8eaf0';
@@ -745,7 +746,11 @@ export default function FaceTab() {
               >
                 <span className="face-palette-dot" />
                 <span className="face-palette-name">{ecfg.label}</span>
-                {emotion === key && <span className="face-palette-active-mark">●</span>}
+                {emotion === key && (
+                  <span className="face-palette-active-mark">
+                    <Circle size={6} fill="currentColor" strokeWidth={0} />
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -759,8 +764,12 @@ export default function FaceTab() {
             </div>
             <div className="face-status-row">
               <span className="face-status-key">Source</span>
-              <span className={`face-status-val face-source-${emotionSource}`}>
-                {emotionSource === 'override' ? '⚡ override' : emotionSource === 'ros' ? '◎ ros' : '⟳ state'}
+              <span className={`face-status-val face-source-${emotionSource} face-source-icon`}>
+                {emotionSource === 'override'
+                 ? <><Zap size={10} strokeWidth={2} /> override</>
+                 : emotionSource === 'ros'
+                 ? <><Radio size={10} strokeWidth={2} /> ros</>
+                 : <><RefreshCw size={10} strokeWidth={2} /> state</>}
               </span>
             </div>
             <div className="face-status-row">

@@ -5,6 +5,7 @@ import { useMemo, useState, useCallback } from 'react';
 import Panel from '../components/Panel';
 import { useStore } from '../core/store';
 import './CubeTab.css';
+import { RotateCcw, ArrowUp, Copy } from 'lucide-react';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -297,12 +298,18 @@ function RotationControlPanel() {
         </div>
         <button className="rot-history-btn"
           onClick={() => setSeqInput(cubeMoveHistory.join(' '))}
-          title="히스토리 불러오기" disabled={!cubeMoveHistory.length}>↑</button>
+          title="히스토리 불러오기" disabled={!cubeMoveHistory.length}>
+          <ArrowUp size={11} strokeWidth={2} />
+        </button>
         <button className={`rot-history-btn ${copyFlash ? 'flash' : ''}`}
-          onClick={copyHistory} title="히스토리 복사" disabled={!cubeMoveHistory.length}>⎘</button>
+          onClick={copyHistory} title="히스토리 복사" disabled={!cubeMoveHistory.length}>
+          <Copy size={11} strokeWidth={2} />
+        </button>
       </div>
 
-      <button className="rotation-reset" onClick={resetCube}>↺ Reset</button>
+      <button className="rotation-reset rotation-reset-icon" onClick={resetCube}>
+        <RotateCcw size={11} strokeWidth={2} /> Reset
+      </button>
     </div>
   );
 }

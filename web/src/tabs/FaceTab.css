@@ -157,6 +157,11 @@
 
 .face-source-override { color: var(--yellow, #ecd85b) !important; }
 .face-source-state    { color: var(--green,  #53c87a) !important; }
+.face-source-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
 
 .face-clear-override {
   margin: 6px 4px 2px;

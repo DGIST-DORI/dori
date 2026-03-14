@@ -410,6 +410,12 @@
   border-radius: var(--radius); color: var(--text-1); font-size: 11px; transition: all 0.12s; margin-top: auto;
 }
 .rotation-reset:hover { border-color: var(--red); color: var(--red); background: var(--red-dim); }
+.rotation-reset-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.rot-history-btn svg { display: block; }
 
 /* Path finder placeholder */
 .cube-pathfinder-placeholder { height: 100%; display: grid; place-items: center; color: var(--text-2); font-size: 12px; }
