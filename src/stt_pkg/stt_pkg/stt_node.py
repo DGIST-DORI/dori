@@ -30,7 +30,7 @@ import sounddevice as sd
 try:
     import pvporcupine
     PORCUPINE_AVAILABLE = True
-except ImportError:
+except (ImportError, NotImplementedError, Exception):
     PORCUPINE_AVAILABLE = False
 
 try:
@@ -95,7 +95,8 @@ class STTNode(Node):
 
         # Porcupine (wake word)
         if not PORCUPINE_AVAILABLE:
-            self.get_logger().error('pvporcupine not found: pip install pvporcupine')
+            self.get_logger().warn('pvporcupine not found: pip install pvporcupine')
+            self.porcupine = None
             return
 
         try:

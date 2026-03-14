@@ -264,10 +264,11 @@ class LLMNode(Node):
     def _init_llm_client(self, api_key: str):
         try:
             if 'gemini' in self.model_name.lower():
-                import google.generativeai as genai
-                genai.configure(api_key=api_key or os.environ.get('GEMINI_API_KEY', ''))
-                self.llm_client = genai.GenerativeModel(self.model_name)
+                import google.genai as genai
+                client = genai.Client(api_key=api_key or os.environ.get('GEMINI_API_KEY', ''))
+                self.llm_client = client
                 self.llm_type   = 'gemini'
+                self._gemini_model_name = self.model_name
                 self.get_logger().info(f'Gemini client ready: {self.model_name}')
 
             elif 'claude' in self.model_name.lower():
