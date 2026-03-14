@@ -3,4 +3,5 @@
 -r src/tts_pkg/requirements.txt
 -r src/llm_pkg/requirements.txt
 -r src/hri_pkg/requirements.txt
+-r src/dashboard_pkg/requirements.txt
 -r src/system_monitor_pkg/requirements.txt
