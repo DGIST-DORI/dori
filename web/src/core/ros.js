@@ -141,5 +141,6 @@ export function publishROS(topic, msgType, data) {
   if (!ros) return;
   const roslib = getROSLib();
   const t = new roslib.Topic({ ros, name: topic, messageType: msgType });
-  t.publish(new roslib.Message(data));
+  const message = typeof roslib.Message === 'function' ? new roslib.Message(data) : data;
+  t.publish(message);
 }
