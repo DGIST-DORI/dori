@@ -6,6 +6,7 @@ Usage:
   ros2 launch bringup robot.launch.py
   ros2 launch bringup robot.launch.py use_external_llm:=true
   ros2 launch bringup robot.launch.py enable_navigation:=false  # SW dev without HW
+  ros2 launch bringup robot.launch.py enable_dashboard:=true    # dev: rosbridge + web UI
 """
 
 import os
@@ -23,7 +24,7 @@ def generate_launch_description():
 
     bringup_dir = get_package_share_directory('bringup')
 
-    # Launch arguments
+    # ── Launch arguments ──────────────────────────────────────────────────────
 
     # Camera / HRI perception
     args_hri = [
@@ -52,12 +53,23 @@ def generate_launch_description():
         DeclareLaunchArgument('enable_navigation',  default_value='true'),
     ]
 
+    # System monitor
     args_system = [
-        DeclareLaunchArgument('enable_system_monitor', default_value='true'),
-        DeclareLaunchArgument('system_metrics_interval_sec', default_value='1.0'),
+        DeclareLaunchArgument('enable_system_monitor',        default_value='true'),
+        DeclareLaunchArgument('system_metrics_interval_sec',  default_value='1.0'),
     ]
 
-    # Sub-launch files
+    # Dashboard (opt-in — off by default for production)
+    args_dashboard = [
+        DeclareLaunchArgument(
+            'enable_dashboard',
+            default_value='false',
+            description='Launch rosbridge + web dashboard (for development). '
+                        'Requires: cd web && npm run build  before colcon build.',
+        ),
+    ]
+
+    # ── Sub-launch files ──────────────────────────────────────────────────────
 
     hri_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -104,12 +116,27 @@ def generate_launch_description():
     except Exception:
         pass  # navigation_pkg not yet available
 
-    # Assembly
+    # Dashboard launch — conditional on enable_dashboard:=true
+    dashboard_launch = None
+    try:
+        dashboard_pkg_dir = get_package_share_directory('dashboard_pkg')
+        dashboard_launch = IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                os.path.join(dashboard_pkg_dir, 'launch', 'dashboard.launch.py')
+            ),
+            condition=IfCondition(LaunchConfiguration('enable_dashboard')),
+        )
+    except Exception:
+        pass  # dashboard_pkg not yet installed — silently skip
+
+    # ── Assembly ──────────────────────────────────────────────────────────────
 
     launch_list = [
         *args_hri,
         *args_voice,
         *args_nav,
+        *args_system,
+        *args_dashboard,
         hri_launch,
         voice_launch,
     ]
@@ -117,19 +144,21 @@ def generate_launch_description():
     if nav_launch:
         launch_list.append(nav_launch)
 
-    launch_list.extend([
-        *args_system,
+    launch_list.append(
         Node(
             package='system_monitor_pkg',
             executable='system_monitor_node',
             name='system_monitor_node',
             output='screen',
             parameters=[{
-                'interval_sec': LaunchConfiguration('system_metrics_interval_sec'),
+                'interval_sec':  LaunchConfiguration('system_metrics_interval_sec'),
                 'publish_topic': '/dori/system/metrics',
             }],
             condition=IfCondition(LaunchConfiguration('enable_system_monitor')),
-        ),
-    ])
+        )
+    )
+
+    if dashboard_launch:
+        launch_list.append(dashboard_launch)
 
     return LaunchDescription(launch_list)
