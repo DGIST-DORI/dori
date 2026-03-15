@@ -34,29 +34,36 @@
   font-weight: 500;
   color: var(--text-2);
   letter-spacing: 0.5px;
+  cursor: pointer;
   transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 .el-filter-btn:hover {
   border-color: var(--border-bright);
   color: var(--text-1);
 }
-.el-filter-btn.active {
+
+/* ── ALL button active ── */
+.el-filter-btn.active.tag-ALL {
   background: var(--accent-dim);
   border-color: var(--accent);
+  color: var(--accent);
 }
-/* tag-colored active state */
-.el-filter-btn.active.tag-STATE   { background: rgba(0,200,255,0.12); border-color: var(--accent); color: var(--accent); }
-.el-filter-btn.active.tag-WAKE    { background: var(--yellow-dim);  border-color: var(--yellow);  color: var(--yellow); }
-.el-filter-btn.active.tag-STT     { background: var(--green-dim);   border-color: var(--green);   color: var(--green); }
-.el-filter-btn.active.tag-LLM     { background: var(--purple-dim);  border-color: var(--purple);  color: var(--purple); }
-.el-filter-btn.active.tag-TTS     { background: var(--orange-dim);  border-color: var(--orange);  color: var(--orange); }
-.el-filter-btn.active.tag-GESTURE { background: rgba(0,200,255,0.12); border-color: var(--accent); color: var(--accent); }
-.el-filter-btn.active.tag-EXPR    { background: var(--purple-dim);  border-color: var(--purple);  color: var(--purple); }
-.el-filter-btn.active.tag-TRACK   { background: var(--green-dim);   border-color: var(--green);   color: var(--green); }
-.el-filter-btn.active.tag-NAV     { background: var(--yellow-dim);  border-color: var(--yellow);  color: var(--yellow); }
-.el-filter-btn.active.tag-DEMO    { background: var(--yellow-dim);  border-color: var(--yellow);  color: var(--yellow); }
-.el-filter-btn.active.tag-ERROR   { background: var(--red-dim);     border-color: var(--red);     color: var(--red); }
 
+/* ── Tag-colored active states ── */
+.el-filter-btn.active.tag-STATE   { background: rgba(0,200,255,0.12); border-color: var(--accent);  color: var(--accent); }
+.el-filter-btn.active.tag-WAKE    { background: var(--yellow-dim);    border-color: var(--yellow);  color: var(--yellow); }
+.el-filter-btn.active.tag-STT     { background: var(--green-dim);     border-color: var(--green);   color: var(--green); }
+.el-filter-btn.active.tag-LLM     { background: var(--purple-dim);    border-color: var(--purple);  color: var(--purple); }
+.el-filter-btn.active.tag-TTS     { background: var(--orange-dim);    border-color: var(--orange);  color: var(--orange); }
+.el-filter-btn.active.tag-GESTURE { background: rgba(0,200,255,0.12); border-color: var(--accent);  color: var(--accent); }
+.el-filter-btn.active.tag-EXPR    { background: var(--purple-dim);    border-color: var(--purple);  color: var(--purple); }
+.el-filter-btn.active.tag-TRACK   { background: var(--green-dim);     border-color: var(--green);   color: var(--green); }
+.el-filter-btn.active.tag-NAV     { background: var(--yellow-dim);    border-color: var(--yellow);  color: var(--yellow); }
+.el-filter-btn.active.tag-SYS     { background: var(--accent-dim);    border-color: var(--accent);  color: var(--accent); }
+.el-filter-btn.active.tag-DEMO    { background: var(--yellow-dim);    border-color: var(--yellow);  color: var(--yellow); }
+.el-filter-btn.active.tag-ERROR   { background: var(--red-dim);       border-color: var(--red);     color: var(--red); }
+
+/* ── Actions row ── */
 .el-actions {
   display: flex;
   gap: 6px;
@@ -75,6 +82,7 @@
 }
 .el-search:focus {
   border-color: var(--border-bright);
+  outline: none;
 }
 .el-search::placeholder { color: var(--text-2); }
 
@@ -86,17 +94,25 @@
   font-size: 10px;
   padding: 3px 10px;
   white-space: nowrap;
+  cursor: pointer;
   transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 .el-action-btn:hover         { border-color: var(--border-bright); color: var(--text-0); }
 .el-action-btn.active        { background: var(--yellow-dim); border-color: var(--yellow); color: var(--yellow); }
 .el-action-btn.danger:hover  { background: var(--red-dim); border-color: var(--red); color: var(--red); }
 
+/* Noise-hide button — teal/accent when active (hidden) */
+.el-noise-btn.active {
+  background: rgba(0,200,255,0.08);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* ── Meta row ── */
 .el-meta {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   padding: 4px 12px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
@@ -116,6 +132,18 @@
   letter-spacing: 1px;
   animation: blink 1s step-start infinite;
 }
+
+/* "SYS hidden" indicator badge */
+.el-noise-badge {
+  font-size: 10px;
+  color: var(--accent);
+  background: rgba(0,200,255,0.08);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 1px 6px;
+  letter-spacing: 0.8px;
+}
+
 @keyframes blink { 50% { opacity: 0.4; } }
 
 /* ── Log list ── */
@@ -168,9 +196,7 @@
   min-width: 52px;
 }
 
-.el-tag.tag-DEMO {
-  color: var(--yellow);
-}
+.el-tag.tag-DEMO { color: var(--yellow); }
 
 .el-text {
   font-size: 11px;
@@ -203,7 +229,7 @@
   margin: 0;
 }
 
-
+/* ── Responsive ── */
 @media (max-width: 640px) {
   .el-toolbar {
     padding: 8px;
