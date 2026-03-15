@@ -123,7 +123,7 @@ class GestureRecognitionNode(Node):
                 Image, '/dori/hri/annotated_gesture', 10)
 
         self.get_logger().info(
-            f'Gesture Recognition Node 시작 '
+            f'Gesture Recognition Node started with parameters: '
             f'(active_on_trigger={self.active_on_trigger})'
         )
 
@@ -133,12 +133,12 @@ class GestureRecognitionNode(Node):
         if self.active_on_trigger:
             if msg.data and not self.is_active:
                 self.is_active = True
-                self.get_logger().info('제스처 인식 활성화')
+                self.get_logger().info('Gesture recognition activated by trigger')
             elif not msg.data and self.is_active:
                 self.is_active = False
                 self._gesture_history.clear()
                 self._wrist_x_history.clear()
-                self.get_logger().info('제스처 인식 비활성화')
+                self.get_logger().info('Gesture recognition deactivated by trigger')
 
     def image_callback(self, msg: Image):
         if not self.is_active:
@@ -188,7 +188,7 @@ class GestureRecognitionNode(Node):
             trig = Bool()
             trig.data = True
             self.trigger_pub.publish(trig)
-            self.get_logger().info('WAVE 감지 → interaction_trigger 강제 발행')
+            self.get_logger().info('WAVE detected → interaction_trigger forced publication')
 
         if self.visualize:
             self._publish_annotated(cv_image, hand_landmarks, confirmed, msg)

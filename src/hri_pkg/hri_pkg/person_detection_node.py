@@ -197,11 +197,11 @@ class PersonDetectionNode(Node):
         self.last_target_bbox = det['bbox']
         self.last_target_dist = det['distance_m']
         self.get_logger().info(
-            f'Target 등록: ID={self.target_id}, 거리={det["distance_m"]}m'
+            f'Target registered: ID={self.target_id}, distance={det["distance_m"]}m'
         )
 
     def _release_target(self, reason: str = ''):
-        self.get_logger().info(f'Target 해제 (ID={self.target_id}): {reason}')
+        self.get_logger().info(f'Target released (ID={self.target_id}): {reason}')
         self.target_id        = None
         self.tracking_state   = TrackingState.IDLE
         self.lost_since       = None
@@ -216,7 +216,7 @@ class PersonDetectionNode(Node):
 
         if target_det is not None:
             if self.tracking_state == TrackingState.LOST:
-                self.get_logger().info(f'Target 재획득: ID={self.target_id}')
+                self.get_logger().info(f'Target reacquired: ID={self.target_id}')
             self.tracking_state   = TrackingState.TRACKING
             self.lost_since       = None
             self.last_target_bbox = target_det['bbox']
@@ -227,7 +227,7 @@ class PersonDetectionNode(Node):
                 self.tracking_state = TrackingState.LOST
                 self.lost_since     = now
                 self.get_logger().warn(
-                    f'Target 소실: ID={self.target_id} — {self.lost_timeout:.0f}초 대기'
+                    f'Target lost: ID={self.target_id} — waiting {self.lost_timeout:.0f}s'
                 )
             elif self.tracking_state == TrackingState.LOST:
                 elapsed = now - self.lost_since
@@ -252,7 +252,7 @@ class PersonDetectionNode(Node):
             self.tracking_state = TrackingState.TRACKING
             self.lost_since     = None
             self.get_logger().info(
-                f'Target ID 재할당: {old_id} → {self.target_id} (IoU={best_iou:.2f})'
+                f'Target ID reacquired: {old_id} → {self.target_id} (IoU={best_iou:.2f})'
             )
             return True
         return False

@@ -291,7 +291,7 @@ class FacialExpressionNode(Node):
         msg = String()
         msg.data = json.dumps(command, ensure_ascii=False)
         self.command_pub.publish(msg)
-        self.get_logger().info(f'표정 명령: {command["command"]}')
+        self.get_logger().info(f'Expression command: {command["command"]}')
 
     def _publish_annotated(self, image: np.ndarray, face_landmarks,
                            expression: str, metrics: dict, original_msg):

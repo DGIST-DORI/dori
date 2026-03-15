@@ -52,7 +52,7 @@ class LandmarkDetectionNode(Node):
         self.loc_conf_thresh = self.get_parameter('localization_confidence_threshold').value
 
         if not YOLO_AVAILABLE:
-            self.get_logger().error('ultralytics 미설치. pip install ultralytics')
+            self.get_logger().error('ultralytics not found. Please install with pip install ultralytics')
             return
 
         # load model
