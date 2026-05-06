@@ -59,4 +59,6 @@ private:
   double bldc_wrap_range_rad_;
 
   std::unordered_map<std::string, double> joint_position_map_rad_;
+  bool switch_in_progress_;
+	std::string pending_target_controller_;
 };

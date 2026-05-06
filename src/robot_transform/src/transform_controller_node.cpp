@@ -44,18 +44,15 @@ double computeRawTargetDeg(
   const double current_phase = rawDegToPhase720(current_raw_deg, zero_offset_deg);
   const double error_deg = shortestWrappedErrorDeg(current_phase, target_phase_deg, 720.0);
 
-  // 기본 후보: 현재 raw에서 필요한 만큼만 이동
   const double target_raw_nominal = current_raw_deg + error_deg;
 
-  // MIT raw 허용 범위: [-raw_range/2, +raw_range/2]
   const double raw_min = -raw_range_deg * 0.5;
   const double raw_max =  raw_range_deg * 0.5;
 
-  // 720도는 같은 자세이므로 같은 자세 family 후보들을 비교
   double best = target_raw_nominal;
   double best_dist = 1e18;
 
-  for (int k = -2; k <= 2; ++k) {
+  for (int k = -4; k <= 4; ++k) {
     const double cand = target_raw_nominal + 720.0 * static_cast<double>(k);
 
     if (cand < raw_min || cand > raw_max) {
@@ -69,7 +66,6 @@ double computeRawTargetDeg(
     }
   }
 
-  // 혹시 family 후보가 전부 범위 밖이면 그냥 saturate
   if (best_dist > 1e17) {
     if (target_raw_nominal < raw_min) return raw_min;
     if (target_raw_nominal > raw_max) return raw_max;
@@ -174,7 +170,8 @@ TransformControllerNode::TransformControllerNode()
   this->get_parameter("bldc_wrap_turns", bldc_wrap_turns_);
   this->get_parameter("dxl_wrap_turns", dxl_wrap_turns_);
 
-  bldc_wrap_range_deg_ = 24.84 * 180.0 / M_PI;
+  // 하드코딩 제거: yaml의 bldc_wrap_turns를 그대로 사용
+  bldc_wrap_range_deg_ = bldc_wrap_turns_ * 360.0;
   dxl_wrap_range_deg_ = dxl_wrap_turns_ * 360.0;
 
   step_cmd_sub_ = this->create_subscription<robot_msgs::msg::TransformStep>(
@@ -311,16 +308,62 @@ void TransformControllerNode::stepCmdCallback(const robot_msgs::msg::TransformSt
 {
   active_motor_id_ = msg->motor_id;
   active_motor_type_ = msg->motor_type;
-  target_angle_deg_ = msg->target_angle_deg;
   timeout_sec_ = msg->timeout_sec;
   retry_count_ = msg->retry_count;
+
   step_start_time_ = this->now();
   settle_start_time_ = this->now();
   settle_started_ = false;
   step_active_ = true;
 
-  if (active_motor_type_ == MOTOR_TYPE_DXL) {
+  if (active_motor_type_ == MOTOR_TYPE_BLDC) {
+    const double current_raw_deg = getMotorAngleDeg(active_motor_id_);
+    const double requested_target_deg = msg->target_angle_deg;
+
+    // BLDC 0도 정렬은 진짜 raw absolute 0도로 보낸다.
+    // target 0.0을 720.0 또는 -720.0으로 바꾸면 안 된다.
+    if (std::abs(requested_target_deg) < 1e-6) {
+      target_angle_deg_ = 0.0;
+    } else {
+      target_angle_deg_ =
+        computeRawTargetDeg(
+          current_raw_deg,
+          requested_target_deg,
+          bldc_wrap_range_deg_,
+          0.0);
+    }
+
+    publishBldcPositionCmd(active_motor_id_, target_angle_deg_);
+
+    RCLCPP_INFO(
+      this->get_logger(),
+      "BLDC step latched: motor=%d current_raw_deg=%.3f requested_target_deg=%.3f latched_raw_target_deg=%.3f",
+      active_motor_id_,
+      current_raw_deg,
+      requested_target_deg,
+      target_angle_deg_);
+
+  } else if (active_motor_type_ == MOTOR_TYPE_DXL) {
+    target_angle_deg_ = msg->target_angle_deg;
+
     publishDxlPositionCmd(active_motor_id_, target_angle_deg_);
+
+    RCLCPP_INFO(
+      this->get_logger(),
+      "DXL step command: motor=%d target_deg=%.3f timeout=%.2f",
+      active_motor_id_,
+      target_angle_deg_,
+      timeout_sec_);
+
+  } else {
+    RCLCPP_ERROR(
+      this->get_logger(),
+      "Invalid motor type: motor_id=%d motor_type=%d",
+      active_motor_id_,
+      active_motor_type_);
+
+    publishStepResult(false, false, "Invalid motor type");
+    step_active_ = false;
   }
 }
 
@@ -369,13 +412,9 @@ void TransformControllerNode::controlTimerCallback()
   double error_deg = 0.0;
 
   if (active_motor_type_ == MOTOR_TYPE_BLDC) {
-    const double current_phase = rawDegToPhase720(current_angle_deg_raw, 0.0);
-    error_deg = shortestWrappedErrorDeg(current_phase, target_angle_deg_, 720.0);
-
-    const double raw_target_deg =
-      computeRawTargetDeg(current_angle_deg_raw, target_angle_deg_, bldc_wrap_range_deg_, 0.0);
-
-    publishBldcPositionCmd(active_motor_id_, raw_target_deg);
+    // stepCmdCallback에서 latch된 raw target만 사용
+    error_deg = target_angle_deg_ - current_angle_deg_raw;
+    publishBldcPositionCmd(active_motor_id_, target_angle_deg_);
   } else {
     const double wrap_range_deg = getWrapRangeDegForMotor(active_motor_id_);
     const double current_angle_deg = wrapToRangeDeg(current_angle_deg_raw, wrap_range_deg);

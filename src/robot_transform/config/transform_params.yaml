@@ -1,8 +1,8 @@
 transform_manager_node:
   ros__parameters:
     pose_detect_tolerance_deg: 5.0
-    default_step_timeout_sec: 5.0
-    initial_step_delay_sec: 1.5
+    default_step_timeout_sec: 8.0
+    initial_step_delay_sec: 2.0
     force_initial_pose: 0
     motor1_joint_name: "left_wheel_joint"
     motor2_joint_name: "right_wheel_joint"
@@ -38,7 +38,7 @@ transform_controller_node:
     motor3_joint_name: "motor_3_joint"
     motor4_joint_name: "motor_4_joint"
 
-    bldc_wrap_turns: 12.0
+    bldc_wrap_turns: 4.0
     dxl_wrap_turns: 3.0
 
 fake_joint_states_node:

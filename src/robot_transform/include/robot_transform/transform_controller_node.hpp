@@ -21,6 +21,7 @@ public:
 private:
   void stepCmdCallback(const robot_msgs::msg::TransformStep::SharedPtr msg);
 
+  // 이전 버전 구조: BLDC와 DXL joint state를 분리해서 받음
   void bldcJointStateCallback(const sensor_msgs::msg::JointState::SharedPtr msg);
   void dxlJointStateCallback(const sensor_msgs::msg::JointState::SharedPtr msg);
 

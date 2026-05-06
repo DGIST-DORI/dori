@@ -8,6 +8,7 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     use_input_nodes = LaunchConfiguration("use_input_nodes")
+    use_joystick = LaunchConfiguration("use_joystick")
 
     supervisor_params = PathJoinSubstitution([
         FindPackageShare("robot_supervisor"),
@@ -58,6 +59,12 @@ def generate_launch_description():
             "use_input_nodes",
             default_value="false",
             description="Launch keyboard_input_node and virtual_vlm_input_node"
+        ),
+
+        DeclareLaunchArgument(
+            "use_joystick",
+            default_value="false",
+            description="Launch joy_node and joystick_input_node"
         ),
 
         Node(
@@ -168,4 +175,32 @@ def generate_launch_description():
             condition=IfCondition(use_input_nodes),
             output="screen",
         ),
+
+        Node(
+            package="joy",
+            executable="joy_node",
+            condition=IfCondition(use_joystick),
+            output="screen",
+        ),
+
+				Node(
+						package="robot_input",
+						executable="joystick_input_node",
+						condition=IfCondition(use_joystick),
+						parameters=[{
+								"linear_axis": 1,
+								"angular_axis": 0,
+								"linear_scale": 1.0,
+								"angular_scale": 1.0,
+								"deadzone": 0.1,
+								"transform_to_a_button": 0,
+								"transform_to_b_button": 1,
+								"emergency_stop_button": 2,
+								"emergency_go_button": 3,
+								"manual_mode_button": 6,
+								"auto_mode_button": 7,
+								"publish_zero_on_idle": True,
+						}],
+						output="screen",
+),
     ])

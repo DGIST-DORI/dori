@@ -3,6 +3,12 @@
 #include <algorithm>
 #include <cmath>
 
+namespace
+{
+constexpr double kZeroCmdEps = 1e-6;
+constexpr double kZeroSnapEps = 1e-4;
+}
+
 DriveControllerNode::DriveControllerNode()
 : Node("drive_controller_node"),
   wheel_radius_(0.25),
@@ -164,8 +170,24 @@ void DriveControllerNode::driveCmdCallback(const geometry_msgs::msg::Twist::Shar
   const double target_linear = clamp(msg->linear.x, -max_linear_velocity_, max_linear_velocity_);
   const double target_angular = clamp(msg->angular.z, -max_angular_velocity_, max_angular_velocity_);
 
-  current_linear_cmd_ = applyRateLimit(target_linear, current_linear_cmd_, linear_accel_limit_, dt);
-  current_angular_cmd_ = applyRateLimit(target_angular, current_angular_cmd_, angular_accel_limit_, dt);
+  const bool zero_target =
+    (std::abs(target_linear) < kZeroCmdEps) &&
+    (std::abs(target_angular) < kZeroCmdEps);
+
+  if (zero_target) {
+    current_linear_cmd_ = 0.0;
+    current_angular_cmd_ = 0.0;
+  } else {
+    current_linear_cmd_ = applyRateLimit(target_linear, current_linear_cmd_, linear_accel_limit_, dt);
+    current_angular_cmd_ = applyRateLimit(target_angular, current_angular_cmd_, angular_accel_limit_, dt);
+
+    if (std::abs(current_linear_cmd_) < kZeroSnapEps) {
+      current_linear_cmd_ = 0.0;
+    }
+    if (std::abs(current_angular_cmd_) < kZeroSnapEps) {
+      current_angular_cmd_ = 0.0;
+    }
+  }
 
   const double left_wheel_vel =
     (current_linear_cmd_ - current_angular_cmd_ * wheel_separation_ / 2.0) / wheel_radius_;
@@ -177,10 +199,12 @@ void DriveControllerNode::driveCmdCallback(const geometry_msgs::msg::Twist::Shar
 
   RCLCPP_INFO(
     this->get_logger(),
-    "drive profile=%s linear=%.3f angular=%.3f -> left=%.3f right=%.3f kd=%.3f tau_ff=%.3f",
+    "drive profile=%s linear=%.3f angular=%.3f target_linear=%.3f target_angular=%.3f -> left=%.3f right=%.3f kd=%.3f tau_ff=%.3f",
     current_drive_profile_.c_str(),
     current_linear_cmd_,
     current_angular_cmd_,
+    target_linear,
+    target_angular,
     left_wheel_vel,
     right_wheel_vel,
     speed_mode_kd_,

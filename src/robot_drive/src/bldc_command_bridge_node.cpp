@@ -110,7 +110,10 @@ double BldcCommandBridgeNode::shortestWrappedError(double current, double target
   return err;
 }
 
-double BldcCommandBridgeNode::nearestEquivalentTarget(double current, double target_base, double range) const
+double BldcCommandBridgeNode::nearestEquivalentTarget(
+  double current,
+  double target_base,
+  double range) const
 {
   const double wrapped_current = wrapToRange(current, range);
   const double wrapped_target = wrapToRange(target_base, range);
@@ -118,18 +121,22 @@ double BldcCommandBridgeNode::nearestEquivalentTarget(double current, double tar
   return current + err;
 }
 
-double BldcCommandBridgeNode::getJointPositionRad(const std::string & joint_name, bool & ok) const
+double BldcCommandBridgeNode::getJointPositionRad(
+  const std::string & joint_name,
+  bool & ok) const
 {
   const auto it = joint_position_map_rad_.find(joint_name);
   if (it == joint_position_map_rad_.end()) {
     ok = false;
     return 0.0;
   }
+
   ok = true;
   return it->second;
 }
 
-void BldcCommandBridgeNode::jointStateCallback(const sensor_msgs::msg::JointState::SharedPtr msg)
+void BldcCommandBridgeNode::jointStateCallback(
+  const sensor_msgs::msg::JointState::SharedPtr msg)
 {
   for (std::size_t i = 0; i < msg->name.size(); ++i) {
     if (i < msg->position.size()) {
@@ -238,7 +245,8 @@ void BldcCommandBridgeNode::switchToPositionController()
     position_cmds_rad_[0], position_cmds_rad_[1]);
 }
 
-void BldcCommandBridgeNode::speedCmdCallback(const robot_msgs::msg::MitCommand::SharedPtr msg)
+void BldcCommandBridgeNode::speedCmdCallback(
+  const robot_msgs::msg::MitCommand::SharedPtr msg)
 {
   if (msg->motor_id < 1 || msg->motor_id > 2) {
     return;
@@ -253,46 +261,36 @@ void BldcCommandBridgeNode::speedCmdCallback(const robot_msgs::msg::MitCommand::
     msg->motor_id, msg->v_des, current_active_controller_.c_str());
 }
 
-void BldcCommandBridgeNode::positionCmdCallback(const robot_msgs::msg::MitCommand::SharedPtr msg)
+void BldcCommandBridgeNode::positionCmdCallback(
+  const robot_msgs::msg::MitCommand::SharedPtr msg)
 {
   if (msg->motor_id < 1 || msg->motor_id > 2) {
     return;
   }
 
-  // 상위에서 이미 absolute phase_4320 target을 계산해서 보내므로
-  // bridge에서는 nearestEquivalent 같은 추가 변형을 하지 않는다.
-  bool ok_left = false;
-  bool ok_right = false;
-  const double current_left = getJointPositionRad(left_joint_name_, ok_left);
-  const double current_right = getJointPositionRad(right_joint_name_, ok_right);
-
-  if (ok_left) {
-    position_cmds_rad_[0] = current_left;
-  }
-  if (ok_right) {
-    position_cmds_rad_[1] = current_right;
-  }
-
+  // transform_controller가 이미 raw target(deg)을 계산해서 보내므로
+  // bridge는 추가 해석 없이 그대로 rad로만 바꿔서 전달한다.
   const double target_rad = degToRad(msg->p_des);
 
   if (msg->motor_id == 1) {
     position_cmds_rad_[0] = target_rad;
     RCLCPP_INFO(
       this->get_logger(),
-      "BLDC position bridge motor=1 absolute_phase_target_deg=%.2f target_rad=%.3f hold_motor2=%.3f",
+      "BLDC position bridge motor=1 raw_target_deg=%.2f target_rad=%.3f hold_motor2=%.3f",
       msg->p_des, target_rad, position_cmds_rad_[1]);
   } else {
     position_cmds_rad_[1] = target_rad;
     RCLCPP_INFO(
       this->get_logger(),
-      "BLDC position bridge motor=2 absolute_phase_target_deg=%.2f target_rad=%.3f hold_motor1=%.3f",
+      "BLDC position bridge motor=2 raw_target_deg=%.2f target_rad=%.3f hold_motor1=%.3f",
       msg->p_des, target_rad, position_cmds_rad_[0]);
   }
 
   publishPositionCommands();
 }
 
-void BldcCommandBridgeNode::actionStateCallback(const std_msgs::msg::Int32::SharedPtr msg)
+void BldcCommandBridgeNode::actionStateCallback(
+  const std_msgs::msg::Int32::SharedPtr msg)
 {
   if (msg->data == DRIVE) {
     switchToVelocityController();

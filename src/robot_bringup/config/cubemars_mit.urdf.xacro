@@ -34,8 +34,8 @@
       <param name="direction_sign">-1</param>
       <param name="enc_off">0.0</param>
 
-      <param name="mit_p_min">-12.5</param>
-      <param name="mit_p_max">12.5</param>
+      <param name="mit_p_min">-12.566370614359172</param>
+      <param name="mit_p_max">12.566370614359172</param>
       <param name="mit_v_min">-30.0</param>
       <param name="mit_v_max">30.0</param>
       <param name="mit_t_min">-18.0</param>
@@ -66,8 +66,8 @@
       <param name="direction_sign">1</param>
       <param name="enc_off">0.0</param>
 
-      <param name="mit_p_min">-12.5</param>
-      <param name="mit_p_max">12.5</param>
+      <param name="mit_p_min">-12.566370614359172</param>
+      <param name="mit_p_max">12.566370614359172</param>
       <param name="mit_v_min">-30.0</param>
       <param name="mit_v_max">30.0</param>
       <param name="mit_t_min">-18.0</param>
