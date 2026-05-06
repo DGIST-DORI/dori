@@ -243,18 +243,63 @@ void TransformManagerNode::publishCurrentPose(int pose)
 
 int TransformManagerNode::detectPoseFromReferenceMotor() const
 {
-  if (force_initial_pose_ == POSE_A) return POSE_A;
-  if (force_initial_pose_ == POSE_B) return POSE_B;
-  if (!pose_ref_seen_) return UNKNOWN;
-
-  const double wrapped = wrapToRangeDeg(pose_ref_angle_deg_, dxl_wrap_range_deg_);
-
-  if (std::abs(shortestWrappedErrorDeg(wrapped, 0.0, dxl_wrap_range_deg_)) <= pose_detect_tolerance_deg_) {
+  if (force_initial_pose_ == POSE_A) {
     return POSE_A;
   }
-  if (std::abs(shortestWrappedErrorDeg(wrapped, 180.0, dxl_wrap_range_deg_)) <= pose_detect_tolerance_deg_) {
+
+  if (force_initial_pose_ == POSE_B) {
     return POSE_B;
   }
+
+  if (!pose_ref_seen_) {
+    RCLCPP_WARN(
+      this->get_logger(),
+      "Pose unknown: motor4 joint state has not been received yet.");
+    return UNKNOWN;
+  }
+
+  // 중요:
+  // pose 판정은 dxl_wrap_turns 기준 1080도가 아니라 360도 기준으로 해야 한다.
+  // 예를 들어 motor4가 359.8도 또는 6.28rad 근처면 실제로는 0도와 같은 A pose다.
+  const double angle_360 = wrapToRangeDeg(pose_ref_angle_deg_, 360.0);
+
+  const double err_to_a =
+    std::abs(shortestWrappedErrorDeg(angle_360, 0.0, 360.0));
+
+  const double err_to_b =
+    std::abs(shortestWrappedErrorDeg(angle_360, 180.0, 360.0));
+
+  if (err_to_a <= pose_detect_tolerance_deg_) {
+    RCLCPP_INFO(
+      this->get_logger(),
+      "Detected POSE_A from motor4: raw=%.3f deg angle_360=%.3f deg err_to_A=%.3f deg tolerance=%.3f deg",
+      pose_ref_angle_deg_,
+      angle_360,
+      err_to_a,
+      pose_detect_tolerance_deg_);
+    return POSE_A;
+  }
+
+  if (err_to_b <= pose_detect_tolerance_deg_) {
+    RCLCPP_INFO(
+      this->get_logger(),
+      "Detected POSE_B from motor4: raw=%.3f deg angle_360=%.3f deg err_to_B=%.3f deg tolerance=%.3f deg",
+      pose_ref_angle_deg_,
+      angle_360,
+      err_to_b,
+      pose_detect_tolerance_deg_);
+    return POSE_B;
+  }
+
+  RCLCPP_WARN(
+    this->get_logger(),
+    "Pose unknown: motor4_raw=%.3f deg angle_360=%.3f deg err_to_A=%.3f deg err_to_B=%.3f deg tolerance=%.3f deg",
+    pose_ref_angle_deg_,
+    angle_360,
+    err_to_a,
+    err_to_b,
+    pose_detect_tolerance_deg_);
+
   return UNKNOWN;
 }
 

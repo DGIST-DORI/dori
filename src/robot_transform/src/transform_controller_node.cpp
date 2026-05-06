@@ -18,67 +18,29 @@ double radToDeg(double rad)
 double wrapToRangeDeg(double x, double range)
 {
   double y = std::fmod(x, range);
-  if (y < 0.0) y += range;
+  if (y < 0.0) {
+    y += range;
+  }
   return y;
 }
 
 double shortestWrappedErrorDeg(double current, double target, double range)
 {
   double err = std::fmod(target - current, range);
-  if (err > range / 2.0) err -= range;
-  if (err < -range / 2.0) err += range;
+  if (err > range / 2.0) {
+    err -= range;
+  }
+  if (err < -range / 2.0) {
+    err += range;
+  }
   return err;
-}
-
-double rawDegToPhase720(double raw_deg, double zero_offset_deg = 0.0)
-{
-  return wrapToRangeDeg(raw_deg - zero_offset_deg, 720.0);
-}
-
-double computeRawTargetDeg(
-  double current_raw_deg,
-  double target_phase_deg,
-  double raw_range_deg,
-  double zero_offset_deg = 0.0)
-{
-  const double current_phase = rawDegToPhase720(current_raw_deg, zero_offset_deg);
-  const double error_deg = shortestWrappedErrorDeg(current_phase, target_phase_deg, 720.0);
-
-  const double target_raw_nominal = current_raw_deg + error_deg;
-
-  const double raw_min = -raw_range_deg * 0.5;
-  const double raw_max =  raw_range_deg * 0.5;
-
-  double best = target_raw_nominal;
-  double best_dist = 1e18;
-
-  for (int k = -4; k <= 4; ++k) {
-    const double cand = target_raw_nominal + 720.0 * static_cast<double>(k);
-
-    if (cand < raw_min || cand > raw_max) {
-      continue;
-    }
-
-    const double dist = std::abs(cand - current_raw_deg);
-    if (dist < best_dist) {
-      best_dist = dist;
-      best = cand;
-    }
-  }
-
-  if (best_dist > 1e17) {
-    if (target_raw_nominal < raw_min) return raw_min;
-    if (target_raw_nominal > raw_max) return raw_max;
-    return target_raw_nominal;
-  }
-
-  return best;
 }
 }  // namespace
 
 TransformControllerNode::TransformControllerNode()
 : Node("transform_controller_node"),
   step_active_(false),
+  active_bldc_posvel_(false),
   active_motor_id_(0),
   active_motor_type_(0),
   target_angle_deg_(0.0),
@@ -107,10 +69,18 @@ TransformControllerNode::TransformControllerNode()
   motor2_joint_name_("right_wheel_joint"),
   motor3_joint_name_("motor_3_joint"),
   motor4_joint_name_("motor_4_joint"),
-  bldc_wrap_turns_(12.0),
+  bldc_wrap_turns_(4.0),
   dxl_wrap_turns_(3.0),
-  bldc_wrap_range_deg_(12.0 * 360.0),
-  dxl_wrap_range_deg_(3.0 * 360.0)
+  bldc_wrap_range_deg_(4.0 * 360.0),
+  dxl_wrap_range_deg_(3.0 * 360.0),
+  bldc_posvel_kp_(1.2),
+  bldc_posvel_max_vel_rad_s_(2.5),
+  bldc_posvel_min_vel_rad_s_(0.35),
+  bldc_posvel_position_tolerance_deg_(5.0),
+  bldc_posvel_velocity_tolerance_rad_s_(0.35),
+  bldc_posvel_accel_limit_rad_s2_(2.5),
+  last_bldc_speed_cmd_1_(0.0),
+  last_bldc_speed_cmd_2_(0.0)
 {
   this->declare_parameter("position_tolerance_deg", position_tolerance_deg_);
   this->declare_parameter("velocity_tolerance_rad_s", velocity_tolerance_rad_s_);
@@ -141,6 +111,13 @@ TransformControllerNode::TransformControllerNode()
   this->declare_parameter("bldc_wrap_turns", bldc_wrap_turns_);
   this->declare_parameter("dxl_wrap_turns", dxl_wrap_turns_);
 
+  this->declare_parameter("bldc_posvel_kp", bldc_posvel_kp_);
+  this->declare_parameter("bldc_posvel_max_vel_rad_s", bldc_posvel_max_vel_rad_s_);
+  this->declare_parameter("bldc_posvel_min_vel_rad_s", bldc_posvel_min_vel_rad_s_);
+  this->declare_parameter("bldc_posvel_position_tolerance_deg", bldc_posvel_position_tolerance_deg_);
+  this->declare_parameter("bldc_posvel_velocity_tolerance_rad_s", bldc_posvel_velocity_tolerance_rad_s_);
+  this->declare_parameter("bldc_posvel_accel_limit_rad_s2", bldc_posvel_accel_limit_rad_s2_);
+
   this->get_parameter("position_tolerance_deg", position_tolerance_deg_);
   this->get_parameter("velocity_tolerance_rad_s", velocity_tolerance_rad_s_);
   this->get_parameter("settle_time_sec", settle_time_sec_);
@@ -170,7 +147,13 @@ TransformControllerNode::TransformControllerNode()
   this->get_parameter("bldc_wrap_turns", bldc_wrap_turns_);
   this->get_parameter("dxl_wrap_turns", dxl_wrap_turns_);
 
-  // 하드코딩 제거: yaml의 bldc_wrap_turns를 그대로 사용
+  this->get_parameter("bldc_posvel_kp", bldc_posvel_kp_);
+  this->get_parameter("bldc_posvel_max_vel_rad_s", bldc_posvel_max_vel_rad_s_);
+  this->get_parameter("bldc_posvel_min_vel_rad_s", bldc_posvel_min_vel_rad_s_);
+  this->get_parameter("bldc_posvel_position_tolerance_deg", bldc_posvel_position_tolerance_deg_);
+  this->get_parameter("bldc_posvel_velocity_tolerance_rad_s", bldc_posvel_velocity_tolerance_rad_s_);
+  this->get_parameter("bldc_posvel_accel_limit_rad_s2", bldc_posvel_accel_limit_rad_s2_);
+
   bldc_wrap_range_deg_ = bldc_wrap_turns_ * 360.0;
   dxl_wrap_range_deg_ = dxl_wrap_turns_ * 360.0;
 
@@ -190,15 +173,37 @@ TransformControllerNode::TransformControllerNode()
     "/transform/profile_cmd", 20,
     std::bind(&TransformControllerNode::transformProfileCallback, this, std::placeholders::_1));
 
-  step_result_pub_ = this->create_publisher<robot_msgs::msg::TransformStepResult>("/transform/step_result", 20);
-  mit_position_pub_ = this->create_publisher<robot_msgs::msg::MitCommand>("/bldc_mit_position_cmd", 20);
-  dxl_position_pub_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("/dxl_position_cmd", 20);
-  error_pub_ = this->create_publisher<robot_msgs::msg::SystemError>("/system/error", 20);
+  step_result_pub_ =
+    this->create_publisher<robot_msgs::msg::TransformStepResult>("/transform/step_result", 20);
+
+  mit_position_pub_ =
+    this->create_publisher<robot_msgs::msg::MitCommand>("/bldc_mit_position_cmd", 20);
+
+  mit_speed_pub_ =
+    this->create_publisher<robot_msgs::msg::MitCommand>("/bldc_mit_speed_cmd", 20);
+
+  dxl_position_pub_ =
+    this->create_publisher<std_msgs::msg::Float64MultiArray>("/dxl_position_cmd", 20);
+
+  error_pub_ =
+    this->create_publisher<robot_msgs::msg::SystemError>("/system/error", 20);
 
   control_timer_ = this->create_wall_timer(
-    50ms, std::bind(&TransformControllerNode::controlTimerCallback, this));
+    50ms,
+    std::bind(&TransformControllerNode::controlTimerCallback, this));
 
   applyTransformProfile(current_transform_profile_);
+
+  RCLCPP_INFO(this->get_logger(), "transform_controller_node started");
+  RCLCPP_INFO(
+    this->get_logger(),
+    "BLDC transform mode: velocity-based position control enabled. kp=%.3f max_vel=%.3f min_vel=%.3f tol_deg=%.3f vel_tol=%.3f accel_limit=%.3f",
+    bldc_posvel_kp_,
+    bldc_posvel_max_vel_rad_s_,
+    bldc_posvel_min_vel_rad_s_,
+    bldc_posvel_position_tolerance_deg_,
+    bldc_posvel_velocity_tolerance_rad_s_,
+    bldc_posvel_accel_limit_rad_s2_);
 }
 
 double TransformControllerNode::wrapToRangeDeg(double x, double range) const
@@ -206,14 +211,19 @@ double TransformControllerNode::wrapToRangeDeg(double x, double range) const
   return ::wrapToRangeDeg(x, range);
 }
 
-double TransformControllerNode::shortestWrappedErrorDeg(double current, double target, double range) const
+double TransformControllerNode::shortestWrappedErrorDeg(
+  double current,
+  double target,
+  double range) const
 {
   return ::shortestWrappedErrorDeg(current, target, range);
 }
 
 double TransformControllerNode::getWrapRangeDegForMotor(int motor_id) const
 {
-  if (motor_id == 1 || motor_id == 2) return bldc_wrap_range_deg_;
+  if (motor_id == 1 || motor_id == 2) {
+    return bldc_wrap_range_deg_;
+  }
   return dxl_wrap_range_deg_;
 }
 
@@ -234,15 +244,21 @@ void TransformControllerNode::applyTransformProfile(const std::string & profile_
     mit_position_kd_ = transform_soft_pos_kd_;
     mit_position_tau_ff_ = transform_soft_tau_ff_;
     current_transform_profile_ = "soft";
+  } else {
+    RCLCPP_WARN(this->get_logger(), "Unknown transform profile: %s", profile_name.c_str());
   }
 }
 
-void TransformControllerNode::transformProfileCallback(const std_msgs::msg::String::SharedPtr msg)
+void TransformControllerNode::transformProfileCallback(
+  const std_msgs::msg::String::SharedPtr msg)
 {
   applyTransformProfile(msg->data);
 }
 
-void TransformControllerNode::publishStepResult(bool success, bool timeout, const std::string & message)
+void TransformControllerNode::publishStepResult(
+  bool success,
+  bool timeout,
+  const std::string & message)
 {
   robot_msgs::msg::TransformStepResult msg;
   msg.motor_id = active_motor_id_;
@@ -253,6 +269,7 @@ void TransformControllerNode::publishStepResult(bool success, bool timeout, cons
   msg.settled = success;
   msg.actual_angle_deg = getMotorAngleDeg(active_motor_id_);
   msg.message = message;
+
   step_result_pub_->publish(msg);
 }
 
@@ -265,7 +282,63 @@ void TransformControllerNode::publishBldcPositionCmd(int motor_id, double raw_ta
   msg.kp = mit_position_kp_;
   msg.kd = mit_position_kd_;
   msg.tau_ff = mit_position_tau_ff_;
+
   mit_position_pub_->publish(msg);
+}
+
+void TransformControllerNode::publishBldcSpeedCmd(int motor_id, double v_des)
+{
+  robot_msgs::msg::MitCommand msg;
+  msg.motor_id = motor_id;
+  msg.p_des = 0.0;
+  msg.v_des = v_des;
+  msg.kp = 0.0;
+  msg.kd = 0.0;
+  msg.tau_ff = 0.0;
+
+  mit_speed_pub_->publish(msg);
+}
+
+void TransformControllerNode::publishBldcStopCmd()
+{
+  publishBldcSpeedCmd(1, 0.0);
+  publishBldcSpeedCmd(2, 0.0);
+  resetBldcSpeedLimiter();
+}
+
+double TransformControllerNode::applyBldcSpeedRateLimit(int motor_id, double desired_v)
+{
+  const double dt = 0.05;
+  const double max_delta = bldc_posvel_accel_limit_rad_s2_ * dt;
+
+  double * last_cmd = nullptr;
+
+  if (motor_id == 1) {
+    last_cmd = &last_bldc_speed_cmd_1_;
+  } else if (motor_id == 2) {
+    last_cmd = &last_bldc_speed_cmd_2_;
+  } else {
+    return 0.0;
+  }
+
+  const double delta = desired_v - *last_cmd;
+
+  double limited_v = desired_v;
+
+  if (delta > max_delta) {
+    limited_v = *last_cmd + max_delta;
+  } else if (delta < -max_delta) {
+    limited_v = *last_cmd - max_delta;
+  }
+
+  *last_cmd = limited_v;
+  return limited_v;
+}
+
+void TransformControllerNode::resetBldcSpeedLimiter()
+{
+  last_bldc_speed_cmd_1_ = 0.0;
+  last_bldc_speed_cmd_2_ = 0.0;
 }
 
 void TransformControllerNode::publishDxlPositionCmd(int motor_id, double target_deg)
@@ -273,39 +346,70 @@ void TransformControllerNode::publishDxlPositionCmd(int motor_id, double target_
   std_msgs::msg::Float64MultiArray msg;
   msg.data.push_back(static_cast<double>(motor_id));
   msg.data.push_back(target_deg);
+
   dxl_position_pub_->publish(msg);
 }
 
 double TransformControllerNode::getMotorAngleDeg(int motor_id) const
 {
   std::string joint_name;
-  if (motor_id == 1) joint_name = motor1_joint_name_;
-  else if (motor_id == 2) joint_name = motor2_joint_name_;
-  else if (motor_id == 3) joint_name = motor3_joint_name_;
-  else if (motor_id == 4) joint_name = motor4_joint_name_;
-  else return 0.0;
+
+  if (motor_id == 1) {
+    joint_name = motor1_joint_name_;
+  } else if (motor_id == 2) {
+    joint_name = motor2_joint_name_;
+  } else if (motor_id == 3) {
+    joint_name = motor3_joint_name_;
+  } else if (motor_id == 4) {
+    joint_name = motor4_joint_name_;
+  } else {
+    return 0.0;
+  }
 
   const auto it = joint_position_deg_map_.find(joint_name);
-  if (it != joint_position_deg_map_.end()) return it->second;
+  if (it != joint_position_deg_map_.end()) {
+    return it->second;
+  }
+
   return 0.0;
 }
 
 double TransformControllerNode::getMotorVelocityRad(int motor_id) const
 {
   std::string joint_name;
-  if (motor_id == 1) joint_name = motor1_joint_name_;
-  else if (motor_id == 2) joint_name = motor2_joint_name_;
-  else if (motor_id == 3) joint_name = motor3_joint_name_;
-  else if (motor_id == 4) joint_name = motor4_joint_name_;
-  else return 0.0;
+
+  if (motor_id == 1) {
+    joint_name = motor1_joint_name_;
+  } else if (motor_id == 2) {
+    joint_name = motor2_joint_name_;
+  } else if (motor_id == 3) {
+    joint_name = motor3_joint_name_;
+  } else if (motor_id == 4) {
+    joint_name = motor4_joint_name_;
+  } else {
+    return 0.0;
+  }
 
   const auto it = joint_velocity_rad_map_.find(joint_name);
-  if (it != joint_velocity_rad_map_.end()) return it->second;
+  if (it != joint_velocity_rad_map_.end()) {
+    return it->second;
+  }
+
   return 0.0;
 }
 
-void TransformControllerNode::stepCmdCallback(const robot_msgs::msg::TransformStep::SharedPtr msg)
+void TransformControllerNode::stepCmdCallback(
+  const robot_msgs::msg::TransformStep::SharedPtr msg)
 {
+  if (step_active_) {
+    RCLCPP_WARN(
+      this->get_logger(),
+      "Rejected new step because previous step is still active. active_motor=%d new_motor=%d",
+      active_motor_id_,
+      msg->motor_id);
+    return;
+  }
+
   active_motor_id_ = msg->motor_id;
   active_motor_type_ = msg->motor_type;
   timeout_sec_ = msg->timeout_sec;
@@ -317,33 +421,20 @@ void TransformControllerNode::stepCmdCallback(const robot_msgs::msg::TransformSt
   step_active_ = true;
 
   if (active_motor_type_ == MOTOR_TYPE_BLDC) {
-    const double current_raw_deg = getMotorAngleDeg(active_motor_id_);
-    const double requested_target_deg = msg->target_angle_deg;
+    active_bldc_posvel_ = true;
+    target_angle_deg_ = msg->target_angle_deg;
 
-    // BLDC 0도 정렬은 진짜 raw absolute 0도로 보낸다.
-    // target 0.0을 720.0 또는 -720.0으로 바꾸면 안 된다.
-    if (std::abs(requested_target_deg) < 1e-6) {
-      target_angle_deg_ = 0.0;
-    } else {
-      target_angle_deg_ =
-        computeRawTargetDeg(
-          current_raw_deg,
-          requested_target_deg,
-          bldc_wrap_range_deg_,
-          0.0);
-    }
-
-    publishBldcPositionCmd(active_motor_id_, target_angle_deg_);
+    publishBldcStopCmd();
 
     RCLCPP_INFO(
       this->get_logger(),
-      "BLDC step latched: motor=%d current_raw_deg=%.3f requested_target_deg=%.3f latched_raw_target_deg=%.3f",
+      "BLDC velocity-position step start: motor=%d target_deg=%.3f timeout=%.2f",
       active_motor_id_,
-      current_raw_deg,
-      requested_target_deg,
-      target_angle_deg_);
+      target_angle_deg_,
+      timeout_sec_);
 
   } else if (active_motor_type_ == MOTOR_TYPE_DXL) {
+    active_bldc_posvel_ = false;
     target_angle_deg_ = msg->target_angle_deg;
 
     publishDxlPositionCmd(active_motor_id_, target_angle_deg_);
@@ -356,6 +447,8 @@ void TransformControllerNode::stepCmdCallback(const robot_msgs::msg::TransformSt
       timeout_sec_);
 
   } else {
+    active_bldc_posvel_ = false;
+
     RCLCPP_ERROR(
       this->get_logger(),
       "Invalid motor type: motor_id=%d motor_type=%d",
@@ -367,24 +460,28 @@ void TransformControllerNode::stepCmdCallback(const robot_msgs::msg::TransformSt
   }
 }
 
-void TransformControllerNode::bldcJointStateCallback(const sensor_msgs::msg::JointState::SharedPtr msg)
+void TransformControllerNode::bldcJointStateCallback(
+  const sensor_msgs::msg::JointState::SharedPtr msg)
 {
   for (std::size_t i = 0; i < msg->name.size(); ++i) {
     if (i < msg->position.size()) {
       joint_position_deg_map_[msg->name[i]] = radToDeg(msg->position[i]);
     }
+
     if (i < msg->velocity.size()) {
       joint_velocity_rad_map_[msg->name[i]] = msg->velocity[i];
     }
   }
 }
 
-void TransformControllerNode::dxlJointStateCallback(const sensor_msgs::msg::JointState::SharedPtr msg)
+void TransformControllerNode::dxlJointStateCallback(
+  const sensor_msgs::msg::JointState::SharedPtr msg)
 {
   for (std::size_t i = 0; i < msg->name.size(); ++i) {
     if (i < msg->position.size()) {
       joint_position_deg_map_[msg->name[i]] = radToDeg(msg->position[i]);
     }
+
     if (i < msg->velocity.size()) {
       joint_velocity_rad_map_[msg->name[i]] = msg->velocity[i];
     }
@@ -393,14 +490,21 @@ void TransformControllerNode::dxlJointStateCallback(const sensor_msgs::msg::Join
 
 void TransformControllerNode::controlTimerCallback()
 {
-  if (!step_active_) return;
+  if (!step_active_) {
+    return;
+  }
 
   const double elapsed = (this->now() - step_start_time_).seconds();
 
   if (test_auto_success_) {
     if (elapsed >= test_auto_success_delay_sec_) {
+      if (active_motor_type_ == MOTOR_TYPE_BLDC) {
+        publishBldcStopCmd();
+      }
+
       publishStepResult(true, false, "Step completed by test_auto_success");
       step_active_ = false;
+      active_bldc_posvel_ = false;
       return;
     }
     return;
@@ -410,40 +514,152 @@ void TransformControllerNode::controlTimerCallback()
   const double current_vel_rad = getMotorVelocityRad(active_motor_id_);
 
   double error_deg = 0.0;
+  bool pos_ok = false;
+  bool vel_ok = false;
 
-  if (active_motor_type_ == MOTOR_TYPE_BLDC) {
-    // stepCmdCallback에서 latch된 raw target만 사용
+  if (active_motor_type_ == MOTOR_TYPE_BLDC && active_bldc_posvel_) {
     error_deg = target_angle_deg_ - current_angle_deg_raw;
-    publishBldcPositionCmd(active_motor_id_, target_angle_deg_);
-  } else {
+
+    const double error_rad = error_deg * M_PI / 180.0;
+
+    double desired_v_cmd = bldc_posvel_kp_ * error_rad;
+
+    if (desired_v_cmd > bldc_posvel_max_vel_rad_s_) {
+      desired_v_cmd = bldc_posvel_max_vel_rad_s_;
+    } else if (desired_v_cmd < -bldc_posvel_max_vel_rad_s_) {
+      desired_v_cmd = -bldc_posvel_max_vel_rad_s_;
+    }
+
+    if (std::abs(error_deg) > bldc_posvel_position_tolerance_deg_ &&
+        std::abs(desired_v_cmd) < bldc_posvel_min_vel_rad_s_) {
+      desired_v_cmd = (error_rad >= 0.0)
+        ? bldc_posvel_min_vel_rad_s_
+        : -bldc_posvel_min_vel_rad_s_;
+    }
+
+    pos_ok = std::abs(error_deg) <= bldc_posvel_position_tolerance_deg_;
+    vel_ok = std::abs(current_vel_rad) <= bldc_posvel_velocity_tolerance_rad_s_;
+
+    if (pos_ok && vel_ok) {
+      publishBldcStopCmd();
+
+      if (!settle_started_) {
+        settle_started_ = true;
+        settle_start_time_ = this->now();
+      } else {
+        const double settle_elapsed = (this->now() - settle_start_time_).seconds();
+
+        if (settle_elapsed >= settle_time_sec_) {
+          publishStepResult(true, false, "Step completed");
+          step_active_ = false;
+          active_bldc_posvel_ = false;
+          publishBldcStopCmd();
+          return;
+        }
+      }
+    } else {
+      settle_started_ = false;
+
+      if (active_motor_id_ == 1) {
+        const double limited_v_cmd = applyBldcSpeedRateLimit(1, desired_v_cmd);
+
+        publishBldcSpeedCmd(1, limited_v_cmd);
+        publishBldcSpeedCmd(2, 0.0);
+
+        RCLCPP_INFO_THROTTLE(
+          this->get_logger(),
+          *this->get_clock(),
+          500,
+          "BLDC speed limit motor=1 desired=%.3f limited=%.3f",
+          desired_v_cmd,
+          limited_v_cmd);
+
+      } else if (active_motor_id_ == 2) {
+        const double limited_v_cmd = applyBldcSpeedRateLimit(2, desired_v_cmd);
+
+        publishBldcSpeedCmd(1, 0.0);
+        publishBldcSpeedCmd(2, limited_v_cmd);
+
+        RCLCPP_INFO_THROTTLE(
+          this->get_logger(),
+          *this->get_clock(),
+          500,
+          "BLDC speed limit motor=2 desired=%.3f limited=%.3f",
+          desired_v_cmd,
+          limited_v_cmd);
+      }
+    }
+
+    RCLCPP_INFO_THROTTLE(
+      this->get_logger(),
+      *this->get_clock(),
+      500,
+      "BLDC pos-vel control motor=%d current=%.3f target=%.3f error=%.3f v_fb=%.3f pos_ok=%d vel_ok=%d",
+      active_motor_id_,
+      current_angle_deg_raw,
+      target_angle_deg_,
+      error_deg,
+      current_vel_rad,
+      pos_ok,
+      vel_ok);
+
+  } else if (active_motor_type_ == MOTOR_TYPE_DXL) {
     const double wrap_range_deg = getWrapRangeDegForMotor(active_motor_id_);
     const double current_angle_deg = wrapToRangeDeg(current_angle_deg_raw, wrap_range_deg);
     const double target_angle_deg = wrapToRangeDeg(target_angle_deg_, wrap_range_deg);
-    error_deg = shortestWrappedErrorDeg(current_angle_deg, target_angle_deg, wrap_range_deg);
-  }
 
-  const bool pos_ok = std::abs(error_deg) <= position_tolerance_deg_;
-  const bool vel_ok = std::abs(current_vel_rad) <= velocity_tolerance_rad_s_;
+    error_deg = shortestWrappedErrorDeg(
+      current_angle_deg,
+      target_angle_deg,
+      wrap_range_deg);
 
-  if (pos_ok && vel_ok) {
-    if (!settle_started_) {
-      settle_started_ = true;
-      settle_start_time_ = this->now();
-    } else {
-      const double settle_elapsed = (this->now() - settle_start_time_).seconds();
-      if (settle_elapsed >= settle_time_sec_) {
-        publishStepResult(true, false, "Step completed");
-        step_active_ = false;
-        return;
+    pos_ok = std::abs(error_deg) <= position_tolerance_deg_;
+    vel_ok = std::abs(current_vel_rad) <= velocity_tolerance_rad_s_;
+
+    if (pos_ok && vel_ok) {
+      if (!settle_started_) {
+        settle_started_ = true;
+        settle_start_time_ = this->now();
+      } else {
+        const double settle_elapsed = (this->now() - settle_start_time_).seconds();
+
+        if (settle_elapsed >= settle_time_sec_) {
+          publishStepResult(true, false, "Step completed");
+          step_active_ = false;
+          return;
+        }
       }
+    } else {
+      settle_started_ = false;
     }
+
   } else {
-    settle_started_ = false;
+    publishStepResult(false, false, "Invalid active motor type");
+    step_active_ = false;
+    active_bldc_posvel_ = false;
+    publishBldcStopCmd();
+    return;
   }
 
   if (elapsed >= timeout_sec_) {
+    if (active_motor_type_ == MOTOR_TYPE_BLDC) {
+      publishBldcStopCmd();
+    }
+
+    RCLCPP_WARN(
+      this->get_logger(),
+      "Step timeout motor=%d type=%d current=%.3f target=%.3f error=%.3f vel=%.3f",
+      active_motor_id_,
+      active_motor_type_,
+      current_angle_deg_raw,
+      target_angle_deg_,
+      error_deg,
+      current_vel_rad);
+
     publishStepResult(false, true, "Step timeout");
     step_active_ = false;
+    active_bldc_posvel_ = false;
+    return;
   }
 }
 

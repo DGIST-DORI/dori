@@ -83,10 +83,6 @@ BldcCommandBridgeNode::BldcCommandBridgeNode()
     right_joint_name_.c_str(),
     bldc_wrap_turns_,
     bldc_wrap_range_rad_);
-  RCLCPP_INFO(
-    this->get_logger(),
-    "initial active controller assumption=%s",
-    current_active_controller_.c_str());
 }
 
 double BldcCommandBridgeNode::wrapToRange(double x, double range) const
@@ -98,7 +94,10 @@ double BldcCommandBridgeNode::wrapToRange(double x, double range) const
   return y;
 }
 
-double BldcCommandBridgeNode::shortestWrappedError(double current, double target, double range) const
+double BldcCommandBridgeNode::shortestWrappedError(
+  double current,
+  double target,
+  double range) const
 {
   double err = std::fmod(target - current, range);
   if (err > range / 2.0) {
@@ -188,14 +187,16 @@ void BldcCommandBridgeNode::requestControllerSwitch(
           RCLCPP_WARN(
             this->get_logger(),
             "Controller switch rejected: activate=%s deactivate=%s",
-            activate_controller.c_str(), deactivate_controller.c_str());
+            activate_controller.c_str(),
+            deactivate_controller.c_str());
           return;
         }
 
         RCLCPP_INFO(
           this->get_logger(),
           "Controller switch success: activate=%s deactivate=%s",
-          activate_controller.c_str(), deactivate_controller.c_str());
+          activate_controller.c_str(),
+          deactivate_controller.c_str());
       } catch (const std::exception & e) {
         RCLCPP_ERROR(
           this->get_logger(),
@@ -211,8 +212,14 @@ void BldcCommandBridgeNode::switchToVelocityController()
     return;
   }
 
+  velocity_cmds_[0] = 0.0;
+  velocity_cmds_[1] = 0.0;
+
   requestControllerSwitch(velocity_controller_name_, position_controller_name_);
   current_active_controller_ = velocity_controller_name_;
+
+  publishVelocityCommands();
+
   RCLCPP_INFO(this->get_logger(), "Requested switch to velocity controller");
 }
 
@@ -242,7 +249,8 @@ void BldcCommandBridgeNode::switchToPositionController()
   RCLCPP_INFO(
     this->get_logger(),
     "Requested switch to position controller with seeded hold positions: left=%.3f right=%.3f",
-    position_cmds_rad_[0], position_cmds_rad_[1]);
+    position_cmds_rad_[0],
+    position_cmds_rad_[1]);
 }
 
 void BldcCommandBridgeNode::speedCmdCallback(
@@ -252,13 +260,21 @@ void BldcCommandBridgeNode::speedCmdCallback(
     return;
   }
 
+  if (current_active_controller_ != velocity_controller_name_) {
+    switchToVelocityController();
+  }
+
   velocity_cmds_[msg->motor_id - 1] = msg->v_des;
   publishVelocityCommands();
 
-  RCLCPP_INFO(
+  RCLCPP_INFO_THROTTLE(
     this->get_logger(),
+    *this->get_clock(),
+    500,
     "Published velocity cmd motor=%d v_des=%.3f active_controller=%s",
-    msg->motor_id, msg->v_des, current_active_controller_.c_str());
+    msg->motor_id,
+    msg->v_des,
+    current_active_controller_.c_str());
 }
 
 void BldcCommandBridgeNode::positionCmdCallback(
@@ -268,22 +284,34 @@ void BldcCommandBridgeNode::positionCmdCallback(
     return;
   }
 
-  // transform_controller가 이미 raw target(deg)을 계산해서 보내므로
-  // bridge는 추가 해석 없이 그대로 rad로만 바꿔서 전달한다.
+  if (current_active_controller_ != position_controller_name_) {
+    switchToPositionController();
+  }
+
   const double target_rad = degToRad(msg->p_des);
 
   if (msg->motor_id == 1) {
     position_cmds_rad_[0] = target_rad;
-    RCLCPP_INFO(
+
+    RCLCPP_INFO_THROTTLE(
       this->get_logger(),
+      *this->get_clock(),
+      500,
       "BLDC position bridge motor=1 raw_target_deg=%.2f target_rad=%.3f hold_motor2=%.3f",
-      msg->p_des, target_rad, position_cmds_rad_[1]);
+      msg->p_des,
+      target_rad,
+      position_cmds_rad_[1]);
   } else {
     position_cmds_rad_[1] = target_rad;
-    RCLCPP_INFO(
+
+    RCLCPP_INFO_THROTTLE(
       this->get_logger(),
+      *this->get_clock(),
+      500,
       "BLDC position bridge motor=2 raw_target_deg=%.2f target_rad=%.3f hold_motor1=%.3f",
-      msg->p_des, target_rad, position_cmds_rad_[0]);
+      msg->p_des,
+      target_rad,
+      position_cmds_rad_[0]);
   }
 
   publishPositionCommands();
@@ -298,7 +326,15 @@ void BldcCommandBridgeNode::actionStateCallback(
   }
 
   if (msg->data == TRANSFORM || msg->data == TRANSFORM_PAUSED) {
-    switchToPositionController();
+    // 이제 BLDC 변신도 velocity controller를 사용한다.
+    switchToVelocityController();
+    return;
+  }
+
+  if (msg->data == IDLE) {
+    velocity_cmds_[0] = 0.0;
+    velocity_cmds_[1] = 0.0;
+    publishVelocityCommands();
     return;
   }
 }

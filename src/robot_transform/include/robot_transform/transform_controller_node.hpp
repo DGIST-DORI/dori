@@ -21,7 +21,6 @@ public:
 private:
   void stepCmdCallback(const robot_msgs::msg::TransformStep::SharedPtr msg);
 
-  // 이전 버전 구조: BLDC와 DXL joint state를 분리해서 받음
   void bldcJointStateCallback(const sensor_msgs::msg::JointState::SharedPtr msg);
   void dxlJointStateCallback(const sensor_msgs::msg::JointState::SharedPtr msg);
 
@@ -29,7 +28,14 @@ private:
   void transformProfileCallback(const std_msgs::msg::String::SharedPtr msg);
 
   void publishStepResult(bool success, bool timeout, const std::string & message);
+
   void publishBldcPositionCmd(int motor_id, double raw_target_deg);
+  void publishBldcSpeedCmd(int motor_id, double v_des);
+  void publishBldcStopCmd();
+
+  double applyBldcSpeedRateLimit(int motor_id, double desired_v);
+  void resetBldcSpeedLimiter();
+
   void publishDxlPositionCmd(int motor_id, double target_deg);
 
   double getMotorAngleDeg(int motor_id) const;
@@ -47,14 +53,18 @@ private:
 
   rclcpp::Publisher<robot_msgs::msg::TransformStepResult>::SharedPtr step_result_pub_;
   rclcpp::Publisher<robot_msgs::msg::MitCommand>::SharedPtr mit_position_pub_;
+  rclcpp::Publisher<robot_msgs::msg::MitCommand>::SharedPtr mit_speed_pub_;
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr dxl_position_pub_;
   rclcpp::Publisher<robot_msgs::msg::SystemError>::SharedPtr error_pub_;
 
   rclcpp::TimerBase::SharedPtr control_timer_;
 
   bool step_active_;
+  bool active_bldc_posvel_;
+
   int active_motor_id_;
   int active_motor_type_;
+
   double target_angle_deg_;
   double timeout_sec_;
   int retry_count_;
@@ -97,6 +107,17 @@ private:
   double dxl_wrap_turns_;
   double bldc_wrap_range_deg_;
   double dxl_wrap_range_deg_;
+
+  // BLDC velocity-based position control parameters
+  double bldc_posvel_kp_;
+  double bldc_posvel_max_vel_rad_s_;
+  double bldc_posvel_min_vel_rad_s_;
+  double bldc_posvel_position_tolerance_deg_;
+  double bldc_posvel_velocity_tolerance_rad_s_;
+  double bldc_posvel_accel_limit_rad_s2_;
+
+  double last_bldc_speed_cmd_1_;
+  double last_bldc_speed_cmd_2_;
 
   std::unordered_map<std::string, double> joint_position_deg_map_;
   std::unordered_map<std::string, double> joint_velocity_rad_map_;
