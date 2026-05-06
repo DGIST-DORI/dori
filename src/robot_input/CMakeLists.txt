@@ -9,6 +9,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 
 include_directories(include)
 
@@ -26,9 +27,18 @@ ament_target_dependencies(virtual_vlm_input_node
   geometry_msgs
 )
 
+add_executable(joystick_input_node src/joystick_input_node.cpp)
+ament_target_dependencies(joystick_input_node
+  rclcpp
+  std_msgs
+  geometry_msgs
+  sensor_msgs
+)
+
 install(TARGETS
   keyboard_input_node
   virtual_vlm_input_node
+  joystick_input_node
   DESTINATION lib/${PROJECT_NAME}
 )
 

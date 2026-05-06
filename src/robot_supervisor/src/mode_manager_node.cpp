@@ -220,18 +220,22 @@ void ModeManagerNode::manualCmdCallback(const geometry_msgs::msg::Twist::SharedP
   last_manual_cmd_ = *msg;
 
   if (control_mode_ != MANUAL) {
+    publishZeroDrive();
     publishDriveFeedback(false, REJECTED_WRONG_CONTROL_SOURCE, "Manual drive rejected: control mode is AUTO");
     return;
   }
   if (estop_active_) {
+    publishZeroDrive();
     publishDriveFeedback(false, REJECTED_ESTOP, "Manual drive rejected: estop active");
     return;
   }
   if (error_active_) {
+    publishZeroDrive();
     publishDriveFeedback(false, REJECTED_ERROR, "Manual drive rejected: error active");
     return;
   }
   if (isTransformBusy()) {
+    publishZeroDrive();
     publishDriveFeedback(false, REJECTED_TRANSFORM_ACTIVE, "Manual drive rejected: transform active");
     return;
   }
@@ -247,18 +251,22 @@ void ModeManagerNode::autoCmdCallback(const geometry_msgs::msg::Twist::SharedPtr
   last_auto_cmd_time_ = this->now();
 
   if (control_mode_ != AUTO) {
+    publishZeroDrive();
     publishDriveFeedback(false, REJECTED_WRONG_CONTROL_SOURCE, "Auto drive rejected: control mode is MANUAL");
     return;
   }
   if (estop_active_) {
+    publishZeroDrive();
     publishDriveFeedback(false, REJECTED_ESTOP, "Auto drive rejected: estop active");
     return;
   }
   if (error_active_) {
+    publishZeroDrive();
     publishDriveFeedback(false, REJECTED_ERROR, "Auto drive rejected: error active");
     return;
   }
   if (isTransformBusy()) {
+    publishZeroDrive();
     publishDriveFeedback(false, REJECTED_TRANSFORM_ACTIVE, "Auto drive rejected: transform active");
     return;
   }
@@ -337,6 +345,7 @@ void ModeManagerNode::estopCallback(const std_msgs::msg::Bool::SharedPtr msg)
   }
 
   estop_active_ = true;
+  clearBuffers();
   publishZeroDrive();
 
   if (transform_status_ == TF_RUNNING) {
@@ -356,7 +365,7 @@ void ModeManagerNode::egoCallback(const std_msgs::msg::Bool::SharedPtr msg)
   }
 
   estop_active_ = false;
-  error_active_ = false;  // 재개 시 non-hardware error latch 해제
+  error_active_ = false;
   publishZeroDrive();
   clearBuffers();
   setControlMode(MANUAL);
@@ -412,7 +421,6 @@ void ModeManagerNode::systemErrorCallback(const robot_msgs::msg::SystemError::Sh
 {
   publishZeroDrive();
 
-  // transform timeout / step error는 non-latching
   if (msg->error_code == 210 || msg->error_code == 211) {
     error_active_ = false;
     publishTransformProfile(transform_profile_before_transform_);
