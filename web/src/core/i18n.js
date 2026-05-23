@@ -146,7 +146,7 @@ const TRANSLATIONS = {
     // HRI / Perception panel texts
     'panel.tts.placeholder': 'Text for robot speech (e.g. Hello, I am DORI.)',
     'panel.stt.placeholder': 'Enter a test utterance (e.g. Where is the library?)',
-    'panel.stt.hint': 'Recorded audio is published to /dori/debug/audio_blob. Subscribe on Jetson and pass to Whisper for end-to-end STT testing.',
+    'panel.stt.hint': 'Mic audio is published as wav_pcm16 (16 kHz mono) to the configured STT input topic. Set voice.launch.py stt_audio_input_mode=topic to run the real STT pipeline test.',
     'panel.wakeword.hint': 'HRI Manager only reacts in IDLE. You can test the LISTENING → RESPONDING → IDLE cycle.',
     'panel.llm.query.placeholder': 'Question (e.g. Where is the student cafeteria?)',
     'panel.llm.location.placeholder': 'e.g. In front of Building E7',
@@ -251,7 +251,7 @@ const TRANSLATIONS = {
     // HRI / Perception panel texts
     'panel.tts.placeholder': '로봇이 말할 텍스트 (예: 안녕하세요, 도리입니다.)',
     'panel.stt.placeholder': '테스트할 발화를 입력하세요 (예: 도서관 어디야)',
-    'panel.stt.hint': '녹음된 오디오는 /dori/debug/audio_blob으로 publish됩니다. Jetson 측에서 이 토픽을 구독해 Whisper로 전달하면 실제 STT 테스트가 가능합니다.',
+    'panel.stt.hint': '마이크 오디오는 설정된 STT 입력 토픽으로 wav_pcm16(16kHz mono) 포맷으로 publish됩니다. voice.launch.py에서 stt_audio_input_mode=topic으로 설정하면 실제 STT 파이프라인 테스트가 가능합니다.',
     'panel.wakeword.hint': 'HRI Manager가 IDLE일 때만 반응합니다. LISTENING → RESPONDING → IDLE 사이클을 테스트할 수 있습니다.',
     'panel.llm.query.placeholder': '질문 (예: 학생식당 어디에 있어요?)',
     'panel.llm.location.placeholder': '예: E7 건물 앞',

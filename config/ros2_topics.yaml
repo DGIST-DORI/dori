@@ -332,17 +332,30 @@
       "owner_pkg": "perception_pkg"
     },
     {
+      "topic": "stt/audio_input",
+      "msg_type": "std_msgs/msg/String",
+      "publishers": [
+        "dashboard STTPanel mic publisher"
+      ],
+      "subscribers": [
+        "stt_node"
+      ],
+      "qos": "unknown",
+      "description": "E2E STT input payload JSON: {audio_b64, format:'wav_pcm16', sample_rate:16000, channels:1}.",
+      "owner_pkg": "stt_pkg"
+    },
+    {
       "topic": "stt/result",
       "msg_type": "std_msgs/msg/String",
       "publishers": [
-        "external STT node"
+        "stt_node"
       ],
       "subscribers": [
         "hri_manager_node"
       ],
       "qos": "unknown",
-      "description": "User transcription JSON/text from speech recognizer.",
-      "owner_pkg": "external"
+      "description": "STT output JSON/text from recognizer. E2E path: STTPanel mic -> stt/audio_input -> stt_node(Whisper) -> stt/result -> hri_manager_node.",
+      "owner_pkg": "stt_pkg"
     },
     {
       "topic": "tts/done",

@@ -24,6 +24,7 @@ def generate_launch_description():
         DeclareLaunchArgument('whisper_device', default_value='cpu'),
         DeclareLaunchArgument('wake_word', default_value='porcupine'),
         DeclareLaunchArgument('wake_word_paths', default_value=''),
+        DeclareLaunchArgument('stt_audio_input_mode', default_value='microphone'),
         DeclareLaunchArgument('tts_engine', default_value='gtts'),
         DeclareLaunchArgument('tts_language', default_value='ko'),
         DeclareLaunchArgument('namespace', default_value='/dori'),
@@ -41,9 +42,11 @@ def generate_launch_description():
             'whisper_device': LaunchConfiguration('whisper_device'),
             'vad_threshold': 0.5,
             'silence_duration': 1.2,
+            'audio_input_mode': LaunchConfiguration('stt_audio_input_mode'),
             'topics.wake_word_pub': _topic(dori_ns, '/stt/wake_word_detected'),
             'topics.result_pub': _topic(dori_ns, '/stt/result'),
             'topics.tts_speaking_sub': _topic(dori_ns, '/tts/speaking'),
+            'topics.audio_input_sub': _topic(dori_ns, '/stt/audio_input'),
         }],
     )
 
