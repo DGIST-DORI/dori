@@ -5,6 +5,7 @@ import {
 import { LOG_TAGS, useStore } from '../../core/store';
 import { publishROS } from '../../core/ros';
 import { useI18n } from '../../core/i18n';
+import { resolveProfileTopics } from '../../core/topicProfiles';
 import './VisionPanel.css';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -44,6 +45,8 @@ function VisionPanel() {
   const connected   = useStore(s => s.connected);
   const isDemoMode  = useStore(s => s.isDemoMode);
   const addLog      = useStore(s => s.addLog);
+  const executionProfile = useStore(s => s.executionProfile);
+  const useClientCam = useStore(s => s.useClientCam);
   const canPublish  = connected || isDemoMode;
 
   const videoRef    = useRef(null);
@@ -53,7 +56,8 @@ function VisionPanel() {
   const [camAvail,  setCamAvail]  = useState(false);
   const [camActive, setCamActive] = useState(false);
   const [camError,  setCamError]  = useState('');
-  const [topic,     setTopic]     = useState('/dori/camera/color/image_raw');
+  const profileTopics = resolveProfileTopics(executionProfile);
+  const [topicOverride, setTopicOverride] = useState('');
   const [fps,       setFps]       = useState(CAM_FPS);
   const [frameCount, setFrameCount] = useState(0);
   const [quality,   setQuality]   = useState(0.6);
@@ -101,6 +105,7 @@ function VisionPanel() {
       ctx.drawImage(videoRef.current, 0, 0, CAM_WIDTH, CAM_HEIGHT);
       const dataUrl = canvasRef.current.toDataURL('image/jpeg', quality);
       const b64 = dataUrl.split(',')[1];
+      const topic = topicOverride.trim() || profileTopics.visionInputTopic;
       pub(topic, 'sensor_msgs/msg/CompressedImage', {
         header: { stamp: { sec: Math.floor(Date.now() / 1000), nanosec: 0 }, frame_id: 'camera_color_frame' },
         format: 'jpeg',
@@ -122,7 +127,7 @@ function VisionPanel() {
 
   return (
     <div className="panel-body">
-      <SectionLabel>Camera → ROS CompressedImage</SectionLabel>
+      <SectionLabel>Camera → ROS CompressedImage ({profileTopics.visionInputTopic})</SectionLabel>
 
       <div className="row row-wrap">
         <Badge ok={camAvail}  label={camAvail  ? 'Camera available' : 'No camera'} />
@@ -145,11 +150,8 @@ function VisionPanel() {
       </div>
 
       <div className="field field-full">
-        <label className="field-label">Target topic</label>
-        <select className="input input-full" value={topic} onChange={e => setTopic(e.target.value)}>
-          <option value="/dori/camera/color/image_raw">/dori/camera/color/image_raw</option>
-          <option value="/dori/camera/rear/color/image_raw">/dori/camera/rear/color/image_raw</option>
-        </select>
+        <label className="field-label">Advanced: Target topic override</label>
+        <input className="input input-full" value={topicOverride} onChange={e => setTopicOverride(e.target.value)} placeholder={profileTopics.visionInputTopic} />
       </div>
 
       <div className="row row-wrap">
@@ -167,7 +169,7 @@ function VisionPanel() {
 
       <div className="row">
         {!camActive ? (
-          <button className="btn btn-sm btn-ok btn-icon" disabled={!camAvail} onClick={startCamera}>
+          <button className="btn btn-sm btn-ok btn-icon" disabled={!camAvail || !useClientCam} onClick={startCamera}>
             <Camera size={12} /> Start Preview
           </button>
         ) : (

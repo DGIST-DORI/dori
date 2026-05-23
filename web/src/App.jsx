@@ -30,6 +30,7 @@ export default function App() {
   const openPanel        = useStore(s => s.openPanel);
   const activeMainView   = useStore(s => s.activeMainView);
   const setActiveMainView = useStore(s => s.setActiveMainView);
+  const rosBindingEpoch = useStore(s => s.rosBindingEpoch);
 
   useEffect(() => {
     if (!connected) return;
@@ -44,7 +45,7 @@ export default function App() {
       subscribeROS(topic, undefined, (_, rawMsg) => handleROSMessage(topic, rawMsg))
     );
     return () => { cancelled = true; unsubs.forEach(fn => fn()); };
-  }, [connected, handleROSMessage, setTopicMeta]);
+  }, [connected, handleROSMessage, setTopicMeta, rosBindingEpoch]);
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');

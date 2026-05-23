@@ -46,6 +46,7 @@ def generate_launch_description():
             'topics.wake_word_pub': _topic(dori_ns, '/stt/wake_word_detected'),
             'topics.result_pub': _topic(dori_ns, '/stt/result'),
             'topics.tts_speaking_sub': _topic(dori_ns, '/tts/speaking'),
+            # Dashboard mic path is fixed to canonical STT input for both Robot/Sim profiles.
             'topics.audio_input_sub': _topic(dori_ns, '/stt/audio_input'),
         }],
     )

@@ -17,6 +17,7 @@ import {
 } from './emotion';
 import { floatingPanelsSlice } from './floatingPanels';
 import { i18nSlice } from './i18nSlice';
+import { AUDIO_OUTPUT_MODES, EXECUTION_PROFILES } from './topicProfiles';
 
 const FACE_KEYS = ['U', 'R', 'F', 'D', 'L', 'B'];
 const FACE_COLORS = Object.freeze({
@@ -335,6 +336,11 @@ export const useStore = create((set, get) => ({
   connected: false,
   isDemoMode: false,
   wsUrl: getDefaultWsUrl(),
+  executionProfile: EXECUTION_PROFILES.ROBOT,
+  useClientMic: true,
+  useClientCam: true,
+  audioOutputMode: AUDIO_OUTPUT_MODES.BROWSER_TTS,
+  rosBindingEpoch: 0,
 
   setConnected: (v) => set({ connected: v }),
   setDemoMode:  (v) => set({ isDemoMode: v }),
@@ -344,6 +350,15 @@ export const useStore = create((set, get) => ({
     }
     set({ wsUrl: v });
   },
+
+  setExecutionProfile: (profile) => set((s) => ({
+    executionProfile: profile,
+    rosBindingEpoch: s.rosBindingEpoch + 1,
+  })),
+  setUseClientMic: (v) => set({ useClientMic: !!v }),
+  setUseClientCam: (v) => set({ useClientCam: !!v }),
+  setAudioOutputMode: (mode) => set({ audioOutputMode: mode }),
+
 
   // ── Main view (workspace/settings) ─────────────────────────────────────
   activeMainView: 'workspace',

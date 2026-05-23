@@ -563,6 +563,39 @@
       "qos": "unknown",
       "description": "Velocity command output to robot base.",
       "owner_pkg": "navigation_pkg"
+    },
+    {
+      "topic": "dori/stt/audio_input",
+      "msg_type": "std_msgs/msg/String",
+      "publishers": [
+        "dashboard_frontend"
+      ],
+      "subscribers": [],
+      "qos": "unknown",
+      "description": "Dashboard/client microphone STT input (robot+sim profile canonical).",
+      "owner_pkg": "dashboard_pkg"
+    },
+    {
+      "topic": "dori/perception/vision/image/compressed",
+      "msg_type": "sensor_msgs/msg/CompressedImage",
+      "publishers": [
+        "dashboard_frontend"
+      ],
+      "subscribers": [],
+      "qos": "unknown",
+      "description": "Dashboard/client camera compressed image input (robot+sim profile canonical).",
+      "owner_pkg": "dashboard_pkg"
+    },
+    {
+      "topic": "dori/audio/output",
+      "msg_type": "audio_common_msgs/msg/AudioData",
+      "publishers": [
+        "dashboard_frontend"
+      ],
+      "subscribers": [],
+      "qos": "unknown",
+      "description": "ROS audio output stream for dashboard ros_audio playback mode.",
+      "owner_pkg": "dashboard_pkg"
     }
   ],
   "services": [
