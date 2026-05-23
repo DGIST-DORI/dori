@@ -3,12 +3,12 @@ import { Mic, MicOff } from 'lucide-react';
 import { LOG_TAGS, useStore } from '../../core/store';
 import { publishROS } from '../../core/ros';
 import { useI18n } from '../../core/i18n';
+import { resolveProfileTopics } from '../../core/topicProfiles';
 import './STTPanel.css';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const SAMPLE_RATE   = 16000;   // Whisper expects 16 kHz
-const DEFAULT_STT_AUDIO_TOPIC = '/dori/stt/audio_input';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -41,13 +41,16 @@ function STTPanel() {
   const connected  = useStore(s => s.connected);
   const isDemoMode = useStore(s => s.isDemoMode);
   const addLog     = useStore(s => s.addLog);
+  const executionProfile = useStore(s => s.executionProfile);
+  const useClientMic = useStore(s => s.useClientMic);
   const canPublish = connected || isDemoMode;
 
   const [text,          setText]          = useState('');
   const [lang,          setLang]          = useState('auto');
   const [conf,          setConf]          = useState('0.95');
   const [lastResult,    setLastResult]    = useState(null);
-  const [micTopic,      setMicTopic]      = useState(DEFAULT_STT_AUDIO_TOPIC);
+  const profileTopics = resolveProfileTopics(executionProfile);
+  const [micTopicOverride, setMicTopicOverride] = useState('');
 
   // Mic state
   const [micAvail,      setMicAvail]      = useState(false);
@@ -119,6 +122,7 @@ function STTPanel() {
     const durationEstSec = (chunksRef.current.length * 200) / 1000;
     try {
       const wavB64 = await toWavBase64(blob);
+      const micTopic = micTopicOverride.trim() || profileTopics.sttInputTopic;
       pub(micTopic, 'std_msgs/msg/String', {
         data: JSON.stringify({
           audio_b64: wavB64, format: 'wav_pcm16', sample_rate: SAMPLE_RATE, channels: 1, duration_est_sec: durationEstSec,
@@ -215,11 +219,11 @@ function STTPanel() {
         </div>
       )}
 
-      <SectionLabel>Microphone → STT Input Topic</SectionLabel>
+      <SectionLabel>Microphone → STT Input Topic ({profileTopics.sttInputTopic})</SectionLabel>
       <div className="row row-wrap">
         <div className="field" style={{ minWidth: 280 }}>
-          <label className="field-label">Mic Publish Topic</label>
-          <input className="input" value={micTopic} onChange={e => setMicTopic(e.target.value)} />
+          <label className="field-label">Advanced: Mic Publish Topic Override</label>
+          <input className="input" value={micTopicOverride} onChange={e => setMicTopicOverride(e.target.value)} placeholder={profileTopics.sttInputTopic} />
         </div>
       </div>
 
@@ -234,7 +238,7 @@ function STTPanel() {
         {!micActive ? (
           <button
             className="btn btn-sm btn-ok btn-icon"
-            disabled={!micAvail || !canPublish}
+            disabled={!micAvail || !canPublish || !useClientMic}
             onClick={handleMicStart}
           >
             <Mic size={12} /> Start Recording

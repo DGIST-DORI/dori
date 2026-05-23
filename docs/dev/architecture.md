@@ -76,20 +76,87 @@ ros2_ws/src/
 
 ### ROS2 Topic List (Actual Nodes)
 
+#### Topic List source of truth
+
+- Source file: `config/ros2_topics.yaml`.
+- This section is generated/synchronized from the YAML file via `python3 tools/topic/topic_lint.py --sync-architecture`.
+- CI runs `python3 tools/topic/topic_lint.py --check` and emits warnings if drift is detected.
+
+<!-- TOPIC:START -->
+#### In-scope application topics
+
+| Topic | Msg type | Publisher(s) | Subscriber(s) | Description |
+|---|---|---|---|---|
+| `/dori/odom` | `nav_msgs/msg/Odometry` | Base controller / localization stack | navigator_node | Robot odometry pose/velocity input. |
+| `/dori/scan` | `sensor_msgs/msg/LaserScan` | LiDAR driver | navigator_node | Laser range scan for obstacle detection/avoidance. |
+| `/dori/cmd_vel` | `geometry_msgs/msg/Twist` | navigator_node | Base controller / motor interface | Velocity command output to robot base. |
+
+#### Out of documentation scope (base platform topics)
+
+| Topic | Msg type | Publisher(s) | Subscriber(s) | Description |
+|---|---|---|---|---|
+| `camera/front/color/image_raw` | `sensor_msgs/msg/Image` | depth_camera_node | person_detection_node, gesture_recognition_node, facial_expression_node, landmark_detection_node | RGB camera stream used by all perception pipelines. |
+| `camera/front/depth/image_raw` | `sensor_msgs/msg/Image` | depth_camera_node | person_detection_node, landmark_detection_node | Raw depth frame for distance estimation and landmark range filtering. |
+| `camera/front/depth/image_colormap` | `sensor_msgs/msg/Image` | depth_camera_node | - | Colorized depth visualization stream. |
+| `camera/front/color/camera_info` | `sensor_msgs/msg/CameraInfo` | depth_camera_node | landmark_detection_node | RGB intrinsics for pixel-to-direction / localization math. |
+| `camera/front/depth/camera_info` | `sensor_msgs/msg/CameraInfo` | depth_camera_node | - | Depth intrinsics metadata stream. |
+| `camera/front/depth/scale` | `std_msgs/msg/Float32` | - | person_detection_node | Optional depth meter-per-unit scale expected by person detection. |
+| `camera/rear/color/image_raw` | `sensor_msgs/msg/Image` | depth_camera_node | - | Rear RGB camera stream. |
+| `camera/rear/depth/image_raw` | `sensor_msgs/msg/Image` | depth_camera_node | - | Rear raw depth frame. |
+| `camera/rear/depth/image_colormap` | `sensor_msgs/msg/Image` | depth_camera_node | - | Rear colorized depth visualization stream. |
+| `camera/rear/color/camera_info` | `sensor_msgs/msg/CameraInfo` | depth_camera_node | - | Rear RGB intrinsics metadata stream. |
+| `camera/rear/depth/camera_info` | `sensor_msgs/msg/CameraInfo` | depth_camera_node | - | Rear depth intrinsics metadata stream. |
+| `camera/rear/depth/scale` | `std_msgs/msg/Float32` | - | - | Optional rear depth meter-per-unit scale. |
+| `hri/persons` | `std_msgs/msg/String` | person_detection_node | - | JSON list of detected persons/tracks. |
+| `hri/interaction_trigger` | `std_msgs/msg/Bool` | person_detection_node | gesture_recognition_node, facial_expression_node | Enables gesture/expression inference only during interaction. |
+| `hri/tracking_state` | `std_msgs/msg/String` | person_detection_node | hri_manager_node | JSON tracking state (`idle/tracking/lost`) for session/nav control. |
+| `follow/target_offset` | `geometry_msgs/msg/Point` | person_detection_node | - | Relative target offset for follow-control consumers. |
+| `hri/annotated_image` | `sensor_msgs/msg/Image` | person_detection_node | - | Person detection debug overlay image. |
+| `hri/gesture` | `std_msgs/msg/String` | gesture_recognition_node | - | Gesture detection JSON payload. |
+| `hri/gesture_command` | `std_msgs/msg/String` | gesture_recognition_node | hri_manager_node | Mapped high-level gesture command (`STOP`, `CALL`, etc.). |
+| `stt/wake_word_detected` | `std_msgs/msg/Bool` | gesture_recognition_node (WAVE trigger), external STT node | hri_manager_node | Wake event that starts HRI listening flow. |
+| `hri/annotated_gesture` | `sensor_msgs/msg/Image` | gesture_recognition_node | - | Gesture visualization/debug image. |
+| `hri/expression` | `std_msgs/msg/String` | facial_expression_node | - | Expression inference JSON payload. |
+| `hri/expression_command` | `std_msgs/msg/String` | facial_expression_node | hri_manager_node | HRI action hint from expression state. |
+| `hri/annotated_expression` | `sensor_msgs/msg/Image` | facial_expression_node | - | Facial expression visualization/debug image. |
+| `landmark/detections` | `std_msgs/msg/String` | landmark_detection_node | - | Raw landmark/candidate detections as JSON. |
+| `landmark/localization` | `std_msgs/msg/String` | landmark_detection_node | - | Landmark-based localization estimate JSON. |
+| `landmark/context` | `std_msgs/msg/String` | landmark_detection_node | hri_manager_node | Current location/context text used in LLM query payload. |
+| `hri/annotated_landmark` | `sensor_msgs/msg/Image` | landmark_detection_node | - | Landmark detection visualization/debug image. |
+| `stt/audio_input` | `std_msgs/msg/String` | dashboard STTPanel mic publisher | stt_node | E2E STT input payload JSON: {audio_b64, format:'wav_pcm16', sample_rate:16000, channels:1}. |
+| `stt/result` | `std_msgs/msg/String` | stt_node | hri_manager_node | STT output JSON/text from recognizer. E2E path: STTPanel mic -> stt/audio_input -> stt_node(Whisper) -> stt/result -> hri_manager_node. |
+| `tts/done` | `std_msgs/msg/Bool` | tts_node | hri_manager_node | Playback completion event for HRI state transitions. |
+| `hri/manager_state` | `std_msgs/msg/String` | hri_manager_node | - | Current HRI state heartbeat (`IDLE`, `LISTENING`, etc.). |
+| `llm/query` | `std_msgs/msg/String` | hri_manager_node | llm_node | JSON request containing user text + contextual fields. |
+| `tts/text` | `std_msgs/msg/String` | hri_manager_node | tts_node | Direct TTS text (bypass LLM for prompts/system messages). |
+| `nav/command` | `std_msgs/msg/String` | hri_manager_node | - | High-level navigation command channel. |
+| `llm/response` | `std_msgs/msg/String` | llm_node | tts_node | Generated natural-language response text. |
+| `nav/destination` | `geometry_msgs/msg/PoseStamped` | llm_node | navigator_node | Navigation goal pose extracted from navigation intent. |
+| `tts/speaking` | `std_msgs/msg/Bool` | tts_node | - | True while TTS is actively speaking (used for mic mute by external STT). |
+| `nav/global_path` | `nav_msgs/msg/Path` | navigator_node | - | Planned global path visualization/output. |
+| `nav/local_path` | `nav_msgs/msg/Path` | navigator_node | - | Local path / short-horizon trajectory visualization. |
+| `nav/status` | `std_msgs/msg/String` | navigator_node | - | Human-readable navigation status updates. |
+| `nav/cancel` | `std_msgs/msg/Bool` | external/nav client node | navigator_node | Cancel signal for current navigation task. |
+| `system/metrics` | `std_msgs/msg/String` | system_monitor_node | - | Periodic system metrics JSON (CPU/RAM/Disk/GPU). |
+| `/map` | `nav_msgs/msg/OccupancyGrid` | SLAM / map server | navigator_node | Occupancy map used for global path planning. |
+| `dori/stt/audio_input` | `std_msgs/msg/String` | dashboard_frontend | - | Dashboard/client microphone STT input (robot+sim profile canonical). |
+| `dori/perception/vision/image/compressed` | `sensor_msgs/msg/CompressedImage` | dashboard_frontend | - | Dashboard/client camera compressed image input (robot+sim profile canonical). |
+| `dori/audio/output` | `audio_common_msgs/msg/AudioData` | dashboard_frontend | - | ROS audio output stream for dashboard ros_audio playback mode. |
+<!-- TOPIC:END -->
+
+
 The detailed API reference for ROS2 topics is managed as a single source at [`topics.adoc`](docs/dev/topics.adoc).
 
 - Topic source of truth: [`config/ros2_topics.yaml`](config/ros2_topics.yaml)
 - Sync/check tool: `python3 tools/topic/topic_lint.py --sync-architecture`, `python3 tools/topic/topic_lint.py --check`
 - Detailed documentation: [`docs/dev/topics.adoc`](docs/dev/topics.adoc)
 
-#### Camera topic naming policy (Python/C++ depth camera parity)
+#### Global ROS topic naming policy (all packages)
 
-- Canonical rule: depth camera nodes must publish to **relative topics** (e.g. `color/image_raw`, `depth/image_raw`) inside node code.
-- Launch files own final routing by injecting `/dori` namespace/remapping to app-level canonical topics (e.g. `/dori/camera/color/image_raw`).
-- Do not hardcode absolute `/dori/...` camera publish topics inside node implementations.
-- This rule applies equally to:
-  - `perception_pkg/perception_pkg/depth_camera_node.py` (Python)
-  - `perception_camera_cpp/src/depth_camera_node.cpp` (C++)
+- Canonical rule: **all nodes and dashboard publishers/subscribers** must use relative topics in code (e.g. `stt/audio_input`, `perception/vision/image/compressed`, `tts/text`).
+- Launch files own final routing by namespace/remapping (e.g. `namespace:=/dori` → runtime topic `/dori/stt/audio_input`).
+- Do not hardcode absolute `/dori/...` topics in node implementation or frontend code.
+- This rule is global (voice, perception, navigation, dashboard) and not camera-only.
 
 
 ---
@@ -109,3 +176,23 @@ IDLE ─────────────────────────
   │                                      │
   └────────────── target lost ◄─── NAVIGATING
 ```
+
+## Dashboard Execution Profile (Robot/Sim)
+
+- Settings > Connection 에서 `Execution Profile` 을 `Robot|Sim` 으로 전환한다.
+- Sim 프로파일은 데모(mock) 모드와 다르며, **실제 ROS 그래프를 타는 테스트 모드**다.
+- 기본 토픽은 프로파일 기반 자동 매핑을 사용한다.
+  - STT 입력: `stt/audio_input`
+  - Vision 입력: `perception/vision/image/compressed`
+  - TTS 텍스트: `tts/text`
+  - ROS 오디오 출력(옵션): `audio/output`
+- 모바일 브라우저 오디오 제약: HTTPS + 사용자 제스처 필요.
+
+## Remote device test guide (phone/laptop)
+
+1. 노트북/폰에서 대시보드 접속 (`http://[Robot IP]:3000`).
+2. Settings > Connection 에서 WS URL 확인 후 연결 (`ws://[Robot IP]:9090`).
+3. `Execution Profile=Sim` 으로 설정 후 Client Mic/Cam 활성화.
+4. STT Panel에서 mic 녹음 전송 → `stt/audio_input`(런타임 `/dori/stt/audio_input`) 유입 확인.
+5. Vision Panel에서 프레임 publish → `perception/vision/image/compressed`(런타임 `/dori/perception/vision/image/compressed`) 유입 확인.
+6. Speaker Output 모드를 `browser_tts` 또는 `ros_audio` 로 선택해 재생 경로 확인.

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../core/store';
 import { useI18n, detectBrowserLang, LANG_LABELS } from '../core/i18n';
+import { AUDIO_OUTPUT_MODES, EXECUTION_PROFILES } from '../core/topicProfiles';
 import CloseIcon from '../assets/icons/icon-close.svg?react';
 import './SettingsTab.css';
 
@@ -47,6 +48,15 @@ export default function SettingsTab({ themeMode, onThemeModeChange, onClose }) {
   const wsUrl       = useStore(s => s.wsUrl);
   const setWsUrl    = useStore(s => s.setWsUrl);
   const connected   = useStore(s => s.connected);
+
+  const executionProfile = useStore(s => s.executionProfile);
+  const setExecutionProfile = useStore(s => s.setExecutionProfile);
+  const useClientMic = useStore(s => s.useClientMic);
+  const setUseClientMic = useStore(s => s.setUseClientMic);
+  const useClientCam = useStore(s => s.useClientCam);
+  const setUseClientCam = useStore(s => s.setUseClientCam);
+  const audioOutputMode = useStore(s => s.audioOutputMode);
+  const setAudioOutputMode = useStore(s => s.setAudioOutputMode);
 
   const [wsInput, setWsInput] = useState(wsUrl);
   const detectedLang = detectBrowserLang();
@@ -95,6 +105,34 @@ export default function SettingsTab({ themeMode, onThemeModeChange, onClose }) {
       </Section>
 
       <Section title={t('settings.section.connection')}>
+
+        <Row label="Execution Profile" hint="Robot=실기체, Sim=ROS 그래프를 실제로 타는 테스트 모드">
+          <Seg
+            options={[
+              { value: EXECUTION_PROFILES.ROBOT, label: 'Robot' },
+              { value: EXECUTION_PROFILES.SIM, label: 'Sim' },
+            ]}
+            value={executionProfile}
+            onChange={setExecutionProfile}
+          />
+        </Row>
+        <Row label="Client Microphone">
+          <input type="checkbox" checked={useClientMic} onChange={e => setUseClientMic(e.target.checked)} />
+        </Row>
+        <Row label="Client Camera">
+          <input type="checkbox" checked={useClientCam} onChange={e => setUseClientCam(e.target.checked)} />
+        </Row>
+        <Row label="Speaker Output" hint="모바일 브라우저는 HTTPS/사용자 제스처가 필요할 수 있습니다.">
+          <Seg
+            options={[
+              { value: AUDIO_OUTPUT_MODES.BROWSER_TTS, label: 'browser_tts' },
+              { value: AUDIO_OUTPUT_MODES.ROS_AUDIO, label: 'ros_audio' },
+            ]}
+            value={audioOutputMode}
+            onChange={setAudioOutputMode}
+          />
+        </Row>
+
         <Row label={t('settings.ws.label')} hint={t('settings.ws.hint')}>
           <div className="sp-ws-row">
             <input
