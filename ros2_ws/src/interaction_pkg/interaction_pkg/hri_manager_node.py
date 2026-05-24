@@ -52,6 +52,7 @@ class HRIManagerNode(Node):
         # Parameters
         self.declare_parameter('greeting_text', '안녕하세요! 저는 캠퍼스 안내 로봇 도리입니다. 어디로 안내해드릴까요?')
         self.declare_parameter('idle_timeout_sec', 10.0)
+        self.declare_parameter('wake_debounce_sec', 1.5)
         self.declare_parameter('topics.wake_word_sub', 'stt/wake_word_detected')
         self.declare_parameter('topics.stt_result_sub', 'stt/result')
         self.declare_parameter('topics.tracking_state_sub', 'hri/tracking_state')
@@ -67,12 +68,15 @@ class HRIManagerNode(Node):
 
         self.greeting_text = self.get_parameter('greeting_text').value
         self.idle_timeout  = self.get_parameter('idle_timeout_sec').value
+        self.wake_debounce_sec = self.get_parameter('wake_debounce_sec').value
 
         # State variables
         self.state: HRIState        = HRIState.IDLE
         self.state_enter_time: float = time.time()
         self.landmark_context: str  = ''
         self.tracking_state: dict   = {}
+        self.last_wake_time: float  = 0.0
+        self.activated: bool = False
 
         wake_word_topic = self.get_parameter('topics.wake_word_sub').value
         stt_result_topic = self.get_parameter('topics.stt_result_sub').value
@@ -126,11 +130,20 @@ class HRIManagerNode(Node):
         """
         if not msg.data:
             return
+        now = time.time()
+        elapsed = now - self.last_wake_time
+        if elapsed < self.wake_debounce_sec:
+            self.get_logger().debug(
+                f'Wake word ignored — debounced ({elapsed:.2f}s < {self.wake_debounce_sec:.2f}s)'
+            )
+            return
+        self.last_wake_time = now
 
         if self.state == HRIState.IDLE:
             self.get_logger().info('Wake word detected — starting HRI session')
-            self._transition(HRIState.LISTENING)
-            self._say(self.greeting_text)
+            self.activated = True
+            self._transition(HRIState.LISTENING, reason='wake_word_detected')
+            self._emit_wake_ack()
         else:
             self.get_logger().debug(
                 f'Wake word ignored — already in state {self.state}'
@@ -152,7 +165,7 @@ class HRIManagerNode(Node):
             return
 
         self.get_logger().info(f'STT result: "{user_text}"')
-        self._transition(HRIState.RESPONDING)
+        self._transition(HRIState.RESPONDING, reason='stt_result_received')
         self._send_to_llm(user_text)
 
     def _on_tracking_state(self, msg: String):
@@ -165,7 +178,7 @@ class HRIManagerNode(Node):
         if (self.state == HRIState.NAVIGATING
                 and self.tracking_state.get('state') == 'idle'):
             self.get_logger().info('Target lost — ending navigation')
-            self._transition(HRIState.IDLE)
+            self._transition(HRIState.IDLE, reason='navigation_target_lost')
             self._set_follow_mode(False)
             self._say('안내 대상을 잃어버렸습니다. 다시 불러주세요.')
 
@@ -211,7 +224,7 @@ class HRIManagerNode(Node):
         elif command == 'GUIDANCE_COMPLETE':
             if self.state == HRIState.NAVIGATING:
                 self._say(cmd.get('tts_text', '안내가 도움이 되셨다니 다행입니다!'))
-                self._transition(HRIState.IDLE)
+                self._transition(HRIState.IDLE, reason='guidance_complete')
                 self._set_follow_mode(False)
 
     def _on_landmark_context(self, msg: String):
@@ -228,11 +241,11 @@ class HRIManagerNode(Node):
 
         if self.state == HRIState.RESPONDING:
             self.get_logger().info('TTS done — back to LISTENING')
-            self._transition(HRIState.LISTENING)
+            self._transition(HRIState.LISTENING, reason='tts_done_after_response')
 
     # State machine
-    def _transition(self, new_state: HRIState):
-        self.get_logger().info(f'State: {self.state} → {new_state}')
+    def _transition(self, new_state: HRIState, reason: str = 'unspecified'):
+        self.get_logger().info(f'State: {self.state} → {new_state} (reason: {reason})')
         self.state = new_state
         self.state_enter_time = time.time()
 
@@ -247,7 +260,7 @@ class HRIManagerNode(Node):
                 self.get_logger().info(
                     f'LISTENING timeout ({self.idle_timeout}s) → IDLE'
                 )
-                self._transition(HRIState.IDLE)
+                self._transition(HRIState.IDLE, reason='listening_timeout')
                 self._set_follow_mode(False)
 
     # Action helpers
@@ -257,6 +270,13 @@ class HRIManagerNode(Node):
         msg.data = text
         self.tts_pub.publish(msg)
         self.get_logger().info(f'TTS: "{text}"')
+
+    def _emit_wake_ack(self):
+        """Emit wake acknowledgement after activation."""
+        if not self.activated:
+            return
+        self._say('네, 말씀하세요.')
+        self.activated = False
 
     def _send_to_llm(self, user_text: str):
         """Package user text + location context and publish to LLM node."""
