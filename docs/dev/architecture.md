@@ -196,3 +196,17 @@ IDLE ─────────────────────────
 4. STT Panel에서 mic 녹음 전송 → `stt/audio_input`(런타임 `/dori/stt/audio_input`) 유입 확인.
 5. Vision Panel에서 프레임 publish → `perception/vision/image/compressed`(런타임 `/dori/perception/vision/image/compressed`) 유입 확인.
 6. Speaker Output 모드를 `browser_tts` 또는 `ros_audio` 로 선택해 재생 경로 확인.
+
+
+## Speaker Output × ROS TTS playback_mode 조합
+
+원격 대시보드 테스트에서는 `playback_mode=publish_only` 를 권장한다 (예: `DORI_TTS_PLAYBACK_MODE=publish_only`).
+
+| Speaker Output (Dashboard) | ROS `playback_mode` | 기대 동작 |
+| --- | --- | --- |
+| `browser_tts` | `publish_only` | VM 로컬 재생(`sd.play`, `mpg123`, `ffplay`)은 비활성화되고, `tts/audio_event` 기반으로 대시보드가 재생한다. |
+| `browser_tts` | `local_and_publish` | VM 로컬 재생 + `tts/audio_event` 동시 발행(이중 출력 가능). |
+| `browser_tts` | `local_only` | VM 로컬만 재생되어 원격 브라우저에서는 소리가 나지 않을 수 있다. |
+| `ros_audio` | `publish_only` | VM 로컬 재생 없이 오디오 이벤트만 발행한다(브리지 노드가 있으면 원격/외부 스피커 재생). |
+| `ros_audio` | `local_and_publish` | VM 로컬 재생과 ROS 오디오 경로를 모두 사용한다. |
+| `ros_audio` | `local_only` | VM 로컬 재생만 수행하고 오디오 이벤트는 운용 경로에 활용되지 않는다. |

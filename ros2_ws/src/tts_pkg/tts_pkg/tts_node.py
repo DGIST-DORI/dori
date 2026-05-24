@@ -68,6 +68,8 @@ class TTSNode(Node):
         self.declare_parameter('topics.tts_text_sub', 'tts/text')
         self.declare_parameter('topics.audio_cue_sub', 'hri/audio_cue')
         self.declare_parameter('sfx.base_path', '')
+        self.declare_parameter('playback_mode', 'local_and_publish')
+        self.declare_parameter('topics.audio_event_pub', 'tts/audio_event')
 
         self.engine_name = self.get_parameter('tts_engine').value
         self.language = self.get_parameter('language').value
@@ -82,6 +84,13 @@ class TTSNode(Node):
         self.sfx_base_path = self._resolve_sfx_base_path(
             self.get_parameter('sfx.base_path').value
         )
+        self.playback_mode = self.get_parameter('playback_mode').value
+        valid_playback_modes = {'local_only', 'publish_only', 'local_and_publish'}
+        if self.playback_mode not in valid_playback_modes:
+            self.get_logger().warn(
+                f'Invalid playback_mode: {self.playback_mode} — fallback to local_and_publish'
+            )
+            self.playback_mode = 'local_and_publish'
 
         speaking_topic = self.get_parameter('topics.speaking_pub').value
         done_topic = self.get_parameter('topics.done_pub').value
@@ -89,11 +98,13 @@ class TTSNode(Node):
         llm_response_topic = self.get_parameter('topics.llm_response_sub').value
         tts_text_topic = self.get_parameter('topics.tts_text_sub').value
         audio_cue_topic = self.get_parameter('topics.audio_cue_sub').value
+        audio_event_topic = self.get_parameter('topics.audio_event_pub').value
 
         # Publishers
         self.speaking_pub = self.create_publisher(Bool, speaking_topic, 10)
         self.done_pub = self.create_publisher(Bool, done_topic, 10)
         self.done_detail_pub = self.create_publisher(String, done_detail_topic, 10)
+        self.audio_event_pub = self.create_publisher(String, audio_event_topic, 10)
 
         # Subscribers
         self.create_subscription(String, llm_response_topic, self._on_text, 10)
@@ -111,6 +122,7 @@ class TTSNode(Node):
 
         self.get_logger().info(f'TTS Node started (engine: {self.engine_name})')
         self.get_logger().info(f'SFX base path: {self.sfx_base_path}')
+        self.get_logger().info(f'Playback mode: {self.playback_mode}')
 
     def _init_engine(self):
         if self.engine_name == 'pyttsx3':
@@ -182,6 +194,8 @@ class TTSNode(Node):
                 self._pub_speaking(True)
                 self.get_logger().info(f'Speaking: "{text[:60]}"')
 
+                self._publish_audio_event('tts_text', {'text': text, 'engine': self.engine_name})
+
                 if self.engine_name == 'pyttsx3':
                     self._speak_pyttsx3(text)
                 elif self.engine_name == 'gtts':
@@ -199,6 +213,9 @@ class TTSNode(Node):
                 self.get_logger().info('Speech complete')
 
     def _speak_pyttsx3(self, text: str):
+        if self.playback_mode == 'publish_only':
+            self.get_logger().info('publish_only mode: skip pyttsx3 local playback')
+            return
         self._pyttsx3.say(text)
         self._pyttsx3.runAndWait()
 
@@ -207,6 +224,10 @@ class TTSNode(Node):
             tmp = fp.name
         try:
             gTTS(text=text, lang=self.language, slow=False).save(tmp)
+            if self.playback_mode == 'publish_only':
+                self.get_logger().info('publish_only mode: skip gTTS local playback')
+                return
+
             if AUDIO_AVAILABLE:
                 data, sr = sf.read(tmp)
                 sd.play(data, sr)
@@ -245,6 +266,8 @@ class TTSNode(Node):
             self.get_logger().warn(f'Unknown audio cue: "{cue_name}"')
             return
 
+        self._publish_audio_event('audio_cue', {'cue_name': cue_name})
+
         cue_path = self._cue_file_path(cue_name)
         if not self.sfx_base_path or not cue_path.exists():
             self.get_logger().warn(
@@ -253,6 +276,10 @@ class TTSNode(Node):
             return
 
         try:
+            if self.playback_mode == 'publish_only':
+                self.get_logger().info('publish_only mode: skip local audio cue playback')
+                return
+
             if AUDIO_AVAILABLE:
                 data, sr = sf.read(str(cue_path))
                 sd.play(data, sr)
@@ -266,6 +293,20 @@ class TTSNode(Node):
             self.get_logger().warn(
                 f'Audio cue playback failed ({cue_name}): {e} — fallback to silence'
             )
+
+
+    def _publish_audio_event(self, event_type: str, payload: dict):
+        if self.playback_mode == 'local_only':
+            return
+
+        msg = String()
+        msg.data = json.dumps({
+            'event_type': event_type,
+            'playback_mode': self.playback_mode,
+            'timestamp': time.time(),
+            **payload,
+        }, ensure_ascii=False)
+        self.audio_event_pub.publish(msg)
 
     def _pub_speaking(self, value: bool):
         msg = Bool()
