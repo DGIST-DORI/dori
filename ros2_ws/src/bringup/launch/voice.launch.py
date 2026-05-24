@@ -4,7 +4,7 @@ Voice stack launch (stt/llm/tts only).
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import EnvironmentVariable, LaunchConfiguration
 from launch_ros.actions import Node
 
 
@@ -28,6 +28,10 @@ def generate_launch_description():
         DeclareLaunchArgument('tts_engine', default_value='gtts'),
         DeclareLaunchArgument('tts_language', default_value='ko'),
         DeclareLaunchArgument('sfx_base_path', default_value=''),
+        DeclareLaunchArgument(
+            'tts_playback_mode',
+            default_value=EnvironmentVariable('DORI_TTS_PLAYBACK_MODE', default_value='local_and_publish'),
+        ),
         DeclareLaunchArgument('namespace', default_value='/dori'),
     ]
 
@@ -85,6 +89,7 @@ def generate_launch_description():
             'topics.tts_text_sub': _topic(dori_ns, '/tts/text'),
             'topics.audio_cue_sub': _topic(dori_ns, '/hri/audio_cue'),
             'sfx.base_path': LaunchConfiguration('sfx_base_path'),
+            'playback_mode': LaunchConfiguration('tts_playback_mode'),
         }],
     )
 

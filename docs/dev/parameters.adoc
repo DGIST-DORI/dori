@@ -273,10 +273,13 @@ This document is the SSOT for ROS2 parameter details in the current workspace.
 | language | string | `ko` | locale code | - | Speech language.
 | speech_rate | int | 150 | >0 | - | Speech rate (engine-dependent).
 | volume | double | 0.9 | [0,1] | - | Playback volume.
+| playback_mode | string | `local_and_publish` | `local_only/publish_only/local_and_publish` | - | Local playback/publish routing policy.
 | topics.speaking_pub | string | `/tts/speaking` | topic path | - | Speaking-state output.
 | topics.done_pub | string | `/tts/done` | topic path | - | Playback done output.
 | topics.llm_response_sub | string | `/llm/response` | topic path | - | LLM text input.
 | topics.tts_text_sub | string | `/tts/text` | topic path | - | Direct TTS text input.
+| topics.audio_cue_sub | string | `/hri/audio_cue` | topic path | - | Short audio cue input.
+| topics.audio_event_pub | string | `/tts/audio_event` | topic path | - | Audio event publish topic for dashboard/bridge playback.
 |===
 
 *Dynamic reconfigure*:: Not supported
