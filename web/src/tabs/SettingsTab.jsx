@@ -57,6 +57,7 @@ export default function SettingsTab({ themeMode, onThemeModeChange, onClose }) {
   const setUseClientCam = useStore(s => s.setUseClientCam);
   const audioOutputMode = useStore(s => s.audioOutputMode);
   const setAudioOutputMode = useStore(s => s.setAudioOutputMode);
+  const browserTtsWarning = useStore(s => s.browserTtsWarning);
 
   const [wsInput, setWsInput] = useState(wsUrl);
   const detectedLang = detectBrowserLang();
@@ -132,6 +133,13 @@ export default function SettingsTab({ themeMode, onThemeModeChange, onClose }) {
             onChange={setAudioOutputMode}
           />
         </Row>
+
+
+        {audioOutputMode === AUDIO_OUTPUT_MODES.BROWSER_TTS && browserTtsWarning && (
+          <Row label="Browser TTS Notice">
+            <div style={{ color: 'var(--color-error)', fontSize: 12 }}>{browserTtsWarning}</div>
+          </Row>
+        )}
 
         <Row label={t('settings.ws.label')} hint={t('settings.ws.hint')}>
           <div className="sp-ws-row">

@@ -1,6 +1,7 @@
 import { subscribeROS } from './ros';
 import { AUDIO_OUTPUT_MODES, resolveProfileTopics } from './topicProfiles';
-import { LOG_TAGS } from './store';
+import { LOG_TAGS, useStore } from './store';
+import { createBrowserTtsController } from './browserTts';
 
 function parseIncomingAudioPayload(raw) {
   if (!raw) return null;
@@ -27,20 +28,26 @@ export function createAudioOutputRouter({ mode, executionProfile, addLog, setAct
   setActiveAudioRoute?.(mode);
 
   if (mode === AUDIO_OUTPUT_MODES.BROWSER_TTS) {
-    const unsub = subscribeROS('/dori/tts/text', undefined, (payload) => {
-      if (typeof window === 'undefined' || !window.speechSynthesis) return;
-      const text = typeof payload === 'string' ? payload : JSON.stringify(payload);
-      if (!text?.trim()) return;
-      const utterance = new SpeechSynthesisUtterance(text);
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utterance);
-      addLog(LOG_TAGS.TTS, `[audio-route] browser_tts speak (${text.length} chars)`);
+    const tts = createBrowserTtsController({
+      addLog,
+      setUnlockWarning: (msg) => useStore.getState().setBrowserTtsWarning(msg),
+      getAudioOutputMode: () => useStore.getState().audioOutputMode,
+      browserTtsMode: AUDIO_OUTPUT_MODES.BROWSER_TTS,
     });
+
+    const removeUnlockHandlers = tts.bindFirstGestureUnlock();
+    const unsub = subscribeROS('/dori/tts/text', undefined, (payload, rawMsg) => {
+      tts.speak({
+        payload,
+        messageId: rawMsg?.id || rawMsg?.header?.stamp,
+        source: '/dori/tts/text',
+      });
+    });
+
     cleanups.push(() => {
       try { unsub(); } catch { return; }
-      if (typeof window !== 'undefined' && window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
+      try { removeUnlockHandlers(); } catch { return; }
+      tts.cancel();
     });
   }
 
