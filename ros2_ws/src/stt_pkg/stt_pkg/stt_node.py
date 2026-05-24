@@ -109,6 +109,7 @@ class STTNode(Node):
         self.declare_parameter('silence_duration', 1.2)
         self.declare_parameter('topics.wake_word_pub', 'stt/wake_word_detected')
         self.declare_parameter('topics.result_pub', 'stt/result')
+        self.declare_parameter('min_confidence', 0.55)
         self.declare_parameter('topics.tts_speaking_sub', 'tts/speaking')
         self.declare_parameter('topics.audio_input_sub', 'stt/audio_input')
         self.declare_parameter('audio_input_mode', 'microphone')
@@ -120,6 +121,7 @@ class STTNode(Node):
         device           = self.get_parameter('whisper_device').value
         self.vad_threshold   = self.get_parameter('vad_threshold').value
         self.vad_silence_sec = self.get_parameter('silence_duration').value
+        self.min_confidence = float(self.get_parameter('min_confidence').value)
 
         wake_word_topic = self.get_parameter('topics.wake_word_pub').value
         result_topic = self.get_parameter('topics.result_pub').value
@@ -429,21 +431,32 @@ class STTNode(Node):
                 min(1.0, max(0.0, np.exp(np.mean(logprobs))))
             ) if logprobs else 0.5
 
-            if text:
-                payload = {
-                    'text':       text,
-                    'language':   info.language,
-                    'confidence': round(confidence, 3),
-                    'timestamp':  time.time(),
-                }
-                self.get_logger().info(
-                    f'[{info.language}] (conf={confidence:.2f}) "{text}"'
-                )
-                msg = String()
-                msg.data = json.dumps(payload, ensure_ascii=False)
-                self.result_pub.publish(msg)
-            else:
+            normalized_text = text.strip()
+            is_low_conf = confidence < self.min_confidence
+            is_empty = not normalized_text
+
+            payload = {
+                'text': normalized_text,
+                'language': info.language,
+                'confidence': round(confidence, 3),
+                'timestamp': time.time(),
+                'event': 'stt_empty_or_low_conf' if (is_empty or is_low_conf) else 'stt_result',
+            }
+
+            if is_empty:
                 self.get_logger().info('Empty transcription result')
+            elif is_low_conf:
+                self.get_logger().info(
+                    f'[{info.language}] low confidence (conf={confidence:.2f} < {self.min_confidence:.2f}) "{normalized_text}"'
+                )
+            else:
+                self.get_logger().info(
+                    f'[{info.language}] (conf={confidence:.2f}) "{normalized_text}"'
+                )
+
+            msg = String()
+            msg.data = json.dumps(payload, ensure_ascii=False)
+            self.result_pub.publish(msg)
 
         except Exception as e:
             self.get_logger().error(f'Transcription failed: {e}')

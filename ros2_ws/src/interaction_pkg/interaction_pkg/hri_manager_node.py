@@ -47,6 +47,19 @@ class HRIState(str, Enum):
     NAVIGATING = 'NAVIGATING'
 
 
+
+SYSTEM_PROMPTS = {
+    'timeout_exit': '응답이 없어 대화를 종료할게요.',
+    'reprompt_short': '잘 못 들었어요. 다시 말씀해 주세요.',
+    'tts_error_retry': '죄송해요, 음성 출력에 문제가 있었어요. 다시 한 번 말씀해 주세요.',
+    'target_lost': '안내 대상을 잃어버렸습니다. 다시 불러주세요.',
+}
+
+STT_EVENTS = {
+    'RESULT': 'stt_result',
+    'EMPTY_OR_LOW_CONF': 'stt_empty_or_low_conf',
+}
+
 class HRIManagerNode(Node):
     def __init__(self):
         super().__init__('hri_manager_node')
@@ -55,6 +68,8 @@ class HRIManagerNode(Node):
         self.declare_parameter('greeting_text', '안녕하세요! 저는 캠퍼스 안내 로봇 도리입니다. 어디로 안내해드릴까요?')
         self.declare_parameter('idle_timeout_sec', 10.0)
         self.declare_parameter('wake_debounce_sec', 1.5)
+        self.declare_parameter('reprompt_max_count', 2)
+        self.declare_parameter('system_prompt_cooldown_sec', 2.0)
         self.declare_parameter('topics.wake_word_sub', 'stt/wake_word_detected')
         self.declare_parameter('topics.stt_result_sub', 'stt/result')
         self.declare_parameter('topics.tracking_state_sub', 'hri/tracking_state')
@@ -73,6 +88,8 @@ class HRIManagerNode(Node):
         self.greeting_text = self.get_parameter('greeting_text').value
         self.idle_timeout  = self.get_parameter('idle_timeout_sec').value
         self.wake_debounce_sec = self.get_parameter('wake_debounce_sec').value
+        self.reprompt_max_count = int(self.get_parameter('reprompt_max_count').value)
+        self.system_prompt_cooldown_sec = float(self.get_parameter('system_prompt_cooldown_sec').value)
 
         # State variables
         self.state: HRIState        = HRIState.IDLE
@@ -82,6 +99,8 @@ class HRIManagerNode(Node):
         self.last_wake_time: float  = 0.0
         self.activated: bool = False
         self.tts_retry_count: int = 0
+        self.reprompt_count: int = 0
+        self.last_system_prompt_time: dict[str, float] = {}
 
         wake_word_topic = self.get_parameter('topics.wake_word_sub').value
         stt_result_topic = self.get_parameter('topics.stt_result_sub').value
@@ -152,6 +171,7 @@ class HRIManagerNode(Node):
         if self.state == HRIState.IDLE:
             self.get_logger().info('Wake word detected — starting HRI session')
             self.activated = True
+            self.reprompt_count = 0
             self._transition(HRIState.LISTENING, reason='wake_word_detected')
             self._emit_wake_ack()
         else:
@@ -160,21 +180,29 @@ class HRIManagerNode(Node):
             )
 
     def _on_stt_result(self, msg: String):
-        """STT transcription received — forward to LLM with location context."""
+        """STT transcription/event received — forward valid text to LLM."""
         if self.state != HRIState.LISTENING:
             self.get_logger().debug('STT result ignored — not in LISTENING state')
             return
 
         try:
             data = json.loads(msg.data)
-            user_text = data.get('text', '').strip()
-        except (json.JSONDecodeError, AttributeError):
+            user_text = str(data.get('text', '')).strip()
+            event = str(data.get('event', STT_EVENTS['RESULT']))
+            confidence = float(data.get('confidence', 0.0))
+        except (json.JSONDecodeError, AttributeError, TypeError, ValueError):
             user_text = msg.data.strip()
+            event = STT_EVENTS['RESULT'] if user_text else STT_EVENTS['EMPTY_OR_LOW_CONF']
+            confidence = 0.0
 
-        if not user_text:
+        if event == STT_EVENTS['EMPTY_OR_LOW_CONF'] or not user_text:
+            self.get_logger().info(
+                f'STT empty/low-confidence event received (conf={confidence:.2f})'
+            )
+            self._handle_reprompt_or_end()
             return
 
-        self.get_logger().info(f'STT result: "{user_text}"')
+        self.get_logger().info(f'STT result: "{user_text}" (conf={confidence:.2f})')
         self._transition(HRIState.RESPONDING, reason='stt_result_received')
         self.tts_retry_count = 0
         self._send_to_llm(user_text)
@@ -191,7 +219,7 @@ class HRIManagerNode(Node):
             self.get_logger().info('Target lost — ending navigation')
             self._transition(HRIState.IDLE, reason='navigation_target_lost')
             self._set_follow_mode(False)
-            self._say('안내 대상을 잃어버렸습니다. 다시 불러주세요.')
+            self._say_system('target_lost')
 
     def _on_gesture_command(self, msg: String):
         try:
@@ -270,7 +298,7 @@ class HRIManagerNode(Node):
         if self.state == HRIState.RESPONDING:
             if self.tts_retry_count < 1:
                 self.tts_retry_count += 1
-                self._say('죄송해요, 음성 출력에 문제가 있었어요. 다시 한 번 말씀해 주세요.')
+                self._say_system('tts_error_retry')
             self._transition(HRIState.LISTENING, reason='tts_failure_recover')
 
     # State machine
@@ -290,6 +318,7 @@ class HRIManagerNode(Node):
                 self.get_logger().info(
                     f'LISTENING timeout ({self.idle_timeout}s) → IDLE'
                 )
+                self._say_system('timeout_exit')
                 self._transition(HRIState.IDLE, reason='listening_timeout')
                 self._set_follow_mode(False)
 
@@ -300,6 +329,38 @@ class HRIManagerNode(Node):
         msg.data = text
         self.tts_pub.publish(msg)
         self.get_logger().info(f'TTS: "{text}"')
+
+    def _say_system(self, prompt_key: str) -> bool:
+        text = SYSTEM_PROMPTS.get(prompt_key)
+        if not text:
+            self.get_logger().warn(f'Unknown system prompt key: {prompt_key}')
+            return False
+
+        now = time.time()
+        last_ts = self.last_system_prompt_time.get(prompt_key, 0.0)
+        if (now - last_ts) < self.system_prompt_cooldown_sec:
+            self.get_logger().info(
+                f'System prompt suppressed by cooldown: {prompt_key} ({now - last_ts:.2f}s)'
+            )
+            return False
+
+        self.last_system_prompt_time[prompt_key] = now
+        self._say(text)
+        return True
+
+    def _handle_reprompt_or_end(self):
+        if self.reprompt_count < self.reprompt_max_count:
+            self.reprompt_count += 1
+            self._say_system('reprompt_short')
+            self.get_logger().info(
+                f'Reprompt issued ({self.reprompt_count}/{self.reprompt_max_count})'
+            )
+            return
+
+        self.get_logger().info('Reprompt limit reached — ending session')
+        self._say_system('timeout_exit')
+        self._transition(HRIState.IDLE, reason='reprompt_limit_reached')
+        self._set_follow_mode(False)
 
     def _emit_wake_ack(self):
         """Emit wake acknowledgement after activation."""
