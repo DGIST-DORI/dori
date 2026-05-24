@@ -58,6 +58,7 @@ export default function SettingsTab({ themeMode, onThemeModeChange, onClose }) {
   const audioOutputMode = useStore(s => s.audioOutputMode);
   const setAudioOutputMode = useStore(s => s.setAudioOutputMode);
   const browserTtsWarning = useStore(s => s.browserTtsWarning);
+  const rosAudioDebug = useStore(s => s.rosAudioDebug);
 
   const [wsInput, setWsInput] = useState(wsUrl);
   const detectedLang = detectBrowserLang();
@@ -138,6 +139,14 @@ export default function SettingsTab({ themeMode, onThemeModeChange, onClose }) {
         {audioOutputMode === AUDIO_OUTPUT_MODES.BROWSER_TTS && browserTtsWarning && (
           <Row label="Browser TTS Notice">
             <div style={{ color: 'var(--color-error)', fontSize: 12 }}>{browserTtsWarning}</div>
+          </Row>
+        )}
+
+        {audioOutputMode === AUDIO_OUTPUT_MODES.ROS_AUDIO && (
+          <Row label="ROS Audio Debug" hint="수신 패킷/큐 길이/underrun 모니터링">
+            <div style={{ fontSize: 12, fontFamily: 'monospace' }}>
+              packets={rosAudioDebug?.packets ?? 0} | queue={rosAudioDebug?.queueLength ?? 0} | underrun={rosAudioDebug?.underruns ?? 0}
+            </div>
           </Row>
         )}
 

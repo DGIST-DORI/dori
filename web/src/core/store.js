@@ -342,6 +342,11 @@ export const useStore = create((set, get) => ({
   audioOutputMode: AUDIO_OUTPUT_MODES.BROWSER_TTS,
   activeAudioRoute: AUDIO_OUTPUT_MODES.BROWSER_TTS,
   browserTtsWarning: '',
+  rosAudioDebug: {
+    packets: 0,
+    queueLength: 0,
+    underruns: 0,
+  },
   rosBindingEpoch: 0,
 
   setConnected: (v) => set({ connected: v }),
@@ -380,6 +385,19 @@ export const useStore = create((set, get) => ({
   }),
   setActiveAudioRoute: (route) => set({ activeAudioRoute: route }),
   setBrowserTtsWarning: (msg) => set({ browserTtsWarning: msg || '' }),
+  setRosAudioDebug: (nextDebug = {}) => set((s) => ({
+    rosAudioDebug: {
+      ...s.rosAudioDebug,
+      ...nextDebug,
+    },
+  })),
+  resetRosAudioDebug: () => set({
+    rosAudioDebug: {
+      packets: 0,
+      queueLength: 0,
+      underruns: 0,
+    },
+  }),
 
 
   // ── Main view (workspace/settings) ─────────────────────────────────────
