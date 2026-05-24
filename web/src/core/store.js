@@ -341,6 +341,7 @@ export const useStore = create((set, get) => ({
   useClientCam: true,
   audioOutputMode: AUDIO_OUTPUT_MODES.BROWSER_TTS,
   activeAudioRoute: AUDIO_OUTPUT_MODES.BROWSER_TTS,
+  browserTtsWarning: '',
   rosBindingEpoch: 0,
 
   setConnected: (v) => set({ connected: v }),
@@ -365,6 +366,7 @@ export const useStore = create((set, get) => ({
     const changed = s.audioOutputMode !== nextMode;
     return {
       audioOutputMode: nextMode,
+      ...(nextMode !== AUDIO_OUTPUT_MODES.BROWSER_TTS ? { browserTtsWarning: '' } : {}),
       ...(changed ? {
         log: [{
           id: Date.now() + Math.random(),
@@ -377,6 +379,7 @@ export const useStore = create((set, get) => ({
     };
   }),
   setActiveAudioRoute: (route) => set({ activeAudioRoute: route }),
+  setBrowserTtsWarning: (msg) => set({ browserTtsWarning: msg || '' }),
 
 
   // ── Main view (workspace/settings) ─────────────────────────────────────
