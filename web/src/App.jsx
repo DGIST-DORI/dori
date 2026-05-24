@@ -6,6 +6,7 @@ import SettingsTab        from './tabs/SettingsTab';
 import { useStore, TOPIC_META } from './core/store';
 import { fetchTopicDiagnostics, subscribeROS } from './core/ros';
 import { createAudioOutputRouter } from './core/audioOutput';
+import { AUDIO_OUTPUT_MODES } from './core/topicProfiles';
 import { PANEL_TREE, findLeaf } from './panelTree';
 
 import './index.css';
@@ -77,8 +78,22 @@ export default function App() {
     return () => mq.removeEventListener('change', apply);
   }, []);
 
+  // browser_tts: ROS 연결 불필요
+  useEffect(() => {
+    if (audioOutputMode !== AUDIO_OUTPUT_MODES.BROWSER_TTS) return undefined;
+    const cleanup = createAudioOutputRouter({
+      mode: audioOutputMode,
+      executionProfile,
+      addLog,
+      setActiveAudioRoute,
+    });
+    return cleanup;
+  }, [audioOutputMode, executionProfile, addLog, setActiveAudioRoute]);
+
+  // ros_audio: ROS 연결 필요
   useEffect(() => {
     if (!connected) return undefined;
+    if (audioOutputMode !== AUDIO_OUTPUT_MODES.ROS_AUDIO) return undefined;
     const cleanup = createAudioOutputRouter({
       mode: audioOutputMode,
       executionProfile,
