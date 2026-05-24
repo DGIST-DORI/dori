@@ -188,14 +188,37 @@ IDLE ─────────────────────────
   - ROS 오디오 출력(옵션): `audio/output`
 - 모바일 브라우저 오디오 제약: HTTPS + 사용자 제스처 필요.
 
+
+
 ## Remote device test guide (phone/laptop)
 
-1. 노트북/폰에서 대시보드 접속 (`http://[Robot IP]:3000`).
-2. Settings > Connection 에서 WS URL 확인 후 연결 (`ws://[Robot IP]:9090`).
-3. `Execution Profile=Sim` 으로 설정 후 Client Mic/Cam 활성화.
-4. STT Panel에서 mic 녹음 전송 → `stt/audio_input`(런타임 `/dori/stt/audio_input`) 유입 확인.
-5. Vision Panel에서 프레임 publish → `perception/vision/image/compressed`(런타임 `/dori/perception/vision/image/compressed`) 유입 확인.
-6. Speaker Output 모드를 `browser_tts` 또는 `ros_audio` 로 선택해 재생 경로 확인.
+### 출력 검증 절차 (공통)
+
+1. 원격 장치(PC/모바일 브라우저)에서 대시보드 접속: `http://[Robot IP]:3000`.
+2. Settings > Connection 에서 WS 연결: `ws://[Robot IP]:9090`.
+3. `Execution Profile=Sim` 설정 후 Client Mic/Cam 활성화.
+4. STT Panel에서 mic 녹음 전송 후 `stt/audio_input`(런타임 `/dori/stt/audio_input`) 수신 확인.
+5. Vision Panel에서 프레임 publish 후 `perception/vision/image/compressed`(런타임 `/dori/perception/vision/image/compressed`) 수신 확인.
+6. Speaker Output 모드를 시나리오에 맞게 선택하고 TTS 재생을 트리거한다.
+7. 아래 시나리오별 기대 장치에서 실제 음성이 출력되는지 확인한다.
+
+### 최소 시나리오 (분리)
+
+| 시나리오 | 클라이언트 장치 | Speaker Output | 기대 결과(소리 출력 장치) |
+| --- | --- | --- | --- |
+| A | PC 브라우저 | `browser_tts` | **해당 PC의 스피커**에서 소리가 나야 한다. |
+| B | 모바일 브라우저 | `browser_tts` | **해당 모바일 기기 스피커**에서 소리가 나야 한다. |
+| C | 모바일 브라우저 | `ros_audio` | **ROS 오디오 출력이 연결된 외부/로봇 스피커**에서 소리가 나야 한다 (모바일 스피커 아님). |
+
+### 실패 시 점검 항목
+
+| 점검 항목 | 증상 예시 | 확인 방법 |
+| --- | --- | --- |
+| HTTPS | 모바일에서 재생이 시작되지 않음 | 원격 접속 URL이 HTTPS인지 확인(모바일 정책상 필요 가능). |
+| User gesture | 재생 요청은 보냈지만 음성이 무음 | 재생 버튼 탭/클릭 등 사용자 제스처 이후 재시도. |
+| AudioContext resume | 브라우저 콘솔에 suspended 상태 | 개발자도구에서 `AudioContext` 상태 확인 후 resume 트리거. |
+| WS 연결 | 패널 값/이벤트가 갱신되지 않음 | Settings > Connection 상태 및 `ws://[Robot IP]:9090` 연결 상태 확인. |
+| 토픽 수신 | STT/Vision/TTS 경로가 동작하지 않음 | `stt/audio_input`, `perception/vision/image/compressed` 등 토픽 수신 여부를 `ros2 topic echo`로 확인. |
 
 
 ## Speaker Output × ROS TTS playback_mode 조합
