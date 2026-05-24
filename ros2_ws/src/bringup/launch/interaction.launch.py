@@ -25,6 +25,11 @@ def generate_launch_description():
             default_value='안녕하세요! 저는 캠퍼스 안내 로봇 도리입니다. 어디로 안내해드릴까요?',
             description='Greeting spoken when wake word is detected',
         ),
+        DeclareLaunchArgument(
+            'wake_debounce_sec',
+            default_value='1.5',
+            description='Debounce interval for wake-word events',
+        ),
         DeclareLaunchArgument('namespace', default_value='/dori'),
     ]
 
@@ -36,6 +41,7 @@ def generate_launch_description():
         parameters=[{
             'idle_timeout_sec': LaunchConfiguration('idle_timeout_sec'),
             'greeting_text': LaunchConfiguration('greeting_text'),
+            'wake_debounce_sec': LaunchConfiguration('wake_debounce_sec'),
             'topics.wake_word_sub': _topic(dori_ns, '/stt/wake_word_detected'),
             'topics.stt_result_sub': _topic(dori_ns, '/stt/result'),
             'topics.tracking_state_sub': _topic(dori_ns, '/hri/tracking_state'),
@@ -48,6 +54,7 @@ def generate_launch_description():
             'topics.llm_query_pub': _topic(dori_ns, '/llm/query'),
             'topics.tts_text_pub': _topic(dori_ns, '/tts/text'),
             'topics.nav_command_pub': _topic(dori_ns, '/nav/command'),
+            'topics.audio_cue_pub': _topic(dori_ns, '/hri/audio_cue'),
         }],
     )
 

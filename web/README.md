@@ -110,3 +110,14 @@ System panels include `Event Log` and `Topic Publisher`, located at
   card header/body shell is needed.
 - When moving a panel between layouts, keep header responsibility in exactly one layer and
   move any padding, overflow, or badge UI into the panel-specific root or CSS.
+
+## Execution Profile and I/O routing
+
+- Settings > Connection 에서 Execution Profile (`Robot`/`Sim`)을 선택합니다.
+- Sim은 demo(mock)와 분리된 모드이며, 실제 ROS 토픽 파이프라인 검증용입니다.
+- 기본 라우팅
+  - STT input: `stt/audio_input`
+  - Vision input: `perception/vision/image/compressed`
+  - Browser TTS trigger: `tts/text`
+  - ROS audio stream (optional): `audio/output`
+- 모바일 브라우저 오디오 사용 시 HTTPS/사용자 제스처가 필요할 수 있습니다.

@@ -19,6 +19,8 @@ import queue
 import struct
 import threading
 import time
+import wave
+from io import BytesIO
 from pathlib import Path
 
 import numpy as np
@@ -107,7 +109,10 @@ class STTNode(Node):
         self.declare_parameter('silence_duration', 1.2)
         self.declare_parameter('topics.wake_word_pub', 'stt/wake_word_detected')
         self.declare_parameter('topics.result_pub', 'stt/result')
+        self.declare_parameter('min_confidence', 0.55)
         self.declare_parameter('topics.tts_speaking_sub', 'tts/speaking')
+        self.declare_parameter('topics.audio_input_sub', 'stt/audio_input')
+        self.declare_parameter('audio_input_mode', 'microphone')
 
         wake_word        = self.get_parameter('wake_word').value
         wake_word_paths  = self.get_parameter('wake_word_paths').value
@@ -116,10 +121,13 @@ class STTNode(Node):
         device           = self.get_parameter('whisper_device').value
         self.vad_threshold   = self.get_parameter('vad_threshold').value
         self.vad_silence_sec = self.get_parameter('silence_duration').value
+        self.min_confidence = float(self.get_parameter('min_confidence').value)
 
         wake_word_topic = self.get_parameter('topics.wake_word_pub').value
         result_topic = self.get_parameter('topics.result_pub').value
         tts_speaking_topic = self.get_parameter('topics.tts_speaking_sub').value
+        audio_input_topic = self.get_parameter('topics.audio_input_sub').value
+        self.audio_input_mode = self.get_parameter('audio_input_mode').value
 
         # Publishers
         self.wake_word_pub = self.create_publisher(Bool, wake_word_topic, 10)
@@ -128,6 +136,8 @@ class STTNode(Node):
         # Subscribers
         self.create_subscription(
             Bool, tts_speaking_topic, self._on_tts_speaking, 10)
+        self.create_subscription(
+            String, audio_input_topic, self._on_audio_input_topic, 10)
 
         # State
         self.state           = STTState.IDLE
@@ -236,19 +246,24 @@ class STTNode(Node):
             return
 
         # Audio stream
-        try:
-            self.stream = sd.RawInputStream(
-                samplerate=SAMPLE_RATE,
-                blocksize=FRAME_LENGTH,
-                dtype='int16',
-                channels=CHANNELS,
-                callback=self._audio_callback,
+        if self.audio_input_mode == 'microphone':
+            try:
+                self.stream = sd.RawInputStream(
+                    samplerate=SAMPLE_RATE,
+                    blocksize=FRAME_LENGTH,
+                    dtype='int16',
+                    channels=CHANNELS,
+                    callback=self._audio_callback,
+                )
+                self.stream.start()
+                self.get_logger().info('Audio stream started')
+            except Exception as e:
+                self.get_logger().error(f'Audio stream failed: {e}')
+                return
+        else:
+            self.get_logger().info(
+                f'Audio input mode is "{self.audio_input_mode}" - microphone capture disabled'
             )
-            self.stream.start()
-            self.get_logger().info('Audio stream started')
-        except Exception as e:
-            self.get_logger().error(f'Audio stream failed: {e}')
-            return
 
         # Processing timer (20 Hz)
         self.create_timer(0.05, self._process_audio)
@@ -296,6 +311,40 @@ class STTNode(Node):
 
         except Exception as e:
             self.get_logger().error(f'Audio callback error: {e}')
+
+    def _on_audio_input_topic(self, msg: String):
+        if self.robot_speaking:
+            return
+        if self.audio_input_mode != 'topic':
+            return
+        try:
+            import base64
+            payload = json.loads(msg.data)
+            fmt = payload.get('format')
+            if fmt != 'wav_pcm16':
+                self.get_logger().warn(f'Unsupported audio format: {fmt}')
+                return
+            audio_b64 = payload.get('audio_b64')
+            if not audio_b64:
+                return
+            wav_bytes = base64.b64decode(audio_b64)
+            with wave.open(BytesIO(wav_bytes), 'rb') as wf:
+                sr = wf.getframerate()
+                ch = wf.getnchannels()
+                width = wf.getsampwidth()
+                raw = wf.readframes(wf.getnframes())
+            if sr != SAMPLE_RATE or ch != 1 or width != 2:
+                self.get_logger().warn(
+                    f'Audio spec mismatch (sr={sr}, ch={ch}, width={width * 8}bit). '
+                    f'Expected {SAMPLE_RATE}Hz mono 16-bit PCM.'
+                )
+                return
+            audio = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
+            self.buffer = [audio]
+            self._transcribe()
+            self.buffer.clear()
+        except Exception as e:
+            self.get_logger().error(f'Audio topic decode/transcribe failed: {e}')
 
     # Audio processing (timer callback)
     def _process_audio(self):
@@ -382,21 +431,32 @@ class STTNode(Node):
                 min(1.0, max(0.0, np.exp(np.mean(logprobs))))
             ) if logprobs else 0.5
 
-            if text:
-                payload = {
-                    'text':       text,
-                    'language':   info.language,
-                    'confidence': round(confidence, 3),
-                    'timestamp':  time.time(),
-                }
-                self.get_logger().info(
-                    f'[{info.language}] (conf={confidence:.2f}) "{text}"'
-                )
-                msg = String()
-                msg.data = json.dumps(payload, ensure_ascii=False)
-                self.result_pub.publish(msg)
-            else:
+            normalized_text = text.strip()
+            is_low_conf = confidence < self.min_confidence
+            is_empty = not normalized_text
+
+            payload = {
+                'text': normalized_text,
+                'language': info.language,
+                'confidence': round(confidence, 3),
+                'timestamp': time.time(),
+                'event': 'stt_empty_or_low_conf' if (is_empty or is_low_conf) else 'stt_result',
+            }
+
+            if is_empty:
                 self.get_logger().info('Empty transcription result')
+            elif is_low_conf:
+                self.get_logger().info(
+                    f'[{info.language}] low confidence (conf={confidence:.2f} < {self.min_confidence:.2f}) "{normalized_text}"'
+                )
+            else:
+                self.get_logger().info(
+                    f'[{info.language}] (conf={confidence:.2f}) "{normalized_text}"'
+                )
+
+            msg = String()
+            msg.data = json.dumps(payload, ensure_ascii=False)
+            self.result_pub.publish(msg)
 
         except Exception as e:
             self.get_logger().error(f'Transcription failed: {e}')
