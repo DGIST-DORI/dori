@@ -142,6 +142,15 @@ const TRANSLATIONS = {
     'settings.section.connection': 'Connection',
     'settings.ws.label': 'ROS WebSocket URL',
     'settings.ws.hint': 'Default: ws://[Robot IP]:9090',
+    'settings.audioOutput.label': 'Speaker Output',
+    'settings.audioOutput.hint': 'Choose where TTS audio is played. Mobile browsers may require HTTPS and a user gesture.',
+    'settings.audioOutput.mode.browserTts': 'browser_tts',
+    'settings.audioOutput.mode.rosAudio': 'ros_audio',
+    'settings.audioOutput.modeHint.browserTts': 'Plays through the connected device browser speaker.',
+    'settings.audioOutput.modeHint.rosAudio': 'Plays ROS audio topic stream in this browser.',
+    'settings.audioOutput.modeHelp.browserTts': 'Output goes to the current device browser speaker.',
+    'settings.audioOutput.conflict.badge': 'Conflict Risk',
+    'settings.audioOutput.conflict.text': 'Server local TTS is active by backend policy and may overlap with browser_tts playback.',
 
     // HRI / Perception panel texts
     'panel.tts.placeholder': 'Text for robot speech (e.g. Hello, I am DORI.)',
@@ -247,6 +256,15 @@ const TRANSLATIONS = {
     'settings.section.connection': '연결',
     'settings.ws.label': 'ROS WebSocket URL',
     'settings.ws.hint': '기본값: ws://[로봇 IP]:9090',
+    'settings.audioOutput.label': '스피커 출력',
+    'settings.audioOutput.hint': 'TTS 오디오 재생 위치를 선택하세요. 모바일 브라우저는 HTTPS와 사용자 제스처가 필요할 수 있습니다.',
+    'settings.audioOutput.mode.browserTts': 'browser_tts',
+    'settings.audioOutput.mode.rosAudio': 'ros_audio',
+    'settings.audioOutput.modeHint.browserTts': '접속한 기기 브라우저 스피커로 재생합니다.',
+    'settings.audioOutput.modeHint.rosAudio': 'ROS 오디오 토픽을 브라우저에서 재생합니다.',
+    'settings.audioOutput.modeHelp.browserTts': '현재 접속한 기기의 브라우저 스피커로 출력됩니다.',
+    'settings.audioOutput.conflict.badge': '충돌 가능',
+    'settings.audioOutput.conflict.text': '백엔드 정책으로 서버 로컬 TTS가 활성화되어 browser_tts 재생과 겹칠 수 있습니다.',
 
     // HRI / Perception panel texts
     'panel.tts.placeholder': '로봇이 말할 텍스트 (예: 안녕하세요, 도리입니다.)',
