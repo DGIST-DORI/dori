@@ -13,8 +13,9 @@ Subscribe topics:
   hri/audio_cue    (String) - short non-blocking SFX cue (e.g. wake_chime)
 
 Publish topics:
-  tts/speaking     (Bool)   - True while speaking (STT mutes itself)
-  tts/done         (Bool)   - True when playback finishes (HRI Manager transitions state)
+  tts/speaking      (Bool)   - True while speaking (STT mutes itself)
+  tts/done          (Bool)   - Legacy completion signal (backward compatibility)
+  tts/done_detail   (String) - JSON completion payload ({success,error,text,timestamp})
 """
 
 import os
@@ -27,6 +28,8 @@ from pathlib import Path
 import rclpy
 from ament_index_python.packages import get_package_share_directory
 from rclpy.node import Node
+import json
+
 from std_msgs.msg import Bool, String
 
 try:
@@ -60,6 +63,7 @@ class TTSNode(Node):
         self.declare_parameter('volume', 0.9)
         self.declare_parameter('topics.speaking_pub', 'tts/speaking')
         self.declare_parameter('topics.done_pub', 'tts/done')
+        self.declare_parameter('topics.done_detail_pub', 'tts/done_detail')
         self.declare_parameter('topics.llm_response_sub', 'llm/response')
         self.declare_parameter('topics.tts_text_sub', 'tts/text')
         self.declare_parameter('topics.audio_cue_sub', 'hri/audio_cue')
@@ -81,6 +85,7 @@ class TTSNode(Node):
 
         speaking_topic = self.get_parameter('topics.speaking_pub').value
         done_topic = self.get_parameter('topics.done_pub').value
+        done_detail_topic = self.get_parameter('topics.done_detail_pub').value
         llm_response_topic = self.get_parameter('topics.llm_response_sub').value
         tts_text_topic = self.get_parameter('topics.tts_text_sub').value
         audio_cue_topic = self.get_parameter('topics.audio_cue_sub').value
@@ -88,6 +93,7 @@ class TTSNode(Node):
         # Publishers
         self.speaking_pub = self.create_publisher(Bool, speaking_topic, 10)
         self.done_pub = self.create_publisher(Bool, done_topic, 10)
+        self.done_detail_pub = self.create_publisher(String, done_detail_topic, 10)
 
         # Subscribers
         self.create_subscription(String, llm_response_topic, self._on_text, 10)
@@ -169,6 +175,8 @@ class TTSNode(Node):
 
     def _speak(self, text: str):
         with self.speak_lock:
+            success = False
+            error = ''
             try:
                 self.is_speaking = True
                 self._pub_speaking(True)
@@ -180,12 +188,14 @@ class TTSNode(Node):
                     self._speak_gtts(text)
 
                 time.sleep(0.3)
+                success = True
             except Exception as e:
+                error = str(e)
                 self.get_logger().error(f'Speech error: {e}')
             finally:
                 self.is_speaking = False
                 self._pub_speaking(False)
-                self._pub_done()
+                self._pub_done(success=success, error=error, text=text)
                 self.get_logger().info('Speech complete')
 
     def _speak_pyttsx3(self, text: str):
@@ -262,10 +272,19 @@ class TTSNode(Node):
         msg.data = value
         self.speaking_pub.publish(msg)
 
-    def _pub_done(self):
-        msg = Bool()
-        msg.data = True
-        self.done_pub.publish(msg)
+    def _pub_done(self, success: bool = True, error: str = '', text: str = ''):
+        legacy_msg = Bool()
+        legacy_msg.data = True
+        self.done_pub.publish(legacy_msg)
+
+        detail_msg = String()
+        detail_msg.data = json.dumps({
+            'success': success,
+            'error': error,
+            'text': text[:120],
+            'timestamp': time.time(),
+        }, ensure_ascii=False)
+        self.done_detail_pub.publish(detail_msg)
 
 
 def main(args=None):

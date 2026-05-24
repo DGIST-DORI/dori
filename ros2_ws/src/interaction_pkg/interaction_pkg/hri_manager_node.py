@@ -10,7 +10,8 @@ Subscribe topics:
   hri/gesture_command      (String) - gesture command
   hri/expression_command   (String) - expression command
   landmark/context         (String) - current location context for LLM
-  tts/done                 (Bool)   - TTS playback finished
+  tts/done                 (Bool)   - legacy completion signal
+  tts/done_detail          (String) - JSON completion payload with success/error
 
 Publish topics:
   hri/manager_state        (String) - current HRI state (1 Hz)
@@ -61,6 +62,7 @@ class HRIManagerNode(Node):
         self.declare_parameter('topics.expression_command_sub', 'hri/expression_command')
         self.declare_parameter('topics.landmark_context_sub', 'landmark/context')
         self.declare_parameter('topics.tts_done_sub', 'tts/done')
+        self.declare_parameter('topics.tts_done_detail_sub', 'tts/done_detail')
         self.declare_parameter('services.follow_mode_service', 'hri/set_follow_mode')
         self.declare_parameter('topics.manager_state_pub', 'hri/manager_state')
         self.declare_parameter('topics.llm_query_pub', 'llm/query')
@@ -79,6 +81,7 @@ class HRIManagerNode(Node):
         self.tracking_state: dict   = {}
         self.last_wake_time: float  = 0.0
         self.activated: bool = False
+        self.tts_retry_count: int = 0
 
         wake_word_topic = self.get_parameter('topics.wake_word_sub').value
         stt_result_topic = self.get_parameter('topics.stt_result_sub').value
@@ -87,6 +90,7 @@ class HRIManagerNode(Node):
         expression_command_topic = self.get_parameter('topics.expression_command_sub').value
         landmark_context_topic = self.get_parameter('topics.landmark_context_sub').value
         tts_done_topic = self.get_parameter('topics.tts_done_sub').value
+        tts_done_detail_topic = self.get_parameter('topics.tts_done_detail_sub').value
         follow_mode_service = self.get_parameter('services.follow_mode_service').value
         manager_state_topic = self.get_parameter('topics.manager_state_pub').value
         llm_query_topic = self.get_parameter('topics.llm_query_pub').value
@@ -108,7 +112,9 @@ class HRIManagerNode(Node):
         self.create_subscription(
             String, landmark_context_topic, self._on_landmark_context, 10)
         self.create_subscription(
-            Bool, tts_done_topic, self._on_tts_done, 10)
+            Bool, tts_done_topic, self._on_tts_done_legacy, 10)
+        self.create_subscription(
+            String, tts_done_detail_topic, self._on_tts_done_detail, 10)
 
         # Publishers
         self.manager_state_pub = self.create_publisher(String, manager_state_topic, 10)
@@ -170,6 +176,7 @@ class HRIManagerNode(Node):
 
         self.get_logger().info(f'STT result: "{user_text}"')
         self._transition(HRIState.RESPONDING, reason='stt_result_received')
+        self.tts_retry_count = 0
         self._send_to_llm(user_text)
 
     def _on_tracking_state(self, msg: String):
@@ -234,18 +241,37 @@ class HRIManagerNode(Node):
     def _on_landmark_context(self, msg: String):
         self.landmark_context = msg.data
 
-    def _on_tts_done(self, msg: Bool):
-        """
-        TTS finished speaking.
-        RESPONDING → LISTENING: wait for follow-up question.
-        NAVIGATING: stay in NAVIGATING (still guiding).
-        """
-        if not msg.data:
+    def _on_tts_done_legacy(self, msg: Bool):
+        """Legacy bool completion signal; used only as fallback compatibility path."""
+        if msg.data:
+            self.get_logger().debug('Received legacy tts/done bool (compatibility mode)')
+
+    def _on_tts_done_detail(self, msg: String):
+        """Handle rich TTS completion payload with success/error state."""
+        try:
+            payload = json.loads(msg.data)
+        except (json.JSONDecodeError, TypeError):
+            self.get_logger().warn('Invalid tts/done_detail payload')
             return
 
+        success = bool(payload.get('success', False))
+        error = str(payload.get('error', '') or '')
+
+        if success:
+            self.tts_retry_count = 0
+            if self.state == HRIState.RESPONDING:
+                self.get_logger().info('TTS success — back to LISTENING')
+                self._transition(HRIState.LISTENING, reason='tts_success_after_response')
+            return
+
+        self.get_logger().warn(f'TTS failed: {error}')
+        self._play_audio_cue('wake_chime')
+
         if self.state == HRIState.RESPONDING:
-            self.get_logger().info('TTS done — back to LISTENING')
-            self._transition(HRIState.LISTENING, reason='tts_done_after_response')
+            if self.tts_retry_count < 1:
+                self.tts_retry_count += 1
+                self._say('죄송해요, 음성 출력에 문제가 있었어요. 다시 한 번 말씀해 주세요.')
+            self._transition(HRIState.LISTENING, reason='tts_failure_recover')
 
     # State machine
     def _transition(self, new_state: HRIState, reason: str = 'unspecified'):
