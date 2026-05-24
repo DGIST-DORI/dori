@@ -17,6 +17,7 @@ Publish topics:
   llm/query                (String) - query + context sent to LLM node
   tts/text                 (String) - direct TTS output (bypass LLM)
   nav/command              (String) - high-level navigation command
+  hri/audio_cue            (String) - short SFX cue event
 
 Service clients:
   hri/set_follow_mode      (SetBool) - enable/disable person following
@@ -65,6 +66,7 @@ class HRIManagerNode(Node):
         self.declare_parameter('topics.llm_query_pub', 'llm/query')
         self.declare_parameter('topics.tts_text_pub', 'tts/text')
         self.declare_parameter('topics.nav_command_pub', 'nav/command')
+        self.declare_parameter('topics.audio_cue_pub', 'hri/audio_cue')
 
         self.greeting_text = self.get_parameter('greeting_text').value
         self.idle_timeout  = self.get_parameter('idle_timeout_sec').value
@@ -90,6 +92,7 @@ class HRIManagerNode(Node):
         llm_query_topic = self.get_parameter('topics.llm_query_pub').value
         tts_text_topic = self.get_parameter('topics.tts_text_pub').value
         nav_command_topic = self.get_parameter('topics.nav_command_pub').value
+        audio_cue_topic = self.get_parameter('topics.audio_cue_pub').value
 
         # Subscribers
         self.create_subscription(
@@ -112,6 +115,7 @@ class HRIManagerNode(Node):
         self.llm_query_pub = self.create_publisher(String, llm_query_topic, 10)
         self.tts_pub = self.create_publisher(String, tts_text_topic, 10)
         self.nav_command_pub = self.create_publisher(String, nav_command_topic, 10)
+        self.audio_cue_pub = self.create_publisher(String, audio_cue_topic, 10)
         self.follow_mode_client = self.create_client(SetBool, follow_mode_service)
 
         # State publish timer (1 Hz)
@@ -275,8 +279,14 @@ class HRIManagerNode(Node):
         """Emit wake acknowledgement after activation."""
         if not self.activated:
             return
-        self._say('네, 말씀하세요.')
+        self._play_audio_cue('wake_chime')
         self.activated = False
+
+    def _play_audio_cue(self, cue_name: str):
+        msg = String()
+        msg.data = cue_name
+        self.audio_cue_pub.publish(msg)
+        self.get_logger().info(f'Audio cue: "{cue_name}"')
 
     def _send_to_llm(self, user_text: str):
         """Package user text + location context and publish to LLM node."""

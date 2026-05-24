@@ -54,6 +54,7 @@ def generate_launch_description():
             'topics.llm_query_pub': _topic(dori_ns, '/llm/query'),
             'topics.tts_text_pub': _topic(dori_ns, '/tts/text'),
             'topics.nav_command_pub': _topic(dori_ns, '/nav/command'),
+            'topics.audio_cue_pub': _topic(dori_ns, '/hri/audio_cue'),
         }],
     )
 

@@ -10,6 +10,7 @@ Engines (priority order):
 Subscribe topics:
   llm/response     (String) - response text from LLM node
   tts/text         (String) - direct TTS from HRI Manager (bypasses LLM)
+  hri/audio_cue    (String) - short non-blocking SFX cue (e.g. wake_chime)
 
 Publish topics:
   tts/speaking     (Bool)   - True while speaking (STT mutes itself)
@@ -21,8 +22,10 @@ import queue
 import tempfile
 import threading
 import time
+from pathlib import Path
 
 import rclpy
+from ament_index_python.packages import get_package_share_directory
 from rclpy.node import Node
 from std_msgs.msg import Bool, String
 
@@ -59,45 +62,50 @@ class TTSNode(Node):
         self.declare_parameter('topics.done_pub', 'tts/done')
         self.declare_parameter('topics.llm_response_sub', 'llm/response')
         self.declare_parameter('topics.tts_text_sub', 'tts/text')
+        self.declare_parameter('topics.audio_cue_sub', 'hri/audio_cue')
+        self.declare_parameter('sfx.base_path', '')
 
-        self.engine_name  = self.get_parameter('tts_engine').value
-        self.language     = self.get_parameter('language').value
-        self.speech_rate  = self.get_parameter('speech_rate').value
-        self.volume       = self.get_parameter('volume').value
+        self.engine_name = self.get_parameter('tts_engine').value
+        self.language = self.get_parameter('language').value
+        self.speech_rate = self.get_parameter('speech_rate').value
+        self.volume = self.get_parameter('volume').value
 
         # State
-        self.is_speaking   = False
-        self.text_queue    = queue.Queue()
-        self.speak_lock    = threading.Lock()
+        self.is_speaking = False
+        self.text_queue = queue.Queue()
+        self.sfx_queue = queue.Queue()
+        self.speak_lock = threading.Lock()
+        self.sfx_base_path = self._resolve_sfx_base_path(
+            self.get_parameter('sfx.base_path').value
+        )
 
         speaking_topic = self.get_parameter('topics.speaking_pub').value
         done_topic = self.get_parameter('topics.done_pub').value
         llm_response_topic = self.get_parameter('topics.llm_response_sub').value
         tts_text_topic = self.get_parameter('topics.tts_text_sub').value
+        audio_cue_topic = self.get_parameter('topics.audio_cue_sub').value
 
         # Publishers
         self.speaking_pub = self.create_publisher(Bool, speaking_topic, 10)
         self.done_pub = self.create_publisher(Bool, done_topic, 10)
 
         # Subscribers
-        # LLM response (main path)
-        self.create_subscription(
-            String, llm_response_topic, self._on_text, 10)
-        # Direct TTS from HRI Manager (greetings, system messages)
-        self.create_subscription(
-            String, tts_text_topic, self._on_text, 10)
+        self.create_subscription(String, llm_response_topic, self._on_text, 10)
+        self.create_subscription(String, tts_text_topic, self._on_text, 10)
+        self.create_subscription(String, audio_cue_topic, self._on_audio_cue, 10)
 
-        # Engine init
         self._init_engine()
 
-        # TTS worker thread
-        self._worker = threading.Thread(
-            target=self._process_queue, daemon=True)
+        self._worker = threading.Thread(target=self._process_queue, daemon=True)
         self._worker.start()
 
-        self.get_logger().info(f'TTS Node started (engine: {self.engine_name})')
+        # Separate SFX worker: decoupled from TTS queue to minimize latency/blocking.
+        self._sfx_worker = threading.Thread(target=self._process_sfx_queue, daemon=True)
+        self._sfx_worker.start()
 
-    # Engine initialization
+        self.get_logger().info(f'TTS Node started (engine: {self.engine_name})')
+        self.get_logger().info(f'SFX base path: {self.sfx_base_path}')
+
     def _init_engine(self):
         if self.engine_name == 'pyttsx3':
             if not PYTTSX3_AVAILABLE:
@@ -108,7 +116,6 @@ class TTSNode(Node):
                     self._pyttsx3 = pyttsx3.init()
                     self._pyttsx3.setProperty('rate', self.speech_rate)
                     self._pyttsx3.setProperty('volume', self.volume)
-                    # Use Korean voice if available
                     for voice in self._pyttsx3.getProperty('voices'):
                         if 'korean' in voice.name.lower() or 'ko' in voice.id.lower():
                             self._pyttsx3.setProperty('voice', voice.id)
@@ -126,11 +133,8 @@ class TTSNode(Node):
                     'NOTE: gTTS requires internet. Consider Piper TTS for offline use.'
                 )
                 raise RuntimeError('No TTS engine available')
-            self.get_logger().info(
-                'gTTS engine ready (requires internet connection)'
-            )
+            self.get_logger().info('gTTS engine ready (requires internet connection)')
 
-    # Callbacks
     def _on_text(self, msg: String):
         text = msg.data.strip()
         if not text:
@@ -138,7 +142,11 @@ class TTSNode(Node):
         self.get_logger().info(f'Queued: "{text[:50]}"')
         self.text_queue.put(text)
 
-    # Worker thread
+    def _on_audio_cue(self, msg: String):
+        cue_name = msg.data.strip()
+        if cue_name:
+            self.sfx_queue.put(cue_name)
+
     def _process_queue(self):
         while True:
             try:
@@ -148,6 +156,16 @@ class TTSNode(Node):
                 continue
             except Exception as e:
                 self.get_logger().error(f'TTS worker error: {e}')
+
+    def _process_sfx_queue(self):
+        while True:
+            try:
+                cue_name = self.sfx_queue.get(timeout=0.1)
+                self._play_audio_cue(cue_name)
+            except queue.Empty:
+                continue
+            except Exception as e:
+                self.get_logger().error(f'SFX worker error: {e}')
 
     def _speak(self, text: str):
         with self.speak_lock:
@@ -161,7 +179,7 @@ class TTSNode(Node):
                 elif self.engine_name == 'gtts':
                     self._speak_gtts(text)
 
-                time.sleep(0.3)  # brief pause after speech
+                time.sleep(0.3)
             except Exception as e:
                 self.get_logger().error(f'Speech error: {e}')
             finally:
@@ -184,7 +202,6 @@ class TTSNode(Node):
                 sd.play(data, sr)
                 sd.wait()
             else:
-                # Fallback: system audio command
                 os.system(
                     f'mpg123 -q {tmp} 2>/dev/null || '
                     f'ffplay -nodisp -autoexit {tmp} 2>/dev/null'
@@ -195,7 +212,51 @@ class TTSNode(Node):
             except OSError:
                 pass
 
-    # Publisher helpers
+    def _resolve_sfx_base_path(self, configured_path: str) -> str:
+        if configured_path:
+            return configured_path
+
+        env_path = os.environ.get('DORI_AUDIO_ASSETS', '').strip()
+        if env_path:
+            return env_path
+
+        try:
+            pkg_share = get_package_share_directory('tts_pkg')
+            return str(Path(pkg_share) / 'assets' / 'audio')
+        except Exception:
+            return ''
+
+    def _cue_file_path(self, cue_name: str) -> Path:
+        return Path(self.sfx_base_path) / f'{cue_name}.wav'
+
+    def _play_audio_cue(self, cue_name: str):
+        # Policy: short cues do NOT toggle tts/speaking.
+        if cue_name != 'wake_chime':
+            self.get_logger().warn(f'Unknown audio cue: "{cue_name}"')
+            return
+
+        cue_path = self._cue_file_path(cue_name)
+        if not self.sfx_base_path or not cue_path.exists():
+            self.get_logger().warn(
+                f'Audio cue missing ({cue_name}): {cue_path} — fallback to silence'
+            )
+            return
+
+        try:
+            if AUDIO_AVAILABLE:
+                data, sr = sf.read(str(cue_path))
+                sd.play(data, sr)
+                sd.wait()
+            else:
+                os.system(
+                    f'aplay -q "{cue_path}" 2>/dev/null || '
+                    f'ffplay -nodisp -autoexit "{cue_path}" 2>/dev/null'
+                )
+        except Exception as e:
+            self.get_logger().warn(
+                f'Audio cue playback failed ({cue_name}): {e} — fallback to silence'
+            )
+
     def _pub_speaking(self, value: bool):
         msg = Bool()
         msg.data = value

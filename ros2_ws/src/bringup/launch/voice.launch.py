@@ -27,6 +27,7 @@ def generate_launch_description():
         DeclareLaunchArgument('stt_audio_input_mode', default_value='microphone'),
         DeclareLaunchArgument('tts_engine', default_value='gtts'),
         DeclareLaunchArgument('tts_language', default_value='ko'),
+        DeclareLaunchArgument('sfx_base_path', default_value=''),
         DeclareLaunchArgument('namespace', default_value='/dori'),
     ]
 
@@ -82,6 +83,8 @@ def generate_launch_description():
             'topics.done_pub': _topic(dori_ns, '/tts/done'),
             'topics.llm_response_sub': _topic(dori_ns, '/llm/response'),
             'topics.tts_text_sub': _topic(dori_ns, '/tts/text'),
+            'topics.audio_cue_sub': _topic(dori_ns, '/hri/audio_cue'),
+            'sfx.base_path': LaunchConfiguration('sfx_base_path'),
         }],
     )
 
