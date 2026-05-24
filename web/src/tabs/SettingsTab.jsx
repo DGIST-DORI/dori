@@ -57,6 +57,8 @@ export default function SettingsTab({ themeMode, onThemeModeChange, onClose }) {
   const setUseClientCam = useStore(s => s.setUseClientCam);
   const audioOutputMode = useStore(s => s.audioOutputMode);
   const setAudioOutputMode = useStore(s => s.setAudioOutputMode);
+  const browserTtsWarning = useStore(s => s.browserTtsWarning);
+  const rosAudioDebug = useStore(s => s.rosAudioDebug);
 
   const [wsInput, setWsInput] = useState(wsUrl);
   const detectedLang = detectBrowserLang();
@@ -122,16 +124,61 @@ export default function SettingsTab({ themeMode, onThemeModeChange, onClose }) {
         <Row label="Client Camera">
           <input type="checkbox" checked={useClientCam} onChange={e => setUseClientCam(e.target.checked)} />
         </Row>
-        <Row label="Speaker Output" hint="모바일 브라우저는 HTTPS/사용자 제스처가 필요할 수 있습니다.">
+        <Row
+          label={t('settings.audioOutput.label')}
+          hint={t('settings.audioOutput.hint')}
+        >
           <Seg
             options={[
-              { value: AUDIO_OUTPUT_MODES.BROWSER_TTS, label: 'browser_tts' },
-              { value: AUDIO_OUTPUT_MODES.ROS_AUDIO, label: 'ros_audio' },
+              { value: AUDIO_OUTPUT_MODES.BROWSER_TTS, label: t('settings.audioOutput.mode.browserTts') },
+              { value: AUDIO_OUTPUT_MODES.ROS_AUDIO, label: t('settings.audioOutput.mode.rosAudio') },
             ]}
             value={audioOutputMode}
             onChange={setAudioOutputMode}
           />
         </Row>
+
+
+        {audioOutputMode === AUDIO_OUTPUT_MODES.BROWSER_TTS && (
+          <Row
+            label={t('settings.audioOutput.mode.browserTts')}
+            hint={t('settings.audioOutput.modeHint.browserTts')}
+          >
+            {browserTtsWarning ? (
+              <div style={{ color: 'var(--color-error)', fontSize: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span
+                  style={{
+                    padding: '2px 6px',
+                    borderRadius: 999,
+                    background: 'color-mix(in srgb, var(--color-error) 15%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--color-error) 35%, transparent)',
+                    fontWeight: 700,
+                    letterSpacing: 0.2,
+                  }}
+                >
+                  {t('settings.audioOutput.conflict.badge')}
+                </span>
+                <span>{t('settings.audioOutput.conflict.text')}</span>
+              </div>
+            ) : (
+              <div style={{ fontSize: 12 }}>{t('settings.audioOutput.modeHelp.browserTts')}</div>
+            )}
+            {browserTtsWarning && (
+              <div style={{ color: 'var(--color-error)', fontSize: 12, marginTop: 4 }}>{browserTtsWarning}</div>
+            )}
+          </Row>
+        )}
+
+        {audioOutputMode === AUDIO_OUTPUT_MODES.ROS_AUDIO && (
+          <Row
+            label={t('settings.audioOutput.mode.rosAudio')}
+            hint={t('settings.audioOutput.modeHint.rosAudio')}
+          >
+            <div style={{ fontSize: 12, fontFamily: 'monospace' }}>
+              packets={rosAudioDebug?.packets ?? 0} | queue={rosAudioDebug?.queueLength ?? 0} | underrun={rosAudioDebug?.underruns ?? 0}
+            </div>
+          </Row>
+        )}
 
         <Row label={t('settings.ws.label')} hint={t('settings.ws.hint')}>
           <div className="sp-ws-row">

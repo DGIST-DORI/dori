@@ -340,6 +340,13 @@ export const useStore = create((set, get) => ({
   useClientMic: true,
   useClientCam: true,
   audioOutputMode: AUDIO_OUTPUT_MODES.BROWSER_TTS,
+  activeAudioRoute: AUDIO_OUTPUT_MODES.BROWSER_TTS,
+  browserTtsWarning: '',
+  rosAudioDebug: {
+    packets: 0,
+    queueLength: 0,
+    underruns: 0,
+  },
   rosBindingEpoch: 0,
 
   setConnected: (v) => set({ connected: v }),
@@ -357,7 +364,40 @@ export const useStore = create((set, get) => ({
   })),
   setUseClientMic: (v) => set({ useClientMic: !!v }),
   setUseClientCam: (v) => set({ useClientCam: !!v }),
-  setAudioOutputMode: (mode) => set({ audioOutputMode: mode }),
+  setAudioOutputMode: (mode) => set((s) => {
+    const nextMode = Object.values(AUDIO_OUTPUT_MODES).includes(mode)
+      ? mode
+      : AUDIO_OUTPUT_MODES.BROWSER_TTS;
+    const changed = s.audioOutputMode !== nextMode;
+    return {
+      audioOutputMode: nextMode,
+      ...(nextMode !== AUDIO_OUTPUT_MODES.BROWSER_TTS ? { browserTtsWarning: '' } : {}),
+      ...(changed ? {
+        log: [{
+          id: Date.now() + Math.random(),
+          ts: new Date(),
+          tag: LOG_TAGS.TTS,
+          text: `[audio-route] mode changed: ${s.audioOutputMode} -> ${nextMode}`,
+          raw: null,
+        }, ...s.log].slice(0, MAX_LOG),
+      } : {}),
+    };
+  }),
+  setActiveAudioRoute: (route) => set({ activeAudioRoute: route }),
+  setBrowserTtsWarning: (msg) => set({ browserTtsWarning: msg || '' }),
+  setRosAudioDebug: (nextDebug = {}) => set((s) => ({
+    rosAudioDebug: {
+      ...s.rosAudioDebug,
+      ...nextDebug,
+    },
+  })),
+  resetRosAudioDebug: () => set({
+    rosAudioDebug: {
+      packets: 0,
+      queueLength: 0,
+      underruns: 0,
+    },
+  }),
 
 
   // ── Main view (workspace/settings) ─────────────────────────────────────

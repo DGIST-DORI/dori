@@ -5,6 +5,7 @@ import FloatingWorkspace  from './components/FloatingWorkspace';
 import SettingsTab        from './tabs/SettingsTab';
 import { useStore, TOPIC_META } from './core/store';
 import { fetchTopicDiagnostics, subscribeROS } from './core/ros';
+import { createAudioOutputRouter } from './core/audioOutput';
 import { PANEL_TREE, findLeaf } from './panelTree';
 
 import './index.css';
@@ -31,6 +32,10 @@ export default function App() {
   const activeMainView   = useStore(s => s.activeMainView);
   const setActiveMainView = useStore(s => s.setActiveMainView);
   const rosBindingEpoch = useStore(s => s.rosBindingEpoch);
+  const audioOutputMode = useStore(s => s.audioOutputMode);
+  const executionProfile = useStore(s => s.executionProfile);
+  const addLog = useStore(s => s.addLog);
+  const setActiveAudioRoute = useStore(s => s.setActiveAudioRoute);
 
   useEffect(() => {
     if (!connected) return;
@@ -71,6 +76,17 @@ export default function App() {
     mq.addEventListener('change', apply);
     return () => mq.removeEventListener('change', apply);
   }, []);
+
+  useEffect(() => {
+    if (!connected) return undefined;
+    const cleanup = createAudioOutputRouter({
+      mode: audioOutputMode,
+      executionProfile,
+      addLog,
+      setActiveAudioRoute,
+    });
+    return cleanup;
+  }, [connected, audioOutputMode, executionProfile, addLog, setActiveAudioRoute]);
 
   function handlePanelSelect(id) {
     const leaf = findLeaf(PANEL_TREE, id);
