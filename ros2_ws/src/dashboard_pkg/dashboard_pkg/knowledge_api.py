@@ -19,6 +19,9 @@ Usage:
 
 import argparse
 import asyncio
+import base64
+import hashlib
+import hmac
 import json
 import logging
 import os
@@ -30,10 +33,12 @@ import tempfile
 import threading
 import time
 import uuid
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -117,12 +122,244 @@ _crawl_jobs: dict[str, dict] = {}
 app = FastAPI(title='DORI Knowledge API', version='1.0.0')
 logger = logging.getLogger(__name__)
 
+_DEFAULT_ALLOWED_ORIGINS = (
+    'https://dash.dgist-dori.xyz',
+)
+
+
+def _parse_allowed_origins(raw: str) -> list[str]:
+    if not raw:
+        return list(_DEFAULT_ALLOWED_ORIGINS)
+
+    origins: list[str] = []
+    for item in (part.strip() for part in raw.split(',') if part.strip()):
+        normalized = item.rstrip('/')
+        if normalized and normalized not in origins:
+            origins.append(normalized)
+    return origins or list(_DEFAULT_ALLOWED_ORIGINS)
+
+
+_ALLOWED_ORIGINS = _parse_allowed_origins(os.environ.get('DORI_ALLOWED_ORIGINS', '').strip())
+_ALLOWED_ORIGIN_SET = set(_ALLOWED_ORIGINS)
+
+
+@app.middleware('http')
+async def enforce_origin_allowlist(request: Request, call_next):
+    origin = request.headers.get('origin', '').strip().rstrip('/')
+    if origin and origin not in _ALLOWED_ORIGIN_SET:
+        logger.warning(
+            'cors_origin_blocked origin=%s path=%s method=%s client=%s',
+            origin,
+            request.url.path,
+            request.method,
+            request.client.host if request.client else '-',
+        )
+        return JSONResponse(status_code=403, content={'detail': 'Origin is not allowed'})
+    return await call_next(request)
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['*'],
-    allow_methods=['*'],
-    allow_headers=['*'],
+    allow_origins=_ALLOWED_ORIGINS,
+    allow_credentials=False,
+    allow_methods=['GET', 'POST', 'PUT', 'OPTIONS'],
+    allow_headers=['Authorization', 'Content-Type'],
 )
+
+
+# ── AuthN/AuthZ ───────────────────────────────────────────────────────────────
+
+_AUTH_TOKEN_HEADER = 'Bearer'
+_JWT_SECRET = os.environ.get('DORI_API_JWT_SECRET', '').strip()
+_JWT_AUDIENCE = os.environ.get('DORI_API_JWT_AUDIENCE', '').strip()
+_JWT_ISSUER = os.environ.get('DORI_API_JWT_ISSUER', '').strip()
+_ACCESS_ROLE_MAP_RAW = os.environ.get('DORI_API_ACCESS_TOKENS', '').strip()
+
+
+@dataclass(frozen=True)
+class AuthPrincipal:
+    user_id: str
+    roles: frozenset[str]
+    auth_type: str
+
+
+def _b64url_decode(value: str) -> bytes:
+    padding = '=' * (-len(value) % 4)
+    return base64.urlsafe_b64decode(value + padding)
+
+
+def _parse_access_role_map(raw: str) -> dict[str, AuthPrincipal]:
+    principals: dict[str, AuthPrincipal] = {}
+    if not raw:
+        return principals
+
+    # format: token=user_id:role1|role2,token2=user2:viewer
+    for item in (part.strip() for part in raw.split(',') if part.strip()):
+        if '=' not in item:
+            continue
+        token, right = item.split('=', 1)
+        if ':' in right:
+            user_id, role_blob = right.split(':', 1)
+        else:
+            user_id, role_blob = right, 'viewer'
+        roles = frozenset(r.strip().lower() for r in role_blob.split('|') if r.strip())
+        principals[token.strip()] = AuthPrincipal(
+            user_id=user_id.strip() or 'unknown',
+            roles=roles or frozenset({'viewer'}),
+            auth_type='access',
+        )
+    return principals
+
+
+_ACCESS_ROLE_MAP = _parse_access_role_map(_ACCESS_ROLE_MAP_RAW)
+
+
+def _log_auth_event(request: Request, principal: AuthPrincipal | None, required: str, status_code: int) -> None:
+    logger.info(
+        'auth_audit status=%s path=%s user=%s roles=%s required=%s method=%s',
+        status_code,
+        request.url.path,
+        principal.user_id if principal else '-',
+        ','.join(sorted(principal.roles)) if principal else '-',
+        required,
+        request.method,
+    )
+
+
+def _verify_jwt(token: str) -> AuthPrincipal:
+    try:
+        encoded_header, encoded_payload, encoded_signature = token.split('.')
+    except ValueError as e:
+        raise HTTPException(
+            status_code=401,
+            detail='Invalid token format',
+            headers={'WWW-Authenticate': 'Bearer'},
+        ) from e
+
+    try:
+        header = json.loads(_b64url_decode(encoded_header).decode('utf-8'))
+        payload = json.loads(_b64url_decode(encoded_payload).decode('utf-8'))
+    except Exception as e:
+        raise HTTPException(
+            status_code=401,
+            detail='Invalid token payload',
+            headers={'WWW-Authenticate': 'Bearer'},
+        ) from e
+
+    alg = header.get('alg', '')
+    if alg != 'HS256':
+        raise HTTPException(
+            status_code=401,
+            detail='Unsupported JWT algorithm',
+            headers={'WWW-Authenticate': 'Bearer'},
+        )
+    if not _JWT_SECRET:
+        raise HTTPException(
+            status_code=401,
+            detail='JWT secret is not configured',
+            headers={'WWW-Authenticate': 'Bearer'},
+        )
+
+    signed_part = f'{encoded_header}.{encoded_payload}'.encode('utf-8')
+    expected_sig = base64.urlsafe_b64encode(
+        hmac.new(_JWT_SECRET.encode('utf-8'), signed_part, hashlib.sha256).digest()
+    ).decode('utf-8').rstrip('=')
+    if not hmac.compare_digest(expected_sig, encoded_signature):
+        raise HTTPException(
+            status_code=401,
+            detail='Invalid token signature',
+            headers={'WWW-Authenticate': 'Bearer'},
+        )
+
+    now_ts = int(time.time())
+    exp = payload.get('exp')
+    if exp is not None and int(exp) < now_ts:
+        raise HTTPException(
+            status_code=401,
+            detail='Token expired',
+            headers={'WWW-Authenticate': 'Bearer'},
+        )
+    nbf = payload.get('nbf')
+    if nbf is not None and int(nbf) > now_ts:
+        raise HTTPException(
+            status_code=401,
+            detail='Token not active yet',
+            headers={'WWW-Authenticate': 'Bearer'},
+        )
+    if _JWT_AUDIENCE and payload.get('aud') != _JWT_AUDIENCE:
+        raise HTTPException(
+            status_code=401,
+            detail='Invalid token audience',
+            headers={'WWW-Authenticate': 'Bearer'},
+        )
+    if _JWT_ISSUER and payload.get('iss') != _JWT_ISSUER:
+        raise HTTPException(
+            status_code=401,
+            detail='Invalid token issuer',
+            headers={'WWW-Authenticate': 'Bearer'},
+        )
+
+    roles = payload.get('roles', payload.get('scope', ''))
+    if isinstance(roles, str):
+        role_values = frozenset(r.strip().lower() for r in roles.replace(',', ' ').split() if r.strip())
+    elif isinstance(roles, list):
+        role_values = frozenset(str(r).strip().lower() for r in roles if str(r).strip())
+    else:
+        role_values = frozenset()
+
+    user_id = str(payload.get('sub', payload.get('user_id', 'unknown')))
+    return AuthPrincipal(user_id=user_id, roles=role_values or frozenset({'viewer'}), auth_type='jwt')
+
+
+def _authenticate_request(authorization: str | None, access: str | None) -> AuthPrincipal:
+    if authorization and authorization.startswith(f'{_AUTH_TOKEN_HEADER} '):
+        bearer = authorization[len(_AUTH_TOKEN_HEADER) + 1:].strip()
+        if bearer:
+            return _verify_jwt(bearer)
+
+    if access:
+        token = access.strip()
+        if token in _ACCESS_ROLE_MAP:
+            return _ACCESS_ROLE_MAP[token]
+
+    raise HTTPException(
+        status_code=401,
+        detail='Authentication required',
+        headers={'WWW-Authenticate': 'Bearer'},
+    )
+
+
+def _has_permission(principal: AuthPrincipal, required: Literal['view', 'control', 'admin']) -> bool:
+    if 'admin' in principal.roles:
+        return True
+    if required == 'view':
+        return bool({'viewer', 'view', 'control', 'deploy'} & principal.roles)
+    if required == 'control':
+        return bool({'control', 'deploy'} & principal.roles)
+    return False
+
+
+def require_permission(required: Literal['view', 'control', 'admin']):
+    async def _dependency(
+        request: Request,
+        authorization: str | None = Header(default=None),
+        access: str | None = Header(default=None, alias='Access'),
+    ) -> AuthPrincipal:
+        principal: AuthPrincipal | None = None
+        try:
+            principal = _authenticate_request(authorization, access)
+        except HTTPException:
+            _log_auth_event(request, principal=None, required=required, status_code=401)
+            raise
+
+        if not _has_permission(principal, required):
+            _log_auth_event(request, principal=principal, required=required, status_code=403)
+            raise HTTPException(status_code=403, detail='Forbidden')
+
+        _log_auth_event(request, principal=principal, required=required, status_code=200)
+        return principal
+
+    return _dependency
 
 
 def _resolve_web_dir() -> Path | None:
@@ -146,7 +383,10 @@ def _resolve_web_dir() -> Path | None:
 # ── /api/knowledge/parse-menu ─────────────────────────────────────────────────
 
 @app.post('/api/knowledge/parse-menu')
-async def parse_menu(files: list[UploadFile] = File(...)):
+async def parse_menu(
+    files: list[UploadFile] = File(...),
+    _: AuthPrincipal = Depends(require_permission('control')),
+):
     """
     Receive one or more menu files (xlsx/pdf), save to a temp dir,
     run parse_cafeteria_menu.py, and return per-file results.
@@ -259,7 +499,10 @@ def _run_build_index(
 
 
 @app.post('/api/knowledge/build-index')
-async def build_index(body: dict):
+async def build_index(
+    body: dict,
+    _: AuthPrincipal = Depends(require_permission('control')),
+):
     incremental = body.get('incremental', True)
     batch_size = body.get('batch_size')
     chunk_batch_size = body.get('chunk_batch_size')
@@ -295,7 +538,11 @@ async def build_index(body: dict):
 
 
 @app.get('/api/knowledge/build-index/status/{job_id}')
-async def build_index_status(job_id: str, cursor: int = Query(0, ge=0)):
+async def build_index_status(
+    job_id: str,
+    cursor: int = Query(0, ge=0),
+    _: AuthPrincipal = Depends(require_permission('view')),
+):
     """
     Build-index status contract:
       - total_chunks is sourced from build_index.py final summary line:
@@ -425,7 +672,10 @@ def _run_crawl_job(job_id: str, cmd: list[str]):
 
 
 @app.post('/api/knowledge/crawl-campus')
-async def crawl_campus(body: dict):
+async def crawl_campus(
+    body: dict,
+    _: AuthPrincipal = Depends(require_permission('control')),
+):
     if not CRAWLER_SCRIPT.exists():
         raise HTTPException(500, f'Crawler script not found: {CRAWLER_SCRIPT}')
 
@@ -451,7 +701,10 @@ async def crawl_campus(body: dict):
 
 
 @app.get('/api/knowledge/crawl-campus/status/{job_id}')
-async def crawl_campus_status(job_id: str):
+async def crawl_campus_status(
+    job_id: str,
+    _: AuthPrincipal = Depends(require_permission('view')),
+):
     job = _crawl_jobs.get(job_id)
     if not job:
         raise HTTPException(404, 'Job not found')
@@ -468,7 +721,7 @@ async def crawl_campus_status(job_id: str):
 # ── /api/knowledge/index-info ─────────────────────────────────────────────────
 
 @app.get('/api/knowledge/index-info')
-async def index_info():
+async def index_info(_: AuthPrincipal = Depends(require_permission('view'))):
     meta_file = INDEXED_DIR / 'metadata.json'
     index_file = INDEXED_DIR / 'index.faiss'
 
@@ -491,7 +744,7 @@ async def index_info():
 # ── /api/knowledge/documents ──────────────────────────────────────────────────
 
 @app.get('/api/knowledge/documents')
-async def list_documents():
+async def list_documents(_: AuthPrincipal = Depends(require_permission('view'))):
     docs = []
     if not PROCESSED_DIR.exists():
         return docs
@@ -544,12 +797,16 @@ def _save_knowledge(locations: dict):
 
 
 @app.get('/api/knowledge/buildings')
-async def get_buildings():
+async def get_buildings(_: AuthPrincipal = Depends(require_permission('view'))):
     return _load_knowledge()
 
 
 @app.put('/api/knowledge/buildings/{key}')
-async def update_building(key: str, body: dict):
+async def update_building(
+    key: str,
+    body: dict,
+    _: AuthPrincipal = Depends(require_permission('control')),
+):
     locations = _load_knowledge()
     if key not in locations:
         raise HTTPException(404, f'Building key not found: {key}')
@@ -559,6 +816,175 @@ async def update_building(key: str, body: dict):
     except Exception as e:
         raise HTTPException(500, str(e))
     return {'ok': True, 'key': key}
+
+
+# ── /api/control/actions (external-safe control path) ────────────────────────
+
+_CONTROL_EXECUTOR = os.environ.get('DORI_CONTROL_EXECUTOR', 'dry-run').strip().lower() or 'dry-run'
+_CONTROL_ACTIONS = frozenset({'move', 'stop', 'set_mode'})
+_CONTROL_MODES = frozenset({'manual', 'auto', 'dock', 'idle'})
+_CONTROL_RATE_LIMITS = {
+    # action -> (max_requests, window_seconds)
+    'move': (10, 1.0),
+    'stop': (5, 1.0),
+    'set_mode': (2, 1.0),
+}
+_control_rate_events: dict[tuple[str, str], list[float]] = {}
+_control_rate_lock = threading.Lock()
+
+
+def _validate_float_range(value, *, field: str, min_value: float, max_value: float) -> float:
+    if not isinstance(value, (int, float)):
+        raise HTTPException(400, f'{field} must be a number')
+    normalized = float(value)
+    if normalized < min_value or normalized > max_value:
+        raise HTTPException(400, f'{field} must be in range [{min_value}, {max_value}]')
+    return normalized
+
+
+def _enforce_control_rate_limit(principal: AuthPrincipal, action: str) -> None:
+    limit = _CONTROL_RATE_LIMITS.get(action)
+    if not limit:
+        return
+    max_requests, window_sec = limit
+    now = time.monotonic()
+    key = (principal.user_id, action)
+
+    with _control_rate_lock:
+        events = _control_rate_events.setdefault(key, [])
+        cutoff = now - window_sec
+        events[:] = [t for t in events if t >= cutoff]
+        if len(events) >= max_requests:
+            raise HTTPException(
+                status_code=429,
+                detail=f'rate limit exceeded for action={action} '
+                       f'({max_requests}/{window_sec:.1f}s)',
+            )
+        events.append(now)
+
+
+def _execute_control_action(action: str, params: dict) -> dict:
+    """
+    Execute a validated control action through a constrained backend interface.
+
+    Default mode is dry-run for safety. To enable ROS2 CLI execution:
+      DORI_CONTROL_EXECUTOR=ros2_cli
+    """
+    if _CONTROL_EXECUTOR != 'ros2_cli':
+        return {
+            'executor': _CONTROL_EXECUTOR,
+            'executed': False,
+            'detail': 'dry-run mode: validated but not published to ROS network',
+        }
+
+    if action == 'move':
+        linear_x = params['linear_x']
+        linear_y = params['linear_y']
+        angular_z = params['angular_z']
+        payload = (
+            '{linear: {x: ' + f'{linear_x:.4f}' + ', y: ' + f'{linear_y:.4f}' + ', z: 0.0}, '
+            'angular: {x: 0.0, y: 0.0, z: ' + f'{angular_z:.4f}' + '}}'
+        )
+        cmd = [
+            'ros2', 'topic', 'pub', '--once',
+            '/cmd_vel', 'geometry_msgs/msg/Twist',
+            payload,
+        ]
+    elif action == 'stop':
+        cmd = [
+            'ros2', 'topic', 'pub', '--once',
+            '/cmd_vel', 'geometry_msgs/msg/Twist',
+            '{linear: {x: 0.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}',
+        ]
+    elif action == 'set_mode':
+        mode = params['mode']
+        cmd = [
+            'ros2', 'topic', 'pub', '--once',
+            '/dori/control/mode', 'std_msgs/msg/String',
+            f'{{data: "{mode}"}}',
+        ]
+    else:
+        raise HTTPException(400, f'Unsupported action: {action}')
+
+    completed = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+    if completed.returncode != 0:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                'control action execution failed: '
+                + (completed.stderr.strip() or completed.stdout.strip() or f'exit={completed.returncode}')
+            ),
+        )
+    return {'executor': _CONTROL_EXECUTOR, 'executed': True, 'detail': 'published via ros2_cli'}
+
+
+@app.post('/api/control/actions')
+async def control_actions(
+    body: dict,
+    principal: AuthPrincipal = Depends(require_permission('control')),
+):
+    """
+    Public-safe control API for external users.
+    Only allowlisted actions are accepted, with strict validation and rate limiting.
+    """
+    action = body.get('action')
+    params = body.get('params', {})
+    if not isinstance(action, str):
+        raise HTTPException(400, 'action must be a string')
+    if not isinstance(params, dict):
+        raise HTTPException(400, 'params must be an object')
+
+    action = action.strip().lower()
+    if action not in _CONTROL_ACTIONS:
+        raise HTTPException(400, f'action must be one of: {sorted(_CONTROL_ACTIONS)}')
+
+    validated: dict = {}
+    if action == 'move':
+        validated['linear_x'] = _validate_float_range(params.get('linear_x', 0.0), field='linear_x', min_value=-0.8, max_value=0.8)
+        validated['linear_y'] = _validate_float_range(params.get('linear_y', 0.0), field='linear_y', min_value=-0.8, max_value=0.8)
+        validated['angular_z'] = _validate_float_range(params.get('angular_z', 0.0), field='angular_z', min_value=-1.2, max_value=1.2)
+    elif action == 'set_mode':
+        mode = params.get('mode')
+        if not isinstance(mode, str):
+            raise HTTPException(400, 'mode must be a string')
+        mode = mode.strip().lower()
+        if mode not in _CONTROL_MODES:
+            raise HTTPException(400, f'mode must be one of: {sorted(_CONTROL_MODES)}')
+        validated['mode'] = mode
+
+    _enforce_control_rate_limit(principal, action)
+    exec_result = _execute_control_action(action, validated)
+    return {
+        'ok': True,
+        'action': action,
+        'validated_params': validated,
+        'rate_limit': {
+            'max_requests': _CONTROL_RATE_LIMITS[action][0],
+            'window_sec': _CONTROL_RATE_LIMITS[action][1],
+        },
+        **exec_result,
+    }
+
+
+@app.post('/api/admin/publish')
+async def admin_publish(
+    body: dict,
+    _: AuthPrincipal = Depends(require_permission('admin')),
+):
+    """
+    High-risk raw publish endpoint.
+    Intentionally admin-only and disabled unless explicitly enabled.
+    """
+    if os.environ.get('DORI_ENABLE_ADMIN_PUBLISH', '').strip().lower() not in ('1', 'true', 'yes'):
+        raise HTTPException(403, 'admin publish endpoint is disabled')
+    return {
+        'ok': False,
+        'detail': (
+            'admin publish endpoint is reserved for controlled environments. '
+            'Use /api/control/actions for external control flows.'
+        ),
+        'requested': body,
+    }
 
 # ── /api/tunnel-url ───────────────────────────────────────────────────────────
 # 터널 WS URL을 반환. 프론트엔드가 외부 접속 시 폴링해서 WS URL 기본값 자동 설정.
@@ -579,6 +1005,7 @@ _CF_URL_RE        = _re.compile(r'https://[a-z0-9\-]+\.trycloudflare\.com')
 #     DORI_WS_URL=wss://ws.dgist-dori.xyz
 _FIXED_DASHBOARD_URL = _os.environ.get('DORI_DASHBOARD_URL', '').strip()
 _FIXED_WS_URL        = _os.environ.get('DORI_WS_URL', '').strip()
+_EXPOSE_ROSBRIDGE_TUNNEL = _os.environ.get('DORI_EXPOSE_ROSBRIDGE_TUNNEL', '').strip().lower() in ('1', 'true', 'yes')
 
 
 def _parse_tunnel_url(log_path: Path) -> str | None:
@@ -594,10 +1021,10 @@ def _parse_tunnel_url(log_path: Path) -> str | None:
 @app.get('/api/tunnel-url')
 async def get_tunnel_url():
     """
-    Return Cloudflare Tunnel public URLs for the dashboard and rosbridge.
+    Return Cloudflare Tunnel public URL for the dashboard and (optionally) rosbridge.
 
     Response:
-      { "dashboard_url": str|null, "ws_url": str|null, "ready": bool }
+      { "dashboard_url": str|null, "ws_url": str|null, "ready": bool, "ws_exposed": bool }
 
     Priority:
       1) DORI_WS_URL / DORI_DASHBOARD_URL env vars (fixed custom domain)
@@ -606,22 +1033,26 @@ async def get_tunnel_url():
     ws_url must use wss:// — Cloudflare Tunnel always terminates TLS.
     """
     # 1순위: 고정 도메인 환경변수
-    if _FIXED_WS_URL:
+    if _FIXED_WS_URL and _EXPOSE_ROSBRIDGE_TUNNEL:
         return {
             'dashboard_url': _FIXED_DASHBOARD_URL or None,
             'ws_url':        _FIXED_WS_URL,
             'ready':         True,
+            'ws_exposed':    True,
         }
 
     # 2순위: trycloudflare.com 임시 터널 로그 파싱
     dashboard_url = _parse_tunnel_url(_CF_LOG_DASHBOARD)
-    ws_http_url   = _parse_tunnel_url(_CF_LOG_WS)
-    ws_url = ws_http_url.replace('https://', 'wss://', 1) if ws_http_url else None
+    ws_url = None
+    if _EXPOSE_ROSBRIDGE_TUNNEL:
+        ws_http_url = _parse_tunnel_url(_CF_LOG_WS)
+        ws_url = ws_http_url.replace('https://', 'wss://', 1) if ws_http_url else None
 
     return {
         'dashboard_url': dashboard_url,
         'ws_url':        ws_url,
-        'ready':         ws_url is not None,
+        'ready':         dashboard_url is not None or ws_url is not None,
+        'ws_exposed':    _EXPOSE_ROSBRIDGE_TUNNEL and ws_url is not None,
     }
 
 # ── Static file serving ────────────────────────────────────────────────────────
@@ -696,11 +1127,7 @@ if WEB_DIR:
 #   DORI_WEBHOOK_SECRET  : GitHub webhook secret (HMAC-SHA256)
 #   DORI_ROS_DISTRO      : ROS distro name (default: humble)
 
-import hashlib
-import hmac
 import shlex
-import threading
-from fastapi import Request
 
 _WEBHOOK_SECRET = _os.environ.get('DORI_WEBHOOK_SECRET', '').encode()
 _ROS_DISTRO     = _os.environ.get('DORI_ROS_DISTRO', 'humble')
@@ -1255,13 +1682,13 @@ async def github_webhook(request: Request):
 
 
 @app.get('/api/deploy/status')
-async def deploy_status():
+async def deploy_status(_: AuthPrincipal = Depends(require_permission('view'))):
     """Poll deploy pipeline progress."""
     return JSONResponse(_deploy_job)
 
 
 @app.post('/api/deploy/trigger')
-async def deploy_trigger():
+async def deploy_trigger(_: AuthPrincipal = Depends(require_permission('admin'))):
     """Manually trigger the deploy pipeline (no webhook needed, dev use)."""
     with _deploy_lock:
         if _deploy_job['status'] == 'running':
@@ -1272,7 +1699,7 @@ async def deploy_trigger():
 
 
 @app.post('/api/deploy/repair-web')
-async def deploy_repair_web():
+async def deploy_repair_web(_: AuthPrincipal = Depends(require_permission('admin'))):
     """Run a web integrity check and repair-publish if required."""
     with _deploy_lock:
         if _deploy_job['status'] == 'running':

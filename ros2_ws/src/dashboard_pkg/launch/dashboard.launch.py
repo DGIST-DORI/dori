@@ -1,10 +1,13 @@
 """
 dashboard.launch.py
 Launches: rosbridge WebSocket + unified dashboard server (frontend + API on port 3000)
-          + Cloudflare Tunnel (port 3000 and 9090, optional)
+          + Cloudflare Tunnel (port 3000 always, 9090 optional)
 
 Cloudflare Tunnel is disabled by default.
-To enable: ros2 launch dashboard_pkg dashboard.launch.py tunnel:=true
+To enable dashboard tunnel only:
+  ros2 launch dashboard_pkg dashboard.launch.py tunnel:=true
+To additionally expose rosbridge (high risk; internal use only):
+  ros2 launch dashboard_pkg dashboard.launch.py tunnel:=true tunnel_rosbridge:=true
 """
 
 import os
@@ -76,6 +79,15 @@ def _make_tunnel_actions(context, *args, **kwargs):
         name='cloudflared_dashboard',
     )
 
+    expose_rosbridge = LaunchConfiguration('tunnel_rosbridge').perform(context).lower() in ('true', '1', 'yes')
+    if not expose_rosbridge:
+        print(
+            '\n[dashboard.launch] INFO: rosbridge(9090) tunnel exposure is disabled by default.\n'
+            '  External users should use the backend control API instead of direct rosbridge access.\n'
+            '  To force-enable rosbridge tunnel, set tunnel_rosbridge:=true explicitly.\n'
+        )
+        return [dashboard_tunnel]
+
     ws_tunnel = ExecuteProcess(
         cmd=[
             'bash', '-c',
@@ -110,12 +122,14 @@ def _make_api_server_action(context, *args, **kwargs):
 
     dashboard_url = LaunchConfiguration('dashboard_url').perform(context)
     ws_url        = LaunchConfiguration('ws_url').perform(context)
+    tunnel_rosbridge = LaunchConfiguration('tunnel_rosbridge').perform(context).lower() in ('true', '1', 'yes')
 
     additional_env = {}
     if dashboard_url:
         additional_env['DORI_DASHBOARD_URL'] = dashboard_url
     if ws_url:
         additional_env['DORI_WS_URL'] = ws_url
+    additional_env['DORI_EXPOSE_ROSBRIDGE_TUNNEL'] = 'true' if tunnel_rosbridge else 'false'
 
     return [ExecuteProcess(
         cmd=['python3', knowledge_api_script,
@@ -154,7 +168,12 @@ def generate_launch_description():
             'tunnel',
             default_value='false',
             description='Enable Cloudflare Tunnel for external access (true/false). '
-                        'Disabled by default when using a fixed custom domain.',
+                        'Disabled by default.',
+        ),
+        DeclareLaunchArgument(
+            'tunnel_rosbridge',
+            default_value='false',
+            description='Expose rosbridge websocket tunnel on 9090 (high risk, disabled by default).',
         ),
         # 고정 도메인 설정 (Cloudflare 커스텀 도메인 사용 시)
         # 기본값을 비워두면 trycloudflare.com 임시 터널 로그 파싱으로 fallback
@@ -165,8 +184,8 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'ws_url',
-            default_value='wss://ws.dgist-dori.xyz',
-            description='Fixed public WebSocket URL (custom Cloudflare domain)',
+            default_value='',
+            description='Optional fixed public WebSocket URL (leave empty to avoid external rosbridge exposure)',
         ),
 
         # ── rosbridge WebSocket (port 9090) ───────────────────────────────
