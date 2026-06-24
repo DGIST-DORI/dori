@@ -6,6 +6,7 @@ drive_controller_node:
     max_angular_velocity: 1.2
     linear_accel_limit: 1.0
     angular_accel_limit: 2.0
+    transform_action_state_value: 2
 
     default_drive_profile: "normal"
 

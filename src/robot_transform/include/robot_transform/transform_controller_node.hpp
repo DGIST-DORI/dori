@@ -33,7 +33,7 @@ private:
   void publishBldcSpeedCmd(int motor_id, double v_des);
   void publishBldcStopCmd();
 
-  double applyBldcSpeedRateLimit(int motor_id, double desired_v);
+  double applyBldcSpeedRateLimit(int motor_id, double desired_v, double dt);
   void resetBldcSpeedLimiter();
 
   void publishDxlPositionCmd(int motor_id, double target_deg);
@@ -110,14 +110,26 @@ private:
 
   // BLDC velocity-based position control parameters
   double bldc_posvel_kp_;
+  double bldc_posvel_kd_;
   double bldc_posvel_max_vel_rad_s_;
   double bldc_posvel_min_vel_rad_s_;
   double bldc_posvel_position_tolerance_deg_;
   double bldc_posvel_velocity_tolerance_rad_s_;
   double bldc_posvel_accel_limit_rad_s2_;
+  double bldc_posvel_jerk_limit_rad_s3_;
+
+  // Optional MIT speed damping gain.
+  // Default 0.0 keeps the previous behavior.
+  double bldc_mit_speed_kd_;
 
   double last_bldc_speed_cmd_1_;
   double last_bldc_speed_cmd_2_;
+
+  double last_bldc_accel_cmd_1_;
+  double last_bldc_accel_cmd_2_;
+
+  rclcpp::Time last_control_time_;
+  bool has_last_control_time_;
 
   std::unordered_map<std::string, double> joint_position_deg_map_;
   std::unordered_map<std::string, double> joint_velocity_rad_map_;

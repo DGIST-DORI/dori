@@ -1,13 +1,15 @@
 transform_manager_node:
   ros__parameters:
     pose_detect_tolerance_deg: 5.0
-    default_step_timeout_sec: 12.0
+    default_step_timeout_sec: 14.0
     initial_step_delay_sec: 2.0
     force_initial_pose: 0
+
     motor1_joint_name: "left_wheel_joint"
     motor2_joint_name: "right_wheel_joint"
     motor3_joint_name: "motor_3_joint"
     motor4_joint_name: "motor_4_joint"
+
     dxl_wrap_turns: 3.0
 
 transform_controller_node:
@@ -40,13 +42,23 @@ transform_controller_node:
 
     bldc_wrap_turns: 4.0
     dxl_wrap_turns: 3.0
-    
-    bldc_posvel_kp: 1.4
-    bldc_posvel_max_vel_rad_s: 5.0
-    bldc_posvel_min_vel_rad_s: 0.9
-    bldc_posvel_position_tolerance_deg: 6.0
-    bldc_posvel_velocity_tolerance_rad_s: 0.45
-    bldc_posvel_accel_limit_rad_s2: 2.5
+
+    # Outer position loop:
+    # position error [rad] -> velocity command [rad/s]
+    bldc_posvel_kp: 1.3
+    bldc_posvel_kd: 0.15
+    bldc_posvel_max_vel_rad_s: 6.0
+    bldc_posvel_min_vel_rad_s: 0.4
+    bldc_posvel_position_tolerance_deg: 3.0
+    bldc_posvel_velocity_tolerance_rad_s: 0.35
+
+    # Motion smoothing
+    bldc_posvel_accel_limit_rad_s2: 3.0
+    bldc_posvel_jerk_limit_rad_s3: 10.0
+
+    # Keep 0.0 if your bridge/hardware already handles speed command.
+    # Try 0.05 ~ 0.2 only if MIT velocity damping is actually used downstream.
+    bldc_mit_speed_kd: 0.0
 
 fake_joint_states_node:
   ros__parameters:

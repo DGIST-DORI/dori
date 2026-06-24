@@ -31,7 +31,7 @@
       <param name="kt">0.1</param>
       <param name="pole_pairs">14</param>
       <param name="gear_ratio">10</param>
-      <param name="direction_sign">-1</param>
+      <param name="direction_sign">1</param>
       <param name="enc_off">0.0</param>
 
       <param name="mit_p_min">-12.566370614359172</param>
@@ -63,7 +63,7 @@
       <param name="kt">0.1</param>
       <param name="pole_pairs">14</param>
       <param name="gear_ratio">10</param>
-      <param name="direction_sign">1</param>
+      <param name="direction_sign">-1</param>
       <param name="enc_off">0.0</param>
 
       <param name="mit_p_min">-12.566370614359172</param>

@@ -1,5 +1,6 @@
 #include "robot_transform/transform_controller_node.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 
@@ -73,14 +74,21 @@ TransformControllerNode::TransformControllerNode()
   dxl_wrap_turns_(3.0),
   bldc_wrap_range_deg_(4.0 * 360.0),
   dxl_wrap_range_deg_(3.0 * 360.0),
-  bldc_posvel_kp_(1.2),
-  bldc_posvel_max_vel_rad_s_(2.5),
-  bldc_posvel_min_vel_rad_s_(0.35),
-  bldc_posvel_position_tolerance_deg_(5.0),
+  bldc_posvel_kp_(1.3),
+  bldc_posvel_kd_(0.15),
+  bldc_posvel_max_vel_rad_s_(6.0),
+  bldc_posvel_min_vel_rad_s_(0.0),
+  bldc_posvel_position_tolerance_deg_(3.0),
   bldc_posvel_velocity_tolerance_rad_s_(0.35),
-  bldc_posvel_accel_limit_rad_s2_(2.5),
+  bldc_posvel_accel_limit_rad_s2_(3.0),
+  bldc_posvel_jerk_limit_rad_s3_(20.0),
+  bldc_mit_speed_kd_(0.0),
   last_bldc_speed_cmd_1_(0.0),
-  last_bldc_speed_cmd_2_(0.0)
+  last_bldc_speed_cmd_2_(0.0),
+  last_bldc_accel_cmd_1_(0.0),
+  last_bldc_accel_cmd_2_(0.0),
+  last_control_time_(0, 0, RCL_ROS_TIME),
+  has_last_control_time_(false)
 {
   this->declare_parameter("position_tolerance_deg", position_tolerance_deg_);
   this->declare_parameter("velocity_tolerance_rad_s", velocity_tolerance_rad_s_);
@@ -112,11 +120,14 @@ TransformControllerNode::TransformControllerNode()
   this->declare_parameter("dxl_wrap_turns", dxl_wrap_turns_);
 
   this->declare_parameter("bldc_posvel_kp", bldc_posvel_kp_);
+  this->declare_parameter("bldc_posvel_kd", bldc_posvel_kd_);
   this->declare_parameter("bldc_posvel_max_vel_rad_s", bldc_posvel_max_vel_rad_s_);
   this->declare_parameter("bldc_posvel_min_vel_rad_s", bldc_posvel_min_vel_rad_s_);
   this->declare_parameter("bldc_posvel_position_tolerance_deg", bldc_posvel_position_tolerance_deg_);
   this->declare_parameter("bldc_posvel_velocity_tolerance_rad_s", bldc_posvel_velocity_tolerance_rad_s_);
   this->declare_parameter("bldc_posvel_accel_limit_rad_s2", bldc_posvel_accel_limit_rad_s2_);
+  this->declare_parameter("bldc_posvel_jerk_limit_rad_s3", bldc_posvel_jerk_limit_rad_s3_);
+  this->declare_parameter("bldc_mit_speed_kd", bldc_mit_speed_kd_);
 
   this->get_parameter("position_tolerance_deg", position_tolerance_deg_);
   this->get_parameter("velocity_tolerance_rad_s", velocity_tolerance_rad_s_);
@@ -148,11 +159,14 @@ TransformControllerNode::TransformControllerNode()
   this->get_parameter("dxl_wrap_turns", dxl_wrap_turns_);
 
   this->get_parameter("bldc_posvel_kp", bldc_posvel_kp_);
+  this->get_parameter("bldc_posvel_kd", bldc_posvel_kd_);
   this->get_parameter("bldc_posvel_max_vel_rad_s", bldc_posvel_max_vel_rad_s_);
   this->get_parameter("bldc_posvel_min_vel_rad_s", bldc_posvel_min_vel_rad_s_);
   this->get_parameter("bldc_posvel_position_tolerance_deg", bldc_posvel_position_tolerance_deg_);
   this->get_parameter("bldc_posvel_velocity_tolerance_rad_s", bldc_posvel_velocity_tolerance_rad_s_);
   this->get_parameter("bldc_posvel_accel_limit_rad_s2", bldc_posvel_accel_limit_rad_s2_);
+  this->get_parameter("bldc_posvel_jerk_limit_rad_s3", bldc_posvel_jerk_limit_rad_s3_);
+  this->get_parameter("bldc_mit_speed_kd", bldc_mit_speed_kd_);
 
   bldc_wrap_range_deg_ = bldc_wrap_turns_ * 360.0;
   dxl_wrap_range_deg_ = dxl_wrap_turns_ * 360.0;
@@ -189,7 +203,7 @@ TransformControllerNode::TransformControllerNode()
     this->create_publisher<robot_msgs::msg::SystemError>("/system/error", 20);
 
   control_timer_ = this->create_wall_timer(
-    50ms,
+    2ms,
     std::bind(&TransformControllerNode::controlTimerCallback, this));
 
   applyTransformProfile(current_transform_profile_);
@@ -197,13 +211,18 @@ TransformControllerNode::TransformControllerNode()
   RCLCPP_INFO(this->get_logger(), "transform_controller_node started");
   RCLCPP_INFO(
     this->get_logger(),
-    "BLDC transform mode: velocity-based position control enabled. kp=%.3f max_vel=%.3f min_vel=%.3f tol_deg=%.3f vel_tol=%.3f accel_limit=%.3f",
+    "BLDC transform mode: velocity-based PD position control enabled. "
+    "timer=2ms target_rate=500Hz kp=%.3f kd=%.3f max_vel=%.3f min_vel=%.3f "
+    "tol_deg=%.3f vel_tol=%.3f accel_limit=%.3f jerk_limit=%.3f mit_speed_kd=%.3f",
     bldc_posvel_kp_,
+    bldc_posvel_kd_,
     bldc_posvel_max_vel_rad_s_,
     bldc_posvel_min_vel_rad_s_,
     bldc_posvel_position_tolerance_deg_,
     bldc_posvel_velocity_tolerance_rad_s_,
-    bldc_posvel_accel_limit_rad_s2_);
+    bldc_posvel_accel_limit_rad_s2_,
+    bldc_posvel_jerk_limit_rad_s3_,
+    bldc_mit_speed_kd_);
 }
 
 double TransformControllerNode::wrapToRangeDeg(double x, double range) const
@@ -293,7 +312,7 @@ void TransformControllerNode::publishBldcSpeedCmd(int motor_id, double v_des)
   msg.p_des = 0.0;
   msg.v_des = v_des;
   msg.kp = 0.0;
-  msg.kd = 0.0;
+  msg.kd = bldc_mit_speed_kd_;
   msg.tau_ff = 0.0;
 
   mit_speed_pub_->publish(msg);
@@ -306,32 +325,57 @@ void TransformControllerNode::publishBldcStopCmd()
   resetBldcSpeedLimiter();
 }
 
-double TransformControllerNode::applyBldcSpeedRateLimit(int motor_id, double desired_v)
+double TransformControllerNode::applyBldcSpeedRateLimit(
+  int motor_id,
+  double desired_v,
+  double dt)
 {
-  const double dt = 0.05;
-  const double max_delta = bldc_posvel_accel_limit_rad_s2_ * dt;
+  if (dt <= 0.0) {
+    return desired_v;
+  }
 
-  double * last_cmd = nullptr;
+  double * last_v = nullptr;
+  double * last_a = nullptr;
 
   if (motor_id == 1) {
-    last_cmd = &last_bldc_speed_cmd_1_;
+    last_v = &last_bldc_speed_cmd_1_;
+    last_a = &last_bldc_accel_cmd_1_;
   } else if (motor_id == 2) {
-    last_cmd = &last_bldc_speed_cmd_2_;
+    last_v = &last_bldc_speed_cmd_2_;
+    last_a = &last_bldc_accel_cmd_2_;
   } else {
     return 0.0;
   }
 
-  const double delta = desired_v - *last_cmd;
+  double desired_a = (desired_v - *last_v) / dt;
 
-  double limited_v = desired_v;
+  desired_a = std::clamp(
+    desired_a,
+    -bldc_posvel_accel_limit_rad_s2_,
+    bldc_posvel_accel_limit_rad_s2_);
 
-  if (delta > max_delta) {
-    limited_v = *last_cmd + max_delta;
-  } else if (delta < -max_delta) {
-    limited_v = *last_cmd - max_delta;
+  const double max_delta_a = bldc_posvel_jerk_limit_rad_s3_ * dt;
+  const double delta_a = desired_a - *last_a;
+
+  double limited_a = desired_a;
+
+  if (delta_a > max_delta_a) {
+    limited_a = *last_a + max_delta_a;
+  } else if (delta_a < -max_delta_a) {
+    limited_a = *last_a - max_delta_a;
   }
 
-  *last_cmd = limited_v;
+  double limited_v = *last_v + limited_a * dt;
+
+  if ((*last_v < desired_v && limited_v > desired_v) ||
+      (*last_v > desired_v && limited_v < desired_v)) {
+    limited_v = desired_v;
+    limited_a = 0.0;
+  }
+
+  *last_v = limited_v;
+  *last_a = limited_a;
+
   return limited_v;
 }
 
@@ -339,6 +383,11 @@ void TransformControllerNode::resetBldcSpeedLimiter()
 {
   last_bldc_speed_cmd_1_ = 0.0;
   last_bldc_speed_cmd_2_ = 0.0;
+
+  last_bldc_accel_cmd_1_ = 0.0;
+  last_bldc_accel_cmd_2_ = 0.0;
+
+  has_last_control_time_ = false;
 }
 
 void TransformControllerNode::publishDxlPositionCmd(int motor_id, double target_deg)
@@ -424,11 +473,15 @@ void TransformControllerNode::stepCmdCallback(
     active_bldc_posvel_ = true;
     target_angle_deg_ = msg->target_angle_deg;
 
+    // Step 시작 시 두 BLDC를 한 번 정지시킨 뒤 active motor만 제어한다.
     publishBldcStopCmd();
+
+    last_control_time_ = this->now();
+    has_last_control_time_ = true;
 
     RCLCPP_INFO(
       this->get_logger(),
-      "BLDC velocity-position step start: motor=%d target_deg=%.3f timeout=%.2f",
+      "BLDC velocity-position PD step start: motor=%d target_deg=%.3f timeout=%.2f",
       active_motor_id_,
       target_angle_deg_,
       timeout_sec_);
@@ -494,7 +547,21 @@ void TransformControllerNode::controlTimerCallback()
     return;
   }
 
-  const double elapsed = (this->now() - step_start_time_).seconds();
+  const rclcpp::Time now = this->now();
+  const double elapsed = (now - step_start_time_).seconds();
+
+  double dt = 0.002;
+  if (has_last_control_time_) {
+    dt = (now - last_control_time_).seconds();
+  }
+
+  // Protect against timer jitter or invalid clock jumps.
+  if (dt <= 0.0 || dt > 0.05) {
+    dt = 0.002;
+  }
+
+  last_control_time_ = now;
+  has_last_control_time_ = true;
 
   if (test_auto_success_) {
     if (elapsed >= test_auto_success_delay_sec_) {
@@ -522,13 +589,23 @@ void TransformControllerNode::controlTimerCallback()
 
     const double error_rad = error_deg * M_PI / 180.0;
 
-    double desired_v_cmd = bldc_posvel_kp_ * error_rad;
+    /*
+      Outer PD loop:
+        position error [rad] -> velocity command [rad/s]
 
-    if (desired_v_cmd > bldc_posvel_max_vel_rad_s_) {
-      desired_v_cmd = bldc_posvel_max_vel_rad_s_;
-    } else if (desired_v_cmd < -bldc_posvel_max_vel_rad_s_) {
-      desired_v_cmd = -bldc_posvel_max_vel_rad_s_;
-    }
+      target velocity is treated as 0 rad/s.
+      D term is velocity damping:
+        v_cmd = Kp * position_error + Kd * (0 - current_velocity)
+              = Kp * position_error - Kd * current_velocity
+    */
+    double desired_v_cmd =
+      bldc_posvel_kp_ * error_rad
+      - bldc_posvel_kd_ * current_vel_rad;
+
+    desired_v_cmd = std::clamp(
+      desired_v_cmd,
+      -bldc_posvel_max_vel_rad_s_,
+      bldc_posvel_max_vel_rad_s_);
 
     if (std::abs(error_deg) > bldc_posvel_position_tolerance_deg_ &&
         std::abs(desired_v_cmd) < bldc_posvel_min_vel_rad_s_) {
@@ -541,13 +618,14 @@ void TransformControllerNode::controlTimerCallback()
     vel_ok = std::abs(current_vel_rad) <= bldc_posvel_velocity_tolerance_rad_s_;
 
     if (pos_ok && vel_ok) {
-      publishBldcStopCmd();
-
+      // settle 구간에 처음 들어왔을 때만 stop 명령을 보낸다.
+      // 이전 코드처럼 settle 동안 매 2ms마다 0 명령을 반복 publish하지 않는다.
       if (!settle_started_) {
+        publishBldcStopCmd();
         settle_started_ = true;
-        settle_start_time_ = this->now();
+        settle_start_time_ = now;
       } else {
-        const double settle_elapsed = (this->now() - settle_start_time_).seconds();
+        const double settle_elapsed = (now - settle_start_time_).seconds();
 
         if (settle_elapsed >= settle_time_sec_) {
           publishStepResult(true, false, "Step completed");
@@ -561,32 +639,36 @@ void TransformControllerNode::controlTimerCallback()
       settle_started_ = false;
 
       if (active_motor_id_ == 1) {
-        const double limited_v_cmd = applyBldcSpeedRateLimit(1, desired_v_cmd);
+        const double limited_v_cmd = applyBldcSpeedRateLimit(1, desired_v_cmd, dt);
 
+        // active motor에만 명령을 보낸다.
+        // motor 2에 매 루프마다 0 명령을 보내지 않는다.
         publishBldcSpeedCmd(1, limited_v_cmd);
-        publishBldcSpeedCmd(2, 0.0);
 
         RCLCPP_INFO_THROTTLE(
           this->get_logger(),
           *this->get_clock(),
           500,
-          "BLDC speed limit motor=1 desired=%.3f limited=%.3f",
+          "BLDC speed limit motor=1 desired=%.3f limited=%.3f dt=%.4f",
           desired_v_cmd,
-          limited_v_cmd);
+          limited_v_cmd,
+          dt);
 
       } else if (active_motor_id_ == 2) {
-        const double limited_v_cmd = applyBldcSpeedRateLimit(2, desired_v_cmd);
+        const double limited_v_cmd = applyBldcSpeedRateLimit(2, desired_v_cmd, dt);
 
-        publishBldcSpeedCmd(1, 0.0);
+        // active motor에만 명령을 보낸다.
+        // motor 1에 매 루프마다 0 명령을 보내지 않는다.
         publishBldcSpeedCmd(2, limited_v_cmd);
 
         RCLCPP_INFO_THROTTLE(
           this->get_logger(),
           *this->get_clock(),
           500,
-          "BLDC speed limit motor=2 desired=%.3f limited=%.3f",
+          "BLDC speed limit motor=2 desired=%.3f limited=%.3f dt=%.4f",
           desired_v_cmd,
-          limited_v_cmd);
+          limited_v_cmd,
+          dt);
       }
     }
 
@@ -594,12 +676,15 @@ void TransformControllerNode::controlTimerCallback()
       this->get_logger(),
       *this->get_clock(),
       500,
-      "BLDC pos-vel control motor=%d current=%.3f target=%.3f error=%.3f v_fb=%.3f pos_ok=%d vel_ok=%d",
+      "BLDC pos-vel PD control motor=%d current=%.3f target=%.3f error=%.3f "
+      "v_fb=%.3f kp=%.3f kd=%.3f pos_ok=%d vel_ok=%d",
       active_motor_id_,
       current_angle_deg_raw,
       target_angle_deg_,
       error_deg,
       current_vel_rad,
+      bldc_posvel_kp_,
+      bldc_posvel_kd_,
       pos_ok,
       vel_ok);
 
@@ -619,9 +704,9 @@ void TransformControllerNode::controlTimerCallback()
     if (pos_ok && vel_ok) {
       if (!settle_started_) {
         settle_started_ = true;
-        settle_start_time_ = this->now();
+        settle_start_time_ = now;
       } else {
-        const double settle_elapsed = (this->now() - settle_start_time_).seconds();
+        const double settle_elapsed = (now - settle_start_time_).seconds();
 
         if (settle_elapsed >= settle_time_sec_) {
           publishStepResult(true, false, "Step completed");
