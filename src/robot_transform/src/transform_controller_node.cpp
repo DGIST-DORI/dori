@@ -28,12 +28,15 @@ double wrapToRangeDeg(double x, double range)
 double shortestWrappedErrorDeg(double current, double target, double range)
 {
   double err = std::fmod(target - current, range);
+
   if (err > range / 2.0) {
     err -= range;
   }
+
   if (err < -range / 2.0) {
     err += range;
   }
+
   return err;
 }
 }  // namespace
@@ -203,7 +206,7 @@ TransformControllerNode::TransformControllerNode()
     this->create_publisher<robot_msgs::msg::SystemError>("/system/error", 20);
 
   control_timer_ = this->create_wall_timer(
-    2ms,
+    5ms,
     std::bind(&TransformControllerNode::controlTimerCallback, this));
 
   applyTransformProfile(current_transform_profile_);
@@ -212,8 +215,8 @@ TransformControllerNode::TransformControllerNode()
   RCLCPP_INFO(
     this->get_logger(),
     "BLDC transform mode: velocity-based PD position control enabled. "
-    "timer=2ms target_rate=500Hz kp=%.3f kd=%.3f max_vel=%.3f min_vel=%.3f "
-    "tol_deg=%.3f vel_tol=%.3f accel_limit=%.3f jerk_limit=%.3f mit_speed_kd=%.3f",
+    "kp=%.3f kd=%.3f max_vel=%.3f min_vel=%.3f tol_deg=%.3f vel_tol=%.3f "
+    "accel_limit=%.3f jerk_limit=%.3f mit_speed_kd=%.3f bldc_wrap_range=%.3f deg",
     bldc_posvel_kp_,
     bldc_posvel_kd_,
     bldc_posvel_max_vel_rad_s_,
@@ -222,7 +225,8 @@ TransformControllerNode::TransformControllerNode()
     bldc_posvel_velocity_tolerance_rad_s_,
     bldc_posvel_accel_limit_rad_s2_,
     bldc_posvel_jerk_limit_rad_s3_,
-    bldc_mit_speed_kd_);
+    bldc_mit_speed_kd_,
+    bldc_wrap_range_deg_);
 }
 
 double TransformControllerNode::wrapToRangeDeg(double x, double range) const
@@ -473,7 +477,6 @@ void TransformControllerNode::stepCmdCallback(
     active_bldc_posvel_ = true;
     target_angle_deg_ = msg->target_angle_deg;
 
-    // Step 시작 시 두 BLDC를 한 번 정지시킨 뒤 active motor만 제어한다.
     publishBldcStopCmd();
 
     last_control_time_ = this->now();
@@ -481,7 +484,7 @@ void TransformControllerNode::stepCmdCallback(
 
     RCLCPP_INFO(
       this->get_logger(),
-      "BLDC velocity-position PD step start: motor=%d target_deg=%.3f timeout=%.2f",
+      "BLDC velocity-position step start: motor=%d target_deg=%.3f timeout=%.2f",
       active_motor_id_,
       target_angle_deg_,
       timeout_sec_);
@@ -550,14 +553,13 @@ void TransformControllerNode::controlTimerCallback()
   const rclcpp::Time now = this->now();
   const double elapsed = (now - step_start_time_).seconds();
 
-  double dt = 0.002;
+  double dt = 0.005;
   if (has_last_control_time_) {
     dt = (now - last_control_time_).seconds();
   }
 
-  // Protect against timer jitter or invalid clock jumps.
   if (dt <= 0.0 || dt > 0.05) {
-    dt = 0.002;
+    dt = 0.005;
   }
 
   last_control_time_ = now;
@@ -585,19 +587,13 @@ void TransformControllerNode::controlTimerCallback()
   bool vel_ok = false;
 
   if (active_motor_type_ == MOTOR_TYPE_BLDC && active_bldc_posvel_) {
-    error_deg = target_angle_deg_ - current_angle_deg_raw;
+    error_deg = shortestWrappedErrorDeg(
+      current_angle_deg_raw,
+      target_angle_deg_,
+      bldc_wrap_range_deg_);
 
     const double error_rad = error_deg * M_PI / 180.0;
 
-    /*
-      Outer PD loop:
-        position error [rad] -> velocity command [rad/s]
-
-      target velocity is treated as 0 rad/s.
-      D term is velocity damping:
-        v_cmd = Kp * position_error + Kd * (0 - current_velocity)
-              = Kp * position_error - Kd * current_velocity
-    */
     double desired_v_cmd =
       bldc_posvel_kp_ * error_rad
       - bldc_posvel_kd_ * current_vel_rad;
@@ -617,9 +613,22 @@ void TransformControllerNode::controlTimerCallback()
     pos_ok = std::abs(error_deg) <= bldc_posvel_position_tolerance_deg_;
     vel_ok = std::abs(current_vel_rad) <= bldc_posvel_velocity_tolerance_rad_s_;
 
+    RCLCPP_INFO_THROTTLE(
+      this->get_logger(),
+      *this->get_clock(),
+      500,
+      "BLDC control motor=%d current_raw=%.3f target=%.3f error_wrapped=%.3f "
+      "v_fb=%.3f desired_v=%.3f pos_ok=%d vel_ok=%d",
+      active_motor_id_,
+      current_angle_deg_raw,
+      target_angle_deg_,
+      error_deg,
+      current_vel_rad,
+      desired_v_cmd,
+      pos_ok,
+      vel_ok);
+
     if (pos_ok && vel_ok) {
-      // settle 구간에 처음 들어왔을 때만 stop 명령을 보낸다.
-      // 이전 코드처럼 settle 동안 매 2ms마다 0 명령을 반복 publish하지 않는다.
       if (!settle_started_) {
         publishBldcStopCmd();
         settle_started_ = true;
@@ -640,9 +649,6 @@ void TransformControllerNode::controlTimerCallback()
 
       if (active_motor_id_ == 1) {
         const double limited_v_cmd = applyBldcSpeedRateLimit(1, desired_v_cmd, dt);
-
-        // active motor에만 명령을 보낸다.
-        // motor 2에 매 루프마다 0 명령을 보내지 않는다.
         publishBldcSpeedCmd(1, limited_v_cmd);
 
         RCLCPP_INFO_THROTTLE(
@@ -656,9 +662,6 @@ void TransformControllerNode::controlTimerCallback()
 
       } else if (active_motor_id_ == 2) {
         const double limited_v_cmd = applyBldcSpeedRateLimit(2, desired_v_cmd, dt);
-
-        // active motor에만 명령을 보낸다.
-        // motor 1에 매 루프마다 0 명령을 보내지 않는다.
         publishBldcSpeedCmd(2, limited_v_cmd);
 
         RCLCPP_INFO_THROTTLE(
@@ -671,22 +674,6 @@ void TransformControllerNode::controlTimerCallback()
           dt);
       }
     }
-
-    RCLCPP_INFO_THROTTLE(
-      this->get_logger(),
-      *this->get_clock(),
-      500,
-      "BLDC pos-vel PD control motor=%d current=%.3f target=%.3f error=%.3f "
-      "v_fb=%.3f kp=%.3f kd=%.3f pos_ok=%d vel_ok=%d",
-      active_motor_id_,
-      current_angle_deg_raw,
-      target_angle_deg_,
-      error_deg,
-      current_vel_rad,
-      bldc_posvel_kp_,
-      bldc_posvel_kd_,
-      pos_ok,
-      vel_ok);
 
   } else if (active_motor_type_ == MOTOR_TYPE_DXL) {
     const double wrap_range_deg = getWrapRangeDegForMotor(active_motor_id_);

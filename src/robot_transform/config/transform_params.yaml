@@ -9,7 +9,8 @@ transform_manager_node:
     motor2_joint_name: "right_wheel_joint"
     motor3_joint_name: "motor_3_joint"
     motor4_joint_name: "motor_4_joint"
-
+    
+    bldc_wrap_turns: 4.0
     dxl_wrap_turns: 3.0
 
 transform_controller_node:
@@ -41,6 +42,7 @@ transform_controller_node:
     motor4_joint_name: "motor_4_joint"
 
     bldc_wrap_turns: 4.0
+    bldc_posvel_kd: 0.15
     dxl_wrap_turns: 3.0
 
     # Outer position loop:

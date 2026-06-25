@@ -40,6 +40,7 @@ private:
 
   double getMotorAngleDeg(int motor_id) const;
   double getMotorVelocityRad(int motor_id) const;
+
   double wrapToRangeDeg(double x, double range) const;
   double shortestWrappedErrorDeg(double current, double target, double range) const;
   double getWrapRangeDegForMotor(int motor_id) const;
@@ -64,7 +65,6 @@ private:
 
   int active_motor_id_;
   int active_motor_type_;
-
   double target_angle_deg_;
   double timeout_sec_;
   int retry_count_;
@@ -108,7 +108,6 @@ private:
   double bldc_wrap_range_deg_;
   double dxl_wrap_range_deg_;
 
-  // BLDC velocity-based position control parameters
   double bldc_posvel_kp_;
   double bldc_posvel_kd_;
   double bldc_posvel_max_vel_rad_s_;
@@ -117,14 +116,10 @@ private:
   double bldc_posvel_velocity_tolerance_rad_s_;
   double bldc_posvel_accel_limit_rad_s2_;
   double bldc_posvel_jerk_limit_rad_s3_;
-
-  // Optional MIT speed damping gain.
-  // Default 0.0 keeps the previous behavior.
   double bldc_mit_speed_kd_;
 
   double last_bldc_speed_cmd_1_;
   double last_bldc_speed_cmd_2_;
-
   double last_bldc_accel_cmd_1_;
   double last_bldc_accel_cmd_2_;
 

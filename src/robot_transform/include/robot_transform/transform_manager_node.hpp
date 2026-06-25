@@ -59,6 +59,11 @@ private:
   double wrapToRangeDeg(double x, double range) const;
   double shortestWrappedErrorDeg(double current, double target, double range) const;
 
+  double snapToNearest90Deg(double angle_deg) const;
+
+  double wrapBldcZeroPhaseTargetDeg(double target_deg) const;
+  double getNearestBldcZeroPhaseTargetDeg(int motor_id) const;
+
   std::string getJointNameForMotor(int motor_id) const;
   int getMotorTypeForMotor(int motor_id) const;
   double getCurrentMotorAngleDeg(int motor_id) const;
@@ -103,4 +108,10 @@ private:
 
   double dxl_wrap_turns_;
   double dxl_wrap_range_deg_;
+
+  double bldc_wrap_turns_;
+  double bldc_wrap_range_deg_;
+
+  double bldc1_zero_phase_target_deg_;
+  double bldc2_zero_phase_target_deg_;
 };

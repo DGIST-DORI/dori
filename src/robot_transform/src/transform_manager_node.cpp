@@ -33,6 +33,11 @@ constexpr int TRANSFORM_COMPLETED = 209;
 constexpr int TRANSFORM_FAILED_TIMEOUT = 210;
 constexpr int TRANSFORM_FAILED_STEP_ERROR = 211;
 
+// 기어비 1:2 기준.
+// 바퀴 위상 0도는 모터 기준 4π rad마다 반복.
+// 4π rad = 720 deg.
+constexpr double BLDC_ZERO_PHASE_PERIOD_DEG = 720.0;
+
 struct RelativeStep
 {
   int motor_id;
@@ -47,7 +52,9 @@ double radToDeg(double rad)
 double wrapTo360(double deg)
 {
   double y = std::fmod(deg, 360.0);
-  if (y < 0.0) y += 360.0;
+  if (y < 0.0) {
+    y += 360.0;
+  }
   return y;
 }
 }  // namespace
@@ -70,7 +77,11 @@ TransformManagerNode::TransformManagerNode()
   motor3_joint_name_("motor_3_joint"),
   motor4_joint_name_("motor_4_joint"),
   dxl_wrap_turns_(3.0),
-  dxl_wrap_range_deg_(3.0 * 360.0)
+  dxl_wrap_range_deg_(3.0 * 360.0),
+  bldc_wrap_turns_(4.0),
+  bldc_wrap_range_deg_(4.0 * 360.0),
+  bldc1_zero_phase_target_deg_(0.0),
+  bldc2_zero_phase_target_deg_(0.0)
 {
   this->declare_parameter("pose_detect_tolerance_deg", pose_detect_tolerance_deg_);
   this->declare_parameter("default_step_timeout_sec", default_step_timeout_sec_);
@@ -81,7 +92,9 @@ TransformManagerNode::TransformManagerNode()
   this->declare_parameter("motor2_joint_name", motor2_joint_name_);
   this->declare_parameter("motor3_joint_name", motor3_joint_name_);
   this->declare_parameter("motor4_joint_name", motor4_joint_name_);
+
   this->declare_parameter("dxl_wrap_turns", dxl_wrap_turns_);
+  this->declare_parameter("bldc_wrap_turns", bldc_wrap_turns_);
 
   this->get_parameter("pose_detect_tolerance_deg", pose_detect_tolerance_deg_);
   this->get_parameter("default_step_timeout_sec", default_step_timeout_sec_);
@@ -92,9 +105,12 @@ TransformManagerNode::TransformManagerNode()
   this->get_parameter("motor2_joint_name", motor2_joint_name_);
   this->get_parameter("motor3_joint_name", motor3_joint_name_);
   this->get_parameter("motor4_joint_name", motor4_joint_name_);
+
   this->get_parameter("dxl_wrap_turns", dxl_wrap_turns_);
+  this->get_parameter("bldc_wrap_turns", bldc_wrap_turns_);
 
   dxl_wrap_range_deg_ = dxl_wrap_turns_ * 360.0;
+  bldc_wrap_range_deg_ = bldc_wrap_turns_ * 360.0;
 
   tf_request_sub_ = this->create_subscription<std_msgs::msg::Int32>(
     "/transform/request", 20,
@@ -120,71 +136,184 @@ TransformManagerNode::TransformManagerNode()
     "/dxl_joint_states", 20,
     std::bind(&TransformManagerNode::dxlJointStateCallback, this, std::placeholders::_1));
 
-  step_cmd_pub_ = this->create_publisher<robot_msgs::msg::TransformStep>("/transform/step_cmd", 20);
-  tf_status_pub_ = this->create_publisher<std_msgs::msg::Int32>("/transform/status", 20);
-  tf_feedback_pub_ = this->create_publisher<robot_msgs::msg::CommandFeedback>("/transform/command_feedback", 20);
-  transform_pose_pub_ = this->create_publisher<std_msgs::msg::Int32>("/system/transform_pose", 20);
-  error_pub_ = this->create_publisher<robot_msgs::msg::SystemError>("/system/error", 20);
+  step_cmd_pub_ =
+    this->create_publisher<robot_msgs::msg::TransformStep>("/transform/step_cmd", 20);
+
+  tf_status_pub_ =
+    this->create_publisher<std_msgs::msg::Int32>("/transform/status", 20);
+
+  tf_feedback_pub_ =
+    this->create_publisher<robot_msgs::msg::CommandFeedback>("/transform/command_feedback", 20);
+
+  transform_pose_pub_ =
+    this->create_publisher<std_msgs::msg::Int32>("/system/transform_pose", 20);
+
+  error_pub_ =
+    this->create_publisher<robot_msgs::msg::SystemError>("/system/error", 20);
 
   publishTransformStatus(transform_status_);
   publishCurrentPose(current_pose_);
+
+  RCLCPP_INFO(
+    this->get_logger(),
+    "transform_manager_node started. bldc_wrap_range=%.3f deg dxl_wrap_range=%.3f deg",
+    bldc_wrap_range_deg_,
+    dxl_wrap_range_deg_);
 }
 
 double TransformManagerNode::wrapToRangeDeg(double x, double range) const
 {
   double y = std::fmod(x, range);
-  if (y < 0.0) y += range;
+  if (y < 0.0) {
+    y += range;
+  }
   return y;
 }
 
-double TransformManagerNode::shortestWrappedErrorDeg(double current, double target, double range) const
+double TransformManagerNode::shortestWrappedErrorDeg(
+  double current,
+  double target,
+  double range) const
 {
   double err = std::fmod(target - current, range);
-  if (err > range / 2.0) err -= range;
-  if (err < -range / 2.0) err += range;
+
+  if (err > range / 2.0) {
+    err -= range;
+  }
+
+  if (err < -range / 2.0) {
+    err += range;
+  }
+
   return err;
+}
+
+double TransformManagerNode::snapToNearest90Deg(double angle_deg) const
+{
+  /*
+   * DXL은 기구 기준 절대 각도가 중요하므로
+   * 현재값을 그대로 기준으로 쓰지 않고 가장 가까운 90도 격자로 보정한다.
+   *
+   * 예:
+   *   92.8 deg  -> 90 deg
+   *   182.8 deg -> 180 deg
+   *   270.9 deg -> 270 deg
+   *   0.8 deg   -> 0 deg
+   */
+  const double angle_360 = wrapToRangeDeg(angle_deg, 360.0);
+  const double snapped = std::round(angle_360 / 90.0) * 90.0;
+  return wrapToRangeDeg(snapped, 360.0);
+}
+
+double TransformManagerNode::wrapBldcZeroPhaseTargetDeg(double target_deg) const
+{
+  /*
+   * 이 함수는 "초기 0 위상 정렬 target"에만 사용한다.
+   *
+   * BLDC sequence 중에는 720 -> 900 -> 1080처럼
+   * 연속 target을 유지해야 하므로 이 함수를 쓰면 안 된다.
+   */
+  const double half_range = bldc_wrap_range_deg_ / 2.0;
+
+  while (target_deg > half_range) {
+    target_deg -= bldc_wrap_range_deg_;
+  }
+
+  while (target_deg < -half_range) {
+    target_deg += bldc_wrap_range_deg_;
+  }
+
+  return target_deg;
+}
+
+double TransformManagerNode::getNearestBldcZeroPhaseTargetDeg(int motor_id) const
+{
+  const double current_deg = getCurrentMotorAngleDeg(motor_id);
+
+  const double nearest_index = std::round(current_deg / BLDC_ZERO_PHASE_PERIOD_DEG);
+  const double raw_target_deg = nearest_index * BLDC_ZERO_PHASE_PERIOD_DEG;
+  const double target_deg = wrapBldcZeroPhaseTargetDeg(raw_target_deg);
+
+  RCLCPP_INFO(
+    this->get_logger(),
+    "BLDC zero-phase target selected: motor=%d current=%.3f deg raw_target=%.3f deg selected_target=%.3f deg",
+    motor_id,
+    current_deg,
+    raw_target_deg,
+    target_deg);
+
+  return target_deg;
 }
 
 std::string TransformManagerNode::getJointNameForMotor(int motor_id) const
 {
-  if (motor_id == 1) return motor1_joint_name_;
-  if (motor_id == 2) return motor2_joint_name_;
-  if (motor_id == 3) return motor3_joint_name_;
-  if (motor_id == 4) return motor4_joint_name_;
+  if (motor_id == 1) {
+    return motor1_joint_name_;
+  }
+
+  if (motor_id == 2) {
+    return motor2_joint_name_;
+  }
+
+  if (motor_id == 3) {
+    return motor3_joint_name_;
+  }
+
+  if (motor_id == 4) {
+    return motor4_joint_name_;
+  }
+
   return "";
 }
 
 int TransformManagerNode::getMotorTypeForMotor(int motor_id) const
 {
-  if (motor_id == 1 || motor_id == 2) return MOTOR_TYPE_BLDC;
-  if (motor_id == 3 || motor_id == 4) return MOTOR_TYPE_DXL;
+  if (motor_id == 1 || motor_id == 2) {
+    return MOTOR_TYPE_BLDC;
+  }
+
+  if (motor_id == 3 || motor_id == 4) {
+    return MOTOR_TYPE_DXL;
+  }
+
   return 0;
 }
 
 double TransformManagerNode::getCurrentMotorAngleDeg(int motor_id) const
 {
   const std::string joint_name = getJointNameForMotor(motor_id);
-  if (joint_name.empty()) return 0.0;
+
+  if (joint_name.empty()) {
+    return 0.0;
+  }
 
   const auto it = joint_position_deg_map_.find(joint_name);
   if (it != joint_position_deg_map_.end()) {
     return it->second;
   }
+
   return 0.0;
 }
 
-void TransformManagerNode::bldcJointStateCallback(const sensor_msgs::msg::JointState::SharedPtr msg)
+void TransformManagerNode::bldcJointStateCallback(
+  const sensor_msgs::msg::JointState::SharedPtr msg)
 {
   for (std::size_t i = 0; i < msg->name.size(); ++i) {
-    if (i >= msg->position.size()) continue;
+    if (i >= msg->position.size()) {
+      continue;
+    }
+
     joint_position_deg_map_[msg->name[i]] = radToDeg(msg->position[i]);
   }
 }
 
-void TransformManagerNode::dxlJointStateCallback(const sensor_msgs::msg::JointState::SharedPtr msg)
+void TransformManagerNode::dxlJointStateCallback(
+  const sensor_msgs::msg::JointState::SharedPtr msg)
 {
   for (std::size_t i = 0; i < msg->name.size(); ++i) {
-    if (i >= msg->position.size()) continue;
+    if (i >= msg->position.size()) {
+      continue;
+    }
 
     const double angle_deg = radToDeg(msg->position[i]);
     joint_position_deg_map_[msg->name[i]] = angle_deg;
@@ -204,6 +333,17 @@ void TransformManagerNode::publishStep(const StepCommandData & step)
   msg.target_angle_deg = step.target_angle_deg;
   msg.timeout_sec = step.timeout_sec;
   msg.retry_count = step.retry_count;
+
+  RCLCPP_INFO(
+    this->get_logger(),
+    "Publish transform step: index=%zu motor_id=%d motor_type=%d target=%.3f deg timeout=%.3f retry=%d",
+    current_step_index_,
+    msg.motor_id,
+    msg.motor_type,
+    msg.target_angle_deg,
+    msg.timeout_sec,
+    msg.retry_count);
+
   step_cmd_pub_->publish(msg);
 }
 
@@ -214,7 +354,10 @@ void TransformManagerNode::publishTransformStatus(int status)
   tf_status_pub_->publish(msg);
 }
 
-void TransformManagerNode::publishTransformFeedback(bool accepted, int code, const std::string & message)
+void TransformManagerNode::publishTransformFeedback(
+  bool accepted,
+  int code,
+  const std::string & message)
 {
   robot_msgs::msg::CommandFeedback fb;
   fb.source_node = "transform_manager_node";
@@ -258,9 +401,6 @@ int TransformManagerNode::detectPoseFromReferenceMotor() const
     return UNKNOWN;
   }
 
-  // 중요:
-  // pose 판정은 dxl_wrap_turns 기준 1080도가 아니라 360도 기준으로 해야 한다.
-  // 예를 들어 motor4가 359.8도 또는 6.28rad 근처면 실제로는 0도와 같은 A pose다.
   const double angle_360 = wrapToRangeDeg(pose_ref_angle_deg_, 360.0);
 
   const double err_to_a =
@@ -305,8 +445,14 @@ int TransformManagerNode::detectPoseFromReferenceMotor() const
 
 bool TransformManagerNode::isAlreadyTargetPose(int request) const
 {
-  if (request == TF_TO_A && current_pose_ == POSE_A) return true;
-  if (request == TF_TO_B && current_pose_ == POSE_B) return true;
+  if (request == TF_TO_A && current_pose_ == POSE_A) {
+    return true;
+  }
+
+  if (request == TF_TO_B && current_pose_ == POSE_B) {
+    return true;
+  }
+
   return false;
 }
 
@@ -318,18 +464,57 @@ void TransformManagerNode::clearSequence()
 
 void TransformManagerNode::buildReturnBldcToZeroSequence()
 {
-  sequence_.push_back({1, MOTOR_TYPE_BLDC, 0.0, default_step_timeout_sec_, 0});
-  sequence_.push_back({2, MOTOR_TYPE_BLDC, 0.0, default_step_timeout_sec_, 0});
+  bldc1_zero_phase_target_deg_ = getNearestBldcZeroPhaseTargetDeg(1);
+  bldc2_zero_phase_target_deg_ = getNearestBldcZeroPhaseTargetDeg(2);
+
+  sequence_.push_back({
+    1,
+    MOTOR_TYPE_BLDC,
+    bldc1_zero_phase_target_deg_,
+    default_step_timeout_sec_,
+    0
+  });
+
+  sequence_.push_back({
+    2,
+    MOTOR_TYPE_BLDC,
+    bldc2_zero_phase_target_deg_,
+    default_step_timeout_sec_,
+    0
+  });
+
+  RCLCPP_INFO(
+    this->get_logger(),
+    "BLDC zero-phase return sequence built: motor1_target=%.3f deg motor2_target=%.3f deg",
+    bldc1_zero_phase_target_deg_,
+    bldc2_zero_phase_target_deg_);
 }
 
 void TransformManagerNode::buildSequenceToB()
 {
-  // BLDC 1,2는 직전에 0도로 복귀시키므로 indexing sequence는 0도부터 누적
-  // DXL 3,4는 현재 각도부터 상대각 누적 후 0~360으로 wrap
-  double target1 = 0.0;
-  double target2 = 0.0;
-  double target3 = getCurrentMotorAngleDeg(3);
-  double target4 = getCurrentMotorAngleDeg(4);
+  /*
+   * BLDC:
+   *   zero phase 기준에서 상대 target을 계속 누적한다.
+   *   wrap하지 않는다.
+   *
+   * DXL:
+   *   현재 위치를 그대로 기준으로 쓰지 않는다.
+   *   가장 가까운 90도 절대 격자로 snap한 뒤 sequence를 만든다.
+   *   따라서 target은 0, 90, 180, 270 기준으로 생성된다.
+   */
+  double target1 = bldc1_zero_phase_target_deg_;
+  double target2 = bldc2_zero_phase_target_deg_;
+
+  double target3 = snapToNearest90Deg(getCurrentMotorAngleDeg(3));
+  double target4 = snapToNearest90Deg(getCurrentMotorAngleDeg(4));
+
+  RCLCPP_INFO(
+    this->get_logger(),
+    "DXL absolute-grid start for TO_B: motor3_current=%.3f snapped=%.3f motor4_current=%.3f snapped=%.3f",
+    getCurrentMotorAngleDeg(3),
+    target3,
+    getCurrentMotorAngleDeg(4),
+    target4);
 
   const std::vector<RelativeStep> rel_b = {
     {3, -90.0}, {4, -90.0}, {1,  180.0}, {3, -90.0}, {2, -180.0},
@@ -368,13 +553,23 @@ void TransformManagerNode::buildSequenceToB()
 
 void TransformManagerNode::buildSequenceToA()
 {
-  // A로 복귀할 때는 B sequence의 역순 + 부호 반전
-  // BLDC 1,2는 직전에 0도로 복귀시키므로 indexing sequence는 0도부터 누적
-  // DXL 3,4는 현재 각도부터 상대각 누적 후 0~360으로 wrap
-  double target1 = 0.0;
-  double target2 = 0.0;
-  double target3 = getCurrentMotorAngleDeg(3);
-  double target4 = getCurrentMotorAngleDeg(4);
+  /*
+   * A로 복귀할 때도 DXL은 현재 위치 기준 상대각이 아니라
+   * 가장 가까운 90도 절대 격자 기준으로 시작한다.
+   */
+  double target1 = bldc1_zero_phase_target_deg_;
+  double target2 = bldc2_zero_phase_target_deg_;
+
+  double target3 = snapToNearest90Deg(getCurrentMotorAngleDeg(3));
+  double target4 = snapToNearest90Deg(getCurrentMotorAngleDeg(4));
+
+  RCLCPP_INFO(
+    this->get_logger(),
+    "DXL absolute-grid start for TO_A: motor3_current=%.3f snapped=%.3f motor4_current=%.3f snapped=%.3f",
+    getCurrentMotorAngleDeg(3),
+    target3,
+    getCurrentMotorAngleDeg(4),
+    target4);
 
   const std::vector<RelativeStep> rel_b = {
     {3, -90.0}, {4, -90.0}, {1,  180.0}, {3, -90.0}, {2, -180.0},
@@ -416,12 +611,18 @@ void TransformManagerNode::buildSequenceToA()
 
 void TransformManagerNode::startNextStep()
 {
-  if (paused_) return;
+  if (paused_) {
+    return;
+  }
 
   if (current_step_index_ >= sequence_.size()) {
-    if (target_pose_ == POSE_A) completeTransform(POSE_A);
-    else if (target_pose_ == POSE_B) completeTransform(POSE_B);
-    else failTransform("Unknown target pose at completion", TRANSFORM_FAILED_STEP_ERROR);
+    if (target_pose_ == POSE_A) {
+      completeTransform(POSE_A);
+    } else if (target_pose_ == POSE_B) {
+      completeTransform(POSE_B);
+    } else {
+      failTransform("Unknown target pose at completion", TRANSFORM_FAILED_STEP_ERROR);
+    }
     return;
   }
 
@@ -435,7 +636,10 @@ void TransformManagerNode::delayedStartCallback()
     delayed_start_timer_.reset();
   }
 
-  if (transform_status_ != TF_RUNNING || paused_) return;
+  if (transform_status_ != TF_RUNNING || paused_) {
+    return;
+  }
+
   startNextStep();
 }
 
@@ -477,7 +681,10 @@ void TransformManagerNode::transformRequestCallback(const std_msgs::msg::Int32::
   }
 
   if (isAlreadyTargetPose(msg->data)) {
-    publishTransformFeedback(false, TRANSFORM_ALREADY_IN_TARGET_POSE, "Transform rejected: already in target pose");
+    publishTransformFeedback(
+      false,
+      TRANSFORM_ALREADY_IN_TARGET_POSE,
+      "Transform rejected: already in target pose");
     return;
   }
 
@@ -511,7 +718,9 @@ void TransformManagerNode::transformRequestCallback(const std_msgs::msg::Int32::
 
 void TransformManagerNode::pauseCallback(const std_msgs::msg::Bool::SharedPtr msg)
 {
-  if (!msg->data) return;
+  if (!msg->data) {
+    return;
+  }
 
   paused_ = true;
   transform_status_ = TF_PAUSED;
@@ -521,7 +730,9 @@ void TransformManagerNode::pauseCallback(const std_msgs::msg::Bool::SharedPtr ms
 
 void TransformManagerNode::resumeCallback(const std_msgs::msg::Bool::SharedPtr msg)
 {
-  if (!msg->data) return;
+  if (!msg->data) {
+    return;
+  }
 
   paused_ = false;
   transform_status_ = TF_RUNNING;
@@ -531,6 +742,7 @@ void TransformManagerNode::resumeCallback(const std_msgs::msg::Bool::SharedPtr m
   if (!delayed_start_timer_ && current_step_index_ == 0) {
     const auto delay_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::duration<double>(initial_step_delay_sec_));
+
     delayed_start_timer_ = this->create_wall_timer(
       delay_ms,
       std::bind(&TransformManagerNode::delayedStartCallback, this));
@@ -540,10 +752,16 @@ void TransformManagerNode::resumeCallback(const std_msgs::msg::Bool::SharedPtr m
   startNextStep();
 }
 
-void TransformManagerNode::stepResultCallback(const robot_msgs::msg::TransformStepResult::SharedPtr msg)
+void TransformManagerNode::stepResultCallback(
+  const robot_msgs::msg::TransformStepResult::SharedPtr msg)
 {
-  if (paused_) return;
-  if (transform_status_ != TF_RUNNING) return;
+  if (paused_) {
+    return;
+  }
+
+  if (transform_status_ != TF_RUNNING) {
+    return;
+  }
 
   if (msg->success) {
     current_step_index_++;

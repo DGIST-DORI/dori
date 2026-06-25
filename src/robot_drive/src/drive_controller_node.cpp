@@ -9,6 +9,9 @@ constexpr double kZeroCmdEps = 1e-6;
 constexpr double kZeroSnapEps = 1e-4;
 constexpr double kNormalizedCmdMin = -1.0;
 constexpr double kNormalizedCmdMax = 1.0;
+
+constexpr int TF_RUNNING = 1;
+constexpr int TF_PAUSED = 2;
 }  // namespace
 
 DriveControllerNode::DriveControllerNode()
@@ -30,8 +33,7 @@ DriveControllerNode::DriveControllerNode()
   drive_obstacle_vel_kd_(2.5),
   drive_obstacle_tau_ff_(0.3),
   current_drive_profile_("normal"),
-  transform_active_(false),
-  transform_action_state_value_(2)
+  transform_active_(false)
 {
   this->declare_parameter("wheel_radius", wheel_radius_);
   this->declare_parameter("wheel_separation", wheel_separation_);
@@ -48,10 +50,6 @@ DriveControllerNode::DriveControllerNode()
   this->declare_parameter("drive_obstacle_tau_ff", drive_obstacle_tau_ff_);
   this->declare_parameter("default_drive_profile", current_drive_profile_);
 
-  // /system/action_state에서 변신 상태로 쓰는 값.
-  // 네 로그 기준 transform 중 data: 2였으므로 기본값 2.
-  this->declare_parameter("transform_action_state_value", transform_action_state_value_);
-
   this->get_parameter("wheel_radius", wheel_radius_);
   this->get_parameter("wheel_separation", wheel_separation_);
   this->get_parameter("max_linear_velocity", max_linear_velocity_);
@@ -66,7 +64,6 @@ DriveControllerNode::DriveControllerNode()
   this->get_parameter("drive_obstacle_vel_kd", drive_obstacle_vel_kd_);
   this->get_parameter("drive_obstacle_tau_ff", drive_obstacle_tau_ff_);
   this->get_parameter("default_drive_profile", current_drive_profile_);
-  this->get_parameter("transform_action_state_value", transform_action_state_value_);
 
   drive_cmd_sub_ = this->create_subscription<geometry_msgs::msg::Twist>(
     "/drive/cmd_vel", 20,
@@ -76,9 +73,9 @@ DriveControllerNode::DriveControllerNode()
     "/drive/profile_cmd", 20,
     std::bind(&DriveControllerNode::driveProfileCallback, this, std::placeholders::_1));
 
-  action_state_sub_ = this->create_subscription<std_msgs::msg::Int32>(
-    "/system/action_state", 20,
-    std::bind(&DriveControllerNode::actionStateCallback, this, std::placeholders::_1));
+  transform_status_sub_ = this->create_subscription<std_msgs::msg::Int32>(
+    "/transform/status", 20,
+    std::bind(&DriveControllerNode::transformStatusCallback, this, std::placeholders::_1));
 
   mit_speed_pub_ =
     this->create_publisher<robot_msgs::msg::MitCommand>("/bldc_mit_speed_cmd", 20);
@@ -107,9 +104,8 @@ DriveControllerNode::DriveControllerNode()
 
   RCLCPP_INFO(
     this->get_logger(),
-    "Drive output gate enabled. During /system/action_state == %d, "
-    "drive_controller_node will NOT publish /bldc_mit_speed_cmd.",
-    transform_action_state_value_);
+    "Drive output gate enabled. Drive is blocked only while "
+    "/transform/status is RUNNING(1) or PAUSED(2).");
 }
 
 double DriveControllerNode::clamp(double value, double min_value, double max_value) const
@@ -118,7 +114,10 @@ double DriveControllerNode::clamp(double value, double min_value, double max_val
 }
 
 double DriveControllerNode::applyRateLimit(
-  double target, double current, double rate_limit, double dt) const
+  double target,
+  double current,
+  double rate_limit,
+  double dt) const
 {
   const double max_delta = rate_limit * dt;
   const double delta = target - current;
@@ -132,28 +131,31 @@ double DriveControllerNode::applyRateLimit(
   return target;
 }
 
-void DriveControllerNode::actionStateCallback(const std_msgs::msg::Int32::SharedPtr msg)
+void DriveControllerNode::transformStatusCallback(const std_msgs::msg::Int32::SharedPtr msg)
 {
-  const bool new_transform_active = (msg->data == transform_action_state_value_);
+  const bool new_transform_active =
+    (msg->data == TF_RUNNING || msg->data == TF_PAUSED);
 
-  if (new_transform_active != transform_active_) {
-    transform_active_ = new_transform_active;
+  if (new_transform_active == transform_active_) {
+    return;
+  }
 
-    if (transform_active_) {
-      current_linear_cmd_ = 0.0;
-      current_angular_cmd_ = 0.0;
+  transform_active_ = new_transform_active;
 
-      RCLCPP_WARN(
-        this->get_logger(),
-        "Transform action detected. Drive output is now blocked. "
-        "No zero speed command will be continuously published by drive_controller_node.");
-    } else {
-      last_cmd_time_ = this->now();
+  if (transform_active_) {
+    current_linear_cmd_ = 0.0;
+    current_angular_cmd_ = 0.0;
 
-      RCLCPP_INFO(
-        this->get_logger(),
-        "Transform action ended. Drive output is now enabled.");
-    }
+    RCLCPP_WARN(
+      this->get_logger(),
+      "Transform status is RUNNING/PAUSED. Drive output is now blocked. "
+      "No zero speed command will be continuously published by drive_controller_node.");
+  } else {
+    last_cmd_time_ = this->now();
+
+    RCLCPP_INFO(
+      this->get_logger(),
+      "Transform status is not RUNNING/PAUSED. Drive output is now enabled.");
   }
 }
 
@@ -223,11 +225,14 @@ void DriveControllerNode::driveProfileCallback(const std_msgs::msg::String::Shar
 void DriveControllerNode::driveCmdCallback(const geometry_msgs::msg::Twist::SharedPtr msg)
 {
   /*
-   * 핵심 수정:
    * 변신 중에는 drive_controller_node가 /bldc_mit_speed_cmd에 아무것도 publish하지 않는다.
    *
    * 여기서 0 명령을 보내면 transform_controller_node의 속도 명령 사이에
    * drive_controller_node의 v_des=0.0이 섞여 들어간다.
+   *
+   * 차단 기준은 /system/action_state가 아니라 /transform/status다.
+   * RUNNING(1), PAUSED(2)일 때만 drive를 막고,
+   * DONE(3), FAILED(4), IDLE(0)에서는 drive를 허용한다.
    */
   if (transform_active_) {
     current_linear_cmd_ = 0.0;
