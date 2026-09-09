@@ -1,0 +1,120 @@
+{
+  "trial_report": {
+    "ok": false,
+    "mounting_verified": false,
+    "steps": [
+      {
+        "name": "positive_yaw",
+        "stopped": true
+      },
+      {
+        "name": "negative_yaw",
+        "stopped": false
+      }
+    ],
+    "error": "RuntimeError('Wheels did not stop')",
+    "stopped": false,
+    "final_mode": 0
+  },
+  "steps": [
+    {
+      "phase": "positive_yaw",
+      "laser_after_to_before": [
+        {
+          "yaw_rad": 7.586401601164614e-05,
+          "translation_m": [
+            0.000796457504090567,
+            0.0006607397289074597
+          ],
+          "rmse_m": 0.017396011522345125,
+          "inlier_fraction": 1.0
+        },
+        {
+          "yaw_rad": 4.828417507943834e-05,
+          "translation_m": [
+            0.0005493208578813988,
+            0.00042402704478365996
+          ],
+          "rmse_m": 0.020523189425407682,
+          "inlier_fraction": 0.9954337899543378
+        },
+        {
+          "yaw_rad": 3.305859417817304e-05,
+          "translation_m": [
+            0.00012072380770067505,
+            0.0005582229432212993
+          ],
+          "rmse_m": 0.02090100607766276,
+          "inlier_fraction": 0.9954441913439636
+        }
+      ],
+      "gyro_integral_xyz_rad": [
+        -0.00262792818830811,
+        0.0012724287455252513,
+        0.0005501319442220895
+      ],
+      "gyro_about_gravity_rad": -0.00035072989919456265,
+      "gyro_peak_bias_corrected_rad_s": [
+        0.00799768649952722,
+        0.005211971661865286,
+        0.0032339844755236344
+      ],
+      "odom_delta_yaw_rad": 0.18630647687036425
+    },
+    {
+      "phase": "negative_yaw",
+      "laser_after_to_before": [
+        {
+          "yaw_rad": 2.1597227189758068e-05,
+          "translation_m": [
+            0.0003006347617135252,
+            -0.00028263030272055514
+          ],
+          "rmse_m": 0.021008816993443546,
+          "inlier_fraction": 0.9930715935334873
+        },
+        {
+          "yaw_rad": -6.987935946413393e-05,
+          "translation_m": [
+            0.00015899647915464384,
+            -0.0014688317299065374
+          ],
+          "rmse_m": 0.023235674528278318,
+          "inlier_fraction": 0.9977578475336323
+        },
+        {
+          "yaw_rad": -2.4091715280690042e-05,
+          "translation_m": [
+            4.538015311782097e-06,
+            -0.001589483719515359
+          ],
+          "rmse_m": 0.023127172845863367,
+          "inlier_fraction": 0.9977116704805492
+        }
+      ],
+      "gyro_integral_xyz_rad": [
+        -0.0032734820317206047,
+        0.0008279522214990206,
+        0.0007778652246981352
+      ],
+      "gyro_about_gravity_rad": -0.0006164581673742379,
+      "gyro_peak_bias_corrected_rad_s": [
+        0.009063541620427638,
+        0.0045458143929640905,
+        0.002834286623524413
+      ],
+      "odom_delta_yaw_rad": -0.31213650575139734
+    }
+  ],
+  "baseline_bias_rad_s": [
+    0.0021257880305800983,
+    -0.0026199657364359874,
+    -0.00074535440168996
+  ],
+  "sensor_up_assuming_specific_force": [
+    -0.01839795438065459,
+    0.11573383327475308,
+    -0.9931098605442095
+  ],
+  "mounting_verified": false
+}

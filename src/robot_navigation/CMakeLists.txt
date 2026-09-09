@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.8)
+project(robot_navigation)
+find_package(ament_cmake REQUIRED)
+install(DIRECTORY launch config scripts maps keyboard_Drive DESTINATION share/${PROJECT_NAME} USE_SOURCE_PERMISSIONS)
+install(FILES prompt.txt prompt_dgist.txt DESTINATION share/${PROJECT_NAME})
+ament_package()

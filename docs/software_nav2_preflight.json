@@ -1,0 +1,15 @@
+{
+  "counts": {
+    "/odom": 282,
+    "/dynamic_joint_states": 246,
+    "/joint_states": 246,
+    "/scan": 51
+  },
+  "stage": "navigation",
+  "odom_tf_position_error_m": 0.0,
+  "odom_tf_owners": [
+    "wheel_odometry_node"
+  ],
+  "ok": true,
+  "errors": []
+}

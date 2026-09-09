@@ -1,0 +1,66 @@
+{
+  "physical_condition": "User authorized commands with wheels raised and robot isolated",
+  "steps": [
+    {
+      "command": "forward",
+      "command_v_m_s": 0.06,
+      "command_w_rad_s": 0.0,
+      "wheel_delta_rad": [
+        0.0015340041949318817,
+        0.005752515730996777
+      ],
+      "odom_forward_m": 0.0008525981331839877,
+      "odom_yaw_rad": 0.0053648461926041335,
+      "encoder_distance_m": 0.000852522831333653,
+      "encoder_yaw_rad": 0.005364846192604269,
+      "mean_v_m_s": 0.0004902830658332296,
+      "mean_w_rad_s": -0.0008688043787380674,
+      "direction_ok": true,
+      "odom_encoder_consistent": true
+    },
+    {
+      "command": "reverse",
+      "command_v_m_s": -0.06,
+      "command_w_rad_s": 0.0,
+      "wheel_delta_rad": [
+        -0.0790012160389999,
+        -0.08743823911112614
+      ],
+      "odom_forward_m": -0.019473471718681617,
+      "odom_yaw_rad": -0.010729692385203826,
+      "encoder_distance_m": -0.019473416252564747,
+      "encoder_yaw_rad": -0.010729692385204019,
+      "mean_v_m_s": -0.0016322366417101208,
+      "mean_w_rad_s": -0.0044196638850963164,
+      "direction_ok": true,
+      "odom_encoder_consistent": true
+    },
+    {
+      "command": "left_turn",
+      "command_v_m_s": 0.0,
+      "command_w_rad_s": 0.35,
+      "wheel_delta_rad": [
+        0.0,
+        0.08053522023393356
+      ],
+      "odom_forward_m": 0.009394594043024318,
+      "odom_yaw_rad": 0.10241979094967513,
+      "encoder_distance_m": 0.009422620767370226,
+      "encoder_yaw_rad": 0.10241979094967638,
+      "mean_v_m_s": 0.002718758620829694,
+      "mean_w_rad_s": 0.03398884434843581,
+      "direction_ok": false,
+      "odom_encoder_consistent": true
+    }
+  ],
+  "runtime_parameters": {
+    "max_linear_velocity": 1.72,
+    "max_angular_velocity": 7.0,
+    "wheel_radius": 0.234,
+    "wheel_separation": 0.184
+  },
+  "ok": false,
+  "error": "Direction or encoder/odom consistency failed",
+  "stopped_before_mode_restore": true,
+  "final_control_mode": 0
+}

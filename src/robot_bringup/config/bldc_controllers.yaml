@@ -1,0 +1,105 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 100
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    # ==========================================================
+    # Normal driving controllers
+    # velocity + effort
+    # -> hardware SPEED_LOOP
+    # ==========================================================
+
+    left_bldc_drive_controller:
+      type: forward_command_controller/MultiInterfaceForwardCommandController
+
+    right_bldc_drive_controller:
+      type: forward_command_controller/MultiInterfaceForwardCommandController
+
+    # ==========================================================
+    # Friction experiment controllers
+    # effort only
+    # -> hardware CURRENT_LOOP
+    # ==========================================================
+
+    left_bldc_effort_controller:
+      type: forward_command_controller/MultiInterfaceForwardCommandController
+
+    right_bldc_effort_controller:
+      type: forward_command_controller/MultiInterfaceForwardCommandController
+
+    # ==========================================================
+    # Position controller
+    # ==========================================================
+
+    bldc_position_controller:
+      type: position_controllers/JointGroupPositionController
+
+
+# ============================================================
+# Normal drive
+# ============================================================
+
+left_bldc_drive_controller:
+  ros__parameters:
+    joint: left_wheel_joint
+
+    interface_names:
+      - velocity
+      - effort
+
+
+right_bldc_drive_controller:
+  ros__parameters:
+    joint: right_wheel_joint
+
+    interface_names:
+      - velocity
+      - effort
+
+
+# ============================================================
+# Effort-only friction test
+#
+# 중요:
+# effort 하나만 claim
+#
+# system.cpp:
+# joint_interfaces == {"effort"}
+# -> CURRENT_LOOP
+#
+# MIT:
+# kp = 0
+# kd = 0
+# v_des = 0
+# tau_ff = effort command
+# ============================================================
+
+left_bldc_effort_controller:
+  ros__parameters:
+    joint: left_wheel_joint
+
+    interface_names:
+      - effort
+
+
+right_bldc_effort_controller:
+  ros__parameters:
+    joint: right_wheel_joint
+
+    interface_names:
+      - effort
+
+
+# ============================================================
+# Position
+# ============================================================
+
+bldc_position_controller:
+  ros__parameters:
+    joints:
+      - left_wheel_joint
+      - right_wheel_joint
+
+    interface_name: position

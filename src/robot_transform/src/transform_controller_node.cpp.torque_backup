@@ -1,0 +1,1172 @@
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <memory>
+#include <string>
+#include <unordered_map>
+
+#include "rclcpp/rclcpp.hpp"
+
+#include "sensor_msgs/msg/joint_state.hpp"
+#include "std_msgs/msg/float64_multi_array.hpp"
+#include "std_msgs/msg/string.hpp"
+
+#include "robot_msgs/msg/system_error.hpp"
+#include "robot_msgs/msg/transform_step.hpp"
+#include "robot_msgs/msg/transform_step_result.hpp"
+
+using namespace std::chrono_literals;
+
+namespace
+{
+constexpr int MOTOR_TYPE_BLDC = 1;
+constexpr int MOTOR_TYPE_DXL = 2;
+
+double radToDeg(double rad)
+{
+  return rad * 180.0 / M_PI;
+}
+
+double wrapToRangeDeg(double x, double range)
+{
+  double y = std::fmod(x, range);
+  if (y < 0.0) {
+    y += range;
+  }
+  return y;
+}
+
+double shortestWrappedErrorDeg(double current, double target, double range)
+{
+  double err = std::fmod(target - current, range);
+
+  if (err > range / 2.0) {
+    err -= range;
+  }
+
+  if (err < -range / 2.0) {
+    err += range;
+  }
+
+  return err;
+}
+
+double clampValue(double value, double min_value, double max_value)
+{
+  return std::max(min_value, std::min(value, max_value));
+}
+}  // namespace
+
+
+class TransformControllerNode : public rclcpp::Node
+{
+public:
+  TransformControllerNode()
+  : Node("transform_controller_node")
+  {
+    // ==========================================================
+    // Generic transform parameters
+    // ==========================================================
+
+    position_tolerance_deg_ =
+      declare_parameter<double>("position_tolerance_deg", 1.0);
+
+    velocity_tolerance_rad_s_ =
+      declare_parameter<double>("velocity_tolerance_rad_s", 0.02);
+
+    settle_time_sec_ =
+      declare_parameter<double>("settle_time_sec", 0.5);
+
+    // Kept for DXL/profile compatibility.
+    transform_precise_pos_kp_ =
+      declare_parameter<double>("transform_precise_pos_kp", 45.0);
+    transform_precise_pos_kd_ =
+      declare_parameter<double>("transform_precise_pos_kd", 2.2);
+    transform_precise_tau_ff_ =
+      declare_parameter<double>("transform_precise_tau_ff", 0.0);
+
+    transform_fast_pos_kp_ =
+      declare_parameter<double>("transform_fast_pos_kp", 30.0);
+    transform_fast_pos_kd_ =
+      declare_parameter<double>("transform_fast_pos_kd", 1.2);
+    transform_fast_tau_ff_ =
+      declare_parameter<double>("transform_fast_tau_ff", 0.0);
+
+    transform_soft_pos_kp_ =
+      declare_parameter<double>("transform_soft_pos_kp", 20.0);
+    transform_soft_pos_kd_ =
+      declare_parameter<double>("transform_soft_pos_kd", 0.8);
+    transform_soft_tau_ff_ =
+      declare_parameter<double>("transform_soft_tau_ff", 0.0);
+
+    current_transform_profile_ =
+      declare_parameter<std::string>(
+        "default_transform_profile",
+        "precise");
+
+    test_auto_success_ =
+      declare_parameter<bool>("test_auto_success", false);
+
+    test_auto_success_delay_sec_ =
+      declare_parameter<double>(
+        "test_auto_success_delay_sec",
+        0.6);
+
+    // ==========================================================
+    // Joint names / wrapping
+    // ==========================================================
+
+    motor1_joint_name_ =
+      declare_parameter<std::string>(
+        "motor1_joint_name",
+        "left_wheel_joint");
+
+    motor2_joint_name_ =
+      declare_parameter<std::string>(
+        "motor2_joint_name",
+        "right_wheel_joint");
+
+    motor3_joint_name_ =
+      declare_parameter<std::string>(
+        "motor3_joint_name",
+        "motor_3_joint");
+
+    motor4_joint_name_ =
+      declare_parameter<std::string>(
+        "motor4_joint_name",
+        "motor_4_joint");
+
+    bldc_wrap_turns_ =
+      declare_parameter<double>("bldc_wrap_turns", 4.0);
+
+    dxl_wrap_turns_ =
+      declare_parameter<double>("dxl_wrap_turns", 3.0);
+
+    bldc_wrap_range_deg_ = bldc_wrap_turns_ * 360.0;
+    dxl_wrap_range_deg_ = dxl_wrap_turns_ * 360.0;
+
+    // ==========================================================
+    // BLDC transform controller
+    //
+    // NEW ARCHITECTURE:
+    // We DO NOT use /bldc_mit_speed_cmd.
+    // We DO NOT use bldc_command_bridge_node.
+    // We DO NOT switch to the old velocity+effort drive controller.
+    //
+    // BLDC transform is performed directly through the
+    // effort-only controllers that are already active.
+    //
+    // position error
+    //   -> desired velocity
+    //   -> accel/jerk limit
+    //   -> velocity error
+    //   -> torque command
+    // ==========================================================
+
+    bldc_posvel_kp_ =
+      declare_parameter<double>("bldc_posvel_kp", 1.3);
+
+    bldc_posvel_kd_ =
+      declare_parameter<double>("bldc_posvel_kd", 0.15);
+
+    bldc_posvel_max_vel_rad_s_ =
+      declare_parameter<double>(
+        "bldc_posvel_max_vel_rad_s",
+        6.0);
+
+    bldc_posvel_min_vel_rad_s_ =
+      declare_parameter<double>(
+        "bldc_posvel_min_vel_rad_s",
+        0.0);
+
+    bldc_posvel_position_tolerance_deg_ =
+      declare_parameter<double>(
+        "bldc_posvel_position_tolerance_deg",
+        3.0);
+
+    bldc_posvel_velocity_tolerance_rad_s_ =
+      declare_parameter<double>(
+        "bldc_posvel_velocity_tolerance_rad_s",
+        0.35);
+
+    bldc_posvel_accel_limit_rad_s2_ =
+      declare_parameter<double>(
+        "bldc_posvel_accel_limit_rad_s2",
+        3.0);
+
+    bldc_posvel_jerk_limit_rad_s3_ =
+      declare_parameter<double>(
+        "bldc_posvel_jerk_limit_rad_s3",
+        20.0);
+
+    // New inner velocity-to-torque gain.
+    bldc_transform_speed_kp_ =
+      declare_parameter<double>(
+        "bldc_transform_speed_kp",
+        2.0);
+
+    // Optional integral to help overcome large internal friction.
+    bldc_transform_speed_ki_ =
+      declare_parameter<double>(
+        "bldc_transform_speed_ki",
+        0.3);
+
+    bldc_transform_integral_limit_ =
+      declare_parameter<double>(
+        "bldc_transform_integral_limit",
+        4.0);
+
+    bldc_transform_torque_limit_ =
+      declare_parameter<double>(
+        "bldc_transform_torque_limit",
+        8.0);
+
+    bldc_transform_torque_slew_rate_ =
+      declare_parameter<double>(
+        "bldc_transform_torque_slew_rate",
+        20.0);
+
+    // ==========================================================
+    // Sanity
+    // ==========================================================
+
+    bldc_posvel_kp_ = std::max(0.0, bldc_posvel_kp_);
+    bldc_posvel_kd_ = std::max(0.0, bldc_posvel_kd_);
+    bldc_transform_speed_kp_ =
+      std::max(0.0, bldc_transform_speed_kp_);
+    bldc_transform_speed_ki_ =
+      std::max(0.0, bldc_transform_speed_ki_);
+    bldc_transform_integral_limit_ =
+      std::abs(bldc_transform_integral_limit_);
+    bldc_transform_torque_limit_ =
+      std::abs(bldc_transform_torque_limit_);
+    bldc_transform_torque_slew_rate_ =
+      std::abs(bldc_transform_torque_slew_rate_);
+
+    // ==========================================================
+    // Subscribers
+    // ==========================================================
+
+    step_cmd_sub_ =
+      create_subscription<robot_msgs::msg::TransformStep>(
+        "/transform/step_cmd",
+        20,
+        std::bind(
+          &TransformControllerNode::stepCmdCallback,
+          this,
+          std::placeholders::_1));
+
+    bldc_joint_state_sub_ =
+      create_subscription<sensor_msgs::msg::JointState>(
+        "/joint_states",
+        50,
+        std::bind(
+          &TransformControllerNode::bldcJointStateCallback,
+          this,
+          std::placeholders::_1));
+
+    dxl_joint_state_sub_ =
+      create_subscription<sensor_msgs::msg::JointState>(
+        "/dxl_joint_states",
+        50,
+        std::bind(
+          &TransformControllerNode::dxlJointStateCallback,
+          this,
+          std::placeholders::_1));
+
+    transform_profile_sub_ =
+      create_subscription<std_msgs::msg::String>(
+        "/transform/profile_cmd",
+        20,
+        std::bind(
+          &TransformControllerNode::transformProfileCallback,
+          this,
+          std::placeholders::_1));
+
+    // ==========================================================
+    // Publishers
+    // ==========================================================
+
+    step_result_pub_ =
+      create_publisher<robot_msgs::msg::TransformStepResult>(
+        "/transform/step_result",
+        20);
+
+    // Direct effort-only controller output.
+    left_effort_pub_ =
+      create_publisher<std_msgs::msg::Float64MultiArray>(
+        "/left_bldc_effort_controller/commands",
+        20);
+
+    right_effort_pub_ =
+      create_publisher<std_msgs::msg::Float64MultiArray>(
+        "/right_bldc_effort_controller/commands",
+        20);
+
+    dxl_position_pub_ =
+      create_publisher<std_msgs::msg::Float64MultiArray>(
+        "/dxl_position_cmd",
+        20);
+
+    error_pub_ =
+      create_publisher<robot_msgs::msg::SystemError>(
+        "/system/error",
+        20);
+
+    // ==========================================================
+    // Timer
+    // ==========================================================
+
+    control_timer_ =
+      create_wall_timer(
+        5ms,
+        std::bind(
+          &TransformControllerNode::controlTimerCallback,
+          this));
+
+    applyTransformProfile(current_transform_profile_);
+
+    RCLCPP_INFO(
+      get_logger(),
+      "transform_controller_node started");
+
+    RCLCPP_INFO(
+      get_logger(),
+      "BLDC transform: direct effort control | "
+      "pos_kp=%.3f pos_d=%.3f max_vel=%.3f "
+      "speed_kp=%.3f speed_ki=%.3f torque_limit=%.3f Nm",
+      bldc_posvel_kp_,
+      bldc_posvel_kd_,
+      bldc_posvel_max_vel_rad_s_,
+      bldc_transform_speed_kp_,
+      bldc_transform_speed_ki_,
+      bldc_transform_torque_limit_);
+  }
+
+private:
+  // ==========================================================
+  // Helpers
+  // ==========================================================
+
+  double getWrapRangeDegForMotor(int motor_id) const
+  {
+    if (motor_id == 1 || motor_id == 2) {
+      return bldc_wrap_range_deg_;
+    }
+    return dxl_wrap_range_deg_;
+  }
+
+  void applyTransformProfile(const std::string & profile_name)
+  {
+    if (profile_name == "precise") {
+      mit_position_kp_ = transform_precise_pos_kp_;
+      mit_position_kd_ = transform_precise_pos_kd_;
+      mit_position_tau_ff_ = transform_precise_tau_ff_;
+      current_transform_profile_ = "precise";
+    } else if (profile_name == "fast") {
+      mit_position_kp_ = transform_fast_pos_kp_;
+      mit_position_kd_ = transform_fast_pos_kd_;
+      mit_position_tau_ff_ = transform_fast_tau_ff_;
+      current_transform_profile_ = "fast";
+    } else if (profile_name == "soft") {
+      mit_position_kp_ = transform_soft_pos_kp_;
+      mit_position_kd_ = transform_soft_pos_kd_;
+      mit_position_tau_ff_ = transform_soft_tau_ff_;
+      current_transform_profile_ = "soft";
+    } else {
+      RCLCPP_WARN(
+        get_logger(),
+        "Unknown transform profile: %s",
+        profile_name.c_str());
+    }
+  }
+
+  void transformProfileCallback(
+    const std_msgs::msg::String::SharedPtr msg)
+  {
+    applyTransformProfile(msg->data);
+  }
+
+  // ==========================================================
+  // Output helpers
+  // ==========================================================
+
+  void publishStepResult(
+    bool success,
+    bool timeout,
+    const std::string & message)
+  {
+    robot_msgs::msg::TransformStepResult msg;
+    msg.motor_id = active_motor_id_;
+    msg.success = success;
+    msg.timeout = timeout;
+    msg.position_reached = success;
+    msg.velocity_reached = success;
+    msg.settled = success;
+    msg.actual_angle_deg = getMotorAngleDeg(active_motor_id_);
+    msg.message = message;
+
+    step_result_pub_->publish(msg);
+  }
+
+  void publishBldcEffortCmd(
+    int motor_id,
+    double torque_cmd)
+  {
+    std_msgs::msg::Float64MultiArray msg;
+    msg.data = {torque_cmd};
+
+    if (motor_id == 1) {
+      left_effort_pub_->publish(msg);
+    } else if (motor_id == 2) {
+      right_effort_pub_->publish(msg);
+    }
+  }
+
+  void publishBldcStopCmd()
+  {
+    publishBldcEffortCmd(1, 0.0);
+    publishBldcEffortCmd(2, 0.0);
+
+    resetBldcLimiter();
+  }
+
+  void publishDxlPositionCmd(
+    int motor_id,
+    double target_deg)
+  {
+    std_msgs::msg::Float64MultiArray msg;
+    msg.data.push_back(static_cast<double>(motor_id));
+    msg.data.push_back(target_deg);
+
+    dxl_position_pub_->publish(msg);
+  }
+
+  // ==========================================================
+  // BLDC limiter
+  // ==========================================================
+
+  double applyBldcSpeedRateLimit(
+    int motor_id,
+    double desired_v,
+    double dt)
+  {
+    if (dt <= 0.0) {
+      return desired_v;
+    }
+
+    double * last_v = nullptr;
+    double * last_a = nullptr;
+
+    if (motor_id == 1) {
+      last_v = &last_bldc_speed_cmd_1_;
+      last_a = &last_bldc_accel_cmd_1_;
+    } else if (motor_id == 2) {
+      last_v = &last_bldc_speed_cmd_2_;
+      last_a = &last_bldc_accel_cmd_2_;
+    } else {
+      return 0.0;
+    }
+
+    double desired_a =
+      (desired_v - *last_v) / dt;
+
+    desired_a =
+      clampValue(
+        desired_a,
+        -bldc_posvel_accel_limit_rad_s2_,
+        bldc_posvel_accel_limit_rad_s2_);
+
+    const double max_delta_a =
+      bldc_posvel_jerk_limit_rad_s3_ * dt;
+
+    const double delta_a =
+      desired_a - *last_a;
+
+    double limited_a = desired_a;
+
+    if (delta_a > max_delta_a) {
+      limited_a = *last_a + max_delta_a;
+    } else if (delta_a < -max_delta_a) {
+      limited_a = *last_a - max_delta_a;
+    }
+
+    double limited_v =
+      *last_v + limited_a * dt;
+
+    if ((*last_v < desired_v && limited_v > desired_v) ||
+        (*last_v > desired_v && limited_v < desired_v))
+    {
+      limited_v = desired_v;
+      limited_a = 0.0;
+    }
+
+    *last_v = limited_v;
+    *last_a = limited_a;
+
+    return limited_v;
+  }
+
+  double applyTorqueSlewLimit(
+    int motor_id,
+    double desired_tau,
+    double dt)
+  {
+    double * previous_tau = nullptr;
+
+    if (motor_id == 1) {
+      previous_tau = &last_bldc_torque_cmd_1_;
+    } else if (motor_id == 2) {
+      previous_tau = &last_bldc_torque_cmd_2_;
+    } else {
+      return 0.0;
+    }
+
+    const double max_delta =
+      bldc_transform_torque_slew_rate_ * dt;
+
+    const double delta =
+      clampValue(
+        desired_tau - *previous_tau,
+        -max_delta,
+        max_delta);
+
+    *previous_tau += delta;
+    return *previous_tau;
+  }
+
+  double & getIntegralForMotor(int motor_id)
+  {
+    if (motor_id == 1) {
+      return bldc_speed_integral_1_;
+    }
+    return bldc_speed_integral_2_;
+  }
+
+  void resetBldcLimiter()
+  {
+    last_bldc_speed_cmd_1_ = 0.0;
+    last_bldc_speed_cmd_2_ = 0.0;
+
+    last_bldc_accel_cmd_1_ = 0.0;
+    last_bldc_accel_cmd_2_ = 0.0;
+
+    last_bldc_torque_cmd_1_ = 0.0;
+    last_bldc_torque_cmd_2_ = 0.0;
+
+    bldc_speed_integral_1_ = 0.0;
+    bldc_speed_integral_2_ = 0.0;
+
+    has_last_control_time_ = false;
+  }
+
+  // ==========================================================
+  // Feedback access
+  // ==========================================================
+
+  double getMotorAngleDeg(int motor_id) const
+  {
+    std::string joint_name;
+
+    if (motor_id == 1) {
+      joint_name = motor1_joint_name_;
+    } else if (motor_id == 2) {
+      joint_name = motor2_joint_name_;
+    } else if (motor_id == 3) {
+      joint_name = motor3_joint_name_;
+    } else if (motor_id == 4) {
+      joint_name = motor4_joint_name_;
+    } else {
+      return 0.0;
+    }
+
+    const auto it =
+      joint_position_deg_map_.find(joint_name);
+
+    if (it != joint_position_deg_map_.end()) {
+      return it->second;
+    }
+
+    return 0.0;
+  }
+
+  double getMotorVelocityRad(int motor_id) const
+  {
+    std::string joint_name;
+
+    if (motor_id == 1) {
+      joint_name = motor1_joint_name_;
+    } else if (motor_id == 2) {
+      joint_name = motor2_joint_name_;
+    } else if (motor_id == 3) {
+      joint_name = motor3_joint_name_;
+    } else if (motor_id == 4) {
+      joint_name = motor4_joint_name_;
+    } else {
+      return 0.0;
+    }
+
+    const auto it =
+      joint_velocity_rad_map_.find(joint_name);
+
+    if (it != joint_velocity_rad_map_.end()) {
+      return it->second;
+    }
+
+    return 0.0;
+  }
+
+  // ==========================================================
+  // Step callback
+  // ==========================================================
+
+  void stepCmdCallback(
+    const robot_msgs::msg::TransformStep::SharedPtr msg)
+  {
+    if (step_active_) {
+      RCLCPP_WARN(
+        get_logger(),
+        "Rejected new step because previous step is active. "
+        "active_motor=%d new_motor=%d",
+        active_motor_id_,
+        msg->motor_id);
+      return;
+    }
+
+    active_motor_id_ = msg->motor_id;
+    active_motor_type_ = msg->motor_type;
+    target_angle_deg_ = msg->target_angle_deg;
+    timeout_sec_ = msg->timeout_sec;
+    retry_count_ = msg->retry_count;
+
+    step_start_time_ = this->now();
+    settle_start_time_ = this->now();
+    settle_started_ = false;
+    step_active_ = true;
+
+    if (active_motor_type_ == MOTOR_TYPE_BLDC) {
+      active_bldc_posvel_ = true;
+
+      // Both effort commands must be zero before starting
+      // the selected BLDC transform step.
+      publishBldcStopCmd();
+
+      last_control_time_ = this->now();
+      has_last_control_time_ = true;
+
+      RCLCPP_INFO(
+        get_logger(),
+        "BLDC effort-position step start: "
+        "motor=%d target_deg=%.3f timeout=%.2f",
+        active_motor_id_,
+        target_angle_deg_,
+        timeout_sec_);
+
+    } else if (active_motor_type_ == MOTOR_TYPE_DXL) {
+      active_bldc_posvel_ = false;
+
+      publishDxlPositionCmd(
+        active_motor_id_,
+        target_angle_deg_);
+
+      RCLCPP_INFO(
+        get_logger(),
+        "DXL step command: "
+        "motor=%d target_deg=%.3f timeout=%.2f",
+        active_motor_id_,
+        target_angle_deg_,
+        timeout_sec_);
+
+    } else {
+      active_bldc_posvel_ = false;
+
+      RCLCPP_ERROR(
+        get_logger(),
+        "Invalid motor type: motor_id=%d motor_type=%d",
+        active_motor_id_,
+        active_motor_type_);
+
+      publishStepResult(
+        false,
+        false,
+        "Invalid motor type");
+
+      step_active_ = false;
+    }
+  }
+
+  // ==========================================================
+  // Joint state callbacks
+  // ==========================================================
+
+  void bldcJointStateCallback(
+    const sensor_msgs::msg::JointState::SharedPtr msg)
+  {
+    for (std::size_t i = 0; i < msg->name.size(); ++i) {
+      if (i < msg->position.size()) {
+        joint_position_deg_map_[msg->name[i]] =
+          radToDeg(msg->position[i]);
+      }
+
+      if (i < msg->velocity.size()) {
+        joint_velocity_rad_map_[msg->name[i]] =
+          msg->velocity[i];
+      }
+    }
+  }
+
+  void dxlJointStateCallback(
+    const sensor_msgs::msg::JointState::SharedPtr msg)
+  {
+    for (std::size_t i = 0; i < msg->name.size(); ++i) {
+      if (i < msg->position.size()) {
+        joint_position_deg_map_[msg->name[i]] =
+          radToDeg(msg->position[i]);
+      }
+
+      if (i < msg->velocity.size()) {
+        joint_velocity_rad_map_[msg->name[i]] =
+          msg->velocity[i];
+      }
+    }
+  }
+
+  // ==========================================================
+  // Main transform control timer
+  // ==========================================================
+
+  void controlTimerCallback()
+  {
+    if (!step_active_) {
+      return;
+    }
+
+    const rclcpp::Time now = this->now();
+
+    const double elapsed =
+      (now - step_start_time_).seconds();
+
+    double dt = 0.005;
+
+    if (has_last_control_time_) {
+      dt = (now - last_control_time_).seconds();
+    }
+
+    if (dt <= 0.0 || dt > 0.05) {
+      dt = 0.005;
+    }
+
+    last_control_time_ = now;
+    has_last_control_time_ = true;
+
+    // ----------------------------------------------------------
+    // Test auto-success
+    // ----------------------------------------------------------
+
+    if (test_auto_success_) {
+      if (elapsed >= test_auto_success_delay_sec_) {
+        if (active_motor_type_ == MOTOR_TYPE_BLDC) {
+          publishBldcStopCmd();
+        }
+
+        publishStepResult(
+          true,
+          false,
+          "Step completed by test_auto_success");
+
+        step_active_ = false;
+        active_bldc_posvel_ = false;
+      }
+      return;
+    }
+
+    const double current_angle_deg_raw =
+      getMotorAngleDeg(active_motor_id_);
+
+    const double current_vel_rad =
+      getMotorVelocityRad(active_motor_id_);
+
+    double error_deg = 0.0;
+    bool pos_ok = false;
+    bool vel_ok = false;
+
+    // ==========================================================
+    // BLDC
+    // ==========================================================
+
+    if (active_motor_type_ == MOTOR_TYPE_BLDC &&
+        active_bldc_posvel_)
+    {
+      error_deg =
+        shortestWrappedErrorDeg(
+          current_angle_deg_raw,
+          target_angle_deg_,
+          bldc_wrap_range_deg_);
+
+      const double error_rad =
+        error_deg * M_PI / 180.0;
+
+      // Outer position loop -> desired wheel velocity.
+      double desired_v_cmd =
+        bldc_posvel_kp_ * error_rad
+        - bldc_posvel_kd_ * current_vel_rad;
+
+      desired_v_cmd =
+        clampValue(
+          desired_v_cmd,
+          -bldc_posvel_max_vel_rad_s_,
+          bldc_posvel_max_vel_rad_s_);
+
+      if (std::abs(error_deg) >
+            bldc_posvel_position_tolerance_deg_ &&
+          std::abs(desired_v_cmd) <
+            bldc_posvel_min_vel_rad_s_)
+      {
+        desired_v_cmd =
+          (error_rad >= 0.0)
+          ? bldc_posvel_min_vel_rad_s_
+          : -bldc_posvel_min_vel_rad_s_;
+      }
+
+      pos_ok =
+        std::abs(error_deg) <=
+        bldc_posvel_position_tolerance_deg_;
+
+      vel_ok =
+        std::abs(current_vel_rad) <=
+        bldc_posvel_velocity_tolerance_rad_s_;
+
+      RCLCPP_INFO_THROTTLE(
+        get_logger(),
+        *get_clock(),
+        500,
+        "BLDC transform motor=%d "
+        "current=%.3f target=%.3f err=%.3f "
+        "v_fb=%.3f desired_v=%.3f "
+        "pos_ok=%d vel_ok=%d",
+        active_motor_id_,
+        current_angle_deg_raw,
+        target_angle_deg_,
+        error_deg,
+        current_vel_rad,
+        desired_v_cmd,
+        pos_ok,
+        vel_ok);
+
+      if (pos_ok && vel_ok) {
+        if (!settle_started_) {
+          publishBldcStopCmd();
+
+          settle_started_ = true;
+          settle_start_time_ = now;
+
+        } else {
+          const double settle_elapsed =
+            (now - settle_start_time_).seconds();
+
+          if (settle_elapsed >= settle_time_sec_) {
+            publishBldcStopCmd();
+
+            publishStepResult(
+              true,
+              false,
+              "Step completed");
+
+            step_active_ = false;
+            active_bldc_posvel_ = false;
+            return;
+          }
+        }
+
+      } else {
+        settle_started_ = false;
+
+        const double limited_v_cmd =
+          applyBldcSpeedRateLimit(
+            active_motor_id_,
+            desired_v_cmd,
+            dt);
+
+        // Inner velocity loop -> torque.
+        const double velocity_error =
+          limited_v_cmd - current_vel_rad;
+
+        double & integral =
+          getIntegralForMotor(active_motor_id_);
+
+        integral += velocity_error * dt;
+
+        integral =
+          clampValue(
+            integral,
+            -bldc_transform_integral_limit_,
+            bldc_transform_integral_limit_);
+
+        const double raw_torque =
+          bldc_transform_speed_kp_ * velocity_error +
+          bldc_transform_speed_ki_ * integral;
+
+        const double limited_torque =
+          clampValue(
+            raw_torque,
+            -bldc_transform_torque_limit_,
+            bldc_transform_torque_limit_);
+
+        const double slew_limited_torque =
+          applyTorqueSlewLimit(
+            active_motor_id_,
+            limited_torque,
+            dt);
+
+        publishBldcEffortCmd(
+          active_motor_id_,
+          slew_limited_torque);
+
+        RCLCPP_INFO_THROTTLE(
+          get_logger(),
+          *get_clock(),
+          500,
+          "BLDC effort motor=%d "
+          "desired_v=%+.3f limited_v=%+.3f "
+          "v_fb=%+.3f vel_err=%+.3f "
+          "I=%+.3f tau_raw=%+.3f tau=%+.3f",
+          active_motor_id_,
+          desired_v_cmd,
+          limited_v_cmd,
+          current_vel_rad,
+          velocity_error,
+          integral,
+          raw_torque,
+          slew_limited_torque);
+      }
+
+    // ==========================================================
+    // DXL
+    // ==========================================================
+
+    } else if (active_motor_type_ == MOTOR_TYPE_DXL) {
+      const double wrap_range_deg =
+        getWrapRangeDegForMotor(active_motor_id_);
+
+      const double current_angle_deg =
+        wrapToRangeDeg(
+          current_angle_deg_raw,
+          wrap_range_deg);
+
+      const double target_angle_deg =
+        wrapToRangeDeg(
+          target_angle_deg_,
+          wrap_range_deg);
+
+      error_deg =
+        shortestWrappedErrorDeg(
+          current_angle_deg,
+          target_angle_deg,
+          wrap_range_deg);
+
+      pos_ok =
+        std::abs(error_deg) <=
+        position_tolerance_deg_;
+
+      vel_ok =
+        std::abs(current_vel_rad) <=
+        velocity_tolerance_rad_s_;
+
+      if (pos_ok && vel_ok) {
+        if (!settle_started_) {
+          settle_started_ = true;
+          settle_start_time_ = now;
+        } else {
+          const double settle_elapsed =
+            (now - settle_start_time_).seconds();
+
+          if (settle_elapsed >= settle_time_sec_) {
+            publishStepResult(
+              true,
+              false,
+              "Step completed");
+
+            step_active_ = false;
+            return;
+          }
+        }
+      } else {
+        settle_started_ = false;
+      }
+
+    } else {
+      publishStepResult(
+        false,
+        false,
+        "Invalid active motor type");
+
+      step_active_ = false;
+      active_bldc_posvel_ = false;
+
+      publishBldcStopCmd();
+      return;
+    }
+
+    // ==========================================================
+    // Timeout
+    // ==========================================================
+
+    if (elapsed >= timeout_sec_) {
+      if (active_motor_type_ == MOTOR_TYPE_BLDC) {
+        publishBldcStopCmd();
+      }
+
+      RCLCPP_WARN(
+        get_logger(),
+        "Step timeout motor=%d type=%d "
+        "current=%.3f target=%.3f error=%.3f vel=%.3f",
+        active_motor_id_,
+        active_motor_type_,
+        current_angle_deg_raw,
+        target_angle_deg_,
+        error_deg,
+        current_vel_rad);
+
+      publishStepResult(
+        false,
+        true,
+        "Step timeout");
+
+      step_active_ = false;
+      active_bldc_posvel_ = false;
+    }
+  }
+
+  // ==========================================================
+  // State / parameters
+  // ==========================================================
+
+  bool step_active_{false};
+  bool active_bldc_posvel_{false};
+
+  int active_motor_id_{0};
+  int active_motor_type_{0};
+
+  double target_angle_deg_{0.0};
+  double timeout_sec_{2.0};
+  int retry_count_{0};
+
+  bool settle_started_{false};
+  rclcpp::Time step_start_time_;
+  rclcpp::Time settle_start_time_;
+
+  double position_tolerance_deg_{1.0};
+  double velocity_tolerance_rad_s_{0.02};
+  double settle_time_sec_{0.5};
+
+  double mit_position_kp_{45.0};
+  double mit_position_kd_{2.2};
+  double mit_position_tau_ff_{0.0};
+
+  double transform_precise_pos_kp_{45.0};
+  double transform_precise_pos_kd_{2.2};
+  double transform_precise_tau_ff_{0.0};
+
+  double transform_fast_pos_kp_{30.0};
+  double transform_fast_pos_kd_{1.2};
+  double transform_fast_tau_ff_{0.0};
+
+  double transform_soft_pos_kp_{20.0};
+  double transform_soft_pos_kd_{0.8};
+  double transform_soft_tau_ff_{0.0};
+
+  std::string current_transform_profile_{"precise"};
+
+  bool test_auto_success_{false};
+  double test_auto_success_delay_sec_{0.6};
+
+  std::string motor1_joint_name_{"left_wheel_joint"};
+  std::string motor2_joint_name_{"right_wheel_joint"};
+  std::string motor3_joint_name_{"motor_3_joint"};
+  std::string motor4_joint_name_{"motor_4_joint"};
+
+  double bldc_wrap_turns_{4.0};
+  double dxl_wrap_turns_{3.0};
+  double bldc_wrap_range_deg_{1440.0};
+  double dxl_wrap_range_deg_{1080.0};
+
+  double bldc_posvel_kp_{1.3};
+  double bldc_posvel_kd_{0.15};
+  double bldc_posvel_max_vel_rad_s_{6.0};
+  double bldc_posvel_min_vel_rad_s_{0.0};
+  double bldc_posvel_position_tolerance_deg_{3.0};
+  double bldc_posvel_velocity_tolerance_rad_s_{0.35};
+  double bldc_posvel_accel_limit_rad_s2_{3.0};
+  double bldc_posvel_jerk_limit_rad_s3_{20.0};
+
+  double bldc_transform_speed_kp_{2.0};
+  double bldc_transform_speed_ki_{0.3};
+  double bldc_transform_integral_limit_{4.0};
+  double bldc_transform_torque_limit_{8.0};
+  double bldc_transform_torque_slew_rate_{20.0};
+
+  double last_bldc_speed_cmd_1_{0.0};
+  double last_bldc_speed_cmd_2_{0.0};
+
+  double last_bldc_accel_cmd_1_{0.0};
+  double last_bldc_accel_cmd_2_{0.0};
+
+  double last_bldc_torque_cmd_1_{0.0};
+  double last_bldc_torque_cmd_2_{0.0};
+
+  double bldc_speed_integral_1_{0.0};
+  double bldc_speed_integral_2_{0.0};
+
+  rclcpp::Time last_control_time_;
+  bool has_last_control_time_{false};
+
+  std::unordered_map<std::string, double>
+    joint_position_deg_map_;
+
+  std::unordered_map<std::string, double>
+    joint_velocity_rad_map_;
+
+  // ==========================================================
+  // ROS entities
+  // ==========================================================
+
+  rclcpp::Subscription<robot_msgs::msg::TransformStep>::SharedPtr
+    step_cmd_sub_;
+
+  rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr
+    bldc_joint_state_sub_;
+
+  rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr
+    dxl_joint_state_sub_;
+
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr
+    transform_profile_sub_;
+
+  rclcpp::Publisher<robot_msgs::msg::TransformStepResult>::SharedPtr
+    step_result_pub_;
+
+  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr
+    left_effort_pub_;
+
+  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr
+    right_effort_pub_;
+
+  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr
+    dxl_position_pub_;
+
+  rclcpp::Publisher<robot_msgs::msg::SystemError>::SharedPtr
+    error_pub_;
+
+  rclcpp::TimerBase::SharedPtr
+    control_timer_;
+};
+
+
+int main(int argc, char ** argv)
+{
+  rclcpp::init(argc, argv);
+  rclcpp::spin(
+    std::make_shared<TransformControllerNode>());
+  rclcpp::shutdown();
+  return 0;
+}

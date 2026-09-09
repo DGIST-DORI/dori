@@ -1,0 +1,112 @@
+transform_manager_node:
+  ros__parameters:
+    # A/B detection uses motor_4_joint. All reference angles below are
+    # motor/feedback degrees, not mechanical degrees.
+    feedback_timeout_sec: 0.5
+    max_dxl_preparation_deg: 45.0
+    left_bldc_motor_per_mechanical: 2.0
+    right_bldc_motor_per_mechanical: 2.0
+    motor4_a_reference_deg: 189.492187500
+    motor3_grid_offset_deg: 172.441406250
+
+    pose_a_reference_deg: 189.492187500
+    pose_b_reference_deg: 9.492187500
+  
+  
+    left_bldc_alignment_offset_deg: -63.534905013
+    right_bldc_alignment_offset_deg: -73.444724193
+    pose_detect_tolerance_deg: 2.0
+    default_step_timeout_sec: 14.0
+    initial_step_delay_sec: 1.0
+
+    motor1_joint_name: "left_wheel_joint"
+    motor2_joint_name: "right_wheel_joint"
+    motor3_joint_name: "motor_3_joint"
+    motor4_joint_name: "motor_4_joint"
+
+
+
+transform_controller_node:
+  ros__parameters:
+    feedback_timeout_sec: 0.5
+    position_tolerance_deg: 2.0
+    velocity_tolerance_rad_s: 0.10
+    settle_time_sec: 0.2
+
+    default_transform_profile: "precise"
+
+    transform_precise_pos_kp: 45.0
+    transform_precise_pos_kd: 2.2
+    transform_precise_tau_ff: 0.0
+
+    transform_fast_pos_kp: 30.0
+    transform_fast_pos_kd: 1.2
+    transform_fast_tau_ff: 0.0
+
+    transform_soft_pos_kp: 20.0
+    transform_soft_pos_kd: 0.8
+    transform_soft_tau_ff: 0.0
+
+    test_auto_success: false
+    test_auto_success_delay_sec: 0.6
+
+    motor1_joint_name: "left_wheel_joint"
+    motor2_joint_name: "right_wheel_joint"
+    motor3_joint_name: "motor_3_joint"
+    motor4_joint_name: "motor_4_joint"
+
+    bldc_wrap_turns: 4.0
+    # DXL uses signed continuous position; no angular wrapping.
+
+    # Common BLDC transform limits
+    bldc_posvel_kp: 1.7
+    bldc_posvel_kd: 0.15
+    bldc_posvel_max_vel_rad_s: 8.0
+    bldc_posvel_min_vel_rad_s: 2.0
+
+    bldc_posvel_position_tolerance_deg: 4.0
+    bldc_posvel_velocity_tolerance_rad_s: 0.35
+
+    bldc_posvel_accel_limit_rad_s2: 8.0
+    bldc_posvel_jerk_limit_rad_s3: 30.0
+    bldc_mit_speed_kd: 0.0
+
+    # --------------------------------------------------------
+    # Error zones for scheduled feedforward
+    #
+    # |error| > 15 deg : FAR torque
+    #  7 < |error| <=15: MID torque
+    #  4 < |error| <= 7: NEAR torque
+    # |error| <= 4 deg : 0 Nm
+    # --------------------------------------------------------
+    bldc_ff_far_error_deg: 15.0
+    bldc_ff_mid_error_deg: 6.0
+    bldc_ff_near_error_deg: 3.0
+
+    # LEFT BLDC (motor 1)
+    left_bldc_posvel_kp: 1.0
+    left_bldc_posvel_kd: 0.30
+    left_bldc_posvel_min_vel_rad_s: 0.4
+
+    # FAR torque. 8 Nm was the first value that reliably broke friction.
+    left_bldc_transform_tau_ff: 8.0
+    left_bldc_ff_mid_tau: 5.5
+    left_bldc_ff_near_tau: 5.0
+
+    # RIGHT BLDC (motor 2)
+    # Keep close to the settings that already aligned successfully.
+    right_bldc_posvel_kp: 1.3
+    right_bldc_posvel_kd: 0.3
+    right_bldc_posvel_min_vel_rad_s: 0.4
+
+    right_bldc_transform_tau_ff: 9.0
+    right_bldc_ff_mid_tau: 5.3
+    right_bldc_ff_near_tau: 4.9
+
+
+fake_joint_states_node:
+  ros__parameters:
+    motor1_joint_name: "motor_1_joint"
+    motor2_joint_name: "motor_2_joint"
+    motor3_joint_name: "motor_3_joint"
+    motor4_joint_name: "motor_4_joint"

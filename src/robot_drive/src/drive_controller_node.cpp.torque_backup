@@ -1,0 +1,1514 @@
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <memory>
+#include <string>
+
+#include "rclcpp/rclcpp.hpp"
+
+#include "geometry_msgs/msg/twist.hpp"
+#include "sensor_msgs/msg/joint_state.hpp"
+#include "std_msgs/msg/float64.hpp"
+#include "std_msgs/msg/float64_multi_array.hpp"
+#include "std_msgs/msg/int32.hpp"
+
+#include "robot_msgs/msg/command_feedback.hpp"
+
+namespace
+{
+constexpr double kEps = 1e-9;
+constexpr double kNormalizedCmdMin = -1.0;
+constexpr double kNormalizedCmdMax = 1.0;
+constexpr int TF_RUNNING = 1;
+constexpr int TF_PAUSED = 2;
+
+double signOf(double x)
+{
+  if (x > 0.0) return 1.0;
+  if (x < 0.0) return -1.0;
+  return 0.0;
+}
+}  // namespace
+
+class DriveControllerNode : public rclcpp::Node
+{
+public:
+  DriveControllerNode()
+  : Node("drive_controller_node")
+  {
+    wheel_radius_ = declare_parameter<double>("wheel_radius", 0.25);
+    wheel_separation_ = declare_parameter<double>("wheel_separation", 0.60);
+    max_linear_velocity_ = declare_parameter<double>("max_linear_velocity", 1.72);
+    max_angular_velocity_ = declare_parameter<double>("max_angular_velocity", 1.20);
+
+    linear_accel_limit_ = declare_parameter<double>("linear_accel_limit", 0.50);
+    linear_decel_limit_ = declare_parameter<double>("linear_decel_limit", 0.40);
+    linear_jerk_limit_ = declare_parameter<double>("linear_jerk_limit", 1.50);
+
+    angular_accel_limit_ = declare_parameter<double>("angular_accel_limit", 1.00);
+    angular_decel_limit_ = declare_parameter<double>("angular_decel_limit", 0.80);
+    angular_jerk_limit_ = declare_parameter<double>("angular_jerk_limit", 3.00);
+
+    speed_kp_ = declare_parameter<double>("speed_kp", 0.5);
+    speed_ki_ = declare_parameter<double>("speed_ki", 0.0);
+    speed_integral_limit_ = declare_parameter<double>("speed_integral_limit", 4.0);
+
+    // When the wheel reference is effectively zero, disable the
+    // speed PI completely. This prevents encoder noise around zero
+    // from producing alternating +/- torque and audible chatter.
+    zero_pi_reference_threshold_ =
+      declare_parameter<double>("zero_pi_reference_threshold", 0.05);
+
+    accel_ff_enabled_ = declare_parameter<bool>("accel_ff_enabled", true);
+    wheel_accel_ff_gain_ = declare_parameter<double>("wheel_accel_ff_gain", 0.0);
+    accel_ff_torque_limit_ = declare_parameter<double>("accel_ff_torque_limit", 3.0);
+
+    // Running friction assist: keeps a small torque in the commanded
+    // direction after START_BOOST releases, preventing low-speed stick-slip.
+    running_friction_enabled_ = declare_parameter<bool>("running_friction_enabled", true);
+    left_running_friction_torque_ =
+      declare_parameter<double>(
+        "left_running_friction_torque",
+        3.0);
+
+    right_running_friction_torque_ =
+      declare_parameter<double>(
+        "right_running_friction_torque",
+        4.5);
+    running_friction_min_ref_ = declare_parameter<double>("running_friction_min_ref", 0.10);
+    running_friction_low_speed_ref_ = declare_parameter<double>("running_friction_low_speed_ref", 0.80);
+    running_friction_low_speed_gain_ = declare_parameter<double>("running_friction_low_speed_gain", 1.0);
+    running_friction_high_speed_gain_ = declare_parameter<double>("running_friction_high_speed_gain", 0.5);
+
+    // ========================================================
+    // STUCK RECOVERY
+    // ========================================================
+    stuck_recovery_enabled_ =
+      declare_parameter<bool>("stuck_recovery_enabled", true);
+
+    stuck_ref_threshold_ =
+      declare_parameter<double>("stuck_ref_threshold", 0.30);
+
+    stuck_actual_threshold_ =
+      declare_parameter<double>("stuck_actual_threshold", 0.30);
+
+    stuck_velocity_ratio_threshold_ =
+      declare_parameter<double>("stuck_velocity_ratio_threshold", 0.35);
+
+    stuck_detect_hold_sec_ =
+      declare_parameter<double>("stuck_detect_hold_sec", 0.20);
+
+    stuck_recovery_initial_torque_ =
+      declare_parameter<double>("stuck_recovery_initial_torque", 0.5);
+
+    stuck_recovery_max_torque_ =
+      declare_parameter<double>("stuck_recovery_max_torque", 8.0);
+
+    stuck_recovery_ramp_rate_ =
+      declare_parameter<double>("stuck_recovery_ramp_rate", 3.0);
+
+    stuck_recovery_release_velocity_ =
+      declare_parameter<double>("stuck_recovery_release_velocity", 0.50);
+
+    stuck_recovery_release_hold_sec_ =
+      declare_parameter<double>("stuck_recovery_release_hold_sec", 0.10);
+
+    stuck_recovery_handover_rate_ =
+      declare_parameter<double>("stuck_recovery_handover_rate", 3.0);
+
+    stuck_recovery_timeout_sec_ =
+      declare_parameter<double>("stuck_recovery_timeout_sec", 2.0);
+
+    start_boost_enabled_ = declare_parameter<bool>("start_boost_enabled", true);
+    start_command_threshold_ = declare_parameter<double>("start_command_threshold", 0.20);
+    start_stuck_velocity_threshold_ = declare_parameter<double>("start_stuck_velocity_threshold", 0.10);
+    start_release_velocity_ = declare_parameter<double>("start_release_velocity", 0.30);
+    start_release_hold_sec_ = declare_parameter<double>("start_release_hold_sec", 0.10);
+    start_boost_initial_torque_ = declare_parameter<double>("start_boost_initial_torque", 2.0);
+    start_boost_max_torque_ = declare_parameter<double>("start_boost_max_torque", 10.0);
+    start_boost_ramp_rate_ = declare_parameter<double>("start_boost_ramp_rate", 8.0);
+    start_boost_handover_rate_ = declare_parameter<double>("start_boost_handover_rate", 5.0);
+    start_boost_timeout_sec_ = declare_parameter<double>("start_boost_timeout_sec", 2.0);
+
+    stop_catch_enabled_ = declare_parameter<bool>("stop_catch_enabled", true);
+    stop_command_threshold_ = declare_parameter<double>("stop_command_threshold", 0.02);
+    stop_reference_threshold_ = declare_parameter<double>("stop_reference_threshold", 0.03);
+    stop_wheel_velocity_threshold_ = declare_parameter<double>("stop_wheel_velocity_threshold", 0.15);
+    stop_reverse_torque_ = declare_parameter<double>("stop_reverse_torque", 2.0);
+    stop_reverse_ramp_rate_ = declare_parameter<double>("stop_reverse_ramp_rate", 20.0);
+    stop_reverse_speed_limit_ = declare_parameter<double>("stop_reverse_speed_limit", 0.40);
+    stop_catch_duration_sec_ = declare_parameter<double>("stop_catch_duration_sec", 0.25);
+    stop_catch_timeout_sec_ = declare_parameter<double>("stop_catch_timeout_sec", 0.70);
+
+    stabilization_torque_limit_ = declare_parameter<double>("stabilization_torque_limit", 10.0);
+    stabilization_timeout_sec_ = declare_parameter<double>("stabilization_timeout_sec", 0.10);
+
+    final_torque_limit_ = declare_parameter<double>("final_torque_limit", 13.0);
+    final_torque_slew_rate_ = declare_parameter<double>("final_torque_slew_rate", 30.0);
+
+    left_joint_name_ = declare_parameter<std::string>("left_joint_name", "left_wheel_joint");
+    right_joint_name_ = declare_parameter<std::string>("right_joint_name", "right_wheel_joint");
+    joint_state_timeout_sec_ = declare_parameter<double>("joint_state_timeout_sec", 0.20);
+    control_frequency_hz_ = declare_parameter<double>("control_frequency_hz", 100.0);
+
+    validateParameters();
+
+    drive_cmd_sub_ = create_subscription<geometry_msgs::msg::Twist>(
+      "/drive/cmd_vel", 20,
+      std::bind(&DriveControllerNode::driveCmdCallback, this, std::placeholders::_1));
+
+    transform_status_sub_ = create_subscription<std_msgs::msg::Int32>(
+      "/transform/status", 20,
+      std::bind(&DriveControllerNode::transformStatusCallback, this, std::placeholders::_1));
+
+    stabilization_torque_sub_ = create_subscription<std_msgs::msg::Float64>(
+      "/body/stabilization_torque", 50,
+      std::bind(&DriveControllerNode::stabilizationTorqueCallback, this, std::placeholders::_1));
+
+    joint_state_sub_ = create_subscription<sensor_msgs::msg::JointState>(
+      "/joint_states", 50,
+      std::bind(&DriveControllerNode::jointStateCallback, this, std::placeholders::_1));
+
+    left_effort_pub_ = create_publisher<std_msgs::msg::Float64MultiArray>(
+      "/left_bldc_effort_controller/commands", 20);
+    right_effort_pub_ = create_publisher<std_msgs::msg::Float64MultiArray>(
+      "/right_bldc_effort_controller/commands", 20);
+
+    drive_feedback_pub_ = create_publisher<robot_msgs::msg::CommandFeedback>(
+      "/drive/command_feedback", 20);
+
+    current_linear_debug_pub_ = create_publisher<std_msgs::msg::Float64>(
+      "/drive/debug/current_linear", 20);
+    current_angular_debug_pub_ = create_publisher<std_msgs::msg::Float64>(
+      "/drive/debug/current_angular", 20);
+    linear_accel_debug_pub_ = create_publisher<std_msgs::msg::Float64>(
+      "/drive/debug/linear_accel_ref", 20);
+    left_v_ref_debug_pub_ = create_publisher<std_msgs::msg::Float64>(
+      "/drive/debug/left_v_ref", 20);
+    right_v_ref_debug_pub_ = create_publisher<std_msgs::msg::Float64>(
+      "/drive/debug/right_v_ref", 20);
+    left_speed_pi_debug_pub_ = create_publisher<std_msgs::msg::Float64>(
+      "/drive/debug/left_speed_pi_torque", 20);
+    right_speed_pi_debug_pub_ = create_publisher<std_msgs::msg::Float64>(
+      "/drive/debug/right_speed_pi_torque", 20);
+    left_start_boost_debug_pub_ = create_publisher<std_msgs::msg::Float64>(
+      "/drive/debug/left_start_boost_torque", 20);
+    right_start_boost_debug_pub_ = create_publisher<std_msgs::msg::Float64>(
+      "/drive/debug/right_start_boost_torque", 20);
+    left_friction_debug_pub_ = create_publisher<std_msgs::msg::Float64>(
+      "/drive/debug/left_friction_torque", 20);
+    right_friction_debug_pub_ = create_publisher<std_msgs::msg::Float64>(
+      "/drive/debug/right_friction_torque", 20);
+
+    left_stuck_recovery_debug_pub_ =
+      create_publisher<std_msgs::msg::Float64>(
+        "/drive/debug/left_stuck_recovery_torque", 20);
+
+    right_stuck_recovery_debug_pub_ =
+      create_publisher<std_msgs::msg::Float64>(
+        "/drive/debug/right_stuck_recovery_torque", 20);
+    left_stop_catch_debug_pub_ = create_publisher<std_msgs::msg::Float64>(
+      "/drive/debug/left_stop_catch_torque", 20);
+    right_stop_catch_debug_pub_ = create_publisher<std_msgs::msg::Float64>(
+      "/drive/debug/right_stop_catch_torque", 20);
+    stop_catch_debug_pub_ = create_publisher<std_msgs::msg::Float64>(
+      "/drive/debug/stop_catch_torque", 20);
+    left_final_torque_debug_pub_ = create_publisher<std_msgs::msg::Float64>(
+      "/drive/debug/left_final_torque", 20);
+    right_final_torque_debug_pub_ = create_publisher<std_msgs::msg::Float64>(
+      "/drive/debug/right_final_torque", 20);
+    controller_state_debug_pub_ = create_publisher<std_msgs::msg::Float64>(
+      "/drive/debug/controller_state", 20);
+
+    const auto now = this->now();
+    last_control_time_ = now;
+    last_joint_state_time_ = now;
+    last_stabilization_time_ = now;
+    left_start_boost_begin_time_ = now;
+    right_start_boost_begin_time_ = now;
+    stop_catch_begin_time_ = now;
+
+    const auto period = std::chrono::duration<double>(1.0 / control_frequency_hz_);
+    control_timer_ = create_wall_timer(
+      std::chrono::duration_cast<std::chrono::nanoseconds>(period),
+      std::bind(&DriveControllerNode::controlLoopCallback, this));
+
+    RCLCPP_INFO(
+      get_logger(),
+      "============================================================");
+
+    RCLCPP_INFO(
+      get_logger(),
+      "DRIVE CONTROLLER VERSION: torque_v8_stuck_recovery_topics_fixed");
+
+    RCLCPP_INFO(
+      get_logger(),
+      "Torque drive controller started at %.1f Hz",
+      control_frequency_hz_);
+
+    RCLCPP_INFO(
+      get_logger(),
+      "OUTPUT: effort-only controllers, torque limit %.2f Nm",
+      final_torque_limit_);
+
+    RCLCPP_INFO(
+      get_logger(),
+      "Speed PI Kp %.3f Ki %.3f",
+      speed_kp_,
+      speed_ki_);
+
+    RCLCPP_INFO(
+      get_logger(),
+      "STUCK recovery=%s ref_th=%.3f actual_th=%.3f ratio_th=%.3f detect_hold=%.3f "
+      "initial=%.2f max=%.2f ramp=%.2f",
+      stuck_recovery_enabled_ ? "ON" : "OFF",
+      stuck_ref_threshold_,
+      stuck_actual_threshold_,
+      stuck_velocity_ratio_threshold_,
+      stuck_detect_hold_sec_,
+      stuck_recovery_initial_torque_,
+      stuck_recovery_max_torque_,
+      stuck_recovery_ramp_rate_);
+
+    RCLCPP_INFO(
+      get_logger(),
+      "Publishing /drive/debug/left_stuck_recovery_torque");
+
+    RCLCPP_INFO(
+      get_logger(),
+      "Publishing /drive/debug/right_stuck_recovery_torque");
+
+    RCLCPP_INFO(
+      get_logger(),
+      "============================================================");
+  }
+
+private:
+  enum class ControllerState
+  {
+    IDLE = 0,
+    START_BOOST = 1,
+    RUNNING = 2,
+    DECELERATING = 3,
+    STOP_CATCH = 4,
+    STUCK_RECOVERY = 5
+  };
+  struct WheelStartBoost
+  {
+    bool active{false};
+    bool handover{false};
+
+    // Velocity threshold must be maintained continuously before
+    // START_BOOST is released.
+    bool release_candidate{false};
+
+    rclcpp::Time release_candidate_time{
+      0,
+      0,
+      RCL_ROS_TIME
+    };
+
+    double torque{0.0};
+  };
+
+  struct WheelStuckRecovery
+  {
+    bool detect_candidate{false};
+
+    rclcpp::Time detect_candidate_time{
+      0,
+      0,
+      RCL_ROS_TIME
+    };
+
+    bool active{false};
+    bool release_candidate{false};
+
+    rclcpp::Time release_candidate_time{
+      0,
+      0,
+      RCL_ROS_TIME
+    };
+
+    bool handover{false};
+
+    rclcpp::Time active_begin_time{
+      0,
+      0,
+      RCL_ROS_TIME
+    };
+
+    double torque{0.0};
+  };
+
+  double clamp(double v, double lo, double hi) const {return std::max(lo, std::min(v, hi));}
+
+  double rateLimit(double target, double current, double rate, double dt) const
+  {
+    if (rate <= 0.0) return target;
+    const double d = rate * dt;
+    return current + clamp(target - current, -d, d);
+  }
+
+  double chooseAccelLimit(double target, double current, double accel, double decel) const
+  {
+    const bool same = target * current >= 0.0;
+    if (!same) return decel;
+    return std::abs(target) < std::abs(current) ? decel : accel;
+  }
+
+  void validateParameters()
+  {
+    if (wheel_radius_ <= kEps) wheel_radius_ = 0.25;
+    if (wheel_separation_ <= kEps) wheel_separation_ = 0.60;
+    if (control_frequency_hz_ <= kEps) control_frequency_hz_ = 100.0;
+    linear_accel_limit_ = std::max(linear_accel_limit_, 0.01);
+    linear_decel_limit_ = std::max(linear_decel_limit_, 0.01);
+    linear_jerk_limit_ = std::max(linear_jerk_limit_, 0.01);
+    angular_accel_limit_ = std::max(angular_accel_limit_, 0.01);
+    angular_decel_limit_ = std::max(angular_decel_limit_, 0.01);
+    angular_jerk_limit_ = std::max(angular_jerk_limit_, 0.01);
+    speed_kp_ = std::max(speed_kp_, 0.0);
+    speed_ki_ = std::max(speed_ki_, 0.0);
+    speed_integral_limit_ = std::abs(speed_integral_limit_);
+    zero_pi_reference_threshold_ =
+      std::abs(zero_pi_reference_threshold_);
+    accel_ff_torque_limit_ = std::abs(accel_ff_torque_limit_);
+    left_running_friction_torque_ =
+      std::abs(left_running_friction_torque_);
+
+    right_running_friction_torque_ =
+      std::abs(right_running_friction_torque_);
+    running_friction_min_ref_ = std::abs(running_friction_min_ref_);
+    running_friction_low_speed_ref_ =
+      std::max(std::abs(running_friction_low_speed_ref_), running_friction_min_ref_);
+    running_friction_low_speed_gain_ = std::max(0.0, running_friction_low_speed_gain_);
+    running_friction_high_speed_gain_ = std::max(0.0, running_friction_high_speed_gain_);
+
+    stuck_ref_threshold_ = std::abs(stuck_ref_threshold_);
+    stuck_actual_threshold_ = std::abs(stuck_actual_threshold_);
+
+    stuck_velocity_ratio_threshold_ =
+      std::clamp(
+        stuck_velocity_ratio_threshold_,
+        0.0,
+        1.0);
+
+    stuck_detect_hold_sec_ = std::max(stuck_detect_hold_sec_, 0.0);
+
+    stuck_recovery_initial_torque_ =
+      std::abs(stuck_recovery_initial_torque_);
+
+    stuck_recovery_max_torque_ =
+      std::abs(stuck_recovery_max_torque_);
+
+    stuck_recovery_ramp_rate_ =
+      std::abs(stuck_recovery_ramp_rate_);
+
+    stuck_recovery_release_velocity_ =
+      std::abs(stuck_recovery_release_velocity_);
+
+    stuck_recovery_release_hold_sec_ =
+      std::max(stuck_recovery_release_hold_sec_, 0.0);
+
+    stuck_recovery_handover_rate_ =
+      std::abs(stuck_recovery_handover_rate_);
+
+    stuck_recovery_timeout_sec_ =
+      std::max(stuck_recovery_timeout_sec_, 0.05);
+    start_release_hold_sec_ = std::max(start_release_hold_sec_, 0.0);
+    start_boost_initial_torque_ = std::abs(start_boost_initial_torque_);
+    start_boost_max_torque_ = std::abs(start_boost_max_torque_);
+    start_boost_ramp_rate_ = std::abs(start_boost_ramp_rate_);
+    start_boost_handover_rate_ = std::abs(start_boost_handover_rate_);
+    start_boost_timeout_sec_ = std::max(start_boost_timeout_sec_, 0.05);
+    stop_reverse_torque_ = std::abs(stop_reverse_torque_);
+    stop_reverse_ramp_rate_ = std::abs(stop_reverse_ramp_rate_);
+    stop_reverse_speed_limit_ = std::abs(stop_reverse_speed_limit_);
+    stop_catch_duration_sec_ = std::max(stop_catch_duration_sec_, 0.0);
+    stop_catch_timeout_sec_ = std::max(stop_catch_timeout_sec_, stop_catch_duration_sec_);
+    stabilization_torque_limit_ = std::abs(stabilization_torque_limit_);
+    final_torque_limit_ = std::abs(final_torque_limit_);
+    final_torque_slew_rate_ = std::abs(final_torque_slew_rate_);
+  }
+
+  void driveCmdCallback(const geometry_msgs::msg::Twist::SharedPtr msg)
+  {
+    if (transform_active_) {
+      target_linear_cmd_ = 0.0;
+      target_angular_cmd_ = 0.0;
+      publishDriveFeedback(false, 210, "Drive command ignored during transform");
+      return;
+    }
+
+    const double new_linear = clamp(msg->linear.x, kNormalizedCmdMin, kNormalizedCmdMax) * max_linear_velocity_;
+    const double new_angular = clamp(msg->angular.z, kNormalizedCmdMin, kNormalizedCmdMax) * max_angular_velocity_;
+
+    const bool was_moving =
+      std::abs(target_linear_cmd_) > stop_command_threshold_ ||
+      std::abs(target_angular_cmd_) > stop_command_threshold_;
+
+    const bool new_moving =
+      std::abs(new_linear) > stop_command_threshold_ ||
+      std::abs(new_angular) > stop_command_threshold_;
+
+    const bool new_stop = !new_moving;
+
+    // START_BOOST is armed only once for a new motion episode.
+    // It is NOT re-armed merely because wheel velocity later falls
+    // near zero during RUNNING.
+    if (!was_moving && new_moving) {
+      left_start_boost_armed_ = true;
+      right_start_boost_armed_ = true;
+
+      left_start_boost_ = WheelStartBoost{};
+      right_start_boost_ = WheelStartBoost{};
+
+      RCLCPP_INFO(
+        get_logger(),
+        "New motion command: START_BOOST armed once.");
+    }
+
+    if (was_moving && new_stop) {
+      stop_requested_ = true;
+
+      // A stopped command ends the motion episode. The next
+      // non-zero command may arm START_BOOST again.
+      left_start_boost_armed_ = false;
+      right_start_boost_armed_ = false;
+
+      stop_left_direction_ = signOf(last_left_wheel_ref_);
+      stop_right_direction_ = signOf(last_right_wheel_ref_);
+
+      if (stop_left_direction_ == 0.0) {
+        stop_left_direction_ = signOf(left_actual_velocity_);
+      }
+      if (stop_right_direction_ == 0.0) {
+        stop_right_direction_ = signOf(right_actual_velocity_);
+      }
+
+      RCLCPP_INFO(
+        get_logger(),
+        "STOP requested: Ldir=%+.0f Rdir=%+.0f",
+        stop_left_direction_,
+        stop_right_direction_);
+    }
+
+    target_linear_cmd_ = new_linear;
+    target_angular_cmd_ = new_angular;
+    publishDriveFeedback(true, 100, "Drive target accepted");
+  }
+
+  void transformStatusCallback(const std_msgs::msg::Int32::SharedPtr msg)
+  {
+    const bool new_active = msg->data == TF_RUNNING || msg->data == TF_PAUSED;
+    if (new_active == transform_active_) return;
+    transform_active_ = new_active;
+    if (transform_active_) {
+      resetController();
+      publishZeroTorque();
+      RCLCPP_WARN(get_logger(), "Transform active: drive output blocked.");
+    } else {
+      last_control_time_ = this->now();
+      RCLCPP_INFO(get_logger(), "Transform finished: drive output enabled.");
+    }
+  }
+
+  void stabilizationTorqueCallback(const std_msgs::msg::Float64::SharedPtr msg)
+  {
+    stabilization_torque_ = clamp(msg->data, -stabilization_torque_limit_, stabilization_torque_limit_);
+    stabilization_received_ = true;
+    last_stabilization_time_ = this->now();
+  }
+
+  void jointStateCallback(const sensor_msgs::msg::JointState::SharedPtr msg)
+  {
+    const std::size_t count = std::min(msg->name.size(), msg->velocity.size());
+    bool got_any = false;
+    for (std::size_t i = 0; i < count; ++i) {
+      if (msg->name[i] == left_joint_name_) {
+        left_actual_velocity_ = msg->velocity[i];
+        left_velocity_received_ = true;
+        got_any = true;
+      } else if (msg->name[i] == right_joint_name_) {
+        right_actual_velocity_ = msg->velocity[i];
+        right_velocity_received_ = true;
+        got_any = true;
+      }
+    }
+    if (got_any) last_joint_state_time_ = this->now();
+  }
+
+  void updateTrajectory(double dt)
+  {
+    const double lin_lim = chooseAccelLimit(target_linear_cmd_, current_linear_cmd_, linear_accel_limit_, linear_decel_limit_);
+    double desired_lin_accel = (target_linear_cmd_ - current_linear_cmd_) / std::max(dt, 1e-4);
+    desired_lin_accel = clamp(desired_lin_accel, -lin_lim, lin_lim);
+    current_linear_accel_ = rateLimit(desired_lin_accel, current_linear_accel_, linear_jerk_limit_, dt);
+    const double old_linear = current_linear_cmd_;
+    current_linear_cmd_ += current_linear_accel_ * dt;
+    if ((target_linear_cmd_ - old_linear) * (target_linear_cmd_ - current_linear_cmd_) <= 0.0) {
+      current_linear_cmd_ = target_linear_cmd_;
+      current_linear_accel_ = 0.0;
+    }
+
+    const double ang_lim = chooseAccelLimit(target_angular_cmd_, current_angular_cmd_, angular_accel_limit_, angular_decel_limit_);
+    double desired_ang_accel = (target_angular_cmd_ - current_angular_cmd_) / std::max(dt, 1e-4);
+    desired_ang_accel = clamp(desired_ang_accel, -ang_lim, ang_lim);
+    current_angular_accel_ = rateLimit(desired_ang_accel, current_angular_accel_, angular_jerk_limit_, dt);
+    const double old_angular = current_angular_cmd_;
+    current_angular_cmd_ += current_angular_accel_ * dt;
+    if ((target_angular_cmd_ - old_angular) * (target_angular_cmd_ - current_angular_cmd_) <= 0.0) {
+      current_angular_cmd_ = target_angular_cmd_;
+      current_angular_accel_ = 0.0;
+    }
+  }
+
+  double updateSpeedPi(double ref, double actual, double & integral, bool freeze_integral, double dt)
+  {
+    const double error = ref - actual;
+    if (!freeze_integral) {
+      integral = clamp(integral + error * dt, -speed_integral_limit_, speed_integral_limit_);
+    }
+    return speed_kp_ * error + speed_ki_ * integral;
+  }
+
+  void updateStartBoost(
+    WheelStartBoost & boost,
+    bool & armed,
+    rclcpp::Time & begin_time,
+    double wheel_ref,
+    double actual,
+    double dt,
+    const rclcpp::Time & now,
+    const char * name)
+  {
+    if (!start_boost_enabled_) {
+      boost = WheelStartBoost{};
+      armed = false;
+      return;
+    }
+
+    const double dir = signOf(wheel_ref);
+    const double directional_actual = dir * actual;
+
+    // If the commanded wheel reference disappears, just ramp any
+    // remaining handover torque to zero. Do NOT re-arm here.
+    if (std::abs(wheel_ref) < start_command_threshold_) {
+      boost.active = false;
+      boost.release_candidate = false;
+
+      if (std::abs(boost.torque) > 1e-6) {
+        boost.handover = true;
+      }
+
+      boost.torque =
+        rateLimit(
+          0.0,
+          boost.torque,
+          start_boost_handover_rate_,
+          dt);
+
+      if (std::abs(boost.torque) < 1e-3) {
+        boost.torque = 0.0;
+        boost.handover = false;
+      }
+      return;
+    }
+
+    // START_BOOST may be entered only if it was armed by a
+    // stopped -> moving command transition.
+    if (armed && !boost.active && !boost.handover) {
+      if (std::abs(actual) <= start_stuck_velocity_threshold_) {
+        boost.active = true;
+        boost.torque = dir * start_boost_initial_torque_;
+        begin_time = now;
+
+        // Consume the one-shot arm immediately. Even if the wheel
+        // later falls back to zero during RUNNING, START_BOOST will
+        // not fire again until the user first commands stop and then
+        // starts a new motion episode.
+        armed = false;
+
+        RCLCPP_WARN(
+          get_logger(),
+          "%s START_BOOST entered ONCE ref=%+.3f act=%+.3f tau=%+.2f",
+          name,
+          wheel_ref,
+          actual,
+          boost.torque);
+      }
+      return;
+    }
+
+    if (boost.active) {
+
+      // ========================================================
+      // START_BOOST release confirmation
+      //
+      // Do not release boost on a single velocity spike.
+      // The wheel must stay above start_release_velocity_
+      // continuously for start_release_hold_sec_.
+      // ========================================================
+
+      if (directional_actual >= start_release_velocity_) {
+
+        if (!boost.release_candidate) {
+          boost.release_candidate = true;
+          boost.release_candidate_time = now;
+
+          RCLCPP_INFO(
+            get_logger(),
+            "%s START_BOOST release candidate "
+            "act=%+.3f threshold=%.3f",
+            name,
+            actual,
+            start_release_velocity_);
+        }
+
+        const double release_hold =
+          (now - boost.release_candidate_time).seconds();
+
+        if (release_hold >= start_release_hold_sec_) {
+          boost.active = false;
+          boost.handover = true;
+          boost.release_candidate = false;
+
+          RCLCPP_INFO(
+            get_logger(),
+            "%s START_BOOST -> HANDOVER "
+            "act=%+.3f tau=%+.2f hold=%.3f",
+            name,
+            actual,
+            boost.torque,
+            release_hold);
+
+          return;
+        }
+
+      } else {
+        // It dropped below the threshold before the hold time was
+        // satisfied. Restart the confirmation timer next time.
+        boost.release_candidate = false;
+      }
+
+      const double elapsed = (now - begin_time).seconds();
+
+      if (elapsed >= start_boost_timeout_sec_) {
+        boost.active = false;
+        boost.handover = true;
+        boost.release_candidate = false;
+
+        RCLCPP_ERROR(
+          get_logger(),
+          "%s START_BOOST timeout ref=%+.3f act=%+.3f tau=%+.2f",
+          name,
+          wheel_ref,
+          actual,
+          boost.torque);
+        return;
+      }
+
+      // Once a release candidate is detected, freeze the current
+      // boost torque. Do NOT keep ramping while we confirm motion.
+      if (!boost.release_candidate) {
+        boost.torque =
+          rateLimit(
+            dir * start_boost_max_torque_,
+            boost.torque,
+            start_boost_ramp_rate_,
+            dt);
+      }
+
+      return;
+    }
+
+    if (boost.handover) {
+      boost.torque =
+        rateLimit(
+          0.0,
+          boost.torque,
+          start_boost_handover_rate_,
+          dt);
+
+      if (std::abs(boost.torque) < 1e-3) {
+        boost.torque = 0.0;
+        boost.handover = false;
+      }
+    }
+  }
+
+  double computeRunningFrictionTorque(
+    double wheel_ref,
+    double base_friction_torque) const
+  {
+    if (!running_friction_enabled_) {
+      return 0.0;
+    }
+
+    const double ref_abs = std::abs(wheel_ref);
+
+    if (ref_abs < running_friction_min_ref_) {
+      return 0.0;
+    }
+
+    const double gain =
+      (ref_abs <= running_friction_low_speed_ref_)
+      ? running_friction_low_speed_gain_
+      : running_friction_high_speed_gain_;
+
+    return
+      signOf(wheel_ref) *
+      base_friction_torque *
+      gain;
+  }
+
+  void updateStuckRecovery(
+    WheelStuckRecovery & recovery,
+    double wheel_ref,
+    double actual_velocity,
+    bool start_activity,
+    double dt,
+    const rclcpp::Time & now,
+    const char * wheel_name)
+  {
+    if (!stuck_recovery_enabled_) {
+      recovery = WheelStuckRecovery{};
+      return;
+    }
+
+    const double direction = signOf(wheel_ref);
+    const double directional_actual =
+      direction * actual_velocity;
+
+    const bool reference_active =
+      std::abs(wheel_ref) >= stuck_ref_threshold_;
+
+    // Dynamic STUCK threshold:
+    // use either the absolute minimum threshold or a fraction of
+    // the current wheel reference, whichever is larger.
+    const double dynamic_stuck_threshold =
+      std::max(
+        stuck_actual_threshold_,
+        stuck_velocity_ratio_threshold_ *
+          std::abs(wheel_ref));
+
+    const bool wheel_stuck =
+      std::abs(actual_velocity) <= dynamic_stuck_threshold;
+
+    // Do not detect STUCK while START_BOOST / handover is active.
+    // Otherwise the recovery controller can accidentally trigger
+    // during the initial launch.
+    if (start_activity) {
+      recovery.detect_candidate = false;
+
+      if (!recovery.active && !recovery.handover) {
+        recovery.torque = 0.0;
+      }
+
+      return;
+    }
+
+    // No drive request -> cancel recovery and ramp residual torque out.
+    if (!reference_active) {
+      recovery.detect_candidate = false;
+      recovery.active = false;
+      recovery.release_candidate = false;
+
+      if (std::abs(recovery.torque) > 1e-6) {
+        recovery.handover = true;
+      }
+
+      recovery.torque =
+        rateLimit(
+          0.0,
+          recovery.torque,
+          stuck_recovery_handover_rate_,
+          dt);
+
+      if (std::abs(recovery.torque) < 1e-3) {
+        recovery.torque = 0.0;
+        recovery.handover = false;
+      }
+
+      return;
+    }
+
+    // ----------------------------------------------------------
+    // STUCK detection
+    // ----------------------------------------------------------
+    if (!recovery.active && !recovery.handover) {
+      if (wheel_stuck) {
+        if (!recovery.detect_candidate) {
+          recovery.detect_candidate = true;
+          recovery.detect_candidate_time = now;
+
+          RCLCPP_INFO(
+            get_logger(),
+            "%s STUCK candidate ref=%+.3f act=%+.3f",
+            wheel_name,
+            wheel_ref,
+            actual_velocity);
+        }
+
+        const double stuck_hold =
+          (now - recovery.detect_candidate_time).seconds();
+
+        if (stuck_hold >= stuck_detect_hold_sec_) {
+          recovery.detect_candidate = false;
+          recovery.active = true;
+          recovery.release_candidate = false;
+          recovery.active_begin_time = now;
+
+          recovery.torque =
+            direction * stuck_recovery_initial_torque_;
+
+          RCLCPP_WARN(
+            get_logger(),
+            "%s STUCK_RECOVERY entered ref=%+.3f act=%+.3f tau=%+.2f",
+            wheel_name,
+            wheel_ref,
+            actual_velocity,
+            recovery.torque);
+        }
+      } else {
+        recovery.detect_candidate = false;
+      }
+
+      return;
+    }
+
+    // ----------------------------------------------------------
+    // Active recovery: ramp torque until sustained motion appears
+    // ----------------------------------------------------------
+    if (recovery.active) {
+      if (directional_actual >= stuck_recovery_release_velocity_) {
+
+        if (!recovery.release_candidate) {
+          recovery.release_candidate = true;
+          recovery.release_candidate_time = now;
+
+          RCLCPP_INFO(
+            get_logger(),
+            "%s STUCK_RECOVERY release candidate act=%+.3f",
+            wheel_name,
+            actual_velocity);
+        }
+
+        const double release_hold =
+          (now - recovery.release_candidate_time).seconds();
+
+        if (release_hold >= stuck_recovery_release_hold_sec_) {
+          recovery.active = false;
+          recovery.release_candidate = false;
+          recovery.handover = true;
+
+          RCLCPP_INFO(
+            get_logger(),
+            "%s STUCK_RECOVERY -> HANDOVER act=%+.3f tau=%+.2f",
+            wheel_name,
+            actual_velocity,
+            recovery.torque);
+
+          return;
+        }
+
+      } else {
+        recovery.release_candidate = false;
+      }
+
+      const double elapsed =
+        (now - recovery.active_begin_time).seconds();
+
+      if (elapsed >= stuck_recovery_timeout_sec_) {
+        recovery.active = false;
+        recovery.release_candidate = false;
+        recovery.handover = true;
+
+        RCLCPP_ERROR(
+          get_logger(),
+          "%s STUCK_RECOVERY timeout ref=%+.3f act=%+.3f tau=%+.2f",
+          wheel_name,
+          wheel_ref,
+          actual_velocity,
+          recovery.torque);
+
+        return;
+      }
+
+      // Freeze torque while motion is being confirmed.
+      if (!recovery.release_candidate) {
+        recovery.torque =
+          rateLimit(
+            direction * stuck_recovery_max_torque_,
+            recovery.torque,
+            stuck_recovery_ramp_rate_,
+            dt);
+      }
+
+      return;
+    }
+
+    // ----------------------------------------------------------
+    // Handover: remove recovery torque gradually
+    // ----------------------------------------------------------
+    if (recovery.handover) {
+      recovery.torque =
+        rateLimit(
+          0.0,
+          recovery.torque,
+          stuck_recovery_handover_rate_,
+          dt);
+
+      if (std::abs(recovery.torque) < 1e-3) {
+        recovery.torque = 0.0;
+        recovery.handover = false;
+      }
+    }
+  }
+
+  double updateStopCatch(double left_ref, double right_ref, double dt, const rclcpp::Time & now)
+  {
+    if (!stop_catch_enabled_) {
+      stop_catch_active_ = false;
+      stop_catch_torque_ = 0.0;
+      stop_requested_ = false;
+      return 0.0;
+    }
+
+    const bool refs_stopped = std::abs(left_ref) <= stop_reference_threshold_ &&
+                              std::abs(right_ref) <= stop_reference_threshold_;
+    const bool wheels_slow = std::abs(left_actual_velocity_) <= stop_wheel_velocity_threshold_ &&
+                             std::abs(right_actual_velocity_) <= stop_wheel_velocity_threshold_;
+
+    if (!stop_catch_active_) {
+      if (stop_requested_ && refs_stopped && wheels_slow) {
+        stop_catch_active_ = true;
+        stop_catch_begin_time_ = now;
+        stop_catch_torque_ = 0.0;
+        stop_requested_ = false;
+        RCLCPP_WARN(get_logger(), "STOP_CATCH entered");
+      } else {
+        return 0.0;
+      }
+    }
+
+    const double elapsed = (now - stop_catch_begin_time_).seconds();
+    if (elapsed >= stop_catch_timeout_sec_) {
+      stop_catch_active_ = false;
+      stop_catch_torque_ = 0.0;
+      return 0.0;
+    }
+
+    const double target_mag = elapsed <= stop_catch_duration_sec_ ? stop_reverse_torque_ : 0.0;
+    stop_catch_torque_ = rateLimit(target_mag, stop_catch_torque_, stop_reverse_ramp_rate_, dt);
+
+    if (elapsed > stop_catch_duration_sec_ && std::abs(stop_catch_torque_) < 1e-3) {
+      stop_catch_active_ = false;
+      stop_catch_torque_ = 0.0;
+    }
+
+    return stop_catch_torque_;
+  }
+
+  void publishEffort(double left, double right)
+  {
+    std_msgs::msg::Float64MultiArray l; l.data = {left};
+    std_msgs::msg::Float64MultiArray r; r.data = {right};
+    left_effort_pub_->publish(l);
+    right_effort_pub_->publish(r);
+  }
+
+  void publishZeroTorque()
+  {
+    publishEffort(0.0, 0.0);
+    previous_left_final_torque_ = 0.0;
+    previous_right_final_torque_ = 0.0;
+  }
+
+  void publishStuckRecoveryHeartbeat()
+  {
+    std_msgs::msg::Float64 left_msg;
+    left_msg.data = left_stuck_recovery_.torque;
+    left_stuck_recovery_debug_pub_->publish(left_msg);
+
+    std_msgs::msg::Float64 right_msg;
+    right_msg.data = right_stuck_recovery_.torque;
+    right_stuck_recovery_debug_pub_->publish(right_msg);
+  }
+
+
+  void controlLoopCallback()
+  {
+    // Publish every cycle, including IDLE, so ROS2/PlotJuggler can
+    // discover the stuck-recovery debug topics immediately.
+    publishStuckRecoveryHeartbeat();
+
+    if (transform_active_) {
+      publishZeroTorque();
+      return;
+    }
+
+    const rclcpp::Time now = this->now();
+    double dt = (now - last_control_time_).seconds();
+    last_control_time_ = now;
+    const double nominal_dt = 1.0 / control_frequency_hz_;
+    if (dt <= 0.0) dt = nominal_dt;
+    if (dt > nominal_dt * 5.0) dt = nominal_dt * 5.0;
+
+    const bool fresh = (now - last_joint_state_time_).seconds() <= joint_state_timeout_sec_;
+    if (!fresh || !left_velocity_received_ || !right_velocity_received_) {
+      left_speed_integral_ = 0.0;
+      right_speed_integral_ = 0.0;
+      publishZeroTorque();
+      RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 1000,
+                            "Joint state invalid/stale -> zero torque");
+      return;
+    }
+
+    updateTrajectory(dt);
+
+    const double left_ref = (current_linear_cmd_ - current_angular_cmd_ * wheel_separation_ / 2.0) / wheel_radius_;
+    const double right_ref = (current_linear_cmd_ + current_angular_cmd_ * wheel_separation_ / 2.0) / wheel_radius_;
+    const double left_acc_ref = (current_linear_accel_ - current_angular_accel_ * wheel_separation_ / 2.0) / wheel_radius_;
+    const double right_acc_ref = (current_linear_accel_ + current_angular_accel_ * wheel_separation_ / 2.0) / wheel_radius_;
+
+    last_left_wheel_ref_ = left_ref;
+    last_right_wheel_ref_ = right_ref;
+
+    updateStartBoost(
+      left_start_boost_,
+      left_start_boost_armed_,
+      left_start_boost_begin_time_,
+      left_ref,
+      left_actual_velocity_,
+      dt,
+      now,
+      "LEFT");
+
+    updateStartBoost(
+      right_start_boost_,
+      right_start_boost_armed_,
+      right_start_boost_begin_time_,
+      right_ref,
+      right_actual_velocity_,
+      dt,
+      now,
+      "RIGHT");
+
+    const bool left_start_activity =
+      left_start_boost_.active ||
+      left_start_boost_.handover;
+
+    const bool right_start_activity =
+      right_start_boost_.active ||
+      right_start_boost_.handover;
+
+    updateStuckRecovery(
+      left_stuck_recovery_,
+      left_ref,
+      left_actual_velocity_,
+      left_start_activity,
+      dt,
+      now,
+      "LEFT");
+
+    updateStuckRecovery(
+      right_stuck_recovery_,
+      right_ref,
+      right_actual_velocity_,
+      right_start_activity,
+      dt,
+      now,
+      "RIGHT");
+
+    const bool freeze_left_integral =
+      left_start_boost_.active ||
+      left_stuck_recovery_.active;
+
+    const bool freeze_right_integral =
+      right_start_boost_.active ||
+      right_stuck_recovery_.active;
+
+    double left_pi =
+      updateSpeedPi(
+        left_ref,
+        left_actual_velocity_,
+        left_speed_integral_,
+        freeze_left_integral,
+        dt);
+
+    double right_pi =
+      updateSpeedPi(
+        right_ref,
+        right_actual_velocity_,
+        right_speed_integral_,
+        freeze_right_integral,
+        dt);
+
+    // ----------------------------------------------------------
+    // ZERO-REFERENCE PI GATE
+    //
+    // At standstill, encoder velocity noise may alternate around
+    // zero. If PI remains active, that noise becomes alternating
+    // +/- torque and audible motor chatter. Therefore when a wheel
+    // reference is effectively zero, drive PI is explicitly zeroed.
+    // ----------------------------------------------------------
+
+    if (std::abs(left_ref) <= zero_pi_reference_threshold_ &&
+        !stop_catch_active_)
+    {
+      left_speed_integral_ = 0.0;
+      left_pi = 0.0;
+    }
+
+    if (std::abs(right_ref) <= zero_pi_reference_threshold_ &&
+        !stop_catch_active_)
+    {
+      right_speed_integral_ = 0.0;
+      right_pi = 0.0;
+    }
+
+    double left_acc_ff = 0.0;
+    double right_acc_ff = 0.0;
+    if (accel_ff_enabled_) {
+      left_acc_ff = clamp(wheel_accel_ff_gain_ * left_acc_ref,
+                          -accel_ff_torque_limit_, accel_ff_torque_limit_);
+      right_acc_ff = clamp(wheel_accel_ff_gain_ * right_acc_ref,
+                           -accel_ff_torque_limit_, accel_ff_torque_limit_);
+    }
+
+    // Continuous friction compensation. This remains active after
+    // START_BOOST releases, preventing low-speed stick-slip.
+    double left_friction =
+      computeRunningFrictionTorque(
+        left_ref,
+        left_running_friction_torque_);
+    double right_friction =
+      computeRunningFrictionTorque(
+        right_ref,
+        right_running_friction_torque_);
+
+    double active_stab = 0.0;
+    if (stabilization_received_ &&
+        (now - last_stabilization_time_).seconds() <= stabilization_timeout_sec_)
+    {
+      active_stab = stabilization_torque_;
+    }
+
+    const double catch_mag = updateStopCatch(left_ref, right_ref, dt, now);
+    double left_catch = 0.0;
+    double right_catch = 0.0;
+
+    if (stop_catch_active_ || catch_mag > 0.0) {
+      left_catch = -stop_left_direction_ * catch_mag;
+      right_catch = -stop_right_direction_ * catch_mag;
+
+      if (stop_left_direction_ != 0.0 &&
+          (-stop_left_direction_ * left_actual_velocity_) > stop_reverse_speed_limit_)
+        left_catch = 0.0;
+
+      if (stop_right_direction_ != 0.0 &&
+          (-stop_right_direction_ * right_actual_velocity_) > stop_reverse_speed_limit_)
+        right_catch = 0.0;
+
+      left_speed_integral_ = 0.0;
+      right_speed_integral_ = 0.0;
+      left_pi = 0.0;
+      right_pi = 0.0;
+      left_friction = 0.0;
+      right_friction = 0.0;
+
+      left_stuck_recovery_ = WheelStuckRecovery{};
+      right_stuck_recovery_ = WheelStuckRecovery{};
+    }
+
+    const double left_raw =
+      left_pi +
+      left_acc_ff +
+      left_friction +
+      active_stab +
+      left_start_boost_.torque +
+      left_stuck_recovery_.torque +
+      left_catch;
+
+    const double right_raw =
+      right_pi +
+      right_acc_ff +
+      right_friction +
+      active_stab +
+      right_start_boost_.torque +
+      right_stuck_recovery_.torque +
+      right_catch;
+
+    double left_final =
+      clamp(
+        left_raw,
+        -final_torque_limit_,
+        final_torque_limit_);
+
+    double right_final =
+      clamp(
+        right_raw,
+        -final_torque_limit_,
+        final_torque_limit_);
+
+    const bool drive_command_zero_now =
+      std::abs(target_linear_cmd_) <= stop_command_threshold_ &&
+      std::abs(target_angular_cmd_) <= stop_command_threshold_;
+
+    const bool wheel_refs_zero_now =
+      std::abs(left_ref) <= zero_pi_reference_threshold_ &&
+      std::abs(right_ref) <= zero_pi_reference_threshold_;
+
+    const bool no_start_activity =
+      !left_start_boost_.active &&
+      !right_start_boost_.active &&
+      !left_start_boost_.handover &&
+      !right_start_boost_.handover;
+
+    const bool no_recovery_activity =
+      !left_stuck_recovery_.active &&
+      !right_stuck_recovery_.active &&
+      !left_stuck_recovery_.handover &&
+      !right_stuck_recovery_.handover;
+
+    const bool hard_idle_zero =
+      drive_command_zero_now &&
+      wheel_refs_zero_now &&
+      !stop_catch_active_ &&
+      no_start_activity &&
+      no_recovery_activity &&
+      std::abs(active_stab) < 1e-6;
+
+    if (hard_idle_zero) {
+      // Do not slew through small residual +/- torques at IDLE.
+      // Force exact zero to eliminate standstill chatter.
+      left_final = 0.0;
+      right_final = 0.0;
+
+      previous_left_final_torque_ = 0.0;
+      previous_right_final_torque_ = 0.0;
+    } else {
+      left_final =
+        rateLimit(
+          left_final,
+          previous_left_final_torque_,
+          final_torque_slew_rate_,
+          dt);
+
+      right_final =
+        rateLimit(
+          right_final,
+          previous_right_final_torque_,
+          final_torque_slew_rate_,
+          dt);
+
+      previous_left_final_torque_ = left_final;
+      previous_right_final_torque_ = right_final;
+    }
+    publishEffort(left_final, right_final);
+
+    const bool command_zero = std::abs(target_linear_cmd_) <= stop_command_threshold_ &&
+                              std::abs(target_angular_cmd_) <= stop_command_threshold_;
+    const bool ref_zero = std::abs(left_ref) <= stop_reference_threshold_ &&
+                          std::abs(right_ref) <= stop_reference_threshold_;
+
+    if (stop_catch_active_) controller_state_ = ControllerState::STOP_CATCH;
+    else if (left_stuck_recovery_.active || right_stuck_recovery_.active ||
+             left_stuck_recovery_.handover || right_stuck_recovery_.handover)
+      controller_state_ = ControllerState::STUCK_RECOVERY;
+    else if (left_start_boost_.active || right_start_boost_.active ||
+             left_start_boost_.handover || right_start_boost_.handover)
+      controller_state_ = ControllerState::START_BOOST;
+    else if (command_zero && ref_zero) controller_state_ = ControllerState::IDLE;
+    else if (command_zero) controller_state_ = ControllerState::DECELERATING;
+    else controller_state_ = ControllerState::RUNNING;
+
+    publishDebug(
+      left_ref,
+      right_ref,
+      left_pi,
+      right_pi,
+      left_friction,
+      right_friction,
+      left_stuck_recovery_.torque,
+      right_stuck_recovery_.torque,
+      left_catch,
+      right_catch,
+      left_final,
+      right_final);
+
+    RCLCPP_INFO_THROTTLE(
+      get_logger(), *get_clock(), 500,
+      "state=%d vref=%+.2f aref=%+.2f | "
+      "L ref=%+.2f act=%+.2f PI=%+.2f FRIC=%+.2f BOOST=%+.2f REC=%+.2f CATCH=%+.2f final=%+.2f | "
+      "R ref=%+.2f act=%+.2f PI=%+.2f FRIC=%+.2f BOOST=%+.2f REC=%+.2f CATCH=%+.2f final=%+.2f | stab=%+.2f",
+      static_cast<int>(controller_state_), current_linear_cmd_, current_linear_accel_,
+      left_ref, left_actual_velocity_, left_pi, left_friction,
+      left_start_boost_.torque, left_stuck_recovery_.torque, left_catch, left_final,
+      right_ref, right_actual_velocity_, right_pi, right_friction,
+      right_start_boost_.torque, right_stuck_recovery_.torque, right_catch, right_final,
+      active_stab);
+  }
+
+  void publishDebug(
+    double left_ref,
+    double right_ref,
+    double left_pi,
+    double right_pi,
+    double left_friction,
+    double right_friction,
+    double left_recovery,
+    double right_recovery,
+    double left_catch,
+    double right_catch,
+    double left_final,
+    double right_final)
+  {
+    auto pub = [](const rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr & p, double v) {
+      std_msgs::msg::Float64 m; m.data = v; p->publish(m);
+    };
+    pub(current_linear_debug_pub_, current_linear_cmd_);
+    pub(current_angular_debug_pub_, current_angular_cmd_);
+    pub(linear_accel_debug_pub_, current_linear_accel_);
+    pub(left_v_ref_debug_pub_, left_ref);
+    pub(right_v_ref_debug_pub_, right_ref);
+    pub(left_speed_pi_debug_pub_, left_pi);
+    pub(right_speed_pi_debug_pub_, right_pi);
+    pub(left_start_boost_debug_pub_, left_start_boost_.torque);
+    pub(right_start_boost_debug_pub_, right_start_boost_.torque);
+    pub(left_friction_debug_pub_, left_friction);
+    pub(right_friction_debug_pub_, right_friction);
+    pub(left_stuck_recovery_debug_pub_, left_recovery);
+    pub(right_stuck_recovery_debug_pub_, right_recovery);
+    pub(left_stop_catch_debug_pub_, left_catch);
+    pub(right_stop_catch_debug_pub_, right_catch);
+    pub(stop_catch_debug_pub_, 0.5 * (std::abs(left_catch) + std::abs(right_catch)));
+    pub(left_final_torque_debug_pub_, left_final);
+    pub(right_final_torque_debug_pub_, right_final);
+    pub(controller_state_debug_pub_, static_cast<double>(static_cast<int>(controller_state_)));
+  }
+
+  void publishDriveFeedback(bool accepted, int code, const std::string & message)
+  {
+    robot_msgs::msg::CommandFeedback fb;
+    fb.source_node = "drive_controller_node";
+    fb.command_type = "drive";
+    fb.accepted = accepted;
+    fb.code = code;
+    fb.message = message;
+    drive_feedback_pub_->publish(fb);
+  }
+
+  void resetController()
+  {
+    target_linear_cmd_ = target_angular_cmd_ = 0.0;
+    current_linear_cmd_ = current_angular_cmd_ = 0.0;
+    current_linear_accel_ = current_angular_accel_ = 0.0;
+    left_speed_integral_ = right_speed_integral_ = 0.0;
+    left_start_boost_ = WheelStartBoost{};
+    right_start_boost_ = WheelStartBoost{};
+    stop_requested_ = false;
+    stop_catch_active_ = false;
+    stop_catch_torque_ = 0.0;
+    stabilization_torque_ = 0.0;
+    stabilization_received_ = false;
+    previous_left_final_torque_ = previous_right_final_torque_ = 0.0;
+    controller_state_ = ControllerState::IDLE;
+  }
+
+  double wheel_radius_{0.25}, wheel_separation_{0.60};
+  double max_linear_velocity_{1.72}, max_angular_velocity_{1.20};
+  double linear_accel_limit_{0.50}, linear_decel_limit_{0.40}, linear_jerk_limit_{1.50};
+  double angular_accel_limit_{1.00}, angular_decel_limit_{0.80}, angular_jerk_limit_{3.00};
+  double speed_kp_{0.5}, speed_ki_{0.0}, speed_integral_limit_{4.0};
+  double zero_pi_reference_threshold_{0.05};
+  bool accel_ff_enabled_{true};
+  double wheel_accel_ff_gain_{0.0}, accel_ff_torque_limit_{3.0};
+  bool running_friction_enabled_{true};
+  double left_running_friction_torque_{3.0};
+  double right_running_friction_torque_{4.5};
+  double running_friction_min_ref_{0.10};
+  double running_friction_low_speed_ref_{0.80};
+  double running_friction_low_speed_gain_{1.0};
+  double running_friction_high_speed_gain_{0.5};
+  bool stuck_recovery_enabled_{true};
+  double stuck_ref_threshold_{0.30};
+  double stuck_actual_threshold_{0.30};
+  double stuck_velocity_ratio_threshold_{0.35};
+  double stuck_detect_hold_sec_{0.20};
+
+  double stuck_recovery_initial_torque_{0.5};
+  double stuck_recovery_max_torque_{8.0};
+  double stuck_recovery_ramp_rate_{3.0};
+
+  double stuck_recovery_release_velocity_{0.50};
+  double stuck_recovery_release_hold_sec_{0.10};
+  double stuck_recovery_handover_rate_{3.0};
+  double stuck_recovery_timeout_sec_{2.0};
+
+  bool start_boost_enabled_{true};
+  double start_command_threshold_{0.20}, start_stuck_velocity_threshold_{0.10}, start_release_velocity_{0.30};
+  double start_release_hold_sec_{0.10};
+  double start_boost_initial_torque_{2.0}, start_boost_max_torque_{10.0};
+  double start_boost_ramp_rate_{8.0}, start_boost_handover_rate_{5.0}, start_boost_timeout_sec_{2.0};
+  bool stop_catch_enabled_{true};
+  double stop_command_threshold_{0.02}, stop_reference_threshold_{0.03}, stop_wheel_velocity_threshold_{0.15};
+  double stop_reverse_torque_{2.0}, stop_reverse_ramp_rate_{20.0}, stop_reverse_speed_limit_{0.40};
+  double stop_catch_duration_sec_{0.25}, stop_catch_timeout_sec_{0.70};
+  double stabilization_torque_limit_{10.0}, stabilization_timeout_sec_{0.10};
+  double final_torque_limit_{13.0}, final_torque_slew_rate_{30.0};
+  std::string left_joint_name_{"left_wheel_joint"}, right_joint_name_{"right_wheel_joint"};
+  double joint_state_timeout_sec_{0.20}, control_frequency_hz_{100.0};
+
+  bool transform_active_{false};
+  double target_linear_cmd_{0.0}, target_angular_cmd_{0.0};
+  double current_linear_cmd_{0.0}, current_angular_cmd_{0.0};
+  double current_linear_accel_{0.0}, current_angular_accel_{0.0};
+  double left_actual_velocity_{0.0}, right_actual_velocity_{0.0};
+  bool left_velocity_received_{false}, right_velocity_received_{false};
+  double left_speed_integral_{0.0}, right_speed_integral_{0.0};
+  WheelStartBoost left_start_boost_, right_start_boost_;
+  WheelStuckRecovery left_stuck_recovery_, right_stuck_recovery_;
+
+  bool left_start_boost_armed_{false};
+  bool right_start_boost_armed_{false};
+  rclcpp::Time left_start_boost_begin_time_, right_start_boost_begin_time_;
+  bool stop_requested_{false}, stop_catch_active_{false};
+  double stop_left_direction_{0.0}, stop_right_direction_{0.0}, stop_catch_torque_{0.0};
+  rclcpp::Time stop_catch_begin_time_;
+  double last_left_wheel_ref_{0.0}, last_right_wheel_ref_{0.0};
+  double stabilization_torque_{0.0};
+  bool stabilization_received_{false};
+  double previous_left_final_torque_{0.0}, previous_right_final_torque_{0.0};
+  ControllerState controller_state_{ControllerState::IDLE};
+  rclcpp::Time last_control_time_, last_joint_state_time_, last_stabilization_time_;
+
+  rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr drive_cmd_sub_;
+  rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr transform_status_sub_;
+  rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr stabilization_torque_sub_;
+  rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_state_sub_;
+  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr left_effort_pub_, right_effort_pub_;
+  rclcpp::Publisher<robot_msgs::msg::CommandFeedback>::SharedPtr drive_feedback_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr current_linear_debug_pub_, current_angular_debug_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr linear_accel_debug_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr left_v_ref_debug_pub_, right_v_ref_debug_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr left_speed_pi_debug_pub_, right_speed_pi_debug_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr left_start_boost_debug_pub_, right_start_boost_debug_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr left_friction_debug_pub_, right_friction_debug_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr left_stuck_recovery_debug_pub_, right_stuck_recovery_debug_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr left_stop_catch_debug_pub_, right_stop_catch_debug_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr stop_catch_debug_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr left_final_torque_debug_pub_, right_final_torque_debug_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr controller_state_debug_pub_;
+  rclcpp::TimerBase::SharedPtr control_timer_;
+};
+
+int main(int argc, char ** argv)
+{
+  rclcpp::init(argc, argv);
+  rclcpp::spin(std::make_shared<DriveControllerNode>());
+  rclcpp::shutdown();
+  return 0;
+}

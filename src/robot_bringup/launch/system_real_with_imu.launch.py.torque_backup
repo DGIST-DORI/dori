@@ -1,0 +1,150 @@
+from launch import LaunchDescription
+from launch.actions import IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument
+
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration
+
+from launch_ros.actions import Node
+
+from ament_index_python.packages import get_package_share_directory
+
+import os
+
+
+def generate_launch_description():
+
+    # =========================================================
+    # Launch arguments
+    # =========================================================
+
+    use_joystick = LaunchConfiguration(
+        "use_joystick"
+    )
+
+    # =========================================================
+    # Torque-based real robot launch
+    # =========================================================
+
+    robot_bringup_share = (
+        get_package_share_directory(
+            "robot_bringup"
+        )
+    )
+
+    system_real_launch = (
+        os.path.join(
+            robot_bringup_share,
+            "launch",
+            "system_real.launch.py"
+        )
+    )
+
+    robot_system = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            system_real_launch
+        ),
+        launch_arguments={
+            "use_joystick": use_joystick
+        }.items()
+    )
+
+    # =========================================================
+    # MPU-9250 serial node
+    #
+    # publishes:
+    #   /imu/data_raw
+    #   /imu/mag
+    # =========================================================
+
+    imu_node = Node(
+        package="imu_serial",
+        executable="imu_node",
+        name="imu_node",
+        output="screen"
+    )
+
+    # =========================================================
+    # Body pitch estimator
+    #
+    # publishes:
+    #   /body/pitch
+    #   /body/pitch_deg
+    #   /body/pitch_rate
+    #   /body/acc_pitch_deg
+    # =========================================================
+
+    body_pitch_node = Node(
+        package="imu_serial",
+        executable="body_pitch_node",
+        name="body_pitch_node",
+        output="screen"
+    )
+
+    # =========================================================
+    # Body attitude stabilizer
+    #
+    # publishes:
+    #   /body/stabilization_torque
+    #
+    # drive_controller_node subscribes to this torque and adds it
+    # directly to the final effort command.
+    #
+    # FIRST TEST:
+    #   kp = 0
+    #   kd = 0
+    #
+    # Keep IMU measurement running while validating the new
+    # torque-based wheel controller. Then enable D first,
+    # followed by P / smooth deadzone tuning.
+    # =========================================================
+
+    body_stabilizer_node = Node(
+        package="imu_serial",
+        executable="body_stabilizer_node",
+        name="body_stabilizer_node",
+        output="screen",
+
+        parameters=[
+            {
+                "target_pitch_deg": 0.0,
+
+                # First validation: OFF
+                "kp": 0.0,
+
+                # First validation: OFF
+                "kd": 0.0,
+
+                # Must be <= drive_controller final torque safety
+                # in practical tuning; drive_controller still
+                # applies its own final clamp.
+                "max_torque": 8.0,
+
+                # Existing P deadband.
+                # Later we can replace hard deadband with
+                # smooth gain scheduling if desired.
+                "angle_deadband_deg": 3.0,
+            }
+        ]
+    )
+
+    # =========================================================
+    # Launch
+    # =========================================================
+
+    return LaunchDescription([
+
+        DeclareLaunchArgument(
+            "use_joystick",
+            default_value="true",
+            description="Enable joystick control"
+        ),
+
+        robot_system,
+
+        imu_node,
+
+        body_pitch_node,
+
+        body_stabilizer_node,
+    ])

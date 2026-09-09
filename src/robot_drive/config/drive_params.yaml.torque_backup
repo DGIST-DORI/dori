@@ -1,0 +1,304 @@
+drive_controller_node:
+  ros__parameters:
+
+    # ========================================================
+    # Robot geometry
+    # ========================================================
+
+    wheel_radius: 0.234
+    wheel_separation: 0.184
+
+
+    # ========================================================
+    # Maximum command
+    # ========================================================
+
+    max_linear_velocity: 1.8
+    max_angular_velocity: 6.0
+
+
+    # ========================================================
+    # Trajectory shaping
+    #
+    # cmd_vel을 바로 wheel reference로 보내지 않고
+    #
+    # velocity
+    #   ↓
+    # acceleration limited
+    #   ↓
+    # jerk limited
+    #
+    # reference를 생성한다.
+    # ========================================================
+
+    # 직선 가속 제한
+    linear_accel_limit: 0.5
+
+    # 직선 감속 제한
+    #
+    # 우선 강한 급정지를 방지하기 위해
+    # 기존 0.3 m/s^2 정도부터 시작
+    linear_decel_limit: 0.3
+
+    # 직선 jerk 제한 [m/s^3]
+    linear_jerk_limit: 1.0
+
+
+    # 회전 가속 제한
+    angular_accel_limit: 1.5
+
+    # 회전 감속 제한
+    angular_decel_limit: 1.0
+
+    # 회전 jerk 제한 [rad/s^3]
+    angular_jerk_limit: 2.0
+
+
+    # ========================================================
+    # Wheel speed PI controller
+    #
+    # e = wheel_velocity_ref - wheel_velocity_actual
+    #
+    # tau_PI =
+    #     Kp * e
+    #   + Ki * integral(e)
+    #
+    # MIT speed loop 대신
+    # 이 PI가 직접 필요한 torque를 계산한다.
+    # ========================================================
+
+    speed_kp: 0.5
+    speed_ki: 0.0
+
+    # integral state 자체의 제한
+    # 너무 큰 windup 방지
+    speed_integral_limit: 4.0
+    zero_pi_reference_threshold: 0.05
+
+
+    # ========================================================
+    # Wheel acceleration feedforward
+    #
+    # tau_acc_ff =
+    #     wheel_accel_ff_gain * wheel_accel_ref
+    #
+    # 처음에는 0으로 두고
+    # PI가 정상 동작한 뒤 튜닝하는 것을 권장.
+    # ========================================================
+
+    accel_ff_enabled: false
+
+    wheel_accel_ff_gain: 0.0
+
+    accel_ff_torque_limit: 3.0
+
+
+    # ========================================================
+    # START BOOST
+    #
+    # 정지 상태에서 주행 명령이 들어왔지만
+    # 바퀴가 정지마찰 때문에 움직이지 않을 때
+    # 추가 torque를 ramp-up한다.
+    #
+    # wheel motion이 확인되면 boost를
+    # 바로 0으로 만들지 않고 서서히 제거한다.
+    # ========================================================
+
+    start_boost_enabled: true
+
+    # 이보다 큰 wheel reference가 있으면
+    # "출발하려는 명령"으로 판단 [rad/s]
+    start_command_threshold: 0.20
+
+    # 실제 바퀴 속도가 이보다 작으면
+    # stuck 상태 후보 [rad/s]
+    start_stuck_velocity_threshold: 0.10
+
+    # 실제 속도가 이 값 이상이면
+    # 정지마찰을 깼다고 판단 [rad/s]
+    start_release_velocity: 0.30
+
+
+    # START_BOOST 진입 순간 torque
+    #
+    # 너무 크게 시작하지 않고 낮게 시작 후 ramp.
+    start_boost_initial_torque: 4.0
+
+    # 최대 boost torque
+    #
+    # 정지마찰 실험에서 큰 토크가 필요했던 것을 고려하되
+    # 첫 테스트에서는 8 Nm 정도로 제한 권장.
+    start_boost_max_torque: 10.0
+
+    # boost 증가 속도 [Nm/s]
+    start_boost_ramp_rate: 8.0
+
+    # 움직임 발생 후 boost 제거 속도 [Nm/s]
+    start_boost_handover_rate: 3.0
+    start_release_velocity: 0.30
+    start_release_hold_sec: 0.10
+    
+
+    # 이 시간까지 못 움직이면 boost 종료
+    start_boost_timeout_sec: 2.0
+    
+    # ========================================================
+    # Running friction compensation
+    # ========================================================
+
+    running_friction_enabled: true
+    
+    
+    left_running_friction_torque: 4.5
+    right_running_friction_torque: 6.0
+
+
+    # 이보다 작은 wheel reference에서는 마찰 보상 OFF
+    running_friction_min_ref: 0.10
+
+    # 이 속도 이하를 저속 영역으로 판단
+    running_friction_low_speed_ref: 4.0
+
+    # 저속에서는 100%
+    running_friction_low_speed_gain: 1.0
+
+    # 고속에서는 50%
+    running_friction_high_speed_gain: 1.0
+    
+    
+
+
+    # ========================================================
+    # STOP / CATCH
+    #
+    # stop 명령 후 wheel reference와 실제 wheel speed가
+    # 거의 0이 되었을 때 짧은 역방향 torque를 넣어
+    # 몸체가 관성으로 계속 굴러가는 현상을 억제.
+    #
+    # 현재 첫 버전에서는 IMU 기반 catch가 아니라
+    # "short reverse pulse" 형태.
+    # 이후 pitch / pitch-rate 조건과 결합할 예정.
+    # ========================================================
+
+    stop_catch_enabled: true
+
+    # cmd가 이보다 작으면 stop command로 판단
+    stop_command_threshold: 0.02
+
+    # wheel reference가 이보다 작으면
+    # trajectory가 거의 정지했다고 판단 [rad/s]
+    stop_reference_threshold: 0.03
+
+    # 실제 wheel speed가 이보다 작을 때만
+    # catch 진입 허용 [rad/s]
+    stop_wheel_velocity_threshold: 0.15
+
+
+    # 역방향 pulse torque [Nm]
+    #
+    # 첫 테스트에서는 작게 시작.
+    stop_reverse_torque: 1.0
+
+    # reverse torque ramp rate [Nm/s]
+    stop_reverse_ramp_rate: 10.0
+
+    # 역방향 wheel speed가 이 값 이상이면
+    # 더 이상 reverse torque를 주지 않음 [rad/s]
+    stop_reverse_speed_limit: 0.30
+
+    # 실제 역토크를 주는 시간 [s]
+    stop_catch_duration_sec: 0.15
+
+    # catch 전체 최대 허용 시간 [s]
+    stop_catch_timeout_sec: 0.50
+    
+    
+    
+        #========================================================
+    # STUCK RECOVERY
+# ========================================================
+
+    stuck_recovery_enabled: true
+
+    # wheel reference가 이보다 클 때만 stuck 판단
+    stuck_ref_threshold: 0.30
+
+    # 실제 wheel velocity가 이보다 작으면 stuck 후보
+    stuck_actual_threshold: 0.30
+    stuck_velocity_ratio_threshold: 0.35
+
+    # 이 상태가 연속으로 유지되어야 실제 stuck으로 판단
+    stuck_detect_hold_sec: 0.20
+
+    # recovery 시작 torque
+    stuck_recovery_initial_torque: 0.5
+
+    # recovery 최대 추가 torque
+    stuck_recovery_max_torque: 7.0
+
+    # recovery torque 증가 속도
+    stuck_recovery_ramp_rate: 3.0
+
+    # 이 속도 이상으로 회전하면 recovery 성공 후보
+    stuck_recovery_release_velocity: 0.50
+
+    # 위 속도를 이 시간 동안 유지해야 성공
+    stuck_recovery_release_hold_sec: 0.10
+
+    # 성공 후 recovery torque를 줄이는 속도
+    stuck_recovery_handover_rate: 3.0
+
+    # 안전 timeout
+    stuck_recovery_timeout_sec: 2.0
+
+
+
+
+    # ========================================================
+    # Existing IMU body stabilization
+    #
+    # /body/stabilization_torque
+    # 입력을 그대로 사용할 수 있다.
+    # ========================================================
+
+    stabilization_torque_limit: 8.0
+
+    stabilization_timeout_sec: 0.10
+
+
+    # ========================================================
+    # Final motor torque safety
+    #
+    # 모든 torque:
+    #
+    # speed PI
+    # + acceleration FF
+    # + START boost
+    # + STOP catch
+    # + IMU stabilization
+    #
+    # 합산 후 이 범위로 clamp.
+    # ========================================================
+
+    final_torque_limit: 10.0
+
+    # 최종 torque 자체가 너무 빠르게 변하지 않도록
+    # 제한 [Nm/s]
+    final_torque_slew_rate: 20.0
+
+
+    # ========================================================
+    # Joint feedback
+    # ========================================================
+
+    left_joint_name: "left_wheel_joint"
+    right_joint_name: "right_wheel_joint"
+
+    joint_state_timeout_sec: 0.20
+
+
+    # ========================================================
+    # Control loop
+    # ========================================================
+
+    control_frequency_hz: 100.0

@@ -1,0 +1,19 @@
+{
+  "ok": true,
+  "mapping": {
+    "left_wheel_joint": [
+      2,
+      1.0
+    ],
+    "right_wheel_joint": [
+      1,
+      -1.0
+    ]
+  },
+  "checks": [
+    "Straight/reverse CAN commands unchanged",
+    "Angular CAN command direction reversed, including arcs",
+    "Joint feedback reconstructs matching body velocity"
+  ],
+  "physical_verification": "Pending brief forward/left-turn check after restart"
+}

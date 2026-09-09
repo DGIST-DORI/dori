@@ -1,0 +1,5 @@
+mode_manager_node:
+  ros__parameters:
+    auto_timeout_sec: 1.0
+    default_transform_profile: "precise"
+    transform_profile_for_transform: "precise"

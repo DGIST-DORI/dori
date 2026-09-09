@@ -1,0 +1,78 @@
+{
+  "motion": "User-confirmed robot nose lifted, then returned",
+  "baseline_window_s": [
+    578,
+    584
+  ],
+  "raised_window_s": [
+    589,
+    591
+  ],
+  "accel_before_m_s2": [
+    -0.4142416440910388,
+    -0.34825309569725044,
+    -9.61757445254062
+  ],
+  "accel_raised_m_s2": [
+    -0.3408836985451219,
+    2.247308956044208,
+    -9.361394603878042
+  ],
+  "gravity_tilt_deg": 15.566885926475729,
+  "gyro_integral_sensor_xyz_deg": [
+    -16.446531945565656,
+    0.28777774176470766,
+    0.47739875022421363
+  ],
+  "gyro_integral_body_xyz_deg": [
+    -0.10039940448453342,
+    -16.454196053522086,
+    0.22020632079909588
+  ],
+  "sensor_to_body_rotation_rows": [
+    [
+      0.02250762975126013,
+      0.9990563699479467,
+      -0.03714533980746216
+    ],
+    [
+      0.9988213670339003,
+      -0.02406945309625672,
+      -0.042148999800442
+    ],
+    [
+      -0.043003294751806524,
+      -0.03615288500353342,
+      -0.9984205955139399
+    ]
+  ],
+  "determinant": 0.9999999999999999,
+  "fitted_rpy_deg_assuming_initial_body_level": [
+    -177.9262215477843,
+    2.464667337556269,
+    88.70910453051175
+  ],
+  "approximate_axis_mapping": {
+    "body_x_forward": "+imu_y",
+    "body_y_left": "+imu_x",
+    "body_z_up": "-imu_z"
+  },
+  "nominal_rpy_rad": [
+    3.141592653589793,
+    0.0,
+    1.5707963267948966
+  ],
+  "bias_rad_s": [
+    0.001215944478873936,
+    -0.0033043518578080673,
+    -0.0006386451924624661
+  ],
+  "axis_direction_verified": true,
+  "mounting_position_verified": false,
+  "full_calibration_activated": false,
+  "limitations": [
+    "User-reported nose-up motion assumed without substantial lateral tilt.",
+    "Fitted small angles absorb ground/body tilt and accel bias; not mounting metrology.",
+    "IMU mounting translation and whether it is rigidly fixed to base_link remain unverified."
+  ]
+}

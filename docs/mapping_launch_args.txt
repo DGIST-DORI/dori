@@ -1,0 +1,117 @@
+Arguments (pass arguments as '<name>:=<value>'):
+
+    'use_sim_time':
+        no description given
+        (default: 'false')
+
+    'use_wheel_odometry':
+        no description given
+        (default: 'false')
+
+    'odom_topic':
+        no description given
+        (default: '/odom')
+
+    'scan_topic':
+        no description given
+        (default: '/scan')
+
+    'start_lidar_driver':
+        no description given
+        (default: 'true')
+
+    'serial_port':
+        no description given
+        (default: '/dev/slamtec_c1')
+
+    'serial_baudrate':
+        no description given
+        (default: '460800')
+
+    'scan_mode':
+        no description given
+        (default: 'Standard')
+
+    'lidar_inverted':
+        no description given
+        (default: 'false')
+
+    'angle_compensate':
+        no description given
+        (default: 'true')
+
+    'map_frame':
+        no description given
+        (default: 'map')
+
+    'odom_frame':
+        no description given
+        (default: 'odom')
+
+    'base_frame':
+        no description given
+        (default: 'base_link')
+
+    'laser_frame':
+        no description given
+        (default: 'laser')
+
+    'publish_laser_tf':
+        no description given
+        (default: 'true')
+
+    'laser_x':
+        no description given
+        (default: '0.0')
+
+    'laser_y':
+        no description given
+        (default: '0.0')
+
+    'laser_z':
+        no description given
+        (default: '0.0')
+
+    'laser_roll':
+        no description given
+        (default: '0.0')
+
+    'laser_pitch':
+        no description given
+        (default: '0.0')
+
+    'laser_yaw':
+        no description given
+        (default: '0.0')
+
+    'rviz':
+        no description given
+        (default: 'false')
+
+    'rviz_config':
+        no description given
+        (default: '/home/dori/robot_ws/install/robot_mapping/share/robot_mapping/config/lidar_only_mapping.rviz')
+
+    'map_resolution':
+        no description given
+        (default: '0.05')
+
+    'min_range':
+        no description given
+        (default: '0.10')
+
+    'max_range':
+        no description given
+        (default: '16.0')
+
+    'missing_data_ray_length':
+        no description given
+        (default: '16.5')
+
+    'submap_range_data':
+        no description given
+        (default: '35')
+
+    'num_subdivisions_per_laser_scan':
+        no description given
+        (default: '1')

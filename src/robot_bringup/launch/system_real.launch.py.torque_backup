@@ -1,0 +1,385 @@
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
+from launch.substitutions import (
+    LaunchConfiguration,
+    PathJoinSubstitution,
+    Command,
+    FindExecutable,
+)
+
+from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
+
+
+def generate_launch_description():
+
+    use_input_nodes = LaunchConfiguration("use_input_nodes")
+    use_joystick = LaunchConfiguration("use_joystick")
+
+    # ============================================================
+    # Parameter files
+    # ============================================================
+
+    supervisor_params = PathJoinSubstitution([
+        FindPackageShare("robot_supervisor"),
+        "config",
+        "supervisor_params.yaml",
+    ])
+
+    drive_params = PathJoinSubstitution([
+        FindPackageShare("robot_drive"),
+        "config",
+        "drive_params.yaml",
+    ])
+
+    transform_params = PathJoinSubstitution([
+        FindPackageShare("robot_transform"),
+        "config",
+        "transform_params.yaml",
+    ])
+
+    dxl_bridge_params = PathJoinSubstitution([
+        FindPackageShare("robot_transform"),
+        "config",
+        "dxl_bridge_params.yaml",
+    ])
+
+    # ============================================================
+    # Robot description
+    # ============================================================
+
+    urdf_file = PathJoinSubstitution([
+        FindPackageShare("robot_bringup"),
+        "config",
+        "cubemars_mit.urdf.xacro",
+    ])
+
+    controllers_file = PathJoinSubstitution([
+        FindPackageShare("robot_bringup"),
+        "config",
+        "bldc_controllers.yaml",
+    ])
+
+    robot_description = {
+        "robot_description": Command([
+            FindExecutable(name="xacro"),
+            " ",
+            urdf_file,
+        ])
+    }
+
+    # ============================================================
+    # Launch
+    # ============================================================
+
+    return LaunchDescription([
+
+        # --------------------------------------------------------
+        # Launch arguments
+        # --------------------------------------------------------
+
+        DeclareLaunchArgument(
+            "use_input_nodes",
+            default_value="false",
+            description=(
+                "Launch keyboard_input_node "
+                "and virtual_vlm_input_node"
+            ),
+        ),
+
+        DeclareLaunchArgument(
+            "use_joystick",
+            default_value="false",
+            description=(
+                "Launch joy_node "
+                "and joystick_input_node"
+            ),
+        ),
+
+        # ========================================================
+        # ros2_control
+        # ========================================================
+
+        Node(
+            package="controller_manager",
+            executable="ros2_control_node",
+            parameters=[
+                robot_description,
+                controllers_file,
+            ],
+            output="screen",
+        ),
+
+        # ========================================================
+        # Robot state publisher
+        # ========================================================
+
+        Node(
+            package="robot_state_publisher",
+            executable="robot_state_publisher",
+            parameters=[robot_description],
+            output="screen",
+        ),
+
+        # ========================================================
+        # Joint state broadcaster
+        # ========================================================
+
+        Node(
+            package="controller_manager",
+            executable="spawner",
+            arguments=[
+                "joint_state_broadcaster",
+                "--controller-manager",
+                "/controller_manager",
+            ],
+            output="screen",
+        ),
+
+        # ========================================================
+        # Torque-mode wheel controllers
+        #
+        # NEW DRIVE ARCHITECTURE:
+        #   drive_controller_node computes final wheel torque
+        #   and publishes directly to:
+        #
+        #   /left_bldc_effort_controller/commands
+        #   /right_bldc_effort_controller/commands
+        #
+        # Therefore effort-only controllers must be ACTIVE.
+        # ========================================================
+
+        Node(
+            package="controller_manager",
+            executable="spawner",
+            arguments=[
+                "left_bldc_effort_controller",
+                "--controller-manager",
+                "/controller_manager",
+            ],
+            output="screen",
+        ),
+
+        Node(
+            package="controller_manager",
+            executable="spawner",
+            arguments=[
+                "right_bldc_effort_controller",
+                "--controller-manager",
+                "/controller_manager",
+            ],
+            output="screen",
+        ),
+
+        # ========================================================
+        # Legacy velocity+effort drive controllers
+        #
+        # Kept loaded but inactive for compatibility/debugging.
+        # They are NOT used during normal driving.
+        # ========================================================
+
+        Node(
+            package="controller_manager",
+            executable="spawner",
+            arguments=[
+                "left_bldc_drive_controller",
+                "--controller-manager",
+                "/controller_manager",
+                "--inactive",
+            ],
+            output="screen",
+        ),
+
+        Node(
+            package="controller_manager",
+            executable="spawner",
+            arguments=[
+                "right_bldc_drive_controller",
+                "--controller-manager",
+                "/controller_manager",
+                "--inactive",
+            ],
+            output="screen",
+        ),
+
+        # ========================================================
+        # BLDC position controller
+        #
+        # Used only during transform.
+        # Starts inactive.
+        # ========================================================
+
+        Node(
+            package="controller_manager",
+            executable="spawner",
+            arguments=[
+                "bldc_position_controller",
+                "--controller-manager",
+                "/controller_manager",
+                "--inactive",
+            ],
+            output="screen",
+        ),
+
+        # ========================================================
+        # IMPORTANT:
+        # bldc_command_bridge_node is intentionally NOT launched.
+        #
+        # Old path:
+        #   /bldc_mit_speed_cmd
+        #       -> bldc_command_bridge_node
+        #       -> velocity+effort controllers
+        #
+        # New path:
+        #   drive_controller_node
+        #       -> effort-only controllers directly
+        # ========================================================
+
+        # ========================================================
+        # Dynamixel
+        # ========================================================
+
+        Node(
+            package="dynamixel_sdk_examples",
+            executable="read_write_node",
+            output="screen",
+        ),
+
+        Node(
+            package="robot_transform",
+            executable="dxl_bridge_node",
+            parameters=[dxl_bridge_params],
+            output="screen",
+        ),
+
+        Node(
+            package="robot_transform",
+            executable="dxl_state_publisher_node",
+            parameters=[dxl_bridge_params],
+            output="screen",
+        ),
+
+        # ========================================================
+        # Supervisor
+        # ========================================================
+
+        Node(
+            package="robot_supervisor",
+            executable="mode_manager_node",
+            parameters=[supervisor_params],
+            output="screen",
+        ),
+
+        # ========================================================
+        # Torque-based drive controller
+        #
+        # Responsibilities:
+        #   cmd_vel
+        #   -> jerk-limited reference
+        #   -> differential wheel reference
+        #   -> wheel speed PI
+        #   + START_BOOST
+        #   + acceleration FF
+        #   + external IMU stabilization torque (when available)
+        #   + STOP_CATCH reverse pulse
+        #   -> final wheel torque
+        # ========================================================
+
+        Node(
+            package="robot_drive",
+            executable="drive_controller_node",
+            parameters=[drive_params],
+            output="screen",
+        ),
+
+        # ========================================================
+        # Transform
+        #
+        # IMPORTANT:
+        # transform_controller_node must switch
+        # effort controllers <-> position controller.
+        # If it still switches the old drive controllers,
+        # update that node before using transform.
+        # ========================================================
+
+        Node(
+            package="robot_transform",
+            executable="transform_manager_node",
+            parameters=[transform_params],
+            output="screen",
+        ),
+
+        Node(
+            package="robot_transform",
+            executable="transform_controller_node",
+            parameters=[transform_params],
+            output="screen",
+        ),
+
+        # ========================================================
+        # Error manager
+        # ========================================================
+
+        Node(
+            package="robot_error",
+            executable="error_manager_node",
+            output="screen",
+        ),
+
+        # ========================================================
+        # Keyboard input
+        # ========================================================
+
+        Node(
+            package="robot_input",
+            executable="keyboard_input_node",
+            condition=IfCondition(use_input_nodes),
+            output="screen",
+        ),
+
+        Node(
+            package="robot_input",
+            executable="virtual_vlm_input_node",
+            condition=IfCondition(use_input_nodes),
+            output="screen",
+        ),
+
+        # ========================================================
+        # Joystick
+        # ========================================================
+
+        Node(
+            package="joy",
+            executable="joy_node",
+            condition=IfCondition(use_joystick),
+            output="screen",
+        ),
+
+        Node(
+            package="robot_input",
+            executable="joystick_input_node",
+            condition=IfCondition(use_joystick),
+            parameters=[{
+                "linear_axis": 1,
+                "angular_axis": 0,
+
+                "linear_scale": 1.0,
+                "angular_scale": 1.0,
+
+                "deadzone": 0.1,
+
+                "transform_to_a_button": 0,
+                "transform_to_b_button": 1,
+
+                "emergency_stop_button": 2,
+                "emergency_go_button": 3,
+
+                "manual_mode_button": 6,
+                "auto_mode_button": 7,
+
+                "publish_zero_on_idle": True,
+            }],
+            output="screen",
+        ),
+    ])

@@ -1,0 +1,17 @@
+Arguments (pass arguments as '<name>:=<value>'):
+
+    'use_wheel_odometry':
+        no description given
+        (default: 'true')
+
+    'odom_publish_tf':
+        no description given
+        (default: 'true')
+
+    'use_joystick':
+        Enable joystick control
+        (default: 'true')
+
+    'use_input_nodes':
+        no description given
+        (default: 'false')

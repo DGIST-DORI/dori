@@ -1,0 +1,39 @@
+Arguments (pass arguments as '<name>:=<value>'):
+
+    'map':
+        no description given
+
+    'named_points_file':
+        no description given
+
+    'params_file':
+        no description given
+        (default: '/home/dori/robot_ws/install/robot_navigation/share/robot_navigation/config/nav2_real.yaml')
+
+    'rviz':
+        no description given
+        (default: 'false')
+
+    'laser_x':
+        no description given
+        (default: '0.0')
+
+    'laser_y':
+        no description given
+        (default: '0.0')
+
+    'laser_z':
+        no description given
+        (default: '0.0')
+
+    'laser_roll':
+        no description given
+        (default: '0.0')
+
+    'laser_pitch':
+        no description given
+        (default: '0.0')
+
+    'laser_yaw':
+        no description given
+        (default: '0.0')

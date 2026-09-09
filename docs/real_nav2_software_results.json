@@ -1,0 +1,11 @@
+{
+  "ok": true,
+  "plant": "software only, no physical motors",
+  "nav2_result": "SUCCEEDED",
+  "final_xy": [
+    0.624417921455098,
+    -0.008317147105678699
+  ],
+  "distance_to_goal_m": 0.17577895562929496,
+  "wheel_odom_position_error_m": 7.810668302229329e-16
+}

@@ -1,0 +1,17 @@
+# IMU mounting is NOT yet calibrated. verified must remain false.
+verified: false
+frame_id: imu_link
+xyz_m:
+- 0.0
+- 0.0
+- 0.0
+rpy_rad:
+- 0.0
+- 0.0
+- 0.0
+gyro_bias_rad_s:
+- 0.1282862416811931
+- -0.005572992857364737
+- -0.024092028422522067
+measurement_note: 2026-09-09 user-confirmed stationary 30s; mounting rotation/position
+  still UNKNOWN. Bias must be rechecked after warm-up/reboot.

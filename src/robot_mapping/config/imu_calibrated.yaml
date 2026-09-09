@@ -1,0 +1,25 @@
+verified: true
+axis_direction_verified: true
+rigid_to_body_confirmed: true
+mounting_position_verified: false
+translation_is_estimate: true
+frame_id: imu_link
+mapping_frame_id: imu_mapping
+xyz_m:
+- 0.0
+- 0.1
+- 0.1
+rpy_rad:
+- 3.141592653589793
+- 0.0
+- 1.5707963267948966
+gyro_bias_rad_s:
+- 0.0007306980937549932
+- -0.003114453466490671
+- -0.0007333547067765802
+measurement_note: 'Axes verified by user-labelled left turn and nose-up; user confirms
+  rigid body attachment. Translation from user estimate: x=0, y=+0.10, z=+0.10 m.
+  Nominal orientation; small body/ground tilt not fitted as mounting. Bias sampled
+  stationary before activation; recheck after restart.'
+translation_source: 'User estimate: from body centre, left 10 cm and up 10 cm; no
+  fore/aft offset stated.'

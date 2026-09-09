@@ -1,0 +1,47 @@
+{
+  "ok": true,
+  "installed_config": "/home/dori/robot_ws/install/robot_bringup/share/robot_bringup/config/cubemars_mit.urdf.xacro",
+  "direction_signs": {
+    "left_wheel_joint": -1.0,
+    "right_wheel_joint": 1.0
+  },
+  "checks": [
+    {
+      "command": "forward",
+      "can_rad_s": [
+        -0.42735042735042733,
+        0.42735042735042733
+      ],
+      "feedback_v": 0.1,
+      "feedback_w": 0.0
+    },
+    {
+      "command": "reverse",
+      "can_rad_s": [
+        0.42735042735042733,
+        -0.42735042735042733
+      ],
+      "feedback_v": -0.1,
+      "feedback_w": 0.0
+    },
+    {
+      "command": "left_turn",
+      "can_rad_s": [
+        0.11794871794871795,
+        0.11794871794871795
+      ],
+      "feedback_v": 0.0,
+      "feedback_w": 0.3
+    },
+    {
+      "command": "right_turn",
+      "can_rad_s": [
+        -0.11794871794871795,
+        -0.11794871794871795
+      ],
+      "feedback_v": 0.0,
+      "feedback_w": -0.3
+    }
+  ],
+  "scope": "Configuration and command/feedback sign algebra only; physical motion not tested"
+}

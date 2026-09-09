@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "checks": [
+    "SI\u2192normalized\u2192supervisor\u2192wheel rad/s; joystick idle does not interrupt AUTO",
+    "sensor freshness gate and immediate motor halt",
+    "fresh ROS messages cannot mask stale per-wheel CAN feedback",
+    "replacement serialized after cancellation; MODE=0 cancels action and stops wheels",
+    "late action acceptance after cancellation cannot enable movement",
+    "LLM in-flight result discarded atomically on mode-off",
+    "emergency stop cancels navigation and stops motor output",
+    "manual mode ignores auto input; final drive watchdog stops command loss"
+  ]
+}

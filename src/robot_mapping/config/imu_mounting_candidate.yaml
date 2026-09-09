@@ -1,0 +1,15 @@
+# Direction verified by user-labelled left turn and nose-up test on 2026-09-09.
+# NOT ready for activation: mounting translation and rigid attachment unknown.
+verified: false
+axis_direction_verified: true
+mounting_position_verified: false
+frame_id: imu_link
+xyz_m: [0.0, 0.0, 0.0]  # placeholders, NOT measured
+rpy_rad: [3.141592653589793, 0.0, 1.5707963267948966]
+gyro_bias_rad_s: [0.001215944478873936, -0.0033043518578080673, -0.0006386451924624661]
+measurement_note: >-
+  Nominal axes only: body X=imu Y, body Y=imu X, body Z=-imu Z.
+  Nose-up gravity change 15.57 deg and gyro pitch -16.45 deg agree.
+  Small fitted tilt angles include ground/body tilt; not mounting metrology.
+  xyz and rigid attachment to base_link must be measured before verified=true.
+  Recheck bias after warm-up/reboot. See docs/imu_axis_verification_20260909.json.

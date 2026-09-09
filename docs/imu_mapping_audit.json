@@ -1,0 +1,75 @@
+{
+  "counts": {
+    "imu": 574,
+    "odom": 632
+  },
+  "nodes": [
+    "transform_manager_node",
+    "transform_controller_node",
+    "error_manager_node",
+    "joy_node",
+    "joystick_input_node",
+    "imu_node",
+    "body_pitch_node",
+    "base_to_laser_tf",
+    "cartographer_node",
+    "transform_listener_impl_aaaaf38177c0",
+    "cartographer_occupancy_grid_node",
+    "body_stabilizer_node",
+    "servo3_pitch_follower_node",
+    "mapping_sensor_audit",
+    "sllidar_node",
+    "wheel_odometry_node",
+    "controller_manager",
+    "left_bldc_effort_controller",
+    "bldc_position_controller",
+    "right_bldc_effort_controller",
+    "joint_state_broadcaster",
+    "left_bldc_drive_controller",
+    "right_bldc_drive_controller",
+    "robot_state_publisher",
+    "bldc_command_bridge_node",
+    "read_write_node",
+    "dxl_bridge_node",
+    "dxl_state_publisher_node",
+    "mode_manager_node",
+    "drive_controller_node"
+  ],
+  "imu": {
+    "frame": "imu_link",
+    "linear_acceleration_mean": [
+      -0.012013897979268292,
+      0.0036918278603658536,
+      -9.615430797955486
+    ],
+    "angular_velocity_mean": [
+      0.12814432244998622,
+      -0.005356571337745958,
+      -0.024177000176990003
+    ],
+    "orientation_covariance": [
+      -1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "odom": {
+    "frame": "odom",
+    "first_xy": [
+      1.7123401075686946,
+      -1.6298835893529817
+    ],
+    "last_xy": [
+      1.7123415557037578,
+      -1.6299284358246329
+    ],
+    "last_v": 0.0,
+    "last_w": 0.0
+  }
+}

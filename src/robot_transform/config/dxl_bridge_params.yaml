@@ -1,0 +1,48 @@
+dxl_bridge_node:
+  ros__parameters:
+
+    # ============================================================
+    # Logical motor -> Dynamixel ID
+    # ============================================================
+
+    logical_motor3_dxl_id: 1
+    logical_motor4_dxl_id: 2
+    logical_motor5_dxl_id: 3
+
+    # ============================================================
+    # Single-turn motor 5 raw limits. Motors 3/4 use signed extended
+    # positions (-1048575..1048575). All motors use 4096 counts/rev.
+    # ============================================================
+
+    dxl_position_min: 0
+    dxl_position_max: 4095
+
+
+
+dxl_state_publisher_node:
+  ros__parameters:
+
+    # ============================================================
+    # Logical motor -> Dynamixel ID
+    # ============================================================
+
+    logical_motor3_dxl_id: 1
+    logical_motor4_dxl_id: 2
+    logical_motor5_dxl_id: 3
+
+    # ============================================================
+    # Joint names
+    # ============================================================
+
+    motor3_joint_name: "motor_3_joint"
+    motor4_joint_name: "motor_4_joint"
+    motor5_joint_name: "motor_5_joint"
+
+    # ============================================================
+    # Single-turn motor 5 raw limits. Motors 3/4 use signed extended
+    # positions (-1048575..1048575). All motors use 4096 counts/rev.
+    # ============================================================
+
+    dxl_position_min: 0
+    dxl_position_max: 4095
+

@@ -1,0 +1,11 @@
+build/
+install/
+log/
+__pycache__/
+*.pyc
+.deps/
+data/
+.env
+backups/
+.env.*
+!.env.example

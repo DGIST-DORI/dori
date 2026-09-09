@@ -1,0 +1,105 @@
+{
+  "physical_condition": "User authorized commands with wheels raised and robot isolated",
+  "steps": [
+    {
+      "command": "forward",
+      "command_v_m_s": 0.15,
+      "command_w_rad_s": 0.0,
+      "wheel_delta_rad": [
+        0.08091872128266608,
+        0.015723542998056672
+      ],
+      "odom_forward_m": 0.011310907254997447,
+      "odom_yaw_rad": -0.08291125934020949,
+      "encoder_distance_m": 0.011307144920844564,
+      "encoder_yaw_rad": -0.08291125934020979,
+      "mean_v_m_s": 0.00027047579582012963,
+      "mean_w_rad_s": -6.63509350044266e-05,
+      "motor_commands": {
+        "1": {
+          "v_des": 0.641025641025641,
+          "tau_ff": 0.0,
+          "kd": 1.5
+        },
+        "2": {
+          "v_des": 0.641025641025641,
+          "tau_ff": 0.0,
+          "kd": 1.5
+        }
+      },
+      "response_detected": true,
+      "direction_ok": true,
+      "odom_encoder_consistent": true
+    },
+    {
+      "command": "reverse",
+      "command_v_m_s": -0.15,
+      "command_w_rad_s": 0.0,
+      "wheel_delta_rad": [
+        -0.10699679259651163,
+        -0.10431228525538216
+      ],
+      "odom_forward_m": -0.02472394618553155,
+      "odom_yaw_rad": 0.0034139930316519074,
+      "encoder_distance_m": -0.024723162108671575,
+      "encoder_yaw_rad": 0.003413993031653771,
+      "mean_v_m_s": -0.0007713871075332379,
+      "mean_w_rad_s": -0.0018200480002444554,
+      "motor_commands": {
+        "1": {
+          "v_des": -0.641025641025641,
+          "tau_ff": 0.0,
+          "kd": 1.5
+        },
+        "2": {
+          "v_des": -0.641025641025641,
+          "tau_ff": 0.0,
+          "kd": 1.5
+        }
+      },
+      "response_detected": true,
+      "direction_ok": true,
+      "odom_encoder_consistent": true
+    },
+    {
+      "command": "left_turn",
+      "command_v_m_s": 0.0,
+      "command_w_rad_s": 0.8,
+      "wheel_delta_rad": [
+        0.0,
+        0.09204025169592356
+      ],
+      "odom_forward_m": 0.010723685487529057,
+      "odom_yaw_rad": 0.11705118965677186,
+      "encoder_distance_m": 0.010768709448423057,
+      "encoder_yaw_rad": 0.11705118965677236,
+      "mean_v_m_s": 0.00211765198869019,
+      "mean_w_rad_s": 0.027199890142163282,
+      "motor_commands": {
+        "1": {
+          "v_des": -0.31368769486088727,
+          "tau_ff": 0.0,
+          "kd": 1.5
+        },
+        "2": {
+          "v_des": 0.31368769486088727,
+          "tau_ff": 0.0,
+          "kd": 1.5
+        }
+      },
+      "response_detected": true,
+      "direction_ok": false,
+      "odom_encoder_consistent": true
+    }
+  ],
+  "runtime_parameters": {
+    "max_linear_velocity": 1.72,
+    "max_angular_velocity": 7.0,
+    "wheel_radius": 0.234,
+    "wheel_separation": 0.184
+  },
+  "ok": false,
+  "error": "Direction or encoder/odom consistency failed",
+  "stopped_before_mode_restore": true,
+  "final_control_mode": 0
+}
