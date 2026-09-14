@@ -5,29 +5,29 @@
 
 ```bash
 # Use external LLM instead of local model
-ros2 launch bringup robot.launch.py use_external_llm:=true
+ros2 launch dori_bringup robot.launch.py use_external_llm:=true
 
 # SW development without navigation hardware
-ros2 launch bringup robot.launch.py enable_navigation:=false
+ros2 launch dori_bringup robot.launch.py enable_navigation:=false
 
 # Change Whisper model size (tiny / base / small / medium)
-ros2 launch bringup robot.launch.py whisper_model:=base
+ros2 launch dori_bringup robot.launch.py whisper_model:=base
 
 # Change TTS language
-ros2 launch bringup robot.launch.py tts_language:=ko
+ros2 launch dori_bringup robot.launch.py tts_language:=ko
 ```
 
 ### Sub-system Launch (Development)
 
 ```bash
 # Perception only (cameras + detection nodes)
-ros2 launch bringup perception.launch.py visualize:=true
+ros2 launch dori_bringup perception.launch.py visualize:=true
 
 # Interaction state machine only
-ros2 launch bringup interaction.launch.py
+ros2 launch dori_bringup interaction.launch.py
 
 # Voice pipeline only (no cameras needed)
-ros2 launch bringup voice.launch.py
+ros2 launch dori_bringup voice.launch.py
 ```
 
 ### Testing Without Hardware
@@ -93,7 +93,7 @@ colcon build --symlink-install
 source install/setup.bash
 
 # 4) Start dashboard backend (rosbridge + HTTP server)
-ros2 launch dashboard_pkg dashboard.launch.py
+ros2 launch dori_dashboard dashboard.launch.py
 ```
 
 Dashboard access endpoints:

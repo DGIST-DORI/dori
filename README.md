@@ -91,7 +91,7 @@ ros2_ws/src/dori_perception/models/face_landmarker.task
 4. Launch Perception with explicit model paths (recommended) or rely on default share-directory lookup:
 
 ```bash
-ros2 launch bringup perception.launch.py \
+ros2 launch dori_bringup perception.launch.py \
   hand_model_path:=/absolute/path/to/hand_landmarker.task \
   face_model_path:=/absolute/path/to/face_landmarker.task
 ```
@@ -128,13 +128,13 @@ source install/setup.bash
 ### Full Robot (without Dashboard)
 
 ```bash
-ros2 launch bringup robot.launch.py
+ros2 launch dori_bringup robot.launch.py
 ```
 
 or
 
 ```bash
-ros2 launch bringup robot_dev.launch.py enable_dashboard:=false
+ros2 launch dori_bringup robot_dev.launch.py enable_dashboard:=false
 ```
 
 ### Topic Namespace (default vs multi-robot remap)
@@ -144,13 +144,13 @@ ros2 launch bringup robot_dev.launch.py enable_dashboard:=false
 
 ```bash
 # Basic topic (same as before)
-ros2 launch bringup robot.launch.py namespace:=/dori
+ros2 launch dori_bringup robot.launch.py namespace:=/dori
 
 # robot1
-ros2 launch bringup robot.launch.py namespace:=/dori1
+ros2 launch dori_bringup robot.launch.py namespace:=/dori1
 
 # robot2
-ros2 launch bringup robot.launch.py namespace:=/dori2
+ros2 launch dori_bringup robot.launch.py namespace:=/dori2
 ```
 
 The default topic value is declared with `declare_parameter("topics.xxx", "...")` of each node, and is changed at once by injecting a common prefix at launch.
@@ -169,10 +169,10 @@ colcon build --symlink-install
 source install/setup.bash
  
 # Launch (default includes dashboard)
-ros2 launch bringup robot_dev.launch.py
+ros2 launch dori_bringup robot_dev.launch.py
 
 # Equivalent explicit form
-# ros2 launch bringup robot_dev.launch.py enable_dashboard:=true
+# ros2 launch dori_bringup robot_dev.launch.py enable_dashboard:=true
 ```
 
 Dashboard access:

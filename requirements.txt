@@ -3,5 +3,5 @@
 -r ros2_ws/src/dori_hri_tts/requirements.txt
 -r ros2_ws/src/dori_llm/requirements.txt
 -r ros2_ws/src/dori_perception/requirements.txt
--r ros2_ws/src/dashboard_pkg/requirements.txt
--r ros2_ws/src/system_monitor_pkg/requirements.txt
+-r ros2_ws/src/dori_dashboard/requirements.txt
+-r ros2_ws/src/dori_observability/requirements.txt
