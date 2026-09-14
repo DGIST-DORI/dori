@@ -57,11 +57,13 @@ Last updated: March 10, 2026.
 
 ### Software Packages
 
-The package tree below is the current pre-migration source layout.  The accepted final package names, ownership boundaries, and rename scope are defined in [`package-ownership.md`](package-ownership.md).
+The package tree below reflects the current source layout. Package ownership and
+boundaries are defined in [`package-ownership.md`](package-ownership.md).
 
 ```
 ros2_ws/src/
-├── perception_pkg/       # Perception: camera, person detection, gesture, expression, landmark
+├── dori_perception/        # Perception Python vision nodes, config, and models
+├── dori_perception_camera/ # Perception C++ RealSense camera adapter
 ├── interaction_pkg/      # Interaction coordinator (HRI manager state machine)
 ├── hri_pkg/              # HRI nodes
 ├── stt_pkg/              # Wake word (Porcupine) + transcription (Whisper)

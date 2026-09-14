@@ -2,11 +2,11 @@
 Perception stack launch (camera/vision only).
 
 Nodes started:
-  depth_camera_node           (perception_pkg or perception_camera_cpp) x 2 - front / rear cameras
-  person_detection_node       (perception_pkg)
-  landmark_detection_node     (perception_pkg)
-  gesture_recognition_node    (perception_pkg)
-  facial_expression_node      (perception_pkg)
+  depth_camera_node           (dori_perception or dori_perception_camera) x 2 - front / rear cameras
+  person_detection_node       (dori_perception)
+  landmark_detection_node     (dori_perception)
+  gesture_recognition_node    (dori_perception)
+  facial_expression_node      (dori_perception)
 """
 
 import os
@@ -27,8 +27,8 @@ def generate_launch_description():
     dori_ns = LaunchConfiguration('namespace')
 
     try:
-        perception_pkg_dir = get_package_share_directory('perception_pkg')
-        landmark_db_default = os.path.join(perception_pkg_dir, 'config', 'landmark_db.json')
+        dori_perception_dir = get_package_share_directory('dori_perception')
+        landmark_db_default = os.path.join(dori_perception_dir, 'config', 'landmark_db.json')
     except Exception:
         landmark_db_default = 'landmark_db.json'
 
@@ -57,7 +57,7 @@ def generate_launch_description():
     }
 
     depth_camera_front_py = Node(
-        package='perception_pkg',
+        package='dori_perception',
         executable='depth_camera_node',
         name='depth_camera_front',
         namespace='dori/camera/front',
@@ -75,7 +75,7 @@ def generate_launch_description():
     )
 
     depth_camera_rear_py = Node(
-        package='perception_pkg',
+        package='dori_perception',
         executable='depth_camera_node',
         name='depth_camera_rear',
         namespace='dori/camera/rear',
@@ -93,7 +93,7 @@ def generate_launch_description():
     )
 
     depth_camera_front_cpp = Node(
-        package='perception_camera_cpp',
+        package='dori_perception_camera',
         executable='depth_camera_node',
         name='depth_camera_front',
         namespace='dori/camera/front',
@@ -110,7 +110,7 @@ def generate_launch_description():
     )
 
     depth_camera_rear_cpp = Node(
-        package='perception_camera_cpp',
+        package='dori_perception_camera',
         executable='depth_camera_node',
         name='depth_camera_rear',
         namespace='dori/camera/rear',
@@ -128,7 +128,7 @@ def generate_launch_description():
 
 
     person_detection_node = Node(
-        package='perception_pkg',
+        package='dori_perception',
         executable='person_detection_node',
         name='person_detection_node',
         output='screen',
@@ -153,7 +153,7 @@ def generate_launch_description():
     )
 
     landmark_detection_node = Node(
-        package='perception_pkg',
+        package='dori_perception',
         executable='landmark_detection_node',
         name='landmark_detection_node',
         output='screen',
@@ -174,7 +174,7 @@ def generate_launch_description():
     )
 
     gesture_recognition_node = Node(
-        package='perception_pkg',
+        package='dori_perception',
         executable='gesture_recognition_node',
         name='gesture_recognition_node',
         output='screen',
@@ -192,7 +192,7 @@ def generate_launch_description():
     )
 
     facial_expression_node = Node(
-        package='perception_pkg',
+        package='dori_perception',
         executable='facial_expression_node',
         name='facial_expression_node',
         output='screen',

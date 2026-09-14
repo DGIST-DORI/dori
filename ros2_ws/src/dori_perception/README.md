@@ -1,8 +1,8 @@
-# perception_pkg
+# dori_perception
 
 ## Depth camera topic policy
 
-`perception_pkg/perception_pkg/depth_camera_node.py` uses **relative publish topic defaults**:
+`dori_perception/dori_perception/depth_camera_node.py` uses **relative publish topic defaults**:
 
 - `color/image_raw`
 - `depth/image_raw`

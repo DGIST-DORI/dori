@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(perception_camera_cpp)
+project(dori_perception_camera)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -14,7 +14,7 @@ find_package(OpenCV REQUIRED)
 find_package(realsense2 QUIET)
 
 if(NOT realsense2_FOUND)
-  message(WARNING "realsense2 was not found. Skipping depth_camera_node build for perception_camera_cpp.")
+  message(WARNING "realsense2 was not found. Skipping depth_camera_node build for dori_perception_camera.")
 else()
   add_executable(depth_camera_node src/depth_camera_node.cpp)
   ament_target_dependencies(depth_camera_node

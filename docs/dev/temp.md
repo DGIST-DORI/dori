@@ -137,13 +137,13 @@ Gesture and expression nodes require external MediaPipe Task files:
 Recommended placement in source tree:
 
 ```text
-ros2_ws/src/perception_pkg/models/
+ros2_ws/src/dori_perception/models/
 ```
 
 After `colcon build`, assets are installed under:
 
 ```text
-install/perception_pkg/share/perception_pkg/models/
+install/dori_perception/share/dori_perception/models/
 ```
 
 Launch options:
@@ -194,7 +194,7 @@ Edit `/data/campus/indexed/campus_knowledge.json`:
 
 ```bash
 # Prepare dataset (YOLO format) and edit config/data.yaml
-ros2 run perception_pkg train_landmark \
+ros2 run dori_perception train_landmark \
   --data config/data.yaml \
   --model yolov8n.pt \
   --epochs 100

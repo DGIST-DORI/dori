@@ -1,4 +1,4 @@
-# perception_camera_cpp
+# dori_perception_camera
 
 ## Depth camera topic policy
 

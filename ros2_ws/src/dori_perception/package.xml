@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>perception_pkg</name>
+  <name>dori_perception</name>
   <version>0.0.0</version>
   <description>Perception package for HRI camera and vision nodes</description>
   <maintainer email="jaewon1627@gmail.com">ofbt</maintainer>
