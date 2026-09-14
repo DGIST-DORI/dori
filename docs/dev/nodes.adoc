@@ -187,7 +187,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 *Publications*:: <<topics.adoc#topic-dori-llm-response,/llm/response>> (`std_msgs/msg/String`)
 *Services (server)*:: -
 *Services (client)*:: -
-*Actions*:: <<actions.adoc#action-dori-nav-navigate_to,/nav/navigate_to>> (`navigation_interfaces/action/Navigate`, client)
+*Actions*:: <<actions.adoc#action-dori-nav-navigate_to,/nav/navigate_to>> (`dori_msgs/action/Navigate`, client)
 *Parameters*:: See <<parameters.adoc#param-llm_node, llm_node parameters>>
 *Lifecycle*:: unmanaged
 *Dependencies*:: Knowledge file/RAG index, optional external LLM API
@@ -229,7 +229,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 *Publications*:: `/dori/cmd_vel` (`geometry_msgs/msg/Twist`), <<topics.adoc#topic-dori-nav-global_path,/nav/global_path>> (`nav_msgs/msg/Path`), <<topics.adoc#topic-dori-nav-local_path,/nav/local_path>> (`nav_msgs/msg/Path`)
 *Services (server)*:: -
 *Services (client)*:: -
-*Actions*:: <<actions.adoc#action-dori-nav-navigate_to,/nav/navigate_to>> (`navigation_interfaces/action/Navigate`, server)
+*Actions*:: <<actions.adoc#action-dori-nav-navigate_to,/nav/navigate_to>> (`dori_msgs/action/Navigate`, server)
 *Parameters*:: See <<parameters.adoc#param-navigator_node, navigator_node parameters>>
 *Lifecycle*:: unmanaged
 *Dependencies*:: /dori/odom, /dori/scan, /map inputs, robot base /dori/cmd_vel interface

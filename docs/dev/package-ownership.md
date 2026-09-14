@@ -24,7 +24,7 @@ changed together in the implementation change that adopts it.
 
 | Current package | Final ROS package | Owner area | Decision and boundary |
 | --- | --- | --- | --- |
-| `navigation_interfaces` | `dori_msgs` | Shared ROS interfaces | Interface-only package.  It owns `Navigate.action` and future cross-domain messages, services, and actions; it owns no application node. |
+| `dori_msgs` | `dori_msgs` | Shared ROS interfaces | Interface-only package.  It owns `Navigate.action` and future cross-domain messages, services, and actions; it owns no application node. |
 | `bringup` | `dori_bringup` | System composition | Owns top-level and subsystem launch composition, common launch arguments, namespaces, and remappings.  It does not own functional nodes. |
 | `navigation_pkg` | `dori_navigation` | Navigation | Owns navigation execution, planning/control integration, and navigation configuration. |
 | `llm_pkg` | `dori_llm` | Language intelligence | Owns intent handling, retrieval/index access, model integration, and navigation-action client behavior. |
@@ -66,7 +66,7 @@ change says otherwise.
 | Python import package | Exact final Python package name for every `ament_python` package: `dori_navigation`, `dori_llm`, `dori_perception`, `dori_hri`, `dori_hri_expression`, `dori_hri_stt`, `dori_hri_tts`, `dori_dashboard`, or `dori_observability`. | On-disk import directory, `setup.py` entry-point target, and all first-party imports.  Generated action imports change to `dori_msgs.action`. | Third-party import names are not renamed.  No import shim for `*_pkg` is supplied. |
 | Executable / console script | Functional, lowercase snake case name; existing unique names are retained (for example `navigator_node`, `llm_node`, `stt_node`, and `depth_camera_node`). | Entry-point module paths and launch `package=` fields change; the C++ target/install reference moves with `dori_perception_camera`. | Executable spelling does not gain a `dori_` prefix solely because its package did. |
 | ROS node name | Functional, lowercase snake case; launch may continue to assign instance names such as `depth_camera_front`. | Launch `package=` changes and node implementation/import movement are updated. | `name=`, node constructor names, namespaces, and node graph identities stay unchanged. |
-| Topic, service, and action graph names | Existing relative API names (for example `stt/result`, `tts/text`, and `nav/navigate_to`) with final routing owned by launch namespace/remapping. | Type references change from `navigation_interfaces/...` to `dori_msgs/...`; documentation and code imports follow that type package name. | Topic/service/action paths, parameter keys that carry them, and `/dori` namespace behavior do not change. |
+| Topic, service, and action graph names | Existing relative API names (for example `stt/result`, `tts/text`, and `nav/navigate_to`) with final routing owned by launch namespace/remapping. | Type references change from `dori_msgs/...` to `dori_msgs/...`; documentation and code imports follow that type package name. | Topic/service/action paths, parameter keys that carry them, and `/dori` namespace behavior do not change. |
 | Launch file name | Existing launch filenames remain functional entry points under `dori_bringup`, `dori_navigation`, and `dori_dashboard`. | Every included launch and package lookup changes to the final package name. | No copied `bringup`/`*_pkg` launch package and no deprecated launch filename are retained. |
 
 ## Required migration acceptance checks

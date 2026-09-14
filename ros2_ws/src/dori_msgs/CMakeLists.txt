@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(navigation_interfaces)
+project(dori_msgs)
 
 find_package(ament_cmake REQUIRED)
 find_package(geometry_msgs REQUIRED)

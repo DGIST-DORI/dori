@@ -9,7 +9,7 @@ Publish topics:
   llm/response     (String) - generated response text (consumed by TTS node)
 
 Actions (client):
-  nav/navigate_to  (navigation_interfaces/action/Navigate) - navigation goal request
+  nav/navigate_to  (dori_msgs/action/Navigate) - navigation goal request
 """
 
 import json
@@ -21,7 +21,7 @@ from typing import Dict, List, Optional
 
 import rclpy
 from geometry_msgs.msg import PoseStamped
-from navigation_interfaces.action import Navigate
+from dori_msgs.action import Navigate
 from rclpy.action import ActionClient
 from rclpy.node import Node
 from std_msgs.msg import String
