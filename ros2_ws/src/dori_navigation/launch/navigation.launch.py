@@ -35,7 +35,7 @@ def generate_launch_description():
     
     # Navigator Node
     navigator_node = Node(
-        package='navigation_pkg',
+        package='dori_navigation',
         executable='navigator_node',
         name='navigator_node',
         output='screen',

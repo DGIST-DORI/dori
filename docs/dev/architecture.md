@@ -65,9 +65,9 @@ ros2_ws/src/
 ├── interaction_pkg/      # Interaction coordinator (HRI manager state machine)
 ├── hri_pkg/              # HRI nodes
 ├── stt_pkg/              # Wake word (Porcupine) + transcription (Whisper)
-├── llm_pkg/              # Intent classification + RAG + LLM response
+├── dori_llm/              # Intent classification + RAG + LLM response
 ├── tts_pkg/              # Text-to-speech playback
-├── navigation_pkg/       # Navigation execution node
+├── dori_navigation/       # Navigation execution node
 ├── dashboard_pkg/        # ROS ↔ web dashboard bridge
 └── bringup/              # Launch files
     ├── robot.launch.py           # Full robot (top-level)

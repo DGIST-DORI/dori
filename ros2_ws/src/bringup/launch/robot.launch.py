@@ -19,7 +19,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
 try:
-    from llm_pkg.paths import is_repo_root
+    from dori_llm.paths import is_repo_root
 except Exception:
     def is_repo_root(parent):
         has_readme = (parent / 'README.md').exists()
@@ -55,12 +55,12 @@ def generate_launch_description():
 
     knowledge_file_default = _resolve_path(
         share_relative='config/campus_knowledge.json',
-        pkg_name='llm_pkg',
+        pkg_name='dori_llm',
         data_relative='data/campus/indexed/campus_knowledge.json',
     )
     rag_index_dir_default = _resolve_path(
         share_relative='indexed',
-        pkg_name='llm_pkg',
+        pkg_name='dori_llm',
         data_relative='data/campus/indexed',
     )
     wake_word_model_default = _resolve_path(
@@ -167,7 +167,7 @@ def generate_launch_description():
     ]
 
     try:
-        nav_pkg_dir = get_package_share_directory('navigation_pkg')
+        nav_pkg_dir = get_package_share_directory('dori_navigation')
         launch_list.append(
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(
@@ -178,7 +178,7 @@ def generate_launch_description():
         )
     except Exception as exc:
         get_logger().warning(
-            f"navigation_pkg not available; skipping navigation.launch.py: {exc}"
+            f"dori_navigation not available; skipping navigation.launch.py: {exc}"
         )
 
     return LaunchDescription(launch_list)

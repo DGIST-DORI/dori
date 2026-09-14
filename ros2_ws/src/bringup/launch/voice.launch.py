@@ -57,7 +57,7 @@ def generate_launch_description():
     )
 
     llm_node = Node(
-        package='llm_pkg',
+        package='dori_llm',
         executable='llm_node',
         name='llm_node',
         output='screen',

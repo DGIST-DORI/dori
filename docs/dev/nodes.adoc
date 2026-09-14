@@ -179,7 +179,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 [[node-llm-node]]
 === llm_node
 
-*Package*:: `llm_pkg`
+*Package*:: `dori_llm`
 *Executable*:: `llm_node`
 *Language*:: Python
 *Launch*:: `bringup/launch/voice.launch.py`
@@ -221,10 +221,10 @@ This document is the SSOT for ROS2 node details in the current workspace.
 [[node-navigator-node]]
 === navigator_node
 
-*Package*:: `navigation_pkg`
+*Package*:: `dori_navigation`
 *Executable*:: `navigator_node`
 *Language*:: Python
-*Launch*:: `navigation_pkg/launch/navigation.launch.py`
+*Launch*:: `dori_navigation/launch/navigation.launch.py`
 *Subscriptions*:: `/dori/odom` (`nav_msgs/msg/Odometry`), `/dori/scan` (`sensor_msgs/msg/LaserScan`), `/map` (`nav_msgs/msg/OccupancyGrid`)
 *Publications*:: `/dori/cmd_vel` (`geometry_msgs/msg/Twist`), <<topics.adoc#topic-dori-nav-global_path,/nav/global_path>> (`nav_msgs/msg/Path`), <<topics.adoc#topic-dori-nav-local_path,/nav/local_path>> (`nav_msgs/msg/Path`)
 *Services (server)*:: -
