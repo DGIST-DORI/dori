@@ -36,7 +36,7 @@ Perception and voice nodes can be tested independently using manual topic inject
 
 ```bash
 # Terminal 1: start HRI manager
-ros2 run interaction_pkg hri_manager_node
+ros2 run dori_hri hri_manager_node
 
 # Terminal 2: simulate wake word
 ros2 topic pub /stt/wake_word_detected std_msgs/msg/Bool "data: true" --once

@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 import os
 from glob import glob
 
-package_name = 'stt_pkg'
+package_name = 'dori_hri_stt'
 
 setup(
     name=package_name,
@@ -12,15 +12,14 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        # Install Porcupine wake word model files
         (os.path.join('share', package_name, 'models'),
-            glob('models/*.ppn')),
+            glob('models/*')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='ofbt',
     maintainer_email='ofbt@todo.todo',
-    description='TODO: Package description',
+    description='HRI speech input package for DORI',
     license='TODO: License declaration',
     extras_require={
         'test': [
@@ -29,7 +28,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'stt_node = stt_pkg.stt_node:main',
+            'stt_node = dori_hri_stt.stt_node:main',
         ],
     },
 )

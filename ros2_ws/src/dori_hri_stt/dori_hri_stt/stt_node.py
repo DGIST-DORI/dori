@@ -58,11 +58,11 @@ MIN_SPEECH_SEC  = 0.5
 
 
 def _resolve_model_path_from_share(filename: str) -> str | None:
-    """Resolve a model path from stt_pkg share/models directory if present."""
+    """Resolve a model path from dori_hri_stt share/models directory if present."""
     try:
         from ament_index_python.packages import get_package_share_directory
 
-        share_path = Path(get_package_share_directory('stt_pkg')) / 'models' / filename
+        share_path = Path(get_package_share_directory('dori_hri_stt')) / 'models' / filename
         if share_path.exists():
             return str(share_path)
     except Exception:

@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'tts_pkg'
+package_name = 'dori_hri'
 
 setup(
     name=package_name,
@@ -15,7 +15,7 @@ setup(
     zip_safe=True,
     maintainer='ofbt',
     maintainer_email='jaewon1627@gmail.com',
-    description='TODO: Package description',
+    description='Interaction coordinator package for DORI',
     license='TODO: License declaration',
     extras_require={
         'test': [
@@ -24,7 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'tts_node = tts_pkg.tts_node:main',
+            'hri_manager_node = dori_hri.hri_manager_node:main',
         ],
     },
 )

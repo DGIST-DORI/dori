@@ -65,8 +65,8 @@ def generate_launch_description():
     )
     wake_word_model_default = _resolve_path(
         share_relative='models/doridori_ko_linux_v4_0_0.ppn',
-        pkg_name='stt_pkg',
-        data_relative='ros2_ws/src/stt_pkg/models/doridori_ko_linux_v4_0_0.ppn',
+        pkg_name='dori_hri_stt',
+        data_relative='ros2_ws/src/dori_hri_stt/models/doridori_ko_linux_v4_0_0.ppn',
     )
 
     args = [
