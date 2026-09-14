@@ -1127,12 +1127,12 @@ def _deploy_pipeline(*, force_web_repair: bool = False):
         packages_to_build.extend([
             'dashboard_pkg',
             'dori_navigation',
-            'hri_pkg',
-            'interaction_pkg',
+            'dori_hri_expression',
+            'dori_hri',
             'dori_perception',
             'dori_perception_camera',
-            'stt_pkg',
-            'tts_pkg',
+            'dori_hri_stt',
+            'dori_hri_tts',
             'dori_llm',
             'bringup',
         ])

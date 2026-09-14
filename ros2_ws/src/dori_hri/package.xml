@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>interaction_pkg</name>
+  <name>dori_hri</name>
   <version>0.0.0</version>
   <description>Interaction coordinator package for HRI state management</description>
   <maintainer email="jaewon1627@gmail.com">ofbt</maintainer>

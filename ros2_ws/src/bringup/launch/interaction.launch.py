@@ -34,7 +34,7 @@ def generate_launch_description():
     ]
 
     hri_manager_node = Node(
-        package='interaction_pkg',
+        package='dori_hri',
         executable='hri_manager_node',
         name='hri_manager_node',
         output='screen',

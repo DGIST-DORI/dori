@@ -36,7 +36,7 @@ def generate_launch_description():
     ]
 
     stt_node = Node(
-        package='stt_pkg',
+        package='dori_hri_stt',
         executable='stt_node',
         name='stt_node',
         output='screen',
@@ -74,7 +74,7 @@ def generate_launch_description():
     )
 
     tts_node = Node(
-        package='tts_pkg',
+        package='dori_hri_tts',
         executable='tts_node',
         name='tts_node',
         output='screen',

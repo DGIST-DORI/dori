@@ -1,8 +1,9 @@
 import os
 from glob import glob
+
 from setuptools import find_packages, setup
 
-package_name = 'hri_pkg'
+package_name = 'dori_hri_tts'
 
 setup(
     name=package_name,
@@ -12,14 +13,14 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        # (os.path.join('share', package_name, 'launch'),
-        #     glob('launch/*.launch.py')),
+        (os.path.join('share', package_name, 'assets', 'audio'),
+            glob('assets/audio/*')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='ofbt',
     maintainer_email='jaewon1627@gmail.com',
-    description='TODO: Package description',
+    description='HRI speech output package for DORI',
     license='TODO: License declaration',
     extras_require={
         'test': [
@@ -28,7 +29,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'emotion_publisher_node = hri_pkg.emotion_publisher_node:main',
+            'tts_node = dori_hri_tts.tts_node:main',
         ],
     },
 )

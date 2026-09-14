@@ -64,11 +64,11 @@ boundaries are defined in [`package-ownership.md`](package-ownership.md).
 ros2_ws/src/
 ├── dori_perception/        # Perception Python vision nodes, config, and models
 ├── dori_perception_camera/ # Perception C++ RealSense camera adapter
-├── interaction_pkg/      # Interaction coordinator (HRI manager state machine)
-├── hri_pkg/              # HRI nodes
-├── stt_pkg/              # Wake word (Porcupine) + transcription (Whisper)
+├── dori_hri/      # Interaction coordinator (HRI manager state machine)
+├── dori_hri_expression/              # HRI nodes
+├── dori_hri_stt/              # Wake word (Porcupine) + transcription (Whisper)
 ├── dori_llm/              # Intent classification + RAG + LLM response
-├── tts_pkg/              # Text-to-speech playback
+├── dori_hri_tts/              # Text-to-speech playback
 ├── dori_navigation/       # Navigation execution node
 ├── dashboard_pkg/        # ROS ↔ web dashboard bridge
 └── bringup/              # Launch files

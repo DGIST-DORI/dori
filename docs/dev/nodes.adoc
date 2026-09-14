@@ -139,7 +139,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 [[node-hri-manager-node]]
 === hri_manager_node
 
-*Package*:: `interaction_pkg`
+*Package*:: `dori_hri`
 *Executable*:: `hri_manager_node`
 *Language*:: Python
 *Launch*:: `bringup/launch/interaction.launch.py`
@@ -159,7 +159,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 [[node-stt-node]]
 === stt_node
 
-*Package*:: `stt_pkg`
+*Package*:: `dori_hri_stt`
 *Executable*:: `stt_node`
 *Language*:: Python
 *Launch*:: `bringup/launch/voice.launch.py`
@@ -199,7 +199,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 [[node-tts-node]]
 === tts_node
 
-*Package*:: `tts_pkg`
+*Package*:: `dori_hri_tts`
 *Executable*:: `tts_node`
 *Language*:: Python
 *Launch*:: `bringup/launch/voice.launch.py`
@@ -243,7 +243,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 [[node-emotion-publisher-node]]
 === emotion_publisher_node
 
-*Package*:: `hri_pkg`
+*Package*:: `dori_hri_expression`
 *Executable*:: `emotion_publisher_node`
 *Language*:: Python
 *Launch*:: (not included in the default bringup path)
