@@ -63,7 +63,7 @@ pip3 install -r requirements.txt
 1. Download the model
 [Porcupine Wake Word GitHub repository](https://github.com/Picovoice/porcupine/tree/master/lib/common)
 
-2. Put it in ros2_ws/src/dori_hri_stt/models
+2. Put it in ros2_ws/src/dori_hri/models
 
 ### 3-2. Download and Place MediaPipe `.task` Models (Perception)
 

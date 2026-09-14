@@ -1131,7 +1131,7 @@ def _deploy_pipeline(*, force_web_repair: bool = False):
             'dori_hri',
             'dori_perception',
             'dori_perception_camera',
-            'dori_hri_stt',
+            'dori_hri',
             'dori_hri_tts',
             'dori_llm',
             'dori_bringup',

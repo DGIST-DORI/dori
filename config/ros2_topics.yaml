@@ -342,7 +342,7 @@
       ],
       "qos": "unknown",
       "description": "E2E STT input payload JSON: {audio_b64, format:'wav_pcm16', sample_rate:16000, channels:1}.",
-      "owner_pkg": "dori_hri_stt"
+      "owner_pkg": "dori_hri"
     },
     {
       "topic": "stt/result",
@@ -355,7 +355,7 @@
       ],
       "qos": "unknown",
       "description": "STT output JSON/text from recognizer. E2E path: STTPanel mic -> stt/audio_input -> stt_node(Whisper) -> stt/result -> hri_manager_node.",
-      "owner_pkg": "dori_hri_stt"
+      "owner_pkg": "dori_hri"
     },
     {
       "topic": "tts/done",
@@ -368,7 +368,7 @@
       ],
       "qos": "unknown",
       "description": "Playback completion event for HRI state transitions.",
-      "owner_pkg": "dori_hri_tts"
+      "owner_pkg": "dori_hri"
     },
     {
       "topic": "hri/manager_state",
@@ -453,7 +453,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "True while TTS is actively speaking (used for mic mute by external STT).",
-      "owner_pkg": "dori_hri_tts"
+      "owner_pkg": "dori_hri"
     },
     {
       "topic": "nav/global_path",

@@ -252,7 +252,7 @@ class TTSNode(Node):
             return env_path
 
         try:
-            pkg_share = get_package_share_directory('dori_hri_tts')
+            pkg_share = get_package_share_directory('dori_hri')
             return str(Path(pkg_share) / 'assets' / 'audio')
         except Exception:
             return ''

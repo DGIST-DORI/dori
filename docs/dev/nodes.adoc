@@ -159,7 +159,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 [[node-stt-node]]
 === stt_node
 
-*Package*:: `dori_hri_stt`
+*Package*:: `dori_hri`
 *Executable*:: `stt_node`
 *Language*:: Python
 *Launch*:: `dori_bringup/launch/voice.launch.py`
@@ -199,7 +199,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 [[node-tts-node]]
 === tts_node
 
-*Package*:: `dori_hri_tts`
+*Package*:: `dori_hri`
 *Executable*:: `tts_node`
 *Language*:: Python
 *Launch*:: `dori_bringup/launch/voice.launch.py`

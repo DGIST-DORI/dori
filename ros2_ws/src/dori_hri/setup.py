@@ -1,4 +1,6 @@
 from setuptools import find_packages, setup
+import os
+from glob import glob
 
 package_name = 'dori_hri'
 
@@ -10,6 +12,10 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        (os.path.join('share', package_name, 'models'),
+            glob('models/*')),
+        (os.path.join('share', package_name, 'assets', 'audio'),
+            glob('assets/audio/*')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -25,6 +31,8 @@ setup(
     entry_points={
         'console_scripts': [
             'hri_manager_node = dori_hri.hri_manager_node:main',
+            'stt_node = dori_hri.stt_node:main',
+            'tts_node = dori_hri.tts_node:main',
         ],
     },
 )
