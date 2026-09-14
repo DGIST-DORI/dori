@@ -9,7 +9,7 @@ import numpy as np
 import rclpy
 from geometry_msgs.msg import Point, PoseStamped, Twist
 from nav_msgs.msg import OccupancyGrid, Odometry, Path
-from navigation_interfaces.action import Navigate
+from dori_msgs.action import Navigate
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor

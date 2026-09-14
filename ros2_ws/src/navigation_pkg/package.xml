@@ -12,7 +12,7 @@
   <depend>nav_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>action_msgs</depend>
-  <depend>navigation_interfaces</depend>
+  <depend>dori_msgs</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
