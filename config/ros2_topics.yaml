@@ -510,7 +510,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Periodic system metrics JSON (CPU/RAM/Disk/GPU).",
-      "owner_pkg": "system_monitor_pkg"
+      "owner_pkg": "dori_observability"
     },
     {
       "topic": "/dori/odom",
@@ -573,7 +573,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Dashboard/client microphone STT input (robot+sim profile canonical).",
-      "owner_pkg": "dashboard_pkg"
+      "owner_pkg": "dori_dashboard"
     },
     {
       "topic": "dori/perception/vision/image/compressed",
@@ -584,7 +584,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Dashboard/client camera compressed image input (robot+sim profile canonical).",
-      "owner_pkg": "dashboard_pkg"
+      "owner_pkg": "dori_dashboard"
     },
     {
       "topic": "dori/audio/output",
@@ -595,7 +595,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "ROS audio output stream for dashboard ros_audio playback mode.",
-      "owner_pkg": "dashboard_pkg"
+      "owner_pkg": "dori_dashboard"
     }
   ],
   "services": [

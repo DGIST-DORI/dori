@@ -10,7 +10,7 @@
 - `color/camera_info`
 - `depth/camera_info`
 
-Production topic names are finalized in launch (`bringup/launch/perception.launch.py`) via namespace/remapping, for example:
+Production topic names are finalized in launch (`dori_bringup/launch/perception.launch.py`) via namespace/remapping, for example:
 
 - `camera/color/image_raw`
 - `camera/depth/image_raw`

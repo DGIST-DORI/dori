@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'system_monitor_pkg'
+package_name = 'dori_observability'
 
 setup(
     name=package_name,
@@ -21,7 +21,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'system_monitor_node = system_monitor_pkg.system_monitor_node:main',
+            'system_monitor_node = dori_observability.system_monitor_node:main',
         ],
     },
 )

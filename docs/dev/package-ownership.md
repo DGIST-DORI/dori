@@ -41,7 +41,7 @@ changed together in the implementation change that adopts it.
 
 We retain Python/C++ build boundaries rather than forcing a single hybrid ROS
 package.  `dori_perception` is the canonical perception package and
-`dori_perception_camera` is its explicitly named auxiliary package.  Bringup
+`dori_perception_camera` is its explicitly named auxiliary package.  Dori bringup
 selects the camera implementation by package/executable; it must not try to
 install both implementations as packages with the same ROS package name.
 

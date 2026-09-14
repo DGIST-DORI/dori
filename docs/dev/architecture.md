@@ -70,8 +70,8 @@ ros2_ws/src/
 ├── dori_llm/              # Intent classification + RAG + LLM response
 ├── dori_hri_tts/              # Text-to-speech playback
 ├── dori_navigation/       # Navigation execution node
-├── dashboard_pkg/        # ROS ↔ web dashboard bridge
-└── bringup/              # Launch files
+├── dori_dashboard/        # ROS ↔ web dashboard bridge
+└── dori_bringup/              # Launch files
     ├── robot.launch.py           # Full robot (top-level)
     ├── perception.launch.py      # Perception only
     ├── interaction.launch.py     # HRI manager/state machine only

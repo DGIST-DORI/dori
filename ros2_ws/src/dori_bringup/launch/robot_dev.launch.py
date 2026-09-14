@@ -5,8 +5,8 @@ Composes the production robot launch and optionally adds developer tools
 such as dashboard/rosbridge.
 
 Usage:
-  ros2 launch bringup robot_dev.launch.py
-  ros2 launch bringup robot_dev.launch.py enable_dashboard:=false
+  ros2 launch dori_bringup robot_dev.launch.py
+  ros2 launch dori_bringup robot_dev.launch.py enable_dashboard:=false
 """
 
 import os
@@ -21,7 +21,7 @@ from launch.substitutions import LaunchConfiguration
 
 
 def generate_launch_description():
-    bringup_dir = get_package_share_directory('bringup')
+    dori_bringup_dir = get_package_share_directory('dori_bringup')
 
     args = [
         DeclareLaunchArgument(
@@ -38,7 +38,7 @@ def generate_launch_description():
 
     robot_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(bringup_dir, 'launch', 'robot.launch.py')
+            os.path.join(dori_bringup_dir, 'launch', 'robot.launch.py')
         ),
         launch_arguments={
             'namespace': LaunchConfiguration('namespace'),
@@ -51,11 +51,11 @@ def generate_launch_description():
     ]
 
     try:
-        dashboard_pkg_dir = get_package_share_directory('dashboard_pkg')
+        dori_dashboard_dir = get_package_share_directory('dori_dashboard')
         launch_list.append(
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(
-                    os.path.join(dashboard_pkg_dir, 'launch', 'dashboard.launch.py')
+                    os.path.join(dori_dashboard_dir, 'launch', 'dashboard.launch.py')
                 ),
                 condition=IfCondition(LaunchConfiguration('enable_dashboard')),
             )

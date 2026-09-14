@@ -51,7 +51,7 @@ def _resolve_path(share_relative: str, pkg_name: str, data_relative: str) -> str
 
 
 def generate_launch_description():
-    bringup_dir = get_package_share_directory('bringup')
+    dori_bringup_dir = get_package_share_directory('dori_bringup')
 
     knowledge_file_default = _resolve_path(
         share_relative='config/campus_knowledge.json',
@@ -110,7 +110,7 @@ def generate_launch_description():
 
     perception_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(bringup_dir, 'launch', 'perception.launch.py')
+            os.path.join(dori_bringup_dir, 'launch', 'perception.launch.py')
         ),
         launch_arguments={
             'person_model': LaunchConfiguration('person_model'),
@@ -130,7 +130,7 @@ def generate_launch_description():
 
     interaction_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(bringup_dir, 'launch', 'interaction.launch.py')
+            os.path.join(dori_bringup_dir, 'launch', 'interaction.launch.py')
         ),
         launch_arguments={
             'idle_timeout_sec': LaunchConfiguration('idle_timeout_sec'),
@@ -141,7 +141,7 @@ def generate_launch_description():
 
     voice_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(bringup_dir, 'launch', 'voice.launch.py')
+            os.path.join(dori_bringup_dir, 'launch', 'voice.launch.py')
         ),
         launch_arguments={
             'use_external_llm': LaunchConfiguration('use_external_llm'),

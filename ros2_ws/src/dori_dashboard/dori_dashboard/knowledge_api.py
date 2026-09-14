@@ -905,7 +905,7 @@ def _publish_built_web_tree() -> tuple[bool, str]:
     Publish a fully built static tree via an atomic symlink swap.
 
     Flow:
-      1) Validate install/share/dashboard_pkg/web is complete.
+      1) Validate install/share/dori_dashboard/web is complete.
       2) Copy it into a new versioned release directory.
       3) Atomically replace web_current -> web_releases/<release>.
 
@@ -1109,23 +1109,23 @@ def _deploy_pipeline(*, force_web_repair: bool = False):
             return
         
     dashboard_changed = any(
-        p.startswith('ros2_ws/src/dashboard_pkg/')
+        p.startswith('ros2_ws/src/dori_dashboard/')
         for p in changed
     )
 
     # ── Step 3: install updated packages/assets ───────────────────────────────
     ros_changed = any(p.startswith('ros2_ws/src/') for p in changed)
 
-    # The dashboard is actually served from install/share/dashboard_pkg/web, so
-    # rebuilding only repo/web/dist is not sufficient. Rebuild dashboard_pkg
+    # The dashboard is actually served from install/share/dori_dashboard/web, so
+    # rebuilding only repo/web/dist is not sufficient. Rebuild dori_dashboard
     # whenever web assets change so the installed index/assets stay in sync.
     packages_to_build = []
     if web_changed or dashboard_changed:
-        packages_to_build.append('dashboard_pkg')
+        packages_to_build.append('dori_dashboard')
 
     if ros_changed:
         packages_to_build.extend([
-            'dashboard_pkg',
+            'dori_dashboard',
             'dori_navigation',
             'dori_hri_expression',
             'dori_hri',
@@ -1134,7 +1134,8 @@ def _deploy_pipeline(*, force_web_repair: bool = False):
             'dori_hri_stt',
             'dori_hri_tts',
             'dori_llm',
-            'bringup',
+            'dori_bringup',
+            'dori_observability',
         ])
 
     packages_to_build = sorted(set(packages_to_build))
@@ -1174,7 +1175,7 @@ def _deploy_pipeline(*, force_web_repair: bool = False):
             'step': 'publish dashboard static tree',
             'status': 'running',
             'log': (
-                'Validating install/share/dashboard_pkg/web, copying into a new '
+                'Validating install/share/dori_dashboard/web, copying into a new '
                 'versioned release directory, and switching web_current only '
                 'after the full asset set is present. Purge caches only after '
                 'this step reports done.'
@@ -1218,7 +1219,7 @@ def _deploy_pipeline(*, force_web_repair: bool = False):
         _deploy_job['steps'].append({
             'step': 'restart knowledge api',
             'status': 'done',
-            'log': 'dashboard_pkg change is detected and knowledge_api process is restarted.',
+            'log': 'dori_dashboard change is detected and knowledge_api process is restarted.',
         })
         os.kill(os.getpid(), signal.SIGTERM)
 

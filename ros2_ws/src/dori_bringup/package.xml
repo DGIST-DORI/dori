@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>bringup</name>
+  <name>dori_bringup</name>
   <version>0.0.0</version>
   <description>TODO: Package description</description>
   <maintainer email="jaewon1627@gmail.com">ofbt</maintainer>
@@ -17,6 +17,9 @@
   <exec_depend>dori_perception_camera</exec_depend>
   <exec_depend>dori_hri</exec_depend>
   <exec_depend>dori_hri_expression</exec_depend>
+  <exec_depend>dori_navigation</exec_depend>
+  <exec_depend>dori_dashboard</exec_depend>
+  <exec_depend>dori_observability</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

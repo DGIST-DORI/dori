@@ -3,7 +3,7 @@ from setuptools import find_packages, setup
 from glob import glob
 import os
 
-package_name = 'dashboard_pkg'
+package_name = 'dori_dashboard'
 setup_dir = Path(__file__).resolve().parent
 repo_root = setup_dir.parents[2]
 
@@ -12,9 +12,9 @@ def collect_web_data_files():
     """
     Collect web build artifacts from the repository-level web/dist directory.
 
-    These files are installed into share/dashboard_pkg/web as a complete static
+    These files are installed into share/dori_dashboard/web as a complete static
     tree. The deploy pipeline validates that installed tree and only then
-    publishes it via share/dashboard_pkg/web_current for public traffic.
+    publishes it via share/dori_dashboard/web_current for public traffic.
     """
     web_dist_dir = repo_root / 'web' / 'dist'
     if not web_dist_dir.exists():
@@ -43,7 +43,7 @@ setup(
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'), glob('launch/*.py')),
         (os.path.join('share', package_name, 'scripts'),
-            ['dashboard_pkg/knowledge_api.py']),
+            ['dori_dashboard/knowledge_api.py']),
     ] + collect_web_data_files(),
     install_requires=['setuptools', 'fastapi', 'uvicorn', 'python-multipart'],
     zip_safe=True,
@@ -58,7 +58,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'dori_bridge = dashboard_pkg.dori_bridge:main',
+            'dori_bridge = dori_dashboard.dori_bridge:main',
         ],
     },
 )
