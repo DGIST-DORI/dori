@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 import os
 from glob import glob
 
-package_name = 'llm_pkg'
+package_name = 'dori_llm'
 
 setup(
     name=package_name,
@@ -30,7 +30,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'llm_node = llm_pkg.llm_node:main',
+            'llm_node = dori_llm.llm_node:main',
         ],
     },
 )

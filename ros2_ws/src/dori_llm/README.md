@@ -1,4 +1,4 @@
-# llm_pkg
+# dori_llm
 
 ## build_index.py
 

@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 import os
 from glob import glob
 
-package_name = 'navigation_pkg'
+package_name = 'dori_navigation'
 
 setup(
     name=package_name,
@@ -30,7 +30,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'navigator_node = navigation_pkg.navigator:main',
+            'navigator_node = dori_navigation.navigator:main',
         ],
     },
 )

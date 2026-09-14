@@ -26,7 +26,7 @@ from rclpy.action import ActionClient
 from rclpy.node import Node
 from std_msgs.msg import String
 
-from llm_pkg.paths import get_knowledge_file, get_rag_index_dir
+from dori_llm.paths import get_knowledge_file, get_rag_index_dir
 
 
 @dataclass
@@ -162,14 +162,14 @@ class VectorRetriever:
                 self.logger.warn(
                     f'RAG index not found at "{self.index_dir}". '
                     'Vector search disabled. '
-                    'Run: python3 ros2_ws/src/llm_pkg/llm_pkg/build_index.py '
+                    'Run: python3 ros2_ws/src/dori_llm/dori_llm/build_index.py '
                     '--docs data/campus/processed --output data/campus/indexed'
                 )
             return
         try:
             # Import here so missing deps only fail at search time, not import time
             try:
-                from llm_pkg.build_index import Retriever
+                from dori_llm.build_index import Retriever
             except ImportError:
                 from build_index import Retriever
             self._retriever = Retriever(self.index_dir)
@@ -287,7 +287,7 @@ class LLMNode(Node):
             self.get_logger().warn(
                 'RAG vector search DISABLED — index not found. '
                 'Structured KB only. '
-                'To enable: python3 ros2_ws/src/llm_pkg/llm_pkg/build_index.py '
+                'To enable: python3 ros2_ws/src/dori_llm/dori_llm/build_index.py '
                 '--docs data/campus/processed --output data/campus/indexed'
             )
 

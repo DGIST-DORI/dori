@@ -429,7 +429,7 @@
       ],
       "qos": "unknown",
       "description": "Generated natural-language response text.",
-      "owner_pkg": "llm_pkg"
+      "owner_pkg": "dori_llm"
     },
     {
       "topic": "nav/destination",
@@ -442,7 +442,7 @@
       ],
       "qos": "unknown",
       "description": "Navigation goal pose extracted from navigation intent.",
-      "owner_pkg": "llm_pkg"
+      "owner_pkg": "dori_llm"
     },
     {
       "topic": "tts/speaking",
@@ -464,7 +464,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Planned global path visualization/output.",
-      "owner_pkg": "navigation_pkg"
+      "owner_pkg": "dori_navigation"
     },
     {
       "topic": "nav/local_path",
@@ -475,7 +475,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Local path / short-horizon trajectory visualization.",
-      "owner_pkg": "navigation_pkg"
+      "owner_pkg": "dori_navigation"
     },
     {
       "topic": "nav/status",
@@ -486,7 +486,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Human-readable navigation status updates.",
-      "owner_pkg": "navigation_pkg"
+      "owner_pkg": "dori_navigation"
     },
     {
       "topic": "nav/cancel",
@@ -562,7 +562,7 @@
       ],
       "qos": "unknown",
       "description": "Velocity command output to robot base.",
-      "owner_pkg": "navigation_pkg"
+      "owner_pkg": "dori_navigation"
     },
     {
       "topic": "dori/stt/audio_input",

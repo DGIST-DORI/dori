@@ -39,7 +39,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 try:
-    from llm_pkg.paths import find_repo_root as _shared_find_repo_root
+    from dori_llm.paths import find_repo_root as _shared_find_repo_root
 except Exception:
     _shared_find_repo_root = None
 
@@ -86,7 +86,7 @@ args, _ = parser_arg.parse_known_args()
 REPO_ROOT   = normalize_repo_root(Path(args.repo_root))
 ROS2_WS_ROOT = REPO_ROOT / 'ros2_ws'
 PARSER_SCRIPT  = REPO_ROOT / 'tools' / 'parser' / 'parse_cafeteria_menu.py'
-BUILDER_SCRIPT = REPO_ROOT / 'ros2_ws' / 'src' / 'llm_pkg' / 'llm_pkg' / 'build_index.py'
+BUILDER_SCRIPT = REPO_ROOT / 'ros2_ws' / 'src' / 'dori_llm' / 'dori_llm' / 'build_index.py'
 CRAWLER_SCRIPT = REPO_ROOT / 'tools' / 'crawler' / 'crawl_campus.py'
 PROCESSED_DIR  = REPO_ROOT / 'data' / 'campus' / 'processed'
 INDEXED_DIR    = REPO_ROOT / 'data' / 'campus' / 'indexed'
@@ -1126,13 +1126,13 @@ def _deploy_pipeline(*, force_web_repair: bool = False):
     if ros_changed:
         packages_to_build.extend([
             'dashboard_pkg',
-            'navigation_pkg',
+            'dori_navigation',
             'hri_pkg',
             'interaction_pkg',
             'perception_pkg',
             'stt_pkg',
             'tts_pkg',
-            'llm_pkg',
+            'dori_llm',
             'bringup',
         ])
 

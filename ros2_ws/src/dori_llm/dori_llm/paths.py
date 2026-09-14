@@ -6,8 +6,8 @@ Priority order for asset resolution:
   2) Repo root data/ directory (development fallback)
 
 Usage:
-    from llm_pkg.paths import get_knowledge_file, get_rag_index_dir
-    from llm_pkg.paths import get_asset  # generic helper
+    from dori_llm.paths import get_knowledge_file, get_rag_index_dir
+    from dori_llm.paths import get_asset  # generic helper
 """
 
 from pathlib import Path
@@ -66,11 +66,11 @@ def get_asset(relative_to_share: str, pkg_name: str) -> Path:
 def get_knowledge_file() -> Path:
     """
     Path to campus_knowledge.json.
-    Share: llm_pkg/config/campus_knowledge.json
+    Share: dori_llm/config/campus_knowledge.json
     Dev:   data/campus/indexed/campus_knowledge.json
     """
     # Try share first
-    path = get_asset('config/campus_knowledge.json', 'llm_pkg')
+    path = get_asset('config/campus_knowledge.json', 'dori_llm')
     if path.exists():
         return path
     # Dev fallback: data/campus/indexed/
