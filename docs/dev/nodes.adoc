@@ -37,7 +37,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 [[node-depth-camera-node]]
 === depth_camera_node (Python/C++)
 
-*Package*:: `perception_pkg` (Python), `perception_camera_cpp` (C++)
+*Package*:: `dori_perception` (Python), `dori_perception_camera` (C++)
 *Executable*:: `depth_camera_node`
 *Language*:: Python / C++
 *Launch*:: `bringup/launch/perception.launch.py` (`depth_camera_front`, `depth_camera_rear`)
@@ -57,7 +57,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 [[node-person-detection-node]]
 === person_detection_node
 
-*Package*:: `perception_pkg`
+*Package*:: `dori_perception`
 *Executable*:: `person_detection_node`
 *Language*:: Python
 *Launch*:: `bringup/launch/perception.launch.py`
@@ -77,7 +77,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 [[node-landmark-detection-node]]
 === landmark_detection_node
 
-*Package*:: `perception_pkg`
+*Package*:: `dori_perception`
 *Executable*:: `landmark_detection_node`
 *Language*:: Python
 *Launch*:: `bringup/launch/perception.launch.py`
@@ -97,7 +97,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 [[node-gesture-recognition-node]]
 === gesture_recognition_node
 
-*Package*:: `perception_pkg`
+*Package*:: `dori_perception`
 *Executable*:: `gesture_recognition_node`
 *Language*:: Python
 *Launch*:: `bringup/launch/perception.launch.py`
@@ -117,7 +117,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 [[node-facial-expression-node]]
 === facial_expression_node
 
-*Package*:: `perception_pkg`
+*Package*:: `dori_perception`
 *Executable*:: `facial_expression_node`
 *Language*:: Python
 *Launch*:: `bringup/launch/perception.launch.py`

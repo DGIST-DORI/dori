@@ -67,25 +67,25 @@ pip3 install -r requirements.txt
 
 ### 3-2. Download and Place MediaPipe `.task` Models (Perception)
 
-`perception_pkg` gesture/expression nodes use MediaPipe Tasks models that are **not** bundled by default.
+`dori_perception` gesture/expression nodes use MediaPipe Tasks models that are **not** bundled by default.
 
 1. Create the model asset directory:
 
 ```bash
-mkdir -p ros2_ws/src/perception_pkg/models
+mkdir -p ros2_ws/src/dori_perception/models
 ```
 
 2. Download required `.task` files and place them in that directory:
 
 ```text
-ros2_ws/src/perception_pkg/models/hand_landmarker.task
-ros2_ws/src/perception_pkg/models/face_landmarker.task
+ros2_ws/src/dori_perception/models/hand_landmarker.task
+ros2_ws/src/dori_perception/models/face_landmarker.task
 ```
 
 3. Build/install the workspace so models are copied to:
 
 ```text
-<install-prefix>/share/perception_pkg/models/
+<install-prefix>/share/dori_perception/models/
 ```
 
 4. Launch Perception with explicit model paths (recommended) or rely on default share-directory lookup:

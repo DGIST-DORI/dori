@@ -2,7 +2,7 @@ import os
 from glob import glob
 from setuptools import find_packages, setup
 
-package_name = 'perception_pkg'
+package_name = 'dori_perception'
 
 setup(
     name=package_name,
@@ -32,11 +32,11 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'depth_camera_node = perception_pkg.depth_camera_node:main',
-            'person_detection_node = perception_pkg.person_detection_node:main',
-            'landmark_detection_node = perception_pkg.landmark_detection_node:main',
-            'gesture_recognition_node = perception_pkg.gesture_recognition_node:main',
-            'facial_expression_node = perception_pkg.facial_expression_node:main',
+            'depth_camera_node = dori_perception.depth_camera_node:main',
+            'person_detection_node = dori_perception.person_detection_node:main',
+            'landmark_detection_node = dori_perception.landmark_detection_node:main',
+            'gesture_recognition_node = dori_perception.gesture_recognition_node:main',
+            'facial_expression_node = dori_perception.facial_expression_node:main',
         ],
     },
 )

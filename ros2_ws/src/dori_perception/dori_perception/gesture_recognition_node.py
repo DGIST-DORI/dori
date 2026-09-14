@@ -211,7 +211,7 @@ class GestureRecognitionNode(Node):
         if model_path:
             candidate = model_path
         else:
-            share_dir = get_package_share_directory('perception_pkg')
+            share_dir = get_package_share_directory('dori_perception')
             candidate = os.path.join(share_dir, 'models', default_model_filename)
             self.get_logger().info(
                 f'{parameter_name} not provided; trying default model path: {candidate}')
@@ -220,7 +220,7 @@ class GestureRecognitionNode(Node):
             self.get_logger().error(
                 f'Model file does not exist: {candidate}. '
                 f'Set "{parameter_name}" or place model under '
-                f'<install-prefix>/share/perception_pkg/models/.')
+                f'<install-prefix>/share/dori_perception/models/.')
             return None
         if not os.path.isfile(candidate):
             self.get_logger().error(f'Model path is not a regular file: {candidate}')
