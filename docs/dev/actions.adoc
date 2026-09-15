@@ -3,7 +3,7 @@
 [[action-dori-nav-navigate_to]]
 === /nav/navigate_to
 
-*Type (action)*:: `navigation_interfaces/action/Navigate`
+*Type (action)*:: `dori_msgs/action/Navigate`
 *Servers*:: navigator_node
 *Clients*:: llm_node (or other HRI/LLM orchestration clients)
 *Flow*:: llm_node → /nav/navigate_to (goal/cancel) → navigator_node → feedback/result to llm_node

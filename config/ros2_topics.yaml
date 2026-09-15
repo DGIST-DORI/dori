@@ -15,7 +15,7 @@
       ],
       "qos": "unknown",
       "description": "RGB camera stream used by all perception pipelines.",
-      "owner_pkg": "perception_pkg"
+      "owner_pkg": "dori_perception"
     },
     {
       "topic": "camera/front/depth/image_raw",
@@ -29,7 +29,7 @@
       ],
       "qos": "unknown",
       "description": "Raw depth frame for distance estimation and landmark range filtering.",
-      "owner_pkg": "perception_pkg"
+      "owner_pkg": "dori_perception"
     },
     {
       "topic": "camera/front/depth/image_colormap",
@@ -40,7 +40,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Colorized depth visualization stream.",
-      "owner_pkg": "perception_pkg"
+      "owner_pkg": "dori_perception"
     },
     {
       "topic": "camera/front/color/camera_info",
@@ -53,7 +53,7 @@
       ],
       "qos": "unknown",
       "description": "RGB intrinsics for pixel-to-direction / localization math.",
-      "owner_pkg": "perception_pkg"
+      "owner_pkg": "dori_perception"
     },
     {
       "topic": "camera/front/depth/camera_info",
@@ -64,7 +64,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Depth intrinsics metadata stream.",
-      "owner_pkg": "perception_pkg"
+      "owner_pkg": "dori_perception"
     },
     {
       "topic": "camera/front/depth/scale",
@@ -86,7 +86,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Rear RGB camera stream.",
-      "owner_pkg": "perception_pkg"
+      "owner_pkg": "dori_perception"
     },
     {
       "topic": "camera/rear/depth/image_raw",
@@ -97,7 +97,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Rear raw depth frame.",
-      "owner_pkg": "perception_pkg"
+      "owner_pkg": "dori_perception"
     },
     {
       "topic": "camera/rear/depth/image_colormap",
@@ -108,7 +108,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Rear colorized depth visualization stream.",
-      "owner_pkg": "perception_pkg"
+      "owner_pkg": "dori_perception"
     },
     {
       "topic": "camera/rear/color/camera_info",
@@ -119,7 +119,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Rear RGB intrinsics metadata stream.",
-      "owner_pkg": "perception_pkg"
+      "owner_pkg": "dori_perception"
     },
     {
       "topic": "camera/rear/depth/camera_info",
@@ -130,7 +130,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Rear depth intrinsics metadata stream.",
-      "owner_pkg": "perception_pkg"
+      "owner_pkg": "dori_perception"
     },
     {
       "topic": "camera/rear/depth/scale",
@@ -150,7 +150,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "JSON list of detected persons/tracks.",
-      "owner_pkg": "perception_pkg"
+      "owner_pkg": "dori_perception"
     },
     {
       "topic": "hri/interaction_trigger",
@@ -164,7 +164,7 @@
       ],
       "qos": "unknown",
       "description": "Enables gesture/expression inference only during interaction.",
-      "owner_pkg": "perception_pkg"
+      "owner_pkg": "dori_perception"
     },
     {
       "topic": "hri/tracking_state",
@@ -177,7 +177,7 @@
       ],
       "qos": "unknown",
       "description": "JSON tracking state (`idle/tracking/lost`) for session/nav control.",
-      "owner_pkg": "perception_pkg"
+      "owner_pkg": "dori_perception"
     },
     {
       "topic": "follow/target_offset",
@@ -188,7 +188,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Relative target offset for follow-control consumers.",
-      "owner_pkg": "perception_pkg"
+      "owner_pkg": "dori_perception"
     },
     {
       "topic": "hri/annotated_image",
@@ -199,7 +199,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Person detection debug overlay image.",
-      "owner_pkg": "perception_pkg"
+      "owner_pkg": "dori_perception"
     },
     {
       "topic": "hri/gesture",
@@ -210,7 +210,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Gesture detection JSON payload.",
-      "owner_pkg": "perception_pkg"
+      "owner_pkg": "dori_perception"
     },
     {
       "topic": "hri/gesture_command",
@@ -223,7 +223,7 @@
       ],
       "qos": "unknown",
       "description": "Mapped high-level gesture command (`STOP`, `CALL`, etc.).",
-      "owner_pkg": "perception_pkg"
+      "owner_pkg": "dori_perception"
     },
     {
       "topic": "stt/wake_word_detected",
@@ -237,7 +237,7 @@
       ],
       "qos": "unknown",
       "description": "Wake event that starts HRI listening flow.",
-      "owner_pkg": "perception_pkg"
+      "owner_pkg": "dori_perception"
     },
     {
       "topic": "hri/annotated_gesture",
@@ -248,7 +248,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Gesture visualization/debug image.",
-      "owner_pkg": "perception_pkg"
+      "owner_pkg": "dori_perception"
     },
     {
       "topic": "hri/expression",
@@ -259,7 +259,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Expression inference JSON payload.",
-      "owner_pkg": "perception_pkg"
+      "owner_pkg": "dori_perception"
     },
     {
       "topic": "hri/expression_command",
@@ -272,7 +272,7 @@
       ],
       "qos": "unknown",
       "description": "HRI action hint from expression state.",
-      "owner_pkg": "perception_pkg"
+      "owner_pkg": "dori_perception"
     },
     {
       "topic": "hri/annotated_expression",
@@ -283,7 +283,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Facial expression visualization/debug image.",
-      "owner_pkg": "perception_pkg"
+      "owner_pkg": "dori_perception"
     },
     {
       "topic": "landmark/detections",
@@ -294,7 +294,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Raw landmark/candidate detections as JSON.",
-      "owner_pkg": "perception_pkg"
+      "owner_pkg": "dori_perception"
     },
     {
       "topic": "landmark/localization",
@@ -305,7 +305,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Landmark-based localization estimate JSON.",
-      "owner_pkg": "perception_pkg"
+      "owner_pkg": "dori_perception"
     },
     {
       "topic": "landmark/context",
@@ -318,7 +318,7 @@
       ],
       "qos": "unknown",
       "description": "Current location/context text used in LLM query payload.",
-      "owner_pkg": "perception_pkg"
+      "owner_pkg": "dori_perception"
     },
     {
       "topic": "hri/annotated_landmark",
@@ -329,7 +329,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Landmark detection visualization/debug image.",
-      "owner_pkg": "perception_pkg"
+      "owner_pkg": "dori_perception"
     },
     {
       "topic": "stt/audio_input",
@@ -342,7 +342,7 @@
       ],
       "qos": "unknown",
       "description": "E2E STT input payload JSON: {audio_b64, format:'wav_pcm16', sample_rate:16000, channels:1}.",
-      "owner_pkg": "stt_pkg"
+      "owner_pkg": "dori_hri"
     },
     {
       "topic": "stt/result",
@@ -355,7 +355,7 @@
       ],
       "qos": "unknown",
       "description": "STT output JSON/text from recognizer. E2E path: STTPanel mic -> stt/audio_input -> stt_node(Whisper) -> stt/result -> hri_manager_node.",
-      "owner_pkg": "stt_pkg"
+      "owner_pkg": "dori_hri"
     },
     {
       "topic": "tts/done",
@@ -368,7 +368,7 @@
       ],
       "qos": "unknown",
       "description": "Playback completion event for HRI state transitions.",
-      "owner_pkg": "tts_pkg"
+      "owner_pkg": "dori_hri"
     },
     {
       "topic": "hri/manager_state",
@@ -379,7 +379,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Current HRI state heartbeat (`IDLE`, `LISTENING`, etc.).",
-      "owner_pkg": "interaction_pkg"
+      "owner_pkg": "dori_hri"
     },
     {
       "topic": "llm/query",
@@ -392,7 +392,7 @@
       ],
       "qos": "unknown",
       "description": "JSON request containing user text + contextual fields.",
-      "owner_pkg": "interaction_pkg"
+      "owner_pkg": "dori_hri"
     },
     {
       "topic": "tts/text",
@@ -405,7 +405,7 @@
       ],
       "qos": "unknown",
       "description": "Direct TTS text (bypass LLM for prompts/system messages).",
-      "owner_pkg": "interaction_pkg"
+      "owner_pkg": "dori_hri"
     },
     {
       "topic": "nav/command",
@@ -416,7 +416,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "High-level navigation command channel.",
-      "owner_pkg": "interaction_pkg"
+      "owner_pkg": "dori_hri"
     },
     {
       "topic": "llm/response",
@@ -429,7 +429,7 @@
       ],
       "qos": "unknown",
       "description": "Generated natural-language response text.",
-      "owner_pkg": "llm_pkg"
+      "owner_pkg": "dori_llm"
     },
     {
       "topic": "nav/destination",
@@ -442,7 +442,7 @@
       ],
       "qos": "unknown",
       "description": "Navigation goal pose extracted from navigation intent.",
-      "owner_pkg": "llm_pkg"
+      "owner_pkg": "dori_llm"
     },
     {
       "topic": "tts/speaking",
@@ -453,7 +453,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "True while TTS is actively speaking (used for mic mute by external STT).",
-      "owner_pkg": "tts_pkg"
+      "owner_pkg": "dori_hri"
     },
     {
       "topic": "nav/global_path",
@@ -464,7 +464,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Planned global path visualization/output.",
-      "owner_pkg": "navigation_pkg"
+      "owner_pkg": "dori_navigation"
     },
     {
       "topic": "nav/local_path",
@@ -475,7 +475,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Local path / short-horizon trajectory visualization.",
-      "owner_pkg": "navigation_pkg"
+      "owner_pkg": "dori_navigation"
     },
     {
       "topic": "nav/status",
@@ -486,7 +486,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Human-readable navigation status updates.",
-      "owner_pkg": "navigation_pkg"
+      "owner_pkg": "dori_navigation"
     },
     {
       "topic": "nav/cancel",
@@ -510,7 +510,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Periodic system metrics JSON (CPU/RAM/Disk/GPU).",
-      "owner_pkg": "system_monitor_pkg"
+      "owner_pkg": "dori_observability"
     },
     {
       "topic": "/dori/odom",
@@ -562,7 +562,7 @@
       ],
       "qos": "unknown",
       "description": "Velocity command output to robot base.",
-      "owner_pkg": "navigation_pkg"
+      "owner_pkg": "dori_navigation"
     },
     {
       "topic": "dori/stt/audio_input",
@@ -573,7 +573,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Dashboard/client microphone STT input (robot+sim profile canonical).",
-      "owner_pkg": "dashboard_pkg"
+      "owner_pkg": "dori_dashboard"
     },
     {
       "topic": "dori/perception/vision/image/compressed",
@@ -584,7 +584,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "Dashboard/client camera compressed image input (robot+sim profile canonical).",
-      "owner_pkg": "dashboard_pkg"
+      "owner_pkg": "dori_dashboard"
     },
     {
       "topic": "dori/audio/output",
@@ -595,7 +595,7 @@
       "subscribers": [],
       "qos": "unknown",
       "description": "ROS audio output stream for dashboard ros_audio playback mode.",
-      "owner_pkg": "dashboard_pkg"
+      "owner_pkg": "dori_dashboard"
     }
   ],
   "services": [
@@ -609,7 +609,7 @@
         "hri_manager_node"
       ],
       "description": "Enable/disable person target follow mode with explicit success/failure response.",
-      "owner_pkg": "interaction_pkg"
+      "owner_pkg": "dori_hri"
     }
   ]
 }

@@ -1,7 +1,6 @@
 # Team-wide Python dependencies for core voice pipeline packages
--r ros2_ws/src/stt_pkg/requirements.txt
--r ros2_ws/src/tts_pkg/requirements.txt
--r ros2_ws/src/llm_pkg/requirements.txt
--r ros2_ws/src/perception_pkg/requirements.txt
--r ros2_ws/src/dashboard_pkg/requirements.txt
--r ros2_ws/src/system_monitor_pkg/requirements.txt
+-r ros2_ws/src/dori_hri/requirements.txt
+-r ros2_ws/src/dori_llm/requirements.txt
+-r ros2_ws/src/dori_perception/requirements.txt
+-r ros2_ws/src/dori_dashboard/requirements.txt
+-r ros2_ws/src/dori_observability/requirements.txt

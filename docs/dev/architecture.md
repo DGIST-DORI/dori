@@ -57,17 +57,18 @@ Last updated: March 10, 2026.
 
 ### Software Packages
 
+The package tree below reflects the current source layout. Package ownership and
+boundaries are defined in [`package-ownership.md`](package-ownership.md).
+
 ```
 ros2_ws/src/
-├── perception_pkg/       # Perception: camera, person detection, gesture, expression, landmark
-├── interaction_pkg/      # Interaction coordinator (HRI manager state machine)
-├── hri_pkg/              # HRI nodes
-├── stt_pkg/              # Wake word (Porcupine) + transcription (Whisper)
-├── llm_pkg/              # Intent classification + RAG + LLM response
-├── tts_pkg/              # Text-to-speech playback
-├── navigation_pkg/       # Navigation execution node
-├── dashboard_pkg/        # ROS ↔ web dashboard bridge
-└── bringup/              # Launch files
+├── dori_perception/        # Perception Python vision nodes, config, and models
+├── dori_perception_camera/ # Perception C++ RealSense camera adapter
+├── dori_hri/      # Interaction coordinator (HRI manager state machine) + STT + TTS
+├── dori_llm/              # Intent classification + RAG + LLM response
+├── dori_navigation/       # Navigation execution node
+├── dori_dashboard/        # ROS ↔ web dashboard bridge
+└── dori_bringup/              # Launch files
     ├── robot.launch.py           # Full robot (top-level)
     ├── perception.launch.py      # Perception only
     ├── interaction.launch.py     # HRI manager/state machine only

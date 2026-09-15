@@ -5,29 +5,29 @@
 
 ```bash
 # Use external LLM instead of local model
-ros2 launch bringup robot.launch.py use_external_llm:=true
+ros2 launch dori_bringup robot.launch.py use_external_llm:=true
 
 # SW development without navigation hardware
-ros2 launch bringup robot.launch.py enable_navigation:=false
+ros2 launch dori_bringup robot.launch.py enable_navigation:=false
 
 # Change Whisper model size (tiny / base / small / medium)
-ros2 launch bringup robot.launch.py whisper_model:=base
+ros2 launch dori_bringup robot.launch.py whisper_model:=base
 
 # Change TTS language
-ros2 launch bringup robot.launch.py tts_language:=ko
+ros2 launch dori_bringup robot.launch.py tts_language:=ko
 ```
 
 ### Sub-system Launch (Development)
 
 ```bash
 # Perception only (cameras + detection nodes)
-ros2 launch bringup perception.launch.py visualize:=true
+ros2 launch dori_bringup perception.launch.py visualize:=true
 
 # Interaction state machine only
-ros2 launch bringup interaction.launch.py
+ros2 launch dori_bringup interaction.launch.py
 
 # Voice pipeline only (no cameras needed)
-ros2 launch bringup voice.launch.py
+ros2 launch dori_bringup voice.launch.py
 ```
 
 ### Testing Without Hardware
@@ -36,7 +36,7 @@ Perception and voice nodes can be tested independently using manual topic inject
 
 ```bash
 # Terminal 1: start HRI manager
-ros2 run interaction_pkg hri_manager_node
+ros2 run dori_hri hri_manager_node
 
 # Terminal 2: simulate wake word
 ros2 topic pub /stt/wake_word_detected std_msgs/msg/Bool "data: true" --once
@@ -93,7 +93,7 @@ colcon build --symlink-install
 source install/setup.bash
 
 # 4) Start dashboard backend (rosbridge + HTTP server)
-ros2 launch dashboard_pkg dashboard.launch.py
+ros2 launch dori_dashboard dashboard.launch.py
 ```
 
 Dashboard access endpoints:
@@ -137,13 +137,13 @@ Gesture and expression nodes require external MediaPipe Task files:
 Recommended placement in source tree:
 
 ```text
-ros2_ws/src/perception_pkg/models/
+ros2_ws/src/dori_perception/models/
 ```
 
 After `colcon build`, assets are installed under:
 
 ```text
-install/perception_pkg/share/perception_pkg/models/
+install/dori_perception/share/dori_perception/models/
 ```
 
 Launch options:
@@ -194,7 +194,7 @@ Edit `/data/campus/indexed/campus_knowledge.json`:
 
 ```bash
 # Prepare dataset (YOLO format) and edit config/data.yaml
-ros2 run perception_pkg train_landmark \
+ros2 run dori_perception train_landmark \
   --data config/data.yaml \
   --model yolov8n.pt \
   --epochs 100
