@@ -31,7 +31,7 @@ changed together in the implementation change that adopts it.
 | `perception_pkg` | `dori_perception` | Perception (Python vision) | Owns Python person, landmark, gesture, facial-expression, and any Python camera nodes, plus their models/configuration. |
 | `perception_camera_cpp` | `dori_perception_camera` | Perception (native camera adapter) | Auxiliary C++ camera-driver package owned by the perception area.  It isolates `ament_cmake`, RealSense/native SDK, and C++ ABI dependencies from Python vision dependencies. |
 | `interaction_pkg` | `dori_hri` | HRI orchestration | The central HRI state-machine/coordinator package.  It owns interaction state, session transitions, and orchestration contracts. |
-| `hri_pkg` | `dori_hri_expression` | HRI expression | Auxiliary HRI package for emotion/expression publishing and display-facing behavior. |
+| `hri_pkg` | `dori_hri` | HRI expression | Auxiliary HRI package for emotion/expression publishing and display-facing behavior. |
 | `stt_pkg` | `dori_hri` | HRI speech input | Auxiliary HRI package for wake-word detection, audio intake, and speech-to-text models/runtime dependencies. |
 | `tts_pkg` | `dori_hri` | HRI speech output | Auxiliary HRI package for speech synthesis, audio cues, playback, and audio assets. |
 | `dashboard_pkg` | `dori_dashboard` | Dashboard | Owns the ROS/web bridge, dashboard API/server, packaged frontend assets, and dashboard launch entry point. |
@@ -49,7 +49,7 @@ install both implementations as packages with the same ROS package name.
 
 We retain deployable HRI subpackages rather than merging all four current
 packages into one.  `dori_hri` is the coordinator and public HRI ownership
-center.  `dori_hri_expression`, and `dori_hri` own their
+center.  `dori_hri` own their
 specialized model, audio, and expression dependencies.  This allows the
 coordinator to evolve independently of GPU/model and audio-runtime dependencies
 while preserving an unambiguous ownership hierarchy.
@@ -63,7 +63,7 @@ change says otherwise.
 | Identifier kind | Target convention | What changes in this migration | What remains stable / is out of scope |
 | --- | --- | --- | --- |
 | ROS package name | Exact final name in the package map, lowercase snake case, `dori_` prefix. | Directory name, `package.xml` `<name>`, ament resource marker, CMake/setup package name, dependency declarations, `get_package_share_directory()` calls, and `ros2 launch`/`ros2 run` package argument. | No old package name remains discoverable in the workspace. |
-| Python import package | Exact final Python package name for every `ament_python` package: `dori_navigation`, `dori_llm`, `dori_perception`, `dori_hri`, `dori_hri_expression`, `dori_dashboard`, or `dori_observability`. | On-disk import directory, `setup.py` entry-point target, and all first-party imports.  Generated action imports change to `dori_msgs.action`. | Third-party import names are not renamed.  No import shim for `*_pkg` is supplied. |
+| Python import package | Exact final Python package name for every `ament_python` package: `dori_navigation`, `dori_llm`, `dori_perception`, `dori_hri`, `dori_dashboard`, or `dori_observability`. | On-disk import directory, `setup.py` entry-point target, and all first-party imports.  Generated action imports change to `dori_msgs.action`. | Third-party import names are not renamed.  No import shim for `*_pkg` is supplied. |
 | Executable / console script | Functional, lowercase snake case name; existing unique names are retained (for example `navigator_node`, `llm_node`, `stt_node`, and `depth_camera_node`). | Entry-point module paths and launch `package=` fields change; the C++ target/install reference moves with `dori_perception_camera`. | Executable spelling does not gain a `dori_` prefix solely because its package did. |
 | ROS node name | Functional, lowercase snake case; launch may continue to assign instance names such as `depth_camera_front`. | Launch `package=` changes and node implementation/import movement are updated. | `name=`, node constructor names, namespaces, and node graph identities stay unchanged. |
 | Topic, service, and action graph names | Existing relative API names (for example `stt/result`, `tts/text`, and `nav/navigate_to`) with final routing owned by launch namespace/remapping. | Type references change from `dori_msgs/...` to `dori_msgs/...`; documentation and code imports follow that type package name. | Topic/service/action paths, parameter keys that carry them, and `/dori` namespace behavior do not change. |

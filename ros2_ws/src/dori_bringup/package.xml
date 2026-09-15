@@ -14,7 +14,6 @@
   <exec_depend>dori_llm</exec_depend>
   <exec_depend>dori_perception</exec_depend>
   <exec_depend>dori_perception_camera</exec_depend>
-  <exec_depend>dori_hri_expression</exec_depend>
   <exec_depend>dori_navigation</exec_depend>
   <exec_depend>dori_dashboard</exec_depend>
   <exec_depend>dori_observability</exec_depend>

@@ -65,7 +65,6 @@ ros2_ws/src/
 ├── dori_perception/        # Perception Python vision nodes, config, and models
 ├── dori_perception_camera/ # Perception C++ RealSense camera adapter
 ├── dori_hri/      # Interaction coordinator (HRI manager state machine) + STT + TTS
-├── dori_hri_expression/              # HRI nodes
 ├── dori_llm/              # Intent classification + RAG + LLM response
 ├── dori_navigation/       # Navigation execution node
 ├── dori_dashboard/        # ROS ↔ web dashboard bridge

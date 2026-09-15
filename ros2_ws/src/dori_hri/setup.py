@@ -16,6 +16,8 @@ setup(
             glob('models/*')),
         (os.path.join('share', package_name, 'assets', 'audio'),
             glob('assets/audio/*')),
+        (os.path.join('share', package_name, 'config'),
+            glob('config/*')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -33,6 +35,7 @@ setup(
             'hri_manager_node = dori_hri.hri_manager_node:main',
             'stt_node = dori_hri.stt_node:main',
             'tts_node = dori_hri.tts_node:main',
+            'emotion_publisher_node = dori_hri.emotion_publisher_node:main',
         ],
     },
 )
