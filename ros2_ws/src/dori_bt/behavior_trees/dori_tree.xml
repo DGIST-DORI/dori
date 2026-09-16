@@ -1,0 +1,122 @@
+<root BTCPP_format="4">
+  <BehaviorTree ID="DoriMainTree">
+    <ReactiveFallback name="RootPrioritySelector">
+
+      <!-- Priority 1: Guide supervision / safety interruption -->
+      <Sequence name="GuideSupervisionPriority">
+        <IsRobotMode mode="GUIDING"/>
+
+        <Fallback name="GuideCanContinueOrHandleIssue">
+          <!-- Normal case: user visible and no access blockage -->
+          <Sequence name="GuideHealthy">
+            <IsUserVisible/>
+            <IsAccessClear/>
+          </Sequence>
+
+          <!-- User lost case -->
+          <Sequence name="HandleUserLost">
+            <Inverter>
+              <IsUserVisible/>
+            </Inverter>
+            <PublishDashboardMode mode="USER_LOST_CONFIRM"/>
+            <StopRobot/>
+            <Speak text="잘 따라오고 계신가요?"/>
+            <Fallback name="UserRecoveryOrIdle">
+              <Sequence name="UserRecovered">
+                <SearchForUser timeout_sec="10"/>
+                <IsUserVisible/>
+              </Sequence>
+              <Sequence name="UserNotRecovered">
+                <CancelNavigation/>
+                <ClearSession/>
+                <SetRobotMode mode="IDLE"/>
+                <PublishDashboardMode mode="IDLE"/>
+              </Sequence>
+            </Fallback>
+          </Sequence>
+
+          <!-- Access blocked case -->
+          <Sequence name="HandleAccessBlocked">
+            <IsAccessBlocked/>
+            <PublishDashboardMode mode="ACCESS_HELP"/>
+            <StopRobot/>
+            <Speak text="문이나 엘리베이터 이용을 도와주세요."/>
+            <WaitUntilAccessClear timeout_sec="60"/>
+          </Sequence>
+        </Fallback>
+      </Sequence>
+
+      <!-- Priority 2: Mic interaction and guidance -->
+      <Sequence name="MicInteractionPriority">
+        <WasMicDetachedEvent/>
+        <SetRobotMode mode="INTERACTION"/>
+        <PublishDashboardMode mode="INTERACTION"/>
+        <StopRobot/>
+        <PlayHRISound cue="mic_detached.wav"/>
+
+        <WaitForWakeWord timeout_sec="30"/>
+        <WaitForIntent intent="{intent}"
+                       text="{user_text}"
+                       destination="{destination}"
+                       answer="{answer}"
+                       timeout_sec="20"/>
+
+        <Fallback name="IntentRouter">
+          <!-- Q&A -->
+          <Sequence name="QABranch">
+            <IsIntent intent="{intent}" expected="QA"/>
+            <SetRobotMode mode="QA"/>
+            <PublishDashboardMode mode="QA"/>
+            <Speak text="{answer}"/>
+
+            <Fallback name="MicReturnedOrRequestReturn">
+              <WaitForMicAttached timeout_sec="10"/>
+              <Sequence name="RequestMicReturn">
+                <Speak text="마이크를 제자리에 돌려주세요."/>
+                <WaitForMicAttached timeout_sec="30"/>
+              </Sequence>
+            </Fallback>
+
+            <ClearSession/>
+            <SetRobotMode mode="IDLE"/>
+            <PublishDashboardMode mode="IDLE"/>
+          </Sequence>
+
+          <!-- Guide -->
+          <Sequence name="GuideBranch">
+            <IsIntent intent="{intent}" expected="GUIDE"/>
+            <SetRobotMode mode="GUIDING"/>
+            <PublishDashboardMode mode="GUIDING"/>
+
+            <Parallel name="GuideNavigationWithSupport" success_count="1" failure_count="1">
+              <NavigateToNamedGoal goal="{destination}"/>
+
+              <ReactiveSequence name="SpeedAdaptationLoop">
+                <IsRobotMode mode="GUIDING"/>
+                <AdjustSpeedFromUserDistance min_speed="0.15" max_speed="0.60" default_speed="0.30" near_distance="0.8" target_distance="2.0" far_distance="3.5"/>
+              </ReactiveSequence>
+
+              <ReactiveSequence name="DashboardUpdateLoop">
+                <IsRobotMode mode="GUIDING"/>
+                <PublishDashboardStatus/>
+              </ReactiveSequence>
+            </Parallel>
+
+            <ClearSession/>
+            <SetRobotMode mode="IDLE"/>
+            <PublishDashboardMode mode="IDLE"/>
+          </Sequence>
+        </Fallback>
+      </Sequence>
+
+      <!-- Priority 3: Idle wander -->
+      <Sequence name="IdleWanderPriority">
+        <IsMicAttached/>
+        <IsRobotMode mode="IDLE"/>
+        <PublishDashboardMode mode="IDLE_WANDER"/>
+        <IdleWander zone="Haedong Innovation Space" max_speed="0.30"/>
+      </Sequence>
+
+    </ReactiveFallback>
+  </BehaviorTree>
+</root>
