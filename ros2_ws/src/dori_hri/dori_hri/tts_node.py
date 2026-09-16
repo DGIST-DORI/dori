@@ -61,7 +61,7 @@ except ImportError:
     AUDIO_AVAILABLE = False
 
 
-class TTSActionNode(Node):
+class TTSNode(Node):
     def __init__(self):
         super().__init__('tts_node')
 
@@ -358,7 +358,7 @@ class TTSActionNode(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = TTSActionNode()
+    node = TTSNode()
     executor = MultiThreadedExecutor()
     executor.add_node(node)
     try:
