@@ -12,6 +12,8 @@
   <!-- ROS 2 Core -->
   <depend>rclcpp</depend>
   <depend>rclcpp_action</depend>
+  <depend>ament_index_cpp</depend>
+  <depend>std_msgs</depend>
 
   <!-- BehaviorTree.CPP v4 -->
   <depend>behaviortree_cpp</depend>

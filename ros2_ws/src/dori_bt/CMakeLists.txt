@@ -13,6 +13,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
+find_package(ament_index_cpp REQUIRED)
+find_package(std_msgs REQUIRED)
 find_package(behaviortree_cpp REQUIRED)
 find_package(dori_msgs REQUIRED)
 find_package(nav2_behavior_tree REQUIRED)
@@ -24,6 +26,10 @@ include_directories(
 # 2. 메인 실행 노드 (BT Executor) 빌드 설정
 add_executable(dori_tree_executor
   src/dori_bt_main.cpp
+  src/actions/speak_node.cpp
+  src/actions/wait_for_intent_node.cpp
+  src/conditions/is_robot_mode_node.cpp
+  src/conditions/is_user_visible_node.cpp
   # TODO: 앞으로 만들 커스텀 노드들의 .cpp 파일들을 여기에 추가하게 됩니다.
   # 예: src/actions/speak_node.cpp
 )
@@ -37,6 +43,8 @@ target_include_directories(dori_tree_executor PUBLIC
 ament_target_dependencies(dori_tree_executor
   rclcpp
   rclcpp_action
+  ament_index_cpp
+  std_msgs
   behaviortree_cpp
   dori_msgs
   nav2_behavior_tree
