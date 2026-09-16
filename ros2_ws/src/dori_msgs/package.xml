@@ -3,7 +3,7 @@
 <package format="3">
   <name>dori_msgs</name>
   <version>0.0.0</version>
-  <description>Navigation action interfaces.</description>
+  <description>Action interfaces.</description>
   <maintainer email="jaewon1627@gmail.com">ofbt</maintainer>
   <license>TODO: License declaration</license>
 

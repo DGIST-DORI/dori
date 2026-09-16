@@ -17,6 +17,7 @@
   <exec_depend>dori_navigation</exec_depend>
   <exec_depend>dori_dashboard</exec_depend>
   <exec_depend>dori_observability</exec_depend>
+  <exec_depend>dori_core</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

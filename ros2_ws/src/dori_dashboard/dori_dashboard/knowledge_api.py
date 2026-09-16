@@ -1126,6 +1126,7 @@ def _deploy_pipeline(*, force_web_repair: bool = False):
     if ros_changed:
         packages_to_build.extend([
             'dori_dashboard',
+            'dori_core',
             'dori_msgs',
             'dori_navigation',
             'dori_hri',

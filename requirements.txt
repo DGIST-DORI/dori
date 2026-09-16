@@ -4,3 +4,4 @@
 -r ros2_ws/src/dori_perception/requirements.txt
 -r ros2_ws/src/dori_dashboard/requirements.txt
 -r ros2_ws/src/dori_observability/requirements.txt
+-r ros2_ws/src/dori_core/requirements.txt
