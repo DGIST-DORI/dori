@@ -8,6 +8,7 @@ find_package(rosidl_default_generators REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "action/Navigate.action"
   "action/Speak.action"
+  "action/LLMQuery.action"
   DEPENDENCIES geometry_msgs
 )
 

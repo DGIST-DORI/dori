@@ -1,15 +1,6 @@
 #!/usr/bin/env python3
 """
 Intent classification + RAG-based campus knowledge retrieval + LLM response generation.
-
-Subscribe topics:
-  llm/query        (String) - JSON from HRI Manager: {user_text, location_context, ...}
-
-Publish topics:
-  llm/response     (String) - generated response text (consumed by TTS node)
-
-Actions (client):
-  nav/navigate_to  (dori_msgs/action/Navigate) - navigation goal request
 """
 
 import json
@@ -20,11 +11,12 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import rclpy
-from geometry_msgs.msg import PoseStamped
-from dori_msgs.action import Navigate
-from rclpy.action import ActionClient
 from rclpy.node import Node
-from std_msgs.msg import String
+from rclpy.action import ActionServer, CancelResponse, GoalResponse
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
+
+from dori_msgs.action import LLMQuery
 
 from dori_llm.paths import get_knowledge_file, get_rag_index_dir
 
@@ -261,9 +253,7 @@ class LLMNode(Node):
         self.declare_parameter('model_name',       'gemini-2.5-flash')
         self.declare_parameter('api_key',          '')
         self.declare_parameter('rag_top_k',        3)
-        self.declare_parameter('topics.query_sub', 'llm/query')
-        self.declare_parameter('topics.response_pub', 'llm/response')
-        self.declare_parameter('actions.navigate', 'nav/navigate_to')
+        self.declare_parameter('action_name', 'llm/query')
 
         knowledge_file   = self.get_parameter('knowledge_file').value
         rag_index_dir    = self.get_parameter('rag_index_dir').value
@@ -271,6 +261,7 @@ class LLMNode(Node):
         self.model_name     = self.get_parameter('model_name').value
         api_key             = self.get_parameter('api_key').value
         self.rag_top_k      = self.get_parameter('rag_top_k').value
+        action_name         = self.get_parameter('action_name').value
 
         # Knowledge base (structured)
         self.kb = CampusKnowledgeBase(knowledge_file or None, self.get_logger())
@@ -300,21 +291,101 @@ class LLMNode(Node):
         # State
         self.conversation_history: list = []
         self.current_language: str = 'ko'
-        self.current_location_context: str = ''
 
-        query_topic = self.get_parameter('topics.query_sub').value
-        response_topic = self.get_parameter('topics.response_pub').value
-        navigate_action = self.get_parameter('actions.navigate').value
-
-        # Subscribers / Publishers / Action clients
-        self.create_subscription(String, query_topic, self._on_query, 10)
-        self.response_pub = self.create_publisher(String, response_topic, 10)
-        self.navigate_action_client = ActionClient(self, Navigate, navigate_action)
+        # Action Server 초기화
+        self.callback_group = ReentrantCallbackGroup()
+        self._action_server = ActionServer(
+            self,
+            LLMQuery,
+            action_name,
+            execute_callback=self.execute_callback,
+            goal_callback=self.goal_callback,
+            cancel_callback=self.cancel_callback,
+            callback_group=self.callback_group
+        )
 
         self.get_logger().info('LLM Node started')
 
-    # LLM client init
+    # --- Action Server Callbacks ---
+    def goal_callback(self, goal_request):
+        self.get_logger().info(f'Received LLM Goal: "{goal_request.text}"')
+        return GoalResponse.ACCEPT
 
+    def cancel_callback(self, goal_handle):
+        self.get_logger().info('LLM generation cancel requested')
+        return CancelResponse.ACCEPT
+
+    def execute_callback(self, goal_handle):
+        user_text = goal_handle.request.text
+        location_context = goal_handle.request.location_context
+        
+        feedback = LLMQuery.Feedback()
+        result = LLMQuery.Result()
+        
+        feedback.status = 'Analyzing intent and generating response...'
+        goal_handle.publish_feedback(feedback)
+        
+        # 취소 감지
+        if goal_handle.is_cancel_requested:
+            goal_handle.canceled()
+            result.intent = 'canceled'
+            return result
+
+        try:
+            # LLM 처리 및 응답 생성 로직 호출
+            response_data = self._generate_response(user_text, location_context)
+            
+            # 히스토리 업데이트
+            self.conversation_history.append({
+                'user': user_text, 
+                'assistant': response_data['text'], 
+                'language': self.current_language
+            })
+            
+            goal_handle.succeed()
+            result.intent = response_data['intent']
+            result.response_text = response_data['text']
+            result.target_location = response_data['target']
+            self.get_logger().info(f"Result -> Intent: {response_data['intent']}, Target: {response_data['target']}")
+            return result
+
+        except Exception as e:
+            self.get_logger().error(f'LLM Execution failed: {e}')
+            goal_handle.abort()
+            result.intent = 'error'
+            result.response_text = '오류가 발생했습니다.'
+            return result
+
+    # --- Response Generation (구조화된 딕셔너리 반환으로 변경) ---
+    def _generate_response(self, user_text: str, location_context: str) -> dict:
+        intent = IntentClassifier.classify(user_text)
+        self.get_logger().info(f'Classified Intent: {intent}')
+
+        if intent == 'greeting':
+            return {'intent': intent, 'text': self._localized('greeting'), 'target': ''}
+        if intent == 'thanks':
+            return {'intent': intent, 'text': self._localized('thanks'), 'target': ''}
+        if intent == 'navigation':
+            return self._handle_navigation(user_text)
+
+        # RAG 처리 등 일반 응답
+        response_text = self._handle_with_rag(user_text, location_context)
+        return {'intent': intent, 'text': response_text, 'target': ''}
+
+    def _handle_navigation(self, text: str) -> dict:
+        """직접 주행하지 않고 목적지 이름(ID)만 추출하여 반환"""
+        loc = self.kb.search_location(text)
+        
+        if loc:
+            response_text = (
+                f"I'll guide you to {loc.name}. {loc.description}" if self.current_language == 'en' 
+                else f"{loc.name}(으)로 안내하겠습니다. {loc.description}"
+            )
+            return {'intent': 'navigation', 'text': response_text, 'target': loc.name}
+        
+        return {'intent': 'navigation', 'text': self._localized('not_found'), 'target': ''}
+
+    # LLM client init
     def _init_llm_client(self, api_key: str):
         try:
             if 'gemini' in self.model_name.lower():
@@ -349,57 +420,7 @@ class LLMNode(Node):
             self.get_logger().error(f'LLM client init failed: {e}')
             self.use_external = False
 
-    # Query callback
-
-    def _on_query(self, msg: String):
-        try:
-            data = json.loads(msg.data)
-            user_text = data.get('user_text', '').strip()
-            self.current_location_context = data.get('location_context', '')
-        except (json.JSONDecodeError, AttributeError):
-            user_text = msg.data.strip()
-
-        if not user_text:
-            return
-
-        self.get_logger().info(f'Query: "{user_text}"')
-        response = self._generate_response(user_text)
-
-        out = String()
-        out.data = response
-        self.response_pub.publish(out)
-        self.get_logger().info(f'Response: "{response}"')
-
-        self.conversation_history.append({
-            'user': user_text, 'assistant': response, 'language': self.current_language,
-        })
-
-    # Response generation
-
-    def _generate_response(self, user_text: str) -> str:
-        intent = IntentClassifier.classify(user_text)
-        self.get_logger().info(f'Intent: {intent}')
-
-        if intent == 'greeting':
-            return self._localized('greeting')
-        if intent == 'thanks':
-            return self._localized('thanks')
-        if intent == 'navigation':
-            return self._handle_navigation(user_text)
-
-        # For information and general: run full RAG pipeline
-        return self._handle_with_rag(user_text, intent)
-
-    def _handle_navigation(self, text: str) -> str:
-        location = self.kb.search_location(text)
-        if location:
-            self._send_navigation_goal(location)
-            if self.current_language == 'en':
-                return f"I'll guide you to {location.name}. {location.description}"
-            return f'{location.name}(으)로 안내하겠습니다. {location.description}'
-        return self._localized('not_found')
-
-    def _handle_with_rag(self, text: str, intent: str) -> str:
+    def _handle_with_rag(self, text: str, location_context: str) -> str:
         """
         Two-stage retrieval:
           1. Structured KB  — fast, exact (JSON) from campus_knowledge.json
@@ -443,12 +464,12 @@ class LLMNode(Node):
             context_parts.append(f'[Documents]\n{vec_context}')
         combined_context = '\n\n'.join(context_parts)
 
-        return self._call_llm_with_context(text, combined_context)
+        return self._call_llm_with_context(text, combined_context, location_context)
 
     # LLM call
 
-    def _call_llm_with_context(self, user_text: str, context: str) -> str:
-        system_prompt = self._build_system_prompt(context)
+    def _call_llm_with_context(self, user_text: str, context: str, location_context: str) -> str:
+        system_prompt = self._build_system_prompt(context, location_context)
         messages      = self._build_messages(user_text)
         try:
             if self.llm_type == 'gemini':
@@ -486,10 +507,10 @@ class LLMNode(Node):
             self.get_logger().error(f'LLM call failed: {e}')
         return self._localized('no_understand')
 
-    def _build_system_prompt(self, context: str) -> str:
+    def _build_system_prompt(self, context: str, location_context: str) -> str:
         location_hint = (
-            f' Current location: {self.current_location_context}.'
-            if self.current_location_context else ''
+            f' Current location: {location_context}.'
+            if location_context else ''
         )
         context_block = f'\n\n--- Reference Information ---\n{context}\n---' if context else ''
 
@@ -530,51 +551,7 @@ class LLMNode(Node):
         entry = responses.get(key, {})
         return entry.get(lang, entry.get('ko', ''))
 
-    def _send_navigation_goal(self, location: Location):
-        if not self.navigate_action_client.wait_for_server(timeout_sec=1.0):
-            self.get_logger().warn('Navigation action server unavailable')
-            return
 
-        pose = PoseStamped()
-        pose.header.stamp = self.get_clock().now().to_msg()
-        pose.header.frame_id = 'map'
-        pose.pose.position.x = float(location.coordinates[0])
-        pose.pose.position.y = float(location.coordinates[1])
-        pose.pose.position.z = 0.0
-        pose.pose.orientation.w = 1.0
-
-        goal = Navigate.Goal()
-        goal.destination = pose
-
-        future = self.navigate_action_client.send_goal_async(
-            goal,
-            feedback_callback=self._on_navigation_feedback,
-        )
-        future.add_done_callback(self._on_navigation_goal_response)
-        self.get_logger().info(f'Navigation goal sent: {location.name}')
-
-    def _on_navigation_goal_response(self, future):
-        goal_handle = future.result()
-        if not goal_handle.accepted:
-            self.get_logger().warn('Navigation goal rejected')
-            return
-
-        self.get_logger().info('Navigation goal accepted')
-        result_future = goal_handle.get_result_async()
-        result_future.add_done_callback(self._on_navigation_result)
-
-    def _on_navigation_feedback(self, feedback_msg):
-        feedback = feedback_msg.feedback
-        self.get_logger().debug(
-            f'Navigation feedback: state={feedback.state}, '
-            f'distance={feedback.distance_remaining:.2f}'
-        )
-
-    def _on_navigation_result(self, future):
-        result = future.result().result
-        self.get_logger().info(
-            f'Navigation result: code={result.code}, message={result.message}'
-        )
 
 
 # Entry point
@@ -582,8 +559,11 @@ class LLMNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = LLMNode()
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
+
     try:
-        rclpy.spin(node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:

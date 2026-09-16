@@ -1,0 +1,11 @@
+# Goal (클라이언트 -> LLM)
+string text
+string location_context
+---
+# Result (LLM -> 클라이언트)
+string intent
+string response_text
+string target_location
+---
+# Feedback (LLM -> 클라이언트, 현재 상태)
+string status
