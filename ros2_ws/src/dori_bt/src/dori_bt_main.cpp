@@ -35,6 +35,59 @@ public:
     factory.registerNodeType<dori_bt::IsRobotModeNode>("IsRobotMode");
     factory.registerNodeType<dori_bt::IsUserVisibleNode>("IsUserVisible");
 
+    // ==========================================================
+    // 2. MOCKING: 상태를 직접 갱신하는 가짜 노드 (SetRobotMode)
+    // ==========================================================
+    BT::PortsList mode_ports = { BT::InputPort<std::string>("mode") };
+    factory.registerSimpleAction("SetRobotMode", 
+      [&](BT::TreeNode& self) {
+        std::string mode;
+        if (self.getInput("mode", mode)) {
+          blackboard_->set("current_robot_mode", mode); // 여기서 실제로 갱신!
+          RCLCPP_INFO(this->get_logger(), "[Mock] SetRobotMode -> %s", mode.c_str());
+        }
+        return BT::NodeStatus::SUCCESS;
+      }, 
+      mode_ports
+    );
+
+    // ==========================================================
+    // 3. MOCKING: 속성(Port)이 필요한 가짜 노드들 개별 등록
+    // ==========================================================
+    factory.registerSimpleAction("PublishDashboardMode", 
+      [&](BT::TreeNode&) { return BT::NodeStatus::SUCCESS; }, 
+      { BT::InputPort<std::string>("mode") }
+    );
+
+    factory.registerSimpleAction("NavigateToNamedGoal", 
+      [&](BT::TreeNode&) { return BT::NodeStatus::SUCCESS; }, 
+      { BT::InputPort<std::string>("goal") }
+    );
+
+    factory.registerSimpleCondition("IsIntent", 
+      [&](BT::TreeNode&) { return BT::NodeStatus::SUCCESS; }, 
+      { BT::InputPort<std::string>("intent"), BT::InputPort<std::string>("expected") }
+    );
+
+    // ==========================================================
+    // 4. MOCKING: 포트가 없는 단순 가짜 노드들 일괄 등록
+    // ==========================================================
+    std::vector<std::string> simple_mocks = {
+      "IsAccessClear", "IsAccessBlocked", "StopRobot", "WaitForWakeWord", 
+      "CancelNavigation", "ClearSession", "PublishDashboardStatus", 
+      "SearchForUser", "IsMicAttached", "WasMicDetachedEvent", "WaitForMicAttached"
+    };
+
+    for (const auto& name : simple_mocks) {
+      factory.registerSimpleAction(name, 
+        [name, this](BT::TreeNode&) {
+          // 실행 흐름을 터미널에서 확인하기 위해 로그 출력
+          RCLCPP_DEBUG(this->get_logger(), "[Mock] %s executed.", name.c_str());
+          return BT::NodeStatus::SUCCESS;
+        }
+      );
+    }
+
     // Nav2 기본 BT 플러그인 등록 (주행 관련 노드 사용 시)
     // 예: factory.registerFromPlugin("nav2_navigate_to_pose_bt_node"); 
 
