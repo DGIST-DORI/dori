@@ -22,7 +22,7 @@
 
 # DORI
 
-[DORI](https://dgist-dori.xyz) (Dual-shell Omnidirectional Robot for Interaction, stylized as *Dori*) is a spherical campus guide robot capable of navigating diverse campus environments while providing LLM-powered voice interaction.
+[DORI](https://dgist-dori.xyz) (DGIST O-shaped Robot for Interaction, stylized as *Dori*) is a spherical campus guide robot capable of navigating diverse campus environments while providing LLM-powered voice interaction.
 
 > UGRP 2026 — DGIST
 
