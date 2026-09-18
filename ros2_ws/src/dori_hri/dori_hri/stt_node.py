@@ -3,7 +3,7 @@
 Wake word detection + speech transcription pipeline.
 
 Pipeline:
-  Microphone → Porcupine (wake word) → Whisper (transcription) → publish
+  Microphone → openWakeWord (wake word) → Whisper (transcription) → publish
 
 Publish topics:
   stt/wake_word_detected   (Bool)   - rising edge on wake word detection
@@ -31,10 +31,12 @@ from std_msgs.msg import Bool, String
 import sounddevice as sd
 
 try:
-    import pvporcupine
-    PORCUPINE_AVAILABLE = True
-except (ImportError, NotImplementedError, Exception):
-    PORCUPINE_AVAILABLE = False
+    import openwakeword
+    from openwakeword.model import Model
+    openwakeword.utils.download_models() # 기본 모델 다운로드
+    OPENWAKEWORD_AVAILABLE = True
+except (ImportError, Exception):
+    OPENWAKEWORD_AVAILABLE = False
 
 try:
     from faster_whisper import WhisperModel
@@ -50,45 +52,11 @@ except ImportError:
 
 
 SAMPLE_RATE    = 16000
-FRAME_LENGTH   = 512    # Porcupine frame size (fixed)
+FRAME_LENGTH   = 1280    # openWakeWord: 1280
 CHANNELS       = 1
 
 MAX_BUFFER_SEC  = 10.0
 MIN_SPEECH_SEC  = 0.5
-
-
-def _resolve_model_path_from_share(filename: str) -> str | None:
-    """Resolve a model path from dori_hri share/models directory if present."""
-    try:
-        from ament_index_python.packages import get_package_share_directory
-
-        share_path = Path(get_package_share_directory('dori_hri')) / 'models' / filename
-        if share_path.exists():
-            return str(share_path)
-    except Exception:
-        pass
-
-    return None
-
-
-def _resolve_ppn_path(ppn_param: str) -> str:
-    """Resolve Porcupine .ppn model path using explicit path then share fallback."""
-    if ppn_param and Path(ppn_param).exists():
-        return ppn_param
-
-    shared = _resolve_model_path_from_share(
-        Path(ppn_param).name if ppn_param else 'doridori_ko_linux_v4_0_0.ppn'
-    )
-    return shared if shared else ppn_param
-
-
-def _resolve_pv_path(pv_param: str) -> str | None:
-    """Resolve Porcupine .pv path with explicit path first, then share default."""
-    if pv_param and Path(pv_param).exists():
-        return pv_param
-
-    return _resolve_model_path_from_share('porcupine_params_ko.pv')
-
 
 class STTState:
     IDLE      = 'IDLE'       # waiting for wake word
@@ -100,9 +68,8 @@ class STTNode(Node):
         super().__init__('stt_node')
 
         # Parameters
-        self.declare_parameter('wake_word', 'porcupine')
-        self.declare_parameter('wake_word_paths', 'doridori_ko_linux_v4_0_0.ppn')
-        self.declare_parameter('porcupine_model_path', '')
+        self.declare_parameter('wake_word', 'hey_mycroft')
+        self.declare_parameter('wake_word_threshold', 0.5)
         self.declare_parameter('whisper_model', 'small')
         self.declare_parameter('whisper_device', 'cpu')
         self.declare_parameter('vad_threshold', 0.5)
@@ -115,8 +82,7 @@ class STTNode(Node):
         self.declare_parameter('audio_input_mode', 'microphone')
 
         wake_word        = self.get_parameter('wake_word').value
-        wake_word_paths  = self.get_parameter('wake_word_paths').value
-        porcupine_model_path = self.get_parameter('porcupine_model_path').value
+        self.wake_word_threshold = self.get_parameter('wake_word_threshold').value
         model_size       = self.get_parameter('whisper_model').value
         device           = self.get_parameter('whisper_device').value
         self.vad_threshold   = self.get_parameter('vad_threshold').value
@@ -142,70 +108,26 @@ class STTNode(Node):
         # State
         self.state           = STTState.IDLE
         self.robot_speaking  = False
+        self.mute_until      = 0.0 # 잔향 방지를 위한 음소거 유예 시간
         self.audio_queue     = queue.Queue()
         self.buffer          = []
         self.listen_start_time: float | None = None
         self.last_voice_time: float | None   = None
         self.state_lock      = threading.Lock()
 
-        # Porcupine (wake word)
-        if not PORCUPINE_AVAILABLE:
-            self.get_logger().warn('pvporcupine not found: pip install pvporcupine')
-            self.porcupine = None
+        # openWakeWord (wake word)
+        if not OPENWAKEWORD_AVAILABLE:
+            self.get_logger().warn('openwakeword not found: pip install openwakeword')
             return
 
         try:
-            resolved_ppn = _resolve_ppn_path(wake_word_paths)
-            resolved_pv = _resolve_pv_path(porcupine_model_path)
-
-            if Path(resolved_ppn).exists():
-                if resolved_pv:
-                    keyword_paths = [resolved_ppn]
-                    model_path = resolved_pv
-                    self.get_logger().info(
-                        f'Using custom wake word model: keyword_paths={keyword_paths}, model_path={model_path}'
-                    )
-                    try:
-                        self.porcupine = pvporcupine.create(
-                            access_key=os.getenv('PORCUPINE_ACCESS_KEY', ''),
-                            keyword_paths=keyword_paths,
-                            model_path=model_path,
-                        )
-                    except Exception as e:
-                        self.get_logger().error(
-                            f'Custom Porcupine init failed: {e} '
-                            f'(keyword_paths={keyword_paths}, model_path={model_path}). '
-                            f'Falling back to built-in keyword: "{wake_word}"'
-                        )
-                        self.porcupine = pvporcupine.create(
-                            access_key=os.getenv('PORCUPINE_ACCESS_KEY', ''),
-                            keywords=[wake_word],
-                        )
-                else:
-                    self.get_logger().error(
-                        'Porcupine model path (.pv) not found. '
-                        f'porcupine_model_path="{porcupine_model_path}". '
-                        f'keyword_paths={[resolved_ppn]}, model_path={resolved_pv}. '
-                        f'Falling back to built-in keyword: "{wake_word}"'
-                    )
-                    self.porcupine = pvporcupine.create(
-                        access_key=os.getenv('PORCUPINE_ACCESS_KEY', ''),
-                        keywords=[wake_word],
-                    )
-            else:
-                self.get_logger().info(
-                    f'Wake word model not found at "{resolved_ppn}". '
-                    f'Falling back to built-in keyword: "{wake_word}"'
-                )
-                self.porcupine = pvporcupine.create(
-                    access_key=os.getenv('PORCUPINE_ACCESS_KEY', ''),
-                    keywords=[wake_word],
-                )
-        except Exception as e:
-            self.get_logger().error(
-                f'Porcupine init failed: {e} '
-                f'(wake_word_paths="{wake_word_paths}", porcupine_model_path="{porcupine_model_path}")'
+            self.oww_model = Model(
+                wakeword_models=[wake_word],
+                inference_framework='onnx'
             )
+            self.get_logger().info(f'openWakeWord ready (model: {wake_word})')
+        except Exception as e:
+            self.get_logger().error(f'openWakeWord init failed: {e}')
             return
 
         # Silero VAD
@@ -274,7 +196,9 @@ class STTNode(Node):
     def _on_tts_speaking(self, msg: Bool):
         """Mute microphone while TTS is playing to prevent self-detection."""
         with self.state_lock:
+            was_speaking = self.robot_speaking
             self.robot_speaking = msg.data
+
             if self.robot_speaking:
                 self.get_logger().info('TTS speaking — STT muted')
                 self.state = STTState.IDLE
@@ -282,29 +206,39 @@ class STTNode(Node):
                 while not self.audio_queue.empty():
                     self.audio_queue.get_nowait()
 
+            elif was_speaking and not self.robot_speaking:
+                self.mute_until = time.time() + 0.8
+                self.get_logger().info('TTS ended — STT deaf margin active for 0.8s')
+
     def _audio_callback(self, indata, frames, time_info, status):
         if status:
             self.get_logger().warn(f'Audio status: {status}')
 
-        if self.robot_speaking:
+        if self.robot_speaking or time.time() < self.mute_until:
             return
 
         try:
-            pcm = struct.unpack_from('h' * frames, indata)
+            pcm = np.frombuffer(indata, dtype=np.int16)
 
             with self.state_lock:
                 if self.state == STTState.IDLE:
-                    keyword_index = self.porcupine.process(pcm)
-                    if keyword_index >= 0:
-                        self.get_logger().info('Wake word detected!')
-                        self.state = STTState.LISTENING
-                        self.listen_start_time = time.time()
-                        self.last_voice_time   = time.time()
-                        self.buffer.clear()
+                    prediction = self.oww_model.predict(pcm)
+                    # prediction은 딕셔너리 형태 {'hey_mycroft': 0.85, ...}
+                    for model_name, score in prediction.items():
+                        if score > self.wake_word_threshold:
+                            self.get_logger().info(f'Wake word detected! ({model_name}: {score:.2f})')
+                            self.state = STTState.LISTENING
+                            self.listen_start_time = time.time()
+                            self.last_voice_time   = time.time()
+                            self.buffer.clear()
 
-                        wake_msg = Bool()
-                        wake_msg.data = True
-                        self.wake_word_pub.publish(wake_msg)
+                            wake_msg = Bool()
+                            wake_msg.data = True
+                            self.wake_word_pub.publish(wake_msg)
+                            
+                            # 한 번 인식되면 버퍼(내부 상태)를 비워 연속 인식을 방지합니다.
+                            self.oww_model.reset()
+                            break
 
                 elif self.state == STTState.LISTENING:
                     self.audio_queue.put(bytes(indata))
@@ -467,8 +401,6 @@ class STTNode(Node):
             if hasattr(self, 'stream'):
                 self.stream.stop()
                 self.stream.close()
-            if hasattr(self, 'porcupine'):
-                self.porcupine.delete()
             self.get_logger().info('STT resources released')
         except Exception as e:
             self.get_logger().error(f'Cleanup error: {e}')
