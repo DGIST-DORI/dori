@@ -124,7 +124,7 @@ class TTSNode(Node):
         self._action_server = ActionServer(
             self,
             Speak, # 임포트한 Action 타입
-            'tts/speak_action',
+            'tts/speak',
             execute_callback=self.execute_callback,
             goal_callback=self.goal_callback,
             cancel_callback=self.cancel_callback,
