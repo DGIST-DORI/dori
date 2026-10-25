@@ -1,5 +1,6 @@
 """
 Interaction stack launch (state machine/coordinator only).
+Interaction stack launch (BehaviorTree orchestration via dori_bt).
 """
 
 from launch import LaunchDescription
@@ -19,11 +20,17 @@ def generate_launch_description():
             'idle_timeout_sec',
             default_value='10.0',
             description='Seconds to wait for STT input before returning to IDLE',
+            'namespace',
+            default_value='/dori',
+            description='Base namespace for DORI nodes',
         ),
         DeclareLaunchArgument(
             'greeting_text',
             default_value='안녕하세요! 저는 캠퍼스 안내 로봇 도리입니다. 어디로 안내해드릴까요?',
             description='Greeting spoken when wake word is detected',
+            'tree_xml_file',
+            default_value='',
+            description='Optional custom path to BehaviorTree XML file',
         ),
         DeclareLaunchArgument(
             'wake_debounce_sec',
@@ -37,6 +44,11 @@ def generate_launch_description():
         package='dori_hri',
         executable='hri_manager_node',
         name='hri_manager_node',
+    bt_executor_node = Node(
+        package='dori_bt',
+        executable='dori_tree_executor',
+        name='dori_tree_executor',
+        namespace=dori_ns,
         output='screen',
         parameters=[{
             'idle_timeout_sec': LaunchConfiguration('idle_timeout_sec'),
@@ -55,10 +67,12 @@ def generate_launch_description():
             'topics.tts_text_pub': _topic(dori_ns, '/tts/text'),
             'topics.nav_command_pub': _topic(dori_ns, '/nav/command'),
             'topics.audio_cue_pub': _topic(dori_ns, '/hri/audio_cue'),
+            'tree_xml_file': LaunchConfiguration('tree_xml_file'),
         }],
     )
 
     return LaunchDescription([
         *args,
         hri_manager_node,
+        bt_executor_node,
     ])

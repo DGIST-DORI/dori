@@ -6,15 +6,20 @@ Engines (priority order):
   1. Google Cloud TTS (Neural2 -> WaveNet -> Standard)
   2. gTTS     - online (requires internet), fallback when Cloud TTS limits are reached
 
+Actions:
+  tts/speak        (Speak)  - Action server for speech synthesis and playback
+
 Subscribe topics:
   llm/response     (String) - response text from LLM node
   tts/text         (String) - direct TTS from HRI Manager (bypasses LLM)
+  tts/text         (String) - Optional direct TTS injection (for web dashboard/testing)
   hri/audio_cue    (String) - short non-blocking SFX cue (e.g. wake_chime)
 
 Publish topics:
   tts/speaking      (Bool)   - True while speaking (STT mutes itself)
   tts/done          (Bool)   - Legacy completion signal (backward compatibility)
   tts/done_detail   (String) - JSON completion payload ({success,error,text,timestamp})
+  tts/audio_event   (String) - Audio event notifications
 """
 
 import os
@@ -73,6 +78,8 @@ class TTSNode(Node):
         self.declare_parameter('topics.done_pub', 'tts/done')
         self.declare_parameter('topics.done_detail_pub', 'tts/done_detail')
         self.declare_parameter('topics.audio_cue_sub', 'hri/audio_cue')
+        self.declare_parameter('topics.tts_text_sub', 'tts/text')
+        self.declare_parameter('action_name', 'tts/speak')
         self.declare_parameter('sfx.base_path', '')
         self.declare_parameter('playback_mode', 'local_and_publish')
         self.declare_parameter('topics.audio_event_pub', 'tts/audio_event')
@@ -106,6 +113,8 @@ class TTSNode(Node):
         done_topic = self.get_parameter('topics.done_pub').value
         done_detail_topic = self.get_parameter('topics.done_detail_pub').value
         audio_cue_topic = self.get_parameter('topics.audio_cue_sub').value
+        tts_text_topic = self.get_parameter('topics.tts_text_sub').value
+        action_name = self.get_parameter('action_name').value
         audio_event_topic = self.get_parameter('topics.audio_event_pub').value
 
         # Publishers
@@ -118,13 +127,18 @@ class TTSNode(Node):
         self.callback_group = ReentrantCallbackGroup()
 
         # Subscribers (SFX 전용)
+        # Subscribers
         self.create_subscription(String, audio_cue_topic, self._on_audio_cue, 10, callback_group=self.callback_group)
+        if tts_text_topic:
+            self.create_subscription(String, tts_text_topic, self._on_tts_text, 10, callback_group=self.callback_group)
 
         # Action Server 초기화
         self._action_server = ActionServer(
             self,
             Speak, # 임포트한 Action 타입
             'tts/speak',
+            Speak,
+            action_name,
             execute_callback=self.execute_callback,
             goal_callback=self.goal_callback,
             cancel_callback=self.cancel_callback,
@@ -232,6 +246,46 @@ class TTSNode(Node):
         self.is_speaking = False
         self._pub_speaking(False)
         self._pub_done(success=success, error=error, text=text)
+
+    def _on_tts_text(self, msg: String):
+        text = msg.data.strip()
+        if not text:
+            return
+        self.get_logger().info(f'Received direct TTS text: "{text[:50]}"')
+        threading.Thread(target=self._play_direct_text, args=(text,), daemon=True).start()
+
+    def _play_direct_text(self, text: str):
+        if self.is_speaking:
+            self.get_logger().warn('TTS is currently busy. Direct TTS request ignored.')
+            return
+
+        self.is_speaking = True
+        self._pub_speaking(True)
+        used_engine = 'gtts'
+        audio_file_path = None
+
+        try:
+            if self.gcp_client:
+                audio_file_path, used_engine = self._speak_with_waterfall(text)
+            else:
+                audio_file_path = self._synthesize_gtts(text)
+
+            self._publish_audio_event('tts_text', {'text': text, 'engine': used_engine})
+
+            if self.playback_mode != 'publish_only' and audio_file_path:
+                play_process = subprocess.Popen(
+                    ['mpg123', '-q', audio_file_path],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+                play_process.wait()
+
+            self._cleanup_temp_file(audio_file_path)
+            self._finish_speaking(success=True, text=text)
+        except Exception as e:
+            self.get_logger().error(f'Direct playback error: {e}')
+            self._cleanup_temp_file(audio_file_path)
+            self._finish_speaking(success=False, error=str(e), text=text)
 
     def _cleanup_temp_file(self, file_path):
         if file_path and os.path.exists(file_path):

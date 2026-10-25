@@ -173,7 +173,7 @@
         "person_detection_node"
       ],
       "subscribers": [
-        "hri_manager_node"
+        "dori_tree_executor"
       ],
       "qos": "unknown",
       "description": "JSON tracking state (`idle/tracking/lost`) for session/nav control.",
@@ -218,9 +218,7 @@
       "publishers": [
         "gesture_recognition_node"
       ],
-      "subscribers": [
-        "hri_manager_node"
-      ],
+      "subscribers": [],
       "qos": "unknown",
       "description": "Mapped high-level gesture command (`STOP`, `CALL`, etc.).",
       "owner_pkg": "dori_perception"
@@ -232,9 +230,7 @@
         "gesture_recognition_node (WAVE trigger)",
         "external STT node"
       ],
-      "subscribers": [
-        "hri_manager_node"
-      ],
+      "subscribers": [],
       "qos": "unknown",
       "description": "Wake event that starts HRI listening flow.",
       "owner_pkg": "dori_perception"
@@ -267,9 +263,7 @@
       "publishers": [
         "facial_expression_node"
       ],
-      "subscribers": [
-        "hri_manager_node"
-      ],
+      "subscribers": [],
       "qos": "unknown",
       "description": "HRI action hint from expression state.",
       "owner_pkg": "dori_perception"
@@ -313,9 +307,7 @@
       "publishers": [
         "landmark_detection_node"
       ],
-      "subscribers": [
-        "hri_manager_node"
-      ],
+      "subscribers": [],
       "qos": "unknown",
       "description": "Current location/context text used in LLM query payload.",
       "owner_pkg": "dori_perception"
@@ -351,10 +343,10 @@
         "stt_node"
       ],
       "subscribers": [
-        "hri_manager_node"
+        "dori_tree_executor"
       ],
       "qos": "unknown",
-      "description": "STT output JSON/text from recognizer. E2E path: STTPanel mic -> stt/audio_input -> stt_node(Whisper) -> stt/result -> hri_manager_node.",
+      "description": "STT output JSON/text from recognizer. E2E path: STTPanel mic -> stt/audio_input -> stt_node(Whisper) -> stt/result -> dori_tree_executor.",
       "owner_pkg": "dori_hri"
     },
     {
@@ -363,9 +355,7 @@
       "publishers": [
         "tts_node"
       ],
-      "subscribers": [
-        "hri_manager_node"
-      ],
+      "subscribers": [],
       "qos": "unknown",
       "description": "Playback completion event for HRI state transitions.",
       "owner_pkg": "dori_hri"
@@ -374,75 +364,28 @@
       "topic": "hri/manager_state",
       "msg_type": "std_msgs/msg/String",
       "publishers": [
-        "hri_manager_node"
-      ],
-      "subscribers": [],
-      "qos": "unknown",
-      "description": "Current HRI state heartbeat (`IDLE`, `LISTENING`, etc.).",
-      "owner_pkg": "dori_hri"
-    },
-    {
-      "topic": "llm/query",
-      "msg_type": "std_msgs/msg/String",
-      "publishers": [
-        "hri_manager_node"
+        "dori_tree_executor"
       ],
       "subscribers": [
-        "llm_node"
+        "emotion_publisher_node"
       ],
       "qos": "unknown",
-      "description": "JSON request containing user text + contextual fields.",
-      "owner_pkg": "dori_hri"
+      "description": "Current robot mode/state published by BehaviorTree executor (`IDLE`, `GUIDING`, etc.).",
+      "owner_pkg": "dori_bt"
     },
     {
       "topic": "tts/text",
       "msg_type": "std_msgs/msg/String",
       "publishers": [
-        "hri_manager_node"
+        "dashboard TTSInjectPanel",
+        "debug clients"
       ],
       "subscribers": [
         "tts_node"
       ],
       "qos": "unknown",
-      "description": "Direct TTS text (bypass LLM for prompts/system messages).",
+      "description": "Direct TTS text input topic for manual testing and UI trigger.",
       "owner_pkg": "dori_hri"
-    },
-    {
-      "topic": "nav/command",
-      "msg_type": "std_msgs/msg/String",
-      "publishers": [
-        "hri_manager_node"
-      ],
-      "subscribers": [],
-      "qos": "unknown",
-      "description": "High-level navigation command channel.",
-      "owner_pkg": "dori_hri"
-    },
-    {
-      "topic": "llm/response",
-      "msg_type": "std_msgs/msg/String",
-      "publishers": [
-        "llm_node"
-      ],
-      "subscribers": [
-        "tts_node"
-      ],
-      "qos": "unknown",
-      "description": "Generated natural-language response text.",
-      "owner_pkg": "dori_llm"
-    },
-    {
-      "topic": "nav/destination",
-      "msg_type": "geometry_msgs/msg/PoseStamped",
-      "publishers": [
-        "llm_node"
-      ],
-      "subscribers": [
-        "navigator_node"
-      ],
-      "qos": "unknown",
-      "description": "Navigation goal pose extracted from navigation intent.",
-      "owner_pkg": "dori_llm"
     },
     {
       "topic": "tts/speaking",
@@ -606,7 +549,7 @@
         "person_detection_node"
       ],
       "clients": [
-        "hri_manager_node"
+        "dori_tree_executor"
       ],
       "description": "Enable/disable person target follow mode with explicit success/failure response.",
       "owner_pkg": "dori_hri"

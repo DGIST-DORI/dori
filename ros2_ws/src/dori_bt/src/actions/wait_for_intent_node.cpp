@@ -11,6 +11,13 @@ WaitForIntentNode::WaitForIntentNode(
 {
 }
 
+WaitForIntentNode::WaitForIntentNode(
+  const std::string & xml_tag_name,
+  const BT::NodeConfig & conf)
+: nav2_behavior_tree::BtActionNode<dori_msgs::action::LLMQuery>(xml_tag_name, "llm/query", conf)
+{
+}
+
 void WaitForIntentNode::on_tick()
 {
   std::string user_text;

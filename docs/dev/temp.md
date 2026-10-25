@@ -32,20 +32,17 @@ ros2 launch dori_bringup voice.launch.py
 
 ### Testing Without Hardware
 
-Perception and voice nodes can be tested independently using manual topic injection:
+Perception and voice nodes can be tested independently using manual topic or action injection:
 
 ```bash
-# Terminal 1: start HRI manager
-ros2 run dori_hri hri_manager_node
+# Terminal 1: start BehaviorTree executor
+ros2 run dori_bt dori_tree_executor
 
-# Terminal 2: simulate wake word
-ros2 topic pub /stt/wake_word_detected std_msgs/msg/Bool "data: true" --once
-
-# Terminal 3: simulate STT result
+# Terminal 2: simulate STT result
 ros2 topic pub /stt/result std_msgs/msg/String \
   'data: "{\"text\": \"도서관 어디야\", \"language\": \"ko\", \"confidence\": 0.95}"' --once
 
-# Monitor state
+# Monitor state & TTS
 ros2 topic echo /hri/manager_state
 ros2 topic echo /tts/text
 ```

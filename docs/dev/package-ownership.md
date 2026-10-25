@@ -23,13 +23,14 @@ directories, manifests, imports, and launch references.
 
 | ROS package | Owner area | Decision and boundary |
 | --- | --- | --- |
-| `dori_msgs` | Shared ROS interfaces | Interface-only package.  It owns `Navigate.action` and future cross-domain messages, services, and actions; it owns no application node. |
+| `dori_msgs` | Shared ROS interfaces | Interface-only package.  It owns `Navigate.action`, `LLMQuery.action`, `Speak.action`, and future cross-domain messages, services, and actions; it owns no application node. |
+| `dori_bt` | Robot decision orchestration | Owns BehaviorTree.CPP v4 execution node (`dori_tree_executor`), tree XML definitions, custom BT action/condition nodes, and high-level task coordination. |
 | `dori_bringup` | System composition | Owns top-level and subsystem launch composition, common launch arguments, namespaces, and remappings.  It does not own functional nodes. |
 | `dori_navigation` | Navigation | Owns navigation execution, planning/control integration, and navigation configuration. |
-| `dori_llm` | Language intelligence | Owns intent handling, retrieval/index access, model integration, and navigation-action client behavior. |
+| `dori_llm` | Language intelligence | Owns intent handling, retrieval/index access, model integration, and `LLMQuery` action server implementation. |
 | `dori_perception` | Perception (Python vision) | Owns Python person, landmark, gesture, facial-expression, and any Python camera nodes, plus their models/configuration. |
 | `dori_perception_camera` | Perception (native camera adapter) | Auxiliary C++ camera-driver package owned by the perception area.  It isolates `ament_cmake`, RealSense/native SDK, and C++ ABI dependencies from Python vision dependencies. |
-| `dori_hri` | HRI | Owns interaction coordination, emotion/expression publishing, speech input, speech synthesis, and their specialized model, audio, and expression dependencies. |
+| `dori_hri` | HRI & Voice I/O | Owns speech input (STT), speech synthesis (TTS Action server & direct text injection), emotion/expression publishing, and audio cues. |
 | `dori_dashboard` | Dashboard | Owns the ROS/web bridge, dashboard API/server, packaged frontend assets, and dashboard launch entry point. |
 | `dori_observability` | Operations and observability | Owns host/robot metrics collection.  It is consumed by the dashboard but remains deployable independently of the web deployment. |
 

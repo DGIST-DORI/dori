@@ -136,8 +136,6 @@ export const TOPIC_META = {
   '/dori/hri/manager_state':       { tag: LOG_TAGS.STATE,   label: 'HRI State' },
   '/dori/stt/wake_word_detected':  { tag: LOG_TAGS.WAKE,    label: 'Wake Word' },
   '/dori/stt/result':              { tag: LOG_TAGS.STT,     label: 'STT Result' },
-  '/dori/llm/query':               { tag: LOG_TAGS.LLM,     label: 'LLM Query' },
-  '/dori/llm/response':            { tag: LOG_TAGS.LLM,     label: 'LLM Response' },
   '/dori/tts/text':                { tag: LOG_TAGS.TTS,     label: 'TTS Text' },
   '/dori/tts/speaking':            { tag: LOG_TAGS.TTS,     label: 'TTS Speaking' },
   '/dori/tts/done':                { tag: LOG_TAGS.TTS,     label: 'TTS Done' },
@@ -150,7 +148,6 @@ export const TOPIC_META = {
   '/dori/hri/expression':          { tag: LOG_TAGS.EXPR,    label: 'Expression' },
   '/dori/hri/expression_command':  { tag: LOG_TAGS.EXPR,    label: 'Expression Cmd' },
   '/dori/follow/target_offset':    { tag: LOG_TAGS.TRACK,   label: 'Follow Offset' },
-  '/dori/nav/command':             { tag: LOG_TAGS.NAV,     label: 'Nav Command' },
   '/dori/landmark/context':        { tag: LOG_TAGS.NAV,     label: 'Landmark Context' },
   '/dori/system/metrics':         { tag: LOG_TAGS.SYS,     label: 'System Metrics' },
 };
@@ -559,19 +556,23 @@ export const useStore = create((set, get) => ({
       switch (topic) {
 
         case '/dori/hri/manager_state': {
-          const d = parsed && typeof parsed === 'object' ? parsed : {};
+          const isObj = parsed && typeof parsed === 'object';
+          const stateStr = isObj ? (parsed.state || 'IDLE') : (typeof parsed === 'string' ? parsed : String(payload || 'IDLE'));
+          const elapsed = isObj ? (parsed.state_elapsed_sec ?? 0) : 0;
+          const targetId = isObj ? (parsed.target_id ?? null) : null;
+          const locContext = isObj ? (parsed.location_context || '') : '';
           set({
-            hriState: d.state || 'IDLE',
-            hriStateElapsed: d.state_elapsed_sec ?? 0,
-            hriTargetId: d.target_id ?? null,
-            hriLocationContext: d.location_context || '',
+            hriState: stateStr,
+            hriStateElapsed: elapsed,
+            hriTargetId: targetId,
+            hriLocationContext: locContext,
           });
           // Auto-update emotion from state (only if not overriding)
           if (!get()._emotionOverride) {
-            const nextEmotion = resolveEmotionFromState(d.state);
+            const nextEmotion = resolveEmotionFromState(stateStr);
             set({ emotion: nextEmotion, emotionSource: 'state' });
           }
-          addLog(LOG_TAGS.STATE, `manager_state: state=${d.state || 'IDLE'} elapsed=${(d.state_elapsed_sec ?? 0).toFixed(1)}s target=${d.target_id ?? '-'} text=${d.text ?? '-'}`, rawVal);
+          addLog(LOG_TAGS.STATE, `manager_state: state=${stateStr} elapsed=${elapsed.toFixed(1)}s`, rawVal);
           break;
         }
 
@@ -587,17 +588,6 @@ export const useStore = create((set, get) => ({
           const text = parsed?.text || payload;
           set({ lastSttText: text });
           addLog(LOG_TAGS.STT, `stt_result: text="${text}" conf=${parsed?.confidence?.toFixed(2) ?? '?'}`, rawVal);
-          break;
-        }
-
-        case '/dori/llm/query':
-          addLog(LOG_TAGS.LLM, `llm_query: user_text="${parsed?.user_text || payload}"`, rawVal);
-          break;
-
-        case '/dori/llm/response': {
-          const text = typeof parsed === 'string' ? parsed : JSON.stringify(parsed);
-          set({ lastLlmResponse: text });
-          addLog(LOG_TAGS.LLM, `response: "${text.slice(0, 80)}${text.length > 80 ? '…' : ''}"`, rawVal);
           break;
         }
 
@@ -683,10 +673,6 @@ export const useStore = create((set, get) => ({
           }
           break;
         }
-
-        case '/dori/nav/command':
-          addLog(LOG_TAGS.NAV, `cmd: ${typeof parsed === 'string' ? parsed : JSON.stringify(parsed)}`, rawVal);
-          break;
 
         default:
           addLog(meta.tag, `${meta.label}: ${typeof parsed === 'string' ? parsed.slice(0, 60) : JSON.stringify(parsed).slice(0, 60)}`, rawVal);

@@ -11,6 +11,13 @@ SpeakNode::SpeakNode(
 {
 }
 
+SpeakNode::SpeakNode(
+  const std::string & xml_tag_name,
+  const BT::NodeConfig & conf)
+: nav2_behavior_tree::BtActionNode<dori_msgs::action::Speak>(xml_tag_name, "tts/speak", conf)
+{
+}
+
 void SpeakNode::on_tick()
 {
   std::string text_to_speak;

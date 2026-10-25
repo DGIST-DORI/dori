@@ -12,8 +12,7 @@ import './HomeTab.css';
 const E2E_TIMEOUT_MS = 12000;
 const E2E_SEQUENCE = [
   '/dori/stt/result',
-  '/dori/llm/query',
-  '/dori/llm/response',
+  '/dori/hri/manager_state',
   '/dori/tts/speaking',
   '/dori/tts/done',
 ];

@@ -18,6 +18,10 @@ public:
     const std::string & action_name,
     const BT::NodeConfig & conf);
 
+  WaitForIntentNode(
+    const std::string & xml_tag_name,
+    const BT::NodeConfig & conf);
+
   // XML 포트 정의: 입력(text, location)과 출력(intent, destination, answer)
   static BT::PortsList providedPorts()
   {

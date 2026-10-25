@@ -42,7 +42,8 @@
 sudo apt update
 sudo apt install -y \
   portaudio19-dev python3-pyaudio ffmpeg libsndfile1 mpg123 \
-  ros-humble-rosbridge-server ros-humble-realsense2-camera
+  ros-humble-rosbridge-server ros-humble-realsense2-camera \
+  ros-humble-behaviortree-cpp-v4 ros-humble-nav2-behavior-tree
 ```
 
 ### 2. Clone Repository

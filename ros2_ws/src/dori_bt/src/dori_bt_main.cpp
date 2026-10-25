@@ -35,8 +35,12 @@ public:
     factory.registerNodeType<dori_bt::IsRobotModeNode>("IsRobotMode");
     factory.registerNodeType<dori_bt::IsUserVisibleNode>("IsUserVisible");
 
+    // 상태/모드 퍼블리셔 (/hri/manager_state)
+    mode_pub_ = this->create_publisher<std_msgs::msg::String>("hri/manager_state", 10);
+
     // ==========================================================
     // 2. MOCKING: 상태를 직접 갱신하는 가짜 노드 (SetRobotMode)
+    // 2. 상태를 직접 갱신하고 토픽으로 알리는 노드 (SetRobotMode)
     // ==========================================================
     BT::PortsList mode_ports = { BT::InputPort<std::string>("mode") };
     factory.registerSimpleAction("SetRobotMode", 
@@ -45,6 +49,11 @@ public:
         if (self.getInput("mode", mode)) {
           blackboard_->set("current_robot_mode", mode); // 여기서 실제로 갱신!
           RCLCPP_INFO(this->get_logger(), "[Mock] SetRobotMode -> %s", mode.c_str());
+          blackboard_->set("current_robot_mode", mode);
+          RCLCPP_INFO(this->get_logger(), "SetRobotMode -> %s", mode.c_str());
+          auto msg = std_msgs::msg::String();
+          msg.data = mode;
+          mode_pub_->publish(msg);
         }
         return BT::NodeStatus::SUCCESS;
       }, 
@@ -56,6 +65,16 @@ public:
     // ==========================================================
     factory.registerSimpleAction("PublishDashboardMode", 
       [&](BT::TreeNode&) { return BT::NodeStatus::SUCCESS; }, 
+      [&](BT::TreeNode& self) {
+        std::string mode;
+        if (self.getInput("mode", mode)) {
+          RCLCPP_INFO(this->get_logger(), "PublishDashboardMode -> %s", mode.c_str());
+          auto msg = std_msgs::msg::String();
+          msg.data = mode;
+          mode_pub_->publish(msg);
+        }
+        return BT::NodeStatus::SUCCESS;
+      }, 
       { BT::InputPort<std::string>("mode") }
     );
 
@@ -91,9 +110,13 @@ public:
     // Nav2 기본 BT 플러그인 등록 (주행 관련 노드 사용 시)
     // 예: factory.registerFromPlugin("nav2_navigate_to_pose_bt_node"); 
 
-    // 3. XML 파일 동적 로드 (ament_index_cpp 활용)
-    std::string pkg_share_dir = ament_index_cpp::get_package_share_directory("dori_bt");
-    std::string xml_path = pkg_share_dir + "/behavior_trees/dori_tree.xml";
+    // 3. XML 파일 동적 로드 (파라미터 지정 가능, 기본값은 dori_bt share 디렉토리)
+    this->declare_parameter<std::string>("tree_xml_file", "");
+    std::string xml_path = this->get_parameter("tree_xml_file").as_string();
+    if (xml_path.empty()) {
+      std::string pkg_share_dir = ament_index_cpp::get_package_share_directory("dori_bt");
+      xml_path = pkg_share_dir + "/behavior_trees/dori_tree.xml";
+    }
     
     RCLCPP_INFO(this->get_logger(), "Loading XML from: %s", xml_path.c_str());
     tree_ = factory.createTreeFromFile(xml_path, blackboard_);
@@ -142,6 +165,7 @@ private:
   BT::Blackboard::Ptr blackboard_;
   rclcpp::TimerBase::SharedPtr timer_;
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr tracking_sub_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr mode_pub_;
 };
 
 int main(int argc, char **argv)

@@ -32,21 +32,22 @@ function LLMInjectPanel() {
     if (!llmQuery.trim()) return;
 
     const payload = {
+      text: llmQuery.trim(),
       user_text: llmQuery.trim(),
       location_context: locCtx.trim(),
-      hri_state: 'RESPONDING',
+      confidence: 1.0,
       timestamp: Date.now() / 1000,
       source: 'dashboard_inject',
     };
 
-    pub('/dori/llm/query', 'std_msgs/msg/String', { data: JSON.stringify(payload) });
+    pub('/dori/stt/result', 'std_msgs/msg/String', { data: JSON.stringify(payload) });
     addLog(LOG_TAGS.LLM, `[inject] "${llmQuery.trim()}"`);
     setLlmQuery('');
   }
 
   return (
     <div className="panel-body">
-      <SectionLabel>LLM Query → /dori/llm/query</SectionLabel>
+      <SectionLabel>LLM Query Injection → /dori/stt/result</SectionLabel>
       <textarea
         className="input-text"
         rows={2}

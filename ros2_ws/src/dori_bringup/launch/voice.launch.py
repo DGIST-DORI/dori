@@ -70,6 +70,7 @@ def generate_launch_description():
             'topics.query_sub': _topic(dori_ns, '/llm/query'),
             'topics.response_pub': _topic(dori_ns, '/llm/response'),
             'actions.navigate': _topic(dori_ns, '/nav/navigate_to'),
+            'action_name': 'llm/query',
         }],
     )
 
@@ -79,6 +80,7 @@ def generate_launch_description():
         name='tts_node',
         output='screen',
         parameters=[{
+            'action_name': 'tts/speak',
             'tts_engine': LaunchConfiguration('tts_engine'),
             'language': LaunchConfiguration('tts_language'),
             'speech_rate': 150,

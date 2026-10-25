@@ -17,6 +17,10 @@ public:
     const std::string & action_name,
     const BT::NodeConfig & conf);
 
+  SpeakNode(
+    const std::string & xml_tag_name,
+    const BT::NodeConfig & conf);
+
   // XML에서 <Speak text="..."> 형태로 받을 포트를 정의
   static BT::PortsList providedPorts()
   {

@@ -62,6 +62,7 @@ boundaries are defined in [`package-ownership.md`](package-ownership.md).
 
 ```
 ros2_ws/src/
+├── dori_msgs/              # ROS 2 custom message and action definitions
 ├── dori_perception/        # Perception Python vision nodes, config, and models
 ├── dori_perception_camera/ # Perception C++ RealSense camera adapter
 ├── dori_hri/      # Interaction coordinator (HRI manager state machine) + STT + TTS
@@ -70,10 +71,19 @@ ros2_ws/src/
 ├── dori_navigation/       # Navigation execution node
 ├── dori_dashboard/        # ROS ↔ web dashboard bridge
 └── dori_bringup/              # Launch files
+├── dori_hri/               # Voice I/O (STT, TTS, emotion publishing)
+├── dori_bt/                # BehaviorTree.CPP v4 robot decision orchestration
+├── dori_core/              # Shared utilities and SQLite DB management
+├── dori_llm/               # Intent classification + RAG + LLM Query Action Server
+├── dori_navigation/        # Navigation execution node
+├── dori_dashboard/         # ROS ↔ web dashboard bridge
+└── dori_bringup/           # Launch files
     ├── robot.launch.py           # Full robot (top-level)
     ├── perception.launch.py      # Perception only
     ├── interaction.launch.py     # HRI manager/state machine only
     └── voice.launch.py # Voice pipeline only
+    ├── interaction.launch.py     # BehaviorTree (dori_bt) orchestration only
+    └── voice.launch.py           # Voice pipeline only
 ```
 
 ### ROS2 Topic List (Actual Nodes)
@@ -111,29 +121,25 @@ ros2_ws/src/
 | `camera/rear/depth/scale` | `std_msgs/msg/Float32` | - | - | Optional rear depth meter-per-unit scale. |
 | `hri/persons` | `std_msgs/msg/String` | person_detection_node | - | JSON list of detected persons/tracks. |
 | `hri/interaction_trigger` | `std_msgs/msg/Bool` | person_detection_node | gesture_recognition_node, facial_expression_node | Enables gesture/expression inference only during interaction. |
-| `hri/tracking_state` | `std_msgs/msg/String` | person_detection_node | hri_manager_node | JSON tracking state (`idle/tracking/lost`) for session/nav control. |
+| `hri/tracking_state` | `std_msgs/msg/String` | person_detection_node | dori_tree_executor | JSON tracking state (`idle/tracking/lost`) for session/nav control. |
 | `follow/target_offset` | `geometry_msgs/msg/Point` | person_detection_node | - | Relative target offset for follow-control consumers. |
 | `hri/annotated_image` | `sensor_msgs/msg/Image` | person_detection_node | - | Person detection debug overlay image. |
 | `hri/gesture` | `std_msgs/msg/String` | gesture_recognition_node | - | Gesture detection JSON payload. |
-| `hri/gesture_command` | `std_msgs/msg/String` | gesture_recognition_node | hri_manager_node | Mapped high-level gesture command (`STOP`, `CALL`, etc.). |
-| `stt/wake_word_detected` | `std_msgs/msg/Bool` | gesture_recognition_node (WAVE trigger), external STT node | hri_manager_node | Wake event that starts HRI listening flow. |
+| `hri/gesture_command` | `std_msgs/msg/String` | gesture_recognition_node | - | Mapped high-level gesture command (`STOP`, `CALL`, etc.). |
+| `stt/wake_word_detected` | `std_msgs/msg/Bool` | gesture_recognition_node (WAVE trigger), external STT node | - | Wake event that starts HRI listening flow. |
 | `hri/annotated_gesture` | `sensor_msgs/msg/Image` | gesture_recognition_node | - | Gesture visualization/debug image. |
 | `hri/expression` | `std_msgs/msg/String` | facial_expression_node | - | Expression inference JSON payload. |
-| `hri/expression_command` | `std_msgs/msg/String` | facial_expression_node | hri_manager_node | HRI action hint from expression state. |
+| `hri/expression_command` | `std_msgs/msg/String` | facial_expression_node | - | HRI action hint from expression state. |
 | `hri/annotated_expression` | `sensor_msgs/msg/Image` | facial_expression_node | - | Facial expression visualization/debug image. |
 | `landmark/detections` | `std_msgs/msg/String` | landmark_detection_node | - | Raw landmark/candidate detections as JSON. |
 | `landmark/localization` | `std_msgs/msg/String` | landmark_detection_node | - | Landmark-based localization estimate JSON. |
-| `landmark/context` | `std_msgs/msg/String` | landmark_detection_node | hri_manager_node | Current location/context text used in LLM query payload. |
+| `landmark/context` | `std_msgs/msg/String` | landmark_detection_node | - | Current location/context text used in LLM query payload. |
 | `hri/annotated_landmark` | `sensor_msgs/msg/Image` | landmark_detection_node | - | Landmark detection visualization/debug image. |
 | `stt/audio_input` | `std_msgs/msg/String` | dashboard STTPanel mic publisher | stt_node | E2E STT input payload JSON: {audio_b64, format:'wav_pcm16', sample_rate:16000, channels:1}. |
-| `stt/result` | `std_msgs/msg/String` | stt_node | hri_manager_node | STT output JSON/text from recognizer. E2E path: STTPanel mic -> stt/audio_input -> stt_node(Whisper) -> stt/result -> hri_manager_node. |
-| `tts/done` | `std_msgs/msg/Bool` | tts_node | hri_manager_node | Playback completion event for HRI state transitions. |
-| `hri/manager_state` | `std_msgs/msg/String` | hri_manager_node | - | Current HRI state heartbeat (`IDLE`, `LISTENING`, etc.). |
-| `llm/query` | `std_msgs/msg/String` | hri_manager_node | llm_node | JSON request containing user text + contextual fields. |
-| `tts/text` | `std_msgs/msg/String` | hri_manager_node | tts_node | Direct TTS text (bypass LLM for prompts/system messages). |
-| `nav/command` | `std_msgs/msg/String` | hri_manager_node | - | High-level navigation command channel. |
-| `llm/response` | `std_msgs/msg/String` | llm_node | tts_node | Generated natural-language response text. |
-| `nav/destination` | `geometry_msgs/msg/PoseStamped` | llm_node | navigator_node | Navigation goal pose extracted from navigation intent. |
+| `stt/result` | `std_msgs/msg/String` | stt_node | dori_tree_executor | STT output JSON/text from recognizer. E2E path: STTPanel mic -> stt/audio_input -> stt_node(Whisper) -> stt/result -> dori_tree_executor. |
+| `tts/done` | `std_msgs/msg/Bool` | tts_node | - | Playback completion event for HRI state transitions. |
+| `hri/manager_state` | `std_msgs/msg/String` | dori_tree_executor | emotion_publisher_node | Current robot mode/state published by BehaviorTree executor (`IDLE`, `GUIDING`, etc.). |
+| `tts/text` | `std_msgs/msg/String` | dashboard TTSInjectPanel, debug clients | tts_node | Direct TTS text input topic for manual testing and UI trigger. |
 | `tts/speaking` | `std_msgs/msg/Bool` | tts_node | - | True while TTS is actively speaking (used for mic mute by external STT). |
 | `nav/global_path` | `nav_msgs/msg/Path` | navigator_node | - | Planned global path visualization/output. |
 | `nav/local_path` | `nav_msgs/msg/Path` | navigator_node | - | Local path / short-horizon trajectory visualization. |
@@ -163,21 +169,48 @@ The detailed API reference for ROS2 topics is managed as a single source at [`to
 
 ---
 
-## HRI State Machine
+## HRI Behavior Tree Architecture
 
+기존의 단순 상태 머신(`hri_manager_node.py`)에서 **BehaviorTree.CPP v4** 기반의 오케스트레이션 노드(`dori_tree_executor`, 패키지: `dori_bt`)로 전환되었습니다. 
+로봇의 HRI 및 가이딩 흐름은 XML 트리 정의(`dori_tree.xml`)에 의해 제어되며, 비동기 ROS 2 Action 인터페이스(`Speak`, `LLMQuery`, `Navigate`)를 통해 하위 노드들과 상호작용합니다.
+
+```mermaid
+flowchart TD
+    subgraph dori_bt ["dori_bt (dori_tree_executor)"]
+        Tree[BehaviorTree Engine]
+        Blackboard[(Blackboard)]
+    end
+
+    subgraph Perception ["dori_perception"]
+        Tracking[person_detection_node]
+    end
+
+    subgraph Voice ["dori_hri & dori_llm"]
+        STT[stt_node]
+        LLM[llm_node]
+        TTS[tts_node]
+    end
+
+    subgraph Nav ["dori_navigation"]
+        Navigator[navigator_node]
+    end
+
+    Tracking -->|hri/tracking_state| Tree
+    STT -->|stt/result| Tree
+    Tree -->|Action: /llm/query| LLM
+    LLM -->|intent, response, destination| Tree
+    Tree -->|Action: /tts/speak| TTS
+    Tree -->|Action: /nav/navigate_to| Navigator
+    Tree -->|hri/manager_state| Emotion[emotion_publisher_node]
 ```
-         wake word / WAVE gesture
-IDLE ──────────────────────────────► LISTENING
-  ▲                                      │
-  │                                 STT result
-  │ idle timeout (10 s)                  │
-  │                                      ▼
-  │                                 RESPONDING ──► LLM query
-  │                                      │
-  │                               TTS done / nav intent
-  │                                      │
-  └────────────── target lost ◄─── NAVIGATING
-```
+
+### 트리 제어 우선순위 (RootPrioritySelector)
+1. **GuideSupervisionPriority (가이딩 감시 및 안전):** 안내 중(`GUIDING`) 사용자 시야 이탈(`IsUserVisible` 실패 시 복구 시도 또는 중단) 및 통로 차단 처리.
+2. **MicInteractionPriority (상호작용 및 인텐트 처리):** 마이크 분리 또는 호출 이벤트 발생 시 `WaitForWakeWord` → `WaitForIntent` (LLMQuery Action) 호출 후 분기:
+   - **QA Branch:** 질의응답 답변 음성 출력 (`Speak` Action) 후 세션 정리 및 복귀.
+   - **Guide Branch:** 목적지 이동 (`Navigate` Action) 실행 및 이동 중 사용자 거리 기반 속도 적응 루프 실행.
+   - **Chat Branch:** 일상 대화 응답 및 복귀.
+3. **IdleWatch:** 대기 상태 관리 및 주기적 상태 모니터링.
 
 ## Dashboard Execution Profile (Robot/Sim)
 

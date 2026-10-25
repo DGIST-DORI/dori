@@ -6,16 +6,14 @@ import './TopicPublisherPanel.css';
 const DANGEROUS_TOPICS = new Set([
   '/cmd_vel',
   '/cmd_vel_mux/input/teleop',
-  '/dori/nav/command',
 ]);
 
 const ALLOWED_TOPICS = [
-  '/dori/nav/command',
+  '/dori/tts/text',
+  '/dori/stt/result',
   '/dori/hri/interaction_trigger',
   '/dori/hri/gesture_command',
   '/dori/hri/expression_command',
-  '/dori/tts/text',
-  '/dori/llm/query',
   '/cmd_vel',
 ];
 
@@ -28,7 +26,7 @@ export default function TopicPublisherPanel() {
   const addLog = useStore((s) => s.addLog);
   const setPublishState = useStore((s) => s.setPublishState);
 
-  const [topic, setTopic] = useState('/dori/nav/command');
+  const [topic, setTopic] = useState('/dori/tts/text');
   const [msgType, setMsgType] = useState('std_msgs/msg/String');
   const [jsonPayload, setJsonPayload] = useState('{"data":"hello"}');
   const [mode, setMode] = useState('once');
