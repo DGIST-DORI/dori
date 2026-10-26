@@ -11,7 +11,7 @@ import time
 import urllib.request
 from urllib.parse import urlsplit
 
-from robot_stack import ROOT, stop_children, wait_for_base
+from scripts.robot_stack import ROOT, stop_children, wait_for_base
 from navigation_contract import validate_map
 
 GROUPS = {

@@ -20,7 +20,7 @@ from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Odometry, OccupancyGrid
 from tf2_ros import Buffer, TransformListener
 from rclpy.time import Time
-from lidar_scene import ranges
+from tests.control_and_nav.lidar_scene import ranges
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT/'scripts'))
