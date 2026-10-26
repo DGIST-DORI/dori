@@ -18,7 +18,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src/robot_navigation'
 from dori_web.auto_alignment import alignment_candidate
 from dori_web.bridge import WebBridge
 from dori_web.map_matcher import MapMatcher
-from test_map_matcher import MapSearch
+from tests.control_and_nav.test_map_matcher import MapSearch
 
 
 class ScanConsensus(unittest.TestCase):
