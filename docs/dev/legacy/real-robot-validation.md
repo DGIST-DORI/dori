@@ -75,12 +75,12 @@ LiDAR SDK 빌드에는 기존 SDK의 zero-length array 관련 컴파일 경고�
 
 | 시나리오 | 관측 결과 | 기록 |
 | --- | --- | --- |
-| LiDAR 매핑→지도 저장 | 234 scans, 알려진 셀 46,982개, 점유 셀 1,315개, YAML/PGM 저장 성공 | [mapping.json](evidence/real_robot/mapping.json) |
-| 최종 방향 완화 | 150° 목표 방향에서 계획 길이 4.627m→0.800m, 원형 정렬 없이 25.2cm 오차로 종료 | [heading_arrival.json](evidence/real_robot/heading_arrival.json) |
-| 상대 목표·일시 장애물 재시도 | 1m 목표, 5.51초 대기 후 동일 목표 재개, 최종 오차 8.9cm | [relative_retry.json](evidence/real_robot/relative_retry.json) |
-| 정지 중 자동 재정합 | 주입 오차 (18cm, 8cm, 0.06rad)에서 최종 위치 오차 약 1.54cm; 이동 0, odom 원점 유지 | [auto_alignment.json](evidence/real_robot/auto_alignment.json) |
-| 전방 막힘 후진 복구 | 약 36.4cm 후진 후 전진 재개, 목표 오차 25.2cm로 종료 | [reverse_recovery.json](evidence/real_robot/reverse_recovery.json) |
-| 후방 장애물 | 후진·누적 이동 0m 유지, 3회 재시도 후 목표 실패로 종료 | [blocked_rear.json](evidence/real_robot/blocked_rear.json) |
+| LiDAR 매핑→지도 저장 | 234 scans, 알려진 셀 46,982개, 점유 셀 1,315개, YAML/PGM 저장 성공 | [mapping.json](evidence/mapping.json) |
+| 최종 방향 완화 | 150° 목표 방향에서 계획 길이 4.627m→0.800m, 원형 정렬 없이 25.2cm 오차로 종료 | [heading_arrival.json](evidence/heading_arrival.json) |
+| 상대 목표·일시 장애물 재시도 | 1m 목표, 5.51초 대기 후 동일 목표 재개, 최종 오차 8.9cm | [relative_retry.json](evidence/relative_retry.json) |
+| 정지 중 자동 재정합 | 주입 오차 (18cm, 8cm, 0.06rad)에서 최종 위치 오차 약 1.54cm; 이동 0, odom 원점 유지 | [auto_alignment.json](evidence/auto_alignment.json) |
+| 전방 막힘 후진 복구 | 약 36.4cm 후진 후 전진 재개, 목표 오차 25.2cm로 종료 | [reverse_recovery.json](evidence/reverse_recovery.json) |
+| 후방 장애물 | 후진·누적 이동 0m 유지, 3회 재시도 후 목표 실패로 종료 | [blocked_rear.json](evidence/blocked_rear.json) |
 
 매핑 시험의 최종 LiDAR odometry 위치 오차는 약 0.6mm였지만 `map→base_link` 위치 오차는
 19.1cm였다. 합성 환경의 값이며 실물 지도 정밀도로 인용하지 않는다.
