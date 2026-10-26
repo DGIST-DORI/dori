@@ -28,21 +28,23 @@
 
 ## Physical robot: LiDAR mapping and autonomous driving
 
-The tested hardware path lives in `ros2_ws/src/robot_*`, `cubemars_hardware`,
-`imu_serial`, and the bundled LiDAR/Dynamixel drivers. It uses LiDAR odometry,
-Nav2, the calibrated joystick inverse model, and the 8080/7070 web interfaces.
+The real-robot profile is launched through `dori_bringup`. It uses LiDAR
+odometry, Nav2, and the calibrated hardware controllers while retaining the
+same `/dori/nav/navigate_to` action used by HRI and the Behavior Tree.
 
 ```bash
+source /opt/ros/humble/setup.bash
 cd ros2_ws
-./scripts/install_dependencies.sh
-./scripts/build.sh
-./scripts/start_autonomy.sh --map maps/live_navigation_20261023_1938.yaml
+colcon build --symlink-install
+source install/setup.bash
+ros2 launch dori_bringup robot.launch.py robot_mode:=real \
+  real_map:=$PWD/maps/live_navigation_20261023_1938.yaml \
+  real_named_goals_file:=$PWD/maps/web_goals.example.json
 ```
 
-For new mapping, use `./scripts/start_mapping.sh` instead. The real-robot build
-script selects its dependency closure; it does not require the perception/HRI
-stack to build. Run this profile as the owner of the hardware and Nav2 graph;
-do not start another `dori_bringup` navigation/drive stack at the same time.
+For new mapping, launch the mapping profile separately before navigation. Run
+the real profile as the sole owner of the hardware, odometry, TF, and Nav2
+graph; do not start another drive or navigation stack at the same time.
 
 - [Operation, mapping, web and voice](docs/user/real-robot.md)
 - [Architecture and topic contracts](docs/dev/real-robot-architecture.md)

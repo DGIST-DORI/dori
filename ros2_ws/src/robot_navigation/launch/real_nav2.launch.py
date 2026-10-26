@@ -14,8 +14,6 @@ def setup(context):
     sys.path.insert(0, str(root / 'scripts'))
     from navigation_contract import validate_map
     value = lambda name: LaunchConfiguration(name).perform(context)
-    goal_source=value('goal_source')
-    if goal_source not in ('rviz','web'):raise ValueError('goal_source must be rviz or web')
     validate_map(value('map'))
     params = [value('params_file'), {'use_sim_time': False}]
     kinematics = str(Path(get_package_share_directory('robot_drive')) / 'config/kinematics.yaml')
@@ -33,10 +31,10 @@ def setup(context):
             remaps=[('cmd_vel','/nav/cmd_vel_raw'),('cmd_vel_smoothed','/nav/cmd_vel')]
         extra = [{'yaml_filename':value('map')}] if executable=='map_server' else []
         if executable=='bt_navigator':
-            # Humble also turns goal_pose messages into actions internally. Only
-            # named_goal_bridge may consume RViz goals, or each click sends twice
-            # and bypasses the mode/cancellation/goal_active contract.
-            remaps=[('goal_pose','/nav/internal_goal_pose')]
+            # Only dori_navigation may reach the Nav2 action.  RViz goals are
+            # kept private so they cannot bypass DORI cancellation and safety.
+            remaps=[('goal_pose','/dori/internal/goal_pose'),
+                    ('navigate_to_pose','/dori/internal/navigate_to_pose')]
             extra=[{'default_nav_to_pose_bt_xml':str(root/'config/navigate_basic.xml'),
                     'default_nav_through_poses_bt_xml':str(root/'config/navigate_through_basic.xml')}]
         nodes.append(Node(package=package,executable=executable,name=executable,
@@ -52,12 +50,13 @@ def setup(context):
                       arguments=['--x',value('laser_x'),'--y',value('laser_y'),'--z',value('laser_z'),
                                  '--roll',value('laser_roll'),'--pitch',value('laser_pitch'),'--yaw',value('laser_yaw'),
                                  '--frame-id','base_link','--child-frame-id','laser']))
-    scripts=['named_goal_bridge.py','nav_drive_bridge.py']
+    # DORI owns the public navigation action.  The former named-goal bridge
+    # exposed a parallel, global API and must not run with the integrated stack.
+    scripts=['nav_drive_bridge.py']
     for script in scripts:
         args=['/usr/bin/python3',str(root/'scripts'/script),'--ros-args','-p','use_sim_time:=false']
         if script=='nav_drive_bridge.py':
             args+=['--params-file',str(root/'config/motion_interpreter.yaml'),'--params-file',kinematics]
-        if script=='named_goal_bridge.py':args+=['-p','goal_source:='+goal_source]
         nodes.append(ExecuteProcess(cmd=args,output='screen'))
     nodes.append(Node(package='rviz2',executable='rviz2',arguments=['-d',str(root/'config/remote_monitor.rviz')],
                       parameters=[{'use_sim_time':False}],condition=IfCondition(LaunchConfiguration('rviz'))))
@@ -67,7 +66,6 @@ def setup(context):
 def generate_launch_description():
     root=Path(get_package_share_directory('robot_navigation'))
     args=[DeclareLaunchArgument('map'),
-          DeclareLaunchArgument('goal_source',default_value='web'),
           DeclareLaunchArgument('params_file',default_value=str(root/'config/nav2_real.yaml')),
           DeclareLaunchArgument('publish_laser_tf',default_value='false'),
           DeclareLaunchArgument('rviz',default_value='false')]
