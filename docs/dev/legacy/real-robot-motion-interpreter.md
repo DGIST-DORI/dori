@@ -75,7 +75,7 @@ Nav2의 `cmd_vel`은 원하는 몸체 속도다. 실제 Dori는 출발 저항, �
 - 구현: `ros2_ws/src/robot_navigation/scripts/motion_interpreter.py`
 - 센서/명령 시각 정렬 및 주행 gate: `ros2_ws/src/robot_navigation/scripts/nav_drive_bridge.py`
 - 실물 파라미터: `ros2_ws/src/robot_navigation/config/motion_interpreter.yaml`
-- 기준 계수와 검증 통계: [drive_response_fit.json](evidence/real_robot/drive_response_fit.json). 원시 기록은 원본 작업공간에 보존하며 실행에 필요하지 않다.
+- 기준 계수와 검증 통계: [drive_response_fit.json](evidence/drive_response_fit.json). 원시 기록은 원본 작업공간에 보존하며 실행에 필요하지 않다.
 - 새 수동 기록/분석: `ros2_ws/tools/record_manual_drive.py`, `ros2_ws/tools/fit_drive_response.py`
 - 진단 토픽: `/navigation/motion_interpreter`
 - 회귀 시험: `ros2_ws/tests/test_motion_interpreter.py`, `ros2_ws/tests/test_nav_drive_timing.py`
