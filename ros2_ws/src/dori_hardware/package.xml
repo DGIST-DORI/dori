@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>dori_hardware</name>
+  <version>0.1.0</version>
+  <description>DORI real-robot hardware launch boundary.</description>
+  <maintainer email="maintainers@dgist-dori.xyz">DORI</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <exec_depend>robot_bringup</exec_depend>
+  <export><build_type>ament_cmake</build_type></export>
+</package>

@@ -30,7 +30,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'navigator_node = dori_navigation.navigator:main',
+            'nav2_adapter = dori_navigation.nav2_adapter:main',
+            'named_goal_adapter = dori_navigation.named_goal_adapter:main',
         ],
     },
 )

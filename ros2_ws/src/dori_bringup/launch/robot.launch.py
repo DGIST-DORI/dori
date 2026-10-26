@@ -16,7 +16,7 @@ from launch.logging import get_logger
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 
 try:
     from dori_llm.paths import is_repo_root
@@ -106,8 +106,12 @@ def generate_launch_description():
         DeclareLaunchArgument('tts_language', default_value='ko'),
         DeclareLaunchArgument('namespace', default_value='/dori'),
 
-        # Optional subsystem toggles
-        DeclareLaunchArgument('enable_navigation', default_value='true'),
+        DeclareLaunchArgument('robot_mode', default_value='sim',
+                              description='sim: interaction only; real: hardware and Nav2'),
+        DeclareLaunchArgument('real_map', default_value='',
+                              description='Map YAML required when robot_mode:=real'),
+        DeclareLaunchArgument('real_named_goals_file', default_value=''),
+        DeclareLaunchArgument('real_use_joystick', default_value='false'),
     ]
 
     perception_launch = IncludeLaunchDescription(
@@ -169,19 +173,20 @@ def generate_launch_description():
         voice_launch,
     ]
 
-    try:
-        nav_pkg_dir = get_package_share_directory('dori_navigation')
-        launch_list.append(
-            IncludeLaunchDescription(
-                PythonLaunchDescriptionSource(
-                    os.path.join(nav_pkg_dir, 'launch', 'navigation.launch.py')
-                ),
-                condition=IfCondition(LaunchConfiguration('enable_navigation')),
-            )
-        )
-    except Exception as exc:
-        get_logger().warning(
-            f"dori_navigation not available; skipping navigation.launch.py: {exc}"
-        )
+    real_bringup = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(dori_bringup_dir, 'launch', 'real_robot.launch.py')
+        ),
+        condition=IfCondition(PythonExpression([
+            "'", LaunchConfiguration('robot_mode'), "' == 'real'"
+        ])),
+        launch_arguments={
+            'namespace': LaunchConfiguration('namespace'),
+            'map': LaunchConfiguration('real_map'),
+            'named_goals_file': LaunchConfiguration('real_named_goals_file'),
+            'use_joystick': LaunchConfiguration('real_use_joystick'),
+        }.items(),
+    )
+    launch_list.append(real_bringup)
 
     return LaunchDescription(launch_list)

@@ -37,6 +37,7 @@ public:
 
     // 상태/모드 퍼블리셔 (/hri/manager_state)
     mode_pub_ = this->create_publisher<std_msgs::msg::String>("hri/manager_state", 10);
+    named_goal_pub_ = this->create_publisher<std_msgs::msg::String>("internal/named_goal", 10);
 
     // ==========================================================
     // 2. MOCKING: 상태를 직접 갱신하는 가짜 노드 (SetRobotMode)
@@ -78,8 +79,19 @@ public:
       { BT::InputPort<std::string>("mode") }
     );
 
-    factory.registerSimpleAction("NavigateToNamedGoal", 
-      [&](BT::TreeNode&) { return BT::NodeStatus::SUCCESS; }, 
+    factory.registerSimpleAction("NavigateToNamedGoal",
+      [&](BT::TreeNode& self) {
+        std::string goal;
+        if (!self.getInput("goal", goal) || goal.empty()) {
+          RCLCPP_ERROR(this->get_logger(), "NavigateToNamedGoal needs a destination name");
+          return BT::NodeStatus::FAILURE;
+        }
+        auto message = std_msgs::msg::String();
+        message.data = goal;
+        named_goal_pub_->publish(message);
+        RCLCPP_INFO(this->get_logger(), "Requested named navigation goal: %s", goal.c_str());
+        return BT::NodeStatus::SUCCESS;
+      },
       { BT::InputPort<std::string>("goal") }
     );
 
@@ -166,6 +178,7 @@ private:
   rclcpp::TimerBase::SharedPtr timer_;
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr tracking_sub_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr mode_pub_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr named_goal_pub_;
 };
 
 int main(int argc, char **argv)
