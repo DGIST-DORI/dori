@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dori · Go places</title><link rel="stylesheet" href="/user.css"><script type="module" src="/user.js"></script></head>
+<body>
+<header><a class="brand" href="/" aria-label="Dori home"><span class="brand-mark">d</span>Dori</a><span class="header-caption">Your robot guide</span><div class="connection"><i id="connection-dot"></i><span id="connection">Connecting</span></div><button id="stop" class="stop"><span aria-hidden="true">■</span> Stop</button></header>
+<main>
+<section class="map-section" aria-label="Live robot map">
+  <div class="map-top"><span class="map-title">Live map</span><div><button id="fit" title="Fit the map">Fit map</button><button id="follow" title="Keep Dori in view">Follow Dori</button></div></div>
+  <div class="map-surface"><canvas id="map" aria-label="Robot position, route and destinations"></canvas><div id="map-empty">Waiting for the map</div><div class="legend"><span><i class="robot-dot"></i>Dori</span><span><i class="place-dot"></i>Destination</span><span><i class="route-line"></i>Route</span></div><span id="scale"></span></div>
+  <div class="map-bottom"><span>Drag to explore · Scroll to zoom</span><span id="position">Position unavailable</span></div>
+</section>
+<aside>
+  <section class="trip" aria-live="polite"><div class="eyebrow"><i id="trip-dot"></i><span id="trip-label">ROBOT STATUS</span></div><h1 id="trip-title">Getting ready</h1><p id="trip-detail">Connecting to Dori.</p></section>
+  <section class="places"><div class="section-heading"><h2>Destinations</h2><span id="place-count">0 places</span></div><div id="places"><p class="empty-places">Your operator can add destinations on the administrator page.</p></div></section>
+  <section class="conversation"><div class="section-heading"><h2>Talk to Dori</h2><button id="sound" aria-pressed="true" title="Toggle spoken replies">Sound on</button></div><div id="messages" role="log" aria-live="polite"><div class="message robot">Where would you like to go?</div></div><div id="voice-status" role="status">Speak in English, or type below.</div><button id="listen" class="listen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5.5 10v2a6.5 6.5 0 0 0 13 0v-2M12 18.5V22M8 22h8"/></svg><span>Speak to Dori</span></button><a id="secure-link" hidden>Open secure voice connection ↗</a><form id="chat-form"><label class="sr-only" for="message">Your message</label><input id="message" autocomplete="off" maxlength="600" placeholder="e.g. Move forward one meter"><button id="send" type="submit" aria-label="Send message">↑</button></form><p class="voice-note">English · Destinations or “move forward one meter”</p></section>
+</aside>
+</main>
+</body></html>

@@ -1,0 +1,25 @@
+nav_drive_bridge:
+  ros__parameters:
+    motion_interpreter_enabled: true
+    motion.arc_only: true
+    # Physical ground-speed demand limits. These are not joystick input limits.
+    nav_max_linear: 0.3
+    nav_max_angular: 1.2
+    # Joystick fractions, each within the existing manual controller's range.
+    # Fitted from 2026-10-23 manual driving, using post-limiter motor targets
+    # aligned to LiDAR acquisition stamps. These gains are NOT robot geometry.
+    motion.linear.response_gain: 0.62
+    motion.linear.response_delay: 0.15
+    motion.linear.start_input: 0.22
+    motion.linear.adapt_start: false
+    motion.linear.max_input: 1.0
+    motion.linear.kp: 0.5
+    motion.linear.ki: 0.7
+    motion.angular.response_gain: 1.67
+    motion.angular.response_delay: 0.0
+    motion.angular.start_input: 0.0
+    motion.angular.startup_rate: 0.0
+    motion.angular.adapt_start: false
+    motion.angular.max_input: 1.0
+    motion.angular.kp: 0.10
+    motion.angular.ki: 0.15

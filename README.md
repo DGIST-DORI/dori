@@ -26,6 +26,29 @@
 
 > UGRP 2026 — DGIST
 
+## Physical robot: LiDAR mapping and autonomous driving
+
+The tested hardware path lives in `ros2_ws/src/robot_*`, `cubemars_hardware`,
+`imu_serial`, and the bundled LiDAR/Dynamixel drivers. It uses LiDAR odometry,
+Nav2, the calibrated joystick inverse model, and the 8080/7070 web interfaces.
+
+```bash
+cd ros2_ws
+./scripts/install_dependencies.sh
+./scripts/build.sh
+./scripts/start_autonomy.sh --map maps/live_navigation_20261023_1938.yaml
+```
+
+For new mapping, use `./scripts/start_mapping.sh` instead. The real-robot build
+script selects its dependency closure; it does not require the perception/HRI
+stack to build. Run this profile as the owner of the hardware and Nav2 graph;
+do not start another `dori_bringup` navigation/drive stack at the same time.
+
+- [Operation, mapping, web and voice](docs/user/real-robot.md)
+- [Architecture and topic contracts](docs/dev/real-robot-architecture.md)
+- [Joystick inverse model, delay compensation and TTA](docs/dev/real-robot-motion-interpreter.md)
+- [Validation and integration scope](docs/dev/real-robot-validation.md)
+
 ## Installation
 
 ### Prerequisites

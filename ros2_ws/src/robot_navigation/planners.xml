@@ -1,0 +1,5 @@
+<library path="relaxed_heading_planner">
+  <class name="robot_navigation/RelaxedHeadingPlanner" type="robot_navigation::RelaxedHeadingPlanner" base_class_type="nav2_core::GlobalPlanner">
+    <description>Collision-checked Smac Hybrid approaches within a bounded goal heading range.</description>
+  </class>
+</library>

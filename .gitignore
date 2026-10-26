@@ -9,3 +9,14 @@ __pycache__
 *.pv
 *.task
 .vscode
+
+# Physical robot runtime output and local credentials
+/ros2_ws/maps/web_goals.json
+/ros2_ws/maps/web_goals.json.bak
+/ros2_ws/.state/
+/ros2_ws/data/
+**/.pytest_cache/
+*.py[cod]
+.env
+.env.*
+!.env.example

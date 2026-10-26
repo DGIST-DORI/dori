@@ -1,0 +1,22 @@
+<!-- Relative distance requests keep the normal recovery pipeline, but stop
+     within 10cm instead of the 30cm tolerance of named destinations. -->
+<root main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <RecoveryNode number_of_retries="2" name="NavigateWithReverseRecovery">
+      <PipelineSequence name="NavigateRelative">
+        <RateController hz="1.0">
+          <RecoveryNode number_of_retries="1" name="PlanWithClear">
+            <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
+            <ClearEntireCostmap name="ClearGlobal" service_name="global_costmap/clear_entirely_global_costmap"/>
+          </RecoveryNode>
+        </RateController>
+        <FollowPath path="{path}" controller_id="FollowPath" goal_checker_id="relative_goal_checker"/>
+      </PipelineSequence>
+      <Sequence name="BackOutAndReplan">
+        <Wait wait_duration="1"/>
+        <BackUp backup_dist="0.35" backup_speed="0.12" time_allowance="12.0"/>
+        <Wait wait_duration="1"/>
+      </Sequence>
+    </RecoveryNode>
+  </BehaviorTree>
+</root>
