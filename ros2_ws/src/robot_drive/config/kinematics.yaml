@@ -1,0 +1,7 @@
+/**:
+  ros__parameters:
+    # Shared by drive controller, wheel odometry and SI/normalized bridge.
+    wheel_radius: 0.234
+    wheel_separation: 0.184
+    max_linear_velocity: 1.72
+    max_angular_velocity: 7.0

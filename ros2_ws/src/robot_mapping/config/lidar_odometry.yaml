@@ -1,0 +1,16 @@
+lidar_odometry:
+  ros__parameters:
+    base_frame: base_link
+    odom_frame: odom
+    laser_frame: laser
+    scan_timeout: 0.8
+    max_correspondence: 0.35
+    max_rmse: 0.06
+    min_overlap: 0.50
+    min_points: 45
+    max_condition: 1000.0
+    keyframe_distance: 0.25
+    keyframe_angle: 0.20
+    max_linear_speed: 2.0
+    max_angular_speed: 4.0
+    max_gap: 1.5

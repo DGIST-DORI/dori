@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dori · 로봇 뷰어</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
+<body>
+<header><div class="identity">DORI <span>로봇 뷰어</span></div><div class="connection"><i id="connection-dot"></i><span id="connection">연결 중</span><span id="mode" class="badge">상태 보기</span></div><button id="stop" class="stop">AUTO 정지</button></header>
+<main>
+<section class="workspace" aria-label="지도 뷰어">
+<div class="toolbar"><div class="tools" role="group" aria-label="지도 조작"><button data-tool="pan" class="selected">이동</button><button data-tool="initial_pose">초기 위치</button><button data-tool="goal">목표 지정</button></div><div class="tools"><button id="reset-view">화면 초기화</button><button id="fit">전체 지도</button><button id="follow">로봇 중심</button></div></div>
+<div id="viewport"><canvas id="map" aria-label="지도, 로봇 위치와 라이다 스캔"></canvas><div id="empty"><strong>센서 데이터를 기다리는 중</strong><span>지도와 위치가 수신되면 여기에 표시됩니다.</span></div><div id="legend"><span class="legend-robot">● 로봇</span><span class="legend-scan">● 라이다</span><span class="legend-path">━ 경로</span></div><div id="scale"></div></div>
+<div class="map-footer"><span id="pointer">—</span><span id="frame">좌표계 odom · 단위 m</span></div>
+</section>
+<aside>
+<section class="panel"><h2>로봇 상태 <span id="robot-state">미수신</span></h2><div class="pose"><div><label>X <small>m</small></label><strong id="pose-x">—</strong></div><div><label>Y <small>m</small></label><strong id="pose-y">—</strong></div><div><label>방향 <small>°</small></label><strong id="pose-yaw">—</strong></div></div><div id="state-detail" class="muted">제어 상태 미수신</div></section>
+<section class="panel"><h2>센서 <span>주기 / 지연</span></h2><div id="sensor-list"></div><div class="quality"><span>LiDAR 정합</span><strong id="odom-quality">미수신</strong></div><div id="quality-detail" class="muted">—</div></section>
+<section class="panel"><h2>주행 <span id="nav-state">비활성</span></h2><dl><div><dt>모터 통신</dt><dd id="can-state">—</dd></div><div><dt>조이스틱 명령</dt><dd id="manual-velocity">—</dd></div><div><dt>바퀴 L / R <small>rad/s</small></dt><dd id="wheel-velocity">—</dd></div><div><dt>바퀴 목표 L / R <small>rad/s</small></dt><dd id="wheel-target">—</dd></div><div><dt>구동 보상 L / R <small>Nm</small></dt><dd id="wheel-torque">—</dd></div><div><dt>Nav2 명령</dt><dd id="nav-velocity">—</dd></div><div><dt>구동 출력 <small>정규화</small></dt><dd id="drive-velocity">—</dd></div><div><dt>실행 상태</dt><dd id="motion-phase">—</dd></div><div><dt>응답 보정</dt><dd id="motion-fit">—</dd></div><div><dt>목표 상태</dt><dd id="goal-status">—</dd></div></dl><p id="drive-status" class="status-line">주행 브리지 미수신</p><button id="enable" class="primary wide">주행 활성화</button><div id="readiness" class="muted"></div></section>
+<section class="panel"><h2 id="selection-title">위치 선택</h2><p class="muted">목표 방향은 참고값이며 30cm 안에 도착하면 정지합니다. 초기 위치는 대략적인 위치를 누르면 주변에서 자동으로 찾습니다.</p><form id="pose-form"><div class="fields"><label>X · m<input id="input-x" type="number" step="0.01" required></label><label>Y · m<input id="input-y" type="number" step="0.01" required></label><label>방향 · °<input id="input-yaw" type="number" step="any" value="0" required></label></div><button id="send-pose" class="wide" type="submit" disabled>위치를 선택하세요</button></form><div id="localization-status" class="muted"></div><div id="auto-alignment-status" class="muted"></div></section>
+<section class="panel"><h2>이름 있는 목표 <button id="new-destination" type="button">새 위치</button></h2><p class="muted">지도에서 목표 위치를 선택한 뒤 이름을 저장합니다. 7070 사용자 화면에도 표시됩니다.</p><form id="destination-form"><input id="destination-name" type="text" maxlength="48" placeholder="e.g. Lobby" aria-label="목표 이름" required><button class="wide" type="submit" id="save-destination">선택 위치 저장</button></form><div id="destinations"></div></section>
+<section class="panel"><h2>라이다 짐벌</h2><dl><div><dt>목표 각도</dt><dd id="gimbal-target">—</dd></div><div><dt>실제 각도</dt><dd id="gimbal-position">—</dd></div></dl><p class="muted">서보 3 피드백 · 몸체 pitch 추종</p></section>
+<section class="panel layers"><h2>표시</h2><label><input id="show-scan" type="checkbox" checked> 라이다</label><label><input id="show-path" type="checkbox" checked> 계획 경로</label><label><input id="show-grid" type="checkbox" checked> 격자</label></section>
+</aside>
+</main>
+<footer><span id="notice" role="status" aria-live="polite">연결 확인 중</span><span>ESC · 목표 취소 및 AUTO 정지</span></footer>
+</body></html>
