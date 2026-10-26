@@ -7,7 +7,7 @@
 
 기준은 [DGIST-DORI/dori](https://github.com/DGIST-DORI/dori)의
 `main` 커밋 `d4cc1ae079082ef5af94583ce684155c39f58c28`이다.
-로컬 브랜치는 `integrate/real-robot-20261026`이다.
+반영 브랜치는 `realrobot_ws`이다.
 
 원본 `robot_ws`를 먼저 복제한 뒤 복제본만 정리하고 메인 저장소의 `ros2_ws/` 구조로 배치했다.
 원본 소스·설정·도구·문서·지도 761개 파일의 SHA-256은 작업 전후 모두 일치했다.
