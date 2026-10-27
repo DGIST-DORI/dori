@@ -7,6 +7,7 @@ export ROS_LOCALHOST_ONLY=1 OPENBLAS_NUM_THREADS=1
 mkdir -p log/validation
 scripts/test.sh | tee log/validation/tests.log
 (cd web && npm run lint && npm run build && node --test src/panels/perception/logUtils.test.js) > log/validation/web-build.log 2>&1
+ROS_DOMAIN_ID=99 python3 tests/control_and_nav/integration_drive_chain.py > log/validation/drive-chain-run.log 2>&1
 export ROS_DOMAIN_ID=95
 run_nav() {
     local label="$1"; shift
@@ -16,7 +17,7 @@ run_nav() {
 }
 run_nav web-goal
 run_nav relative-1m --relative-test --offline-intent --goal-x 1
-run_nav hri-nav2 --hri-test
+run_nav hri-nav2 --hri-test --calibrated-response
 run_nav retry --retry-test
 run_nav reverse-recovery --reverse-recovery
 run_nav blocked-rear --reverse-recovery --blocked-rear

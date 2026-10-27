@@ -5,8 +5,8 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
-from launch import LaunchContext
-from launch.actions import DeclareLaunchArgument
+from launch import LaunchContext, LaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, SetLaunchConfiguration
 from launch_ros.actions import Node
 from launch.utilities import normalize_to_list_of_substitutions, perform_substitutions
 from ament_index_python.packages import get_package_share_directory
@@ -15,6 +15,33 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class RuntimePackaging(unittest.TestCase):
+    def test_integrated_hardware_blocks_inherited_virtual_auto_input(self):
+        """Expand include arguments/conditions without executing any ROS node."""
+        path = Path(get_package_share_directory('dori_hardware'))/'launch/real_hardware.launch.py'
+        spec = importlib.util.spec_from_file_location('integrated_hardware_launch', path)
+        module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        context = LaunchContext()
+        # A parent's stale CLI setting must not introduce an AUTO publisher.
+        context.launch_configurations['use_input_nodes'] = 'true'
+        active = []
+        def expand(actions):
+            for action in actions:
+                condition = getattr(action, 'condition', None)
+                if condition is not None and not condition.evaluate(context): continue
+                if isinstance(action, Node):
+                    active.append(perform_substitutions(context, normalize_to_list_of_substitutions(action.node_executable)))
+                elif isinstance(action, LaunchDescription):
+                    expand(action.entities)
+                elif isinstance(action, (DeclareLaunchArgument, SetLaunchConfiguration)):
+                    action.execute(context)
+                elif isinstance(action, IncludeLaunchDescription):
+                    expand(action.execute(context))
+        expand(module.generate_launch_description().entities)
+        self.assertNotIn('virtual_vlm_input_node', active)
+        self.assertNotIn('keyboard_input_node', active)
+        self.assertNotIn('joystick_input_node', active)
+        self.assertEqual(active.count('drive_controller_node'), 1)
+
     def test_full_hardware_launch_constructs_without_removed_dependencies(self):
         context = LaunchContext()
         for filename in ('system_real.launch.py', 'system_real_with_imu.launch.py'):

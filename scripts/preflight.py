@@ -23,6 +23,7 @@ from control_msgs.msg import DynamicJointState
 from nav_msgs.msg import Odometry
 from tf2_msgs.msg import TFMessage
 from tf2_ros import Buffer, TransformListener, TransformException
+from drive_contract import check_drive_contract
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -146,6 +147,8 @@ def main():
                 for name in ['joint_state_broadcaster','left_bldc_drive_controller','right_bldc_drive_controller']:
                     if states.get(name)!='active':errors.append(name+': not active yet')
     if args.stage=='navigation':
+        report['drive_contract'] = check_drive_contract(n, wait_future)
+        errors.extend(report['drive_contract']['errors'])
         report['map_tf_owners']=edges.get(('map','odom'),[])
         if report['map_tf_owners']!=['amcl']:errors.append('map->odom must be owned only by amcl')
         for name in ['map_server','amcl','controller_server','planner_server','bt_navigator','velocity_smoother']:
@@ -188,9 +191,6 @@ def main():
         services={name for name,_ in n.get_service_names_and_types()}
         if '/dori/internal/navigate_to_pose/_action/send_goal' not in services:
             errors.append('Private Nav2 action missing; check Humble endpoint remappings')
-        for topic in ['/nav/cmd_vel','/auto/cmd_vel']:
-            pubs=n.get_publishers_info_by_topic(topic)
-            if len(pubs)!=1 or pubs[0].topic_type!='geometry_msgs/msg/Twist':errors.append(topic+': wrong publisher/type')
     if args.hri:
         names=[name for name,_ in n.get_node_names_and_namespaces()]
         for name in ('dori_tree_executor','llm_node','tts_node','emotion_publisher_node'):

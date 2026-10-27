@@ -118,10 +118,20 @@ def main():
             wait(lambda: pub.get_subscription_count()>0)
             say('재연결 출력 검증')
             wait(lambda: js('return window.testSpeech.includes("재연결 출력 검증")'))
+            search=browser.find_element(By.CSS_SELECTOR,'.sb-search-input')
+            search.clear(); search.send_keys('Topic Publisher')
+            wait(lambda: js('return document.querySelectorAll(".sb-leaf").length===1'))
+            time.sleep(.4)
+            browser.find_element(By.CSS_SELECTOR,'.sb-leaf').click()
+            wait(lambda: js('return !!document.querySelector("#tp-topic")'))
+            topics=js('return Array.from(document.querySelector("#tp-topic").options,o=>o.value)')
+            assert all('cmd_vel' not in topic for topic in topics),topics
+            assert '/dori/stt/result' in topics and '/dori/tts/text' in topics,topics
             assert all(p.poll() is None for p in processes)
             report=dict(ok=True,mode='real HTTP + rosbridge + headless Firefox, ROS domain 97',
                 navigation_iframe=True,synthetic_map_and_robot_rendered=True,api_routes=True,csrf_and_origin=True,live_deploy_locked=True,
                 tts_output_and_reconnect=True,local_only_not_duplicated=True,
+                no_legacy_velocity_publisher=True,
                 physical_audio_verified=False,hardware_actuated=False)
             out=ROOT/'log/validation'; out.mkdir(parents=True,exist_ok=True)
             (out/'dashboard-browser.json').write_text(json.dumps(report,indent=2)+'\n')

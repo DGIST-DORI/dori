@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """LiDAR + real Nav2/control + HTTP goal interface, software plant in domain 95 only."""
-import argparse,json,math,os,signal,subprocess,threading,time,tempfile
+import argparse,json,math,os,signal,subprocess,threading,time,tempfile,sys
 import urllib.request
 from urllib.error import HTTPError
 from pathlib import Path
@@ -17,12 +17,15 @@ from nav_msgs.msg import Odometry
 from lifecycle_msgs.srv import GetState
 from PIL import Image,ImageDraw
 ROOT=Path(__file__).resolve().parents[2]
+sys.path.insert(0,str(ROOT/'scripts'))
+from drive_contract import check_drive_contract
 
 
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--hri-test',action='store_true',help='Real BT, offline LLM, TTS publish path and Nav2; inject an STT transcript')
     parser.add_argument('--motor-dynamics',action='store_true')
+    parser.add_argument('--calibrated-response',action='store_true',help='Use measured joystick deadzone and ground response instead of ideal wheel kinematics')
     parser.add_argument('--goal-x',type=float,default=.8)
     parser.add_argument('--reverse-recovery',action='store_true')
     parser.add_argument('--blocked-rear',action='store_true')
@@ -87,7 +90,7 @@ def main():
                         actual=0. if next_actual*actual<0 and abs(torque)<friction else next_actual
                     state['v'+side]=actual
                 else:state['v'+side]=target
-            if args.reverse_recovery or args.heading_test or args.web_user_test or args.retry_test:
+            if args.calibrated_response or args.reverse_recovery or args.heading_test or args.web_user_test or args.retry_test:
                 # Deliberately blocked forward travel until a real BackUp action
                 # moves 25cm; manual-calibrated response after the drive limiter.
                 u=.234*(state['target_l']+state['target_r'])/2/1.72
@@ -164,6 +167,9 @@ def main():
                 if f.result().current_state.id==3:break
                 time.sleep(0.3)
             else:raise AssertionError('AMCL did not activate')
+            def wait_future(future,timeout):
+                deadline=time.monotonic()+timeout
+                while not future.done() and time.monotonic()<deadline:time.sleep(.01)
             base='http://127.0.0.1:18080'
             session={}
             def web_started():
@@ -188,6 +194,8 @@ def main():
             wait(lambda:snapshot().get('map_available'),'web map missing',15)
             request('initial_pose',x=.65,y=-.5,yaw=.6) if args.reverse_recovery else request('initial_pose',x=0.,y=0.,yaw=0.)
             wait(lambda:not snapshot()['readiness'],'web navigation readiness',30)
+            contract=check_drive_contract(n,wait_future)
+            assert contract['ok'],contract
             if args.auto_alignment_test:
                 corrections_before=snapshot()['auto_alignment']['corrections']
                 wrong=PoseWithCovarianceStamped();wrong.header.frame_id='map';wrong.header.stamp=n.get_clock().now().to_msg()
@@ -314,7 +322,8 @@ def main():
                 assert state['hri_states'][-1]=='IDLE' and 'GUIDING' in state['hri_states'],state['hri_states']
                 assert any('목적지에 도착' in json.dumps(m,ensure_ascii=False) for m in state['speech'])
             report.update(hri_test=args.hri_test,hri_states=state['hri_states'],speech_events=state['speech'],relative_test=args.relative_test,retry_test=args.retry_test,intent_provider='fixture' if args.offline_intent else 'Gemini' if args.web_user_test else None,
-                retry_wait_seconds=retry_resumed-retry_started if retry_resumed else None,nav2_status=state['status'])
+                retry_wait_seconds=retry_resumed-retry_started if retry_resumed else None,nav2_status=state['status'],
+                drive_contract=contract,calibrated_response=args.calibrated_response or args.reverse_recovery or args.heading_test or args.web_user_test or args.retry_test)
             (ROOT/'log/lidar_web_navigation_results.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2));passed=True
         except Exception as error:
             report={'ok':False,'plant':'software only, no physical motors','error':str(error),'final_xy':[state['x'],state['y']],'distance_to_goal_m':math.hypot(state['x']-goal_x,state['y']),'nav2_status':state['status']}

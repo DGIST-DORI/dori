@@ -1,0 +1,188 @@
+{
+  "ok": true,
+  "plant": "software calibrated response; no physical motors",
+  "checks": {
+    "live_calibration_edits_rejected": true,
+    "straight": {
+      "v": 0.3007218778203023,
+      "auto": [
+        0.7052767822231434,
+        0.0
+      ],
+      "drive": [
+        0.7052767822231434,
+        0.0
+      ],
+      "left": 5.184085749674387,
+      "right": 5.184085749674387,
+      "motion": {
+        "linear": {
+          "phase": "track",
+          "input": 0.7053593353373772,
+          "ground_speed": 0.3008104789911741,
+          "response_gain": 0.6196880921314473,
+          "start_input": 0.22,
+          "learned_samples": 128
+        },
+        "angular": {
+          "phase": "stop",
+          "input": 0.0,
+          "ground_speed": 0.0,
+          "response_gain": 1.67,
+          "start_input": 0.0,
+          "learned_samples": 0
+        },
+        "enabled": true,
+        "desired": [
+          0.3,
+          0.0
+        ],
+        "encoder": [
+          0.5835886275227492,
+          0.0
+        ],
+        "applied": [
+          0.7048004549652935,
+          0.0
+        ],
+        "recovering": false
+      }
+    },
+    "rolling_turn": {
+      "v": 0.3000406272603472,
+      "w": 0.4020575327009824,
+      "auto": [
+        0.7042170916390454,
+        0.2407213728651297
+      ],
+      "drive": [
+        0.7042170916390454,
+        0.2407213728651297
+      ],
+      "left": 4.513798433735105,
+      "right": 5.838794708308981,
+      "motion": {
+        "linear": {
+          "phase": "track",
+          "input": 0.7042310432815503,
+          "ground_speed": 0.30003848696734847,
+          "response_gain": 0.6196430636340072,
+          "start_input": 0.22,
+          "learned_samples": 288
+        },
+        "angular": {
+          "phase": "track",
+          "input": 0.24077575496849463,
+          "ground_speed": 0.40225825744246163,
+          "response_gain": 1.670449092982114,
+          "start_input": 0.0,
+          "learned_samples": 126
+        },
+        "enabled": true,
+        "desired": [
+          0.3,
+          0.4
+        ],
+        "encoder": [
+          0.5820930840318264,
+          0.8729043139848968
+        ],
+        "applied": [
+          0.7036421367107291,
+          0.24080845033376225
+        ],
+        "recovering": false
+      }
+    },
+    "adaptation": {
+      "v": 0.30194325051422993,
+      "gain": 0.52,
+      "auto": [
+        0.8003895502426338,
+        0.0
+      ],
+      "motion": {
+        "linear": {
+          "phase": "track",
+          "input": 0.8007835867829975,
+          "ground_speed": 0.30211019896592567,
+          "response_gain": 0.5199900970024047,
+          "start_input": 0.22,
+          "learned_samples": 531
+        },
+        "angular": {
+          "phase": "stop",
+          "input": 0.0,
+          "ground_speed": 0.0,
+          "response_gain": 1.6704432620282543,
+          "start_input": 0.0,
+          "learned_samples": 130
+        },
+        "enabled": true,
+        "desired": [
+          0.3,
+          0.0
+        ],
+        "encoder": [
+          0.5860850027638804,
+          0.0
+        ],
+        "applied": [
+          0.8007726096947532,
+          0.0
+        ],
+        "recovering": false
+      }
+    },
+    "odom_stop_s": 0.21037068078294396,
+    "encoder_stop_s": 0.19036073610186577,
+    "delay_stop_s": 0.19045435963198543,
+    "authority_stop_s": 0.5425130650401115,
+    "geometry_mismatch_stops": true,
+    "manual_joystick_input": [
+      0.25,
+      0.0
+    ]
+  },
+  "contract": {
+    "parameters": {
+      "drive_controller_node": {
+        "wheel_radius": 0.234,
+        "wheel_separation": 0.184,
+        "max_linear_velocity": 1.72,
+        "max_angular_velocity": 7.0
+      },
+      "nav_drive_bridge": {
+        "wheel_radius": 0.234,
+        "wheel_separation": 0.184,
+        "max_linear_velocity": 1.72,
+        "max_angular_velocity": 7.0,
+        "motion_interpreter_enabled": true,
+        "motion.arc_only": true,
+        "nav_max_linear": 0.3,
+        "nav_max_angular": 1.2,
+        "motion.linear.response_gain": 0.62,
+        "motion.linear.response_delay": 0.15,
+        "motion.linear.start_input": 0.22,
+        "motion.linear.adapt_start": false,
+        "motion.linear.max_input": 1.0,
+        "motion.linear.kp": 0.5,
+        "motion.linear.ki": 0.7,
+        "motion.angular.response_gain": 1.67,
+        "motion.angular.response_delay": 0.0,
+        "motion.angular.start_input": 0.0,
+        "motion.angular.startup_rate": 0.0,
+        "motion.angular.adapt_start": false,
+        "motion.angular.max_input": 1.0,
+        "motion.angular.kp": 0.1,
+        "motion.angular.ki": 0.15
+      }
+    },
+    "routes": {},
+    "ok": true,
+    "errors": []
+  },
+  "mismatch_diagnostic": [
+    "drive_controller_node: calibration mismatch: wheel_separation"
+  ]
+}

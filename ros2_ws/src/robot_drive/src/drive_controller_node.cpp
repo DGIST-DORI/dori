@@ -49,6 +49,7 @@ public:
     feedback_sub_ = create_subscription<control_msgs::msg::DynamicJointState>(
       "/dynamic_joint_states", rclcpp::SensorDataQoS(),
       [this](control_msgs::msg::DynamicJointState::ConstSharedPtr msg) {
+        feedback_msg_ = msg;
         feedback_valid_ = robot_drive::feedback_fresh(*msg, left_joint_name_, right_joint_name_, joint_state_timeout_sec_);
         feedback_stamp_ = rclcpp::Time(msg->header.stamp).nanoseconds();
       });
@@ -74,21 +75,24 @@ public:
     // Robot geometry
     // =========================================================
 
+    rcl_interfaces::msg::ParameterDescriptor geometry_descriptor;
+    geometry_descriptor.read_only = true;
+    geometry_descriptor.description = "Startup calibration; restart the controller to change it";
     wheel_radius_ = declare_parameter<double>(
       "wheel_radius",
-      0.234);
+      0.234, geometry_descriptor);
 
     wheel_separation_ = declare_parameter<double>(
       "wheel_separation",
-      0.184);
+      0.184, geometry_descriptor);
 
     max_linear_velocity_ = declare_parameter<double>(
       "max_linear_velocity",
-      1.72);
+      1.72, geometry_descriptor);
 
     max_angular_velocity_ = declare_parameter<double>(
       "max_angular_velocity",
-      7.0);
+      7.0, geometry_descriptor);
 
     wheel_servo_enabled_ = declare_parameter("wheel_servo.enabled", true);
     servo_config_.kp = declare_parameter("wheel_servo.kp", 1.5);
@@ -1056,7 +1060,9 @@ private:
     const double command_age = (this->now() - last_command_time_).seconds();
     const double feedback_age = (this->now().nanoseconds() - feedback_stamp_) / 1e9;
     if (system_inhibited_ || (hardware_auto_ && navigation_halted_) ||
-      (require_feedback_ && (!feedback_valid_ || feedback_age < 0 || feedback_age > joint_state_timeout_sec_)) ||
+      (require_feedback_ && (!feedback_valid_ || !feedback_msg_ ||
+        !robot_drive::feedback_fresh(*feedback_msg_, left_joint_name_, right_joint_name_,
+          joint_state_timeout_sec_, feedback_age))) ||
       command_age < 0 || command_age > command_timeout_sec_) {
       stopDriveImmediately();
       return;
@@ -1428,6 +1434,7 @@ private:
   bool hardware_auto_{false}, navigation_halted_{false};
   bool require_feedback_{false}, feedback_valid_{false};
   int64_t feedback_stamp_{0};
+  control_msgs::msg::DynamicJointState::ConstSharedPtr feedback_msg_;
   rclcpp::Subscription<control_msgs::msg::DynamicJointState>::SharedPtr feedback_sub_;
   rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr control_mode_state_sub_;
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr navigation_halt_sub_;
