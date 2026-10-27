@@ -114,7 +114,7 @@ function VisionPanel() {
       count++;
       setFrameCount(count);
     }, Math.round(1000 / fps));
-    addLog(LOG_TAGS.SYS, `[vision] publishing camera → ${topic} @ ${fps} Hz`);
+    addLog(LOG_TAGS.SYS, `[vision] publishing camera → ${topicOverride.trim() || profileTopics.visionInputTopic} @ ${fps} Hz`);
   }
 
   function stopPublish() {

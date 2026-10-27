@@ -6,25 +6,30 @@ This document fixes the final ROS 2 package names and the responsibility of ever
 package currently under `ros2_ws/src/`.  It defines the canonical source
 directories, manifests, imports, and launch references.
 
-## Rules
+## Physical integration rules (2026-10-27)
 
-- Every first-party ROS 2 package uses the `dori_` prefix.  `dori_msgs` is
-  reserved for ROS interface definitions.
-- A ROS package name is unique in a workspace.  In particular, there must never
-  be two packages named `dori_perception`, even if one is Python and the other
-  is C++.
-- A package boundary follows deployable/runtime ownership, not a desire to put
-  every related file under one directory.  Build type and native dependency
-  boundaries are valid reasons for separate ROS packages.
-- We do **not** provide compatibility aliases, deprecated launch files, or
-  wrappers for superseded package identities.
+The robot-tested `robot_*`, `cubemars_hardware`, `imu_serial` and bundled vendor
+package identities are retained. `dori_*` packages compose HRI, public actions
+and deployment around these controllers. Do not rename or retune calibrated
+controllers as part of a package naming cleanup. The workspace contains 28 ROS
+packages, including vendor packages.
+
+- `robot_navigation` owns Nav2 configuration, motion interpretation and the map
+  web viewer; `dori_navigation` owns public action admission and named registry.
+- `robot_mapping` owns metric LiDAR odometry and Cartographer configuration;
+  `dori_mapping` exposes the composition boundary.
+- `robot_bringup`, `robot_supervisor`, `robot_drive`, `robot_transform`,
+  `robot_error`, `robot_input`, `robot_msgs`, `cubemars_hardware`, `imu_serial`
+  retain their physical control responsibilities. `dori_hardware` composes them.
+- `dori_bt` owns the session coordinator. `dori_hri` owns voice and emotion I/O.
+- The authoritative deployment instructions are [DORI AMM](../user/DORI-AMM.md).
 
 ## Final package map
 
 | ROS package | Owner area | Decision and boundary |
 | --- | --- | --- |
 | `dori_msgs` | Shared ROS interfaces | Interface-only package.  It owns `Navigate.action`, `LLMQuery.action`, `Speak.action`, and future cross-domain messages, services, and actions; it owns no application node. |
-| `dori_bt` | Robot decision orchestration | Owns BehaviorTree.CPP v4 execution node (`dori_tree_executor`), tree XML definitions, custom BT action/condition nodes, and high-level task coordination. |
+| `dori_bt` | Robot decision orchestration | Owns BehaviorTree.CPP v3 (Humble) execution node (`dori_tree_executor`), tree XML definitions, custom BT action/condition nodes, and high-level task coordination. |
 | `dori_bringup` | System composition | Owns top-level and subsystem launch composition, common launch arguments, namespaces, and remappings.  It does not own functional nodes. |
 | `dori_navigation` | Navigation | Owns navigation execution, planning/control integration, and navigation configuration. |
 | `dori_llm` | Language intelligence | Owns intent handling, retrieval/index access, model integration, and `LLMQuery` action server implementation. |
@@ -44,11 +49,14 @@ install both implementations as packages with the same ROS package name.
 
 ### HRI decision
 
-`dori_hri` is the public HRI ownership center.  It owns the coordinator,
-speech, and expression capabilities together with their specialized model and
+`dori_hri` owns speech and expression capabilities; `dori_bt` owns
+the coordinator. These capabilities are integrated together with their specialized model and
 audio dependencies, preserving an unambiguous ownership hierarchy.
 
-## Rename scope contract
+## Historical HRI rename scope contract
+
+This table describes the earlier HRI-only rename. The physical packages listed
+above are retained and take precedence over its general naming statements.
 
 The migration changes identity at package and Python-module boundaries.  Runtime
 node and graph names remain stable unless a later, separately approved ROS API

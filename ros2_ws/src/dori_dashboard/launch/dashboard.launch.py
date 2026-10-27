@@ -160,12 +160,12 @@ def generate_launch_description():
         # 기본값을 비워두면 trycloudflare.com 임시 터널 로그 파싱으로 fallback
         DeclareLaunchArgument(
             'dashboard_url',
-            default_value='https://dash.dgist-dori.xyz',
+            default_value='',
             description='Fixed public dashboard URL (custom Cloudflare domain)',
         ),
         DeclareLaunchArgument(
             'ws_url',
-            default_value='wss://ws.dgist-dori.xyz',
+            default_value='',
             description='Fixed public WebSocket URL (custom Cloudflare domain)',
         ),
 
@@ -176,6 +176,7 @@ def generate_launch_description():
             name='rosbridge_websocket',
             parameters=[{'port': 9090}],
         ),
+        Node(package='rosapi', executable='rosapi_node', name='rosapi'),
 
         # ── Unified dashboard server (frontend + API on port 3000) ────────
         # DORI_DASHBOARD_URL / DORI_WS_URL 환경변수로 고정 도메인 주입

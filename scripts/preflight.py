@@ -30,6 +30,7 @@ ROOT=Path(__file__).resolve().parents[1]
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--stage',choices=['base','navigation'],default='navigation')
     parser.add_argument('--duration',type=float,default=5);parser.add_argument('--output')
+    parser.add_argument('--hri',action='store_true',help='Also require the integrated HRI actions and coordinator')
     parser.add_argument('--discovery-timeout',type=float,default=10,help='Additional DDS discovery observation time')
     args=parser.parse_args()
     if not math.isfinite(args.discovery_timeout) or not 0<=args.discovery_timeout<=60:parser.error('Invalid discovery timeout')
@@ -113,7 +114,7 @@ def main():
     report['odom_source']='lidar_odometry'
     if odom_publishers!=['lidar_odometry'] or owners!=['lidar_odometry']:
         errors.append('/odom and odom->base_link must be owned only by lidar_odometry')
-    expected_params=yaml.safe_load((ROOT/'src/robot_drive/config/kinematics.yaml').read_text())['/**']['ros__parameters']
+    expected_params=yaml.safe_load((ROOT/'ros2_ws/src/robot_drive/config/kinematics.yaml').read_text())['/**']['ros__parameters']
     client=n.create_client(GetParameters,'/drive_controller_node/get_parameters')
     if client.wait_for_service(timeout_sec=0.5):
         request=GetParameters.Request();request.names=list(expected_params)
@@ -160,7 +161,7 @@ def main():
         except TransformException:errors.append('Localization/laser TF missing; set AMCL initial pose')
         names=[name for name,_ in n.get_node_names_and_namespaces()]
         if 'cartographer_node' in names:errors.append('Stop Cartographer before AMCL navigation')
-        for name in ['nav_drive_bridge','named_goal_bridge']:
+        for name in ['nav_drive_bridge','named_goal_bridge','nav2_adapter','named_goal_adapter']:
             if names.count(name)!=1:errors.append(name+': expected one node')
         goal_client=n.create_client(GetParameters,'/named_goal_bridge/get_parameters')
         if not goal_client.wait_for_service(timeout_sec=.5):errors.append('Goal source service missing')
@@ -180,9 +181,23 @@ def main():
                 if sorted(report['rviz_goal_consumers'])!=wanted or any(
                         p.topic_type!='geometry_msgs/msg/PoseStamped' for p in consumers):
                     errors.append('/goal_pose must route only through named_goal_bridge in RViz mode; remap the native bt_navigator input')
+        for topic in ['/navigation/goal_active','/navigation/enabled','/navigation/authority_heartbeat']:
+            pubs=n.get_publishers_info_by_topic(topic)
+            if len(pubs)!=1 or pubs[0].node_name!='nav2_adapter':
+                errors.append(topic+': must have exactly one DORI navigation authority')
+        services={name for name,_ in n.get_service_names_and_types()}
+        if '/dori/internal/navigate_to_pose/_action/send_goal' not in services:
+            errors.append('Private Nav2 action missing; check Humble endpoint remappings')
         for topic in ['/nav/cmd_vel','/auto/cmd_vel']:
             pubs=n.get_publishers_info_by_topic(topic)
             if len(pubs)!=1 or pubs[0].topic_type!='geometry_msgs/msg/Twist':errors.append(topic+': wrong publisher/type')
+    if args.hri:
+        names=[name for name,_ in n.get_node_names_and_namespaces()]
+        for name in ('dori_tree_executor','llm_node','tts_node','emotion_publisher_node'):
+            if names.count(name)!=1:errors.append(name+': expected one HRI node')
+        services={name for name,_ in n.get_service_names_and_types()}
+        for action in ('/dori/llm/query','/dori/tts/speak','/dori/nav/navigate_named'):
+            if action+'/_action/send_goal' not in services:errors.append(action+': HRI action unavailable')
     report['supervisor']=dict(supervisor)
     state=supervisor.get('/system/action_state')
     states={0:'IDLE',1:'DRIVE',2:'TRANSFORM',3:'TRANSFORM_PAUSED',4:'ESTOP',5:'ERROR'}

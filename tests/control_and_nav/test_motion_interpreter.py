@@ -1,12 +1,12 @@
 import math,sys,unittest
 import yaml
 from pathlib import Path
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src/robot_navigation/scripts'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'ros2_ws/src/robot_navigation/scripts'))
 from motion_interpreter import MotionInterpreter,AxisConfig,AxisInterpreter,rolling_arc
 
 class MotionInterpreterTests(unittest.TestCase):
     def calibrated(self):
-        path=Path(__file__).resolve().parents[1]/'src/robot_navigation/config/motion_interpreter.yaml'
+        path=Path(__file__).resolve().parents[2]/'ros2_ws/src/robot_navigation/config/motion_interpreter.yaml'
         p=yaml.safe_load(path.read_text())['nav_drive_bridge']['ros__parameters']
         def axis(name,threshold,stop):
             return AxisConfig(p['motion.'+name+'.response_gain'],

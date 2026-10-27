@@ -75,6 +75,8 @@ class WebBridge(Node):
                 ('drive', '/navigation/drive_status', String, latch),
                 ('motion', '/navigation/motion_interpreter', String, 5),
                 ('goal_status', '/named_goal_status', String, latch),
+                ('hri_state', '/dori/hri/manager_state', String, latch),
+                ('hri_status', '/dori/hri/status', String, latch),
                 ('retry', '/navigation/retry_status', String, latch),
                 ('odometry', '/lidar_odometry/status', String, latch),
                 ('action', '/system/action_state', Int32, latch),

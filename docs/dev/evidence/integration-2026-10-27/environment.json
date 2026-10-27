@@ -1,0 +1,18 @@
+{
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.35",
+  "architecture": "x86_64",
+  "python": "3.10.12 (main, Aug 31 2026, 10:18:17) [GCC 11.4.0]",
+  "versions": {
+    "numpy": "1.24.4",
+    "scipy": "1.10.1",
+    "fastapi": "0.162.0",
+    "httpx": "0.28.1",
+    "openwakeword": "0.6.0",
+    "faster-whisper": "1.2.1",
+    "onnxruntime": "1.23.2",
+    "ctranslate2": "4.8.4",
+    "marionette_driver": "3.7.1"
+  },
+  "ros": "humble",
+  "runtime_dependency_note": "rosbridge/rosapi and PortAudio Debian packages extracted under /tmp for validation because passwordless sudo was unavailable; target robot must install through install_dependencies.sh"
+}

@@ -11,6 +11,7 @@ import * as ROSLIB from 'roslib';
 let ros = null;
 const subscribers = {}; // topic -> ROSLIB.Topic
 const listeners = {};   // topic -> Set<callback>
+const messageTypes = {};
 
 function getROSLib() {
   if (ROSLIB) return ROSLIB;
@@ -21,17 +22,20 @@ function getROSLib() {
 // ─── Connect ────────────────────────────────────────────────────────────────
 export async function connectROS(url, { onConnect, onError, onClose } = {}) {
   const roslib = getROSLib();
-  if (ros) { ros.close(); ros = null; }
+  if (ros) disconnectROS();
 
   ros = new roslib.Ros({ url });
+  const connection = ros;
 
   ros.on('connection', () => {
+    if (ros !== connection) return;
     onConnect?.();
     // Re-subscribe any existing listeners
     Object.keys(listeners).forEach(topic => _subscribe(topic));
   });
-  ros.on('error',   e => onError?.(e));
+  ros.on('error', e => { if (ros === connection) onError?.(e); });
   ros.on('close',   () => {
+    if (ros !== connection) return;
     onClose?.();
     Object.values(subscribers).forEach(s => { try { s.unsubscribe(); } catch { return; } });
     Object.keys(subscribers).forEach(k => delete subscribers[k]);
@@ -40,12 +44,15 @@ export async function connectROS(url, { onConnect, onError, onClose } = {}) {
 
 export function disconnectROS() {
   if (!ros) return;
-  ros.close();
+  Object.values(subscribers).forEach(s => { try { s.unsubscribe(); } catch { return; } });
+  Object.keys(subscribers).forEach(k => delete subscribers[k]);
+  const connection = ros;
   ros = null;
+  connection.close();
 }
 
 export function isConnected() {
-  return !!ros;
+  return !!ros?.isConnected;
 }
 
 function callService(name, serviceType, request = {}) {
@@ -62,10 +69,7 @@ function callService(name, serviceType, request = {}) {
 
 export async function fetchTopicDiagnostics(topics = []) {
   const requested = new Set(topics);
-  const [{ topics: allTopics = [] }, { types = [] }] = await Promise.all([
-    callService('/rosapi/topics', 'rosapi/Topics', {}),
-    callService('/rosapi/topics_and_raw_types', 'rosapi/TopicsAndRawTypes', {}),
-  ]);
+  const { topics: allTopics = [], types = [] } = await callService('/rosapi/topics', 'rosapi_msgs/srv/Topics', {});
 
   const topicToType = allTopics.reduce((acc, topic, idx) => {
     acc[topic] = types[idx] || null;
@@ -76,8 +80,8 @@ export async function fetchTopicDiagnostics(topics = []) {
   const validTopics = sourceTopics.filter((topic) => allTopics.includes(topic));
 
   const [publishers, subscribers] = await Promise.all([
-    Promise.all(validTopics.map((topic) => callService('/rosapi/publishers', 'rosapi/Publishers', { topic }))),
-    Promise.all(validTopics.map((topic) => callService('/rosapi/subscribers', 'rosapi/Subscribers', { topic }))),
+    Promise.all(validTopics.map((topic) => callService('/rosapi/publishers', 'rosapi_msgs/srv/Publishers', { topic }))),
+    Promise.all(validTopics.map((topic) => callService('/rosapi/subscribers', 'rosapi_msgs/srv/Subscribers', { topic }))),
   ]);
 
   return validTopics.reduce((acc, topic, idx) => {
@@ -100,6 +104,7 @@ export async function fetchTopicDiagnostics(topics = []) {
  * @returns {function} unsubscribe function
  */
 export function subscribeROS(topic, msgType, cb) {
+  if (msgType) messageTypes[topic] = msgType;
   if (!listeners[topic]) listeners[topic] = new Set();
   listeners[topic].add(cb);
 
@@ -111,6 +116,7 @@ export function subscribeROS(topic, msgType, cb) {
       subscribers[topic]?.unsubscribe();
       delete subscribers[topic];
       delete listeners[topic];
+      delete messageTypes[topic];
     }
   };
 }
@@ -118,7 +124,8 @@ export function subscribeROS(topic, msgType, cb) {
 function _subscribe(topic, msgType) {
   if (!ros) return;
   const roslib = getROSLib();
-  const type = msgType || _inferMsgType(topic);
+  const type = msgType || messageTypes[topic] || _inferMsgType(topic);
+  if (subscribers[topic]) subscribers[topic].unsubscribe();
   const sub = new roslib.Topic({ ros, name: topic, messageType: type });
   sub.subscribe(msg => {
     const val = msg.data !== undefined ? msg.data : msg;

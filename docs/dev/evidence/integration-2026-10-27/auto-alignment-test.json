@@ -1,0 +1,54 @@
+{
+  "ok": true,
+  "plant": "software only, no physical motors",
+  "injected_pose": [
+    0.18,
+    0.08,
+    0.06
+  ],
+  "final_pose": [
+    -0.01792448508763139,
+    0.001294144216092113,
+    -0.002799312382965344
+  ],
+  "alignment": {
+    "pose": [
+      -0.01999809088912713,
+      0.005003083449114001,
+      -0.001090100491429047
+    ],
+    "score": 0.9729797336702776,
+    "matched_fraction": 1.0,
+    "improvement": 0.5282320013355117,
+    "translation_m": 0.2136000936329382,
+    "rotation_deg": 3.4999999999999956,
+    "decision": "correct",
+    "message": "\uc790\ub3d9 \uc9c0\ub3c4 \ubcf4\uc815 \ud655\uc778 \u00b7 21cm / 3.5\u00b0",
+    "state": "corrected",
+    "enabled": true,
+    "checks": 1,
+    "corrections": 1,
+    "next_check_seconds": 3.849595785140991,
+    "last_check": {
+      "pose": [
+        -0.01999809088912713,
+        0.005003083449114001,
+        -0.001090100491429047
+      ],
+      "score": 0.9729797336702776,
+      "matched_fraction": 1.0,
+      "improvement": 0.5282320013355117,
+      "translation_m": 0.2136000936329382,
+      "rotation_deg": 3.4999999999999956,
+      "decision": "correct",
+      "message": "\uc5ec\ub7ec \uc2a4\uce94\uc5d0\uc11c \uc77c\uce58\ud558\ub294 \uc791\uc740 \uc704\uce58 \ubcf4\uc815\uc744 \ucc3e\uc558\uc2b5\ub2c8\ub2e4"
+    },
+    "last_check_age": 1.1504049287177622,
+    "last_correction_age": 0.05025032674893737
+  },
+  "distance_traveled_m": 0.0,
+  "local_odom": [
+    -3.0486340725890637e-16,
+    5.615387302895688e-16
+  ]
+}

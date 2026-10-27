@@ -1,7 +1,3 @@
-# Team-wide Python dependencies for core voice pipeline packages
--r ros2_ws/src/dori_hri/requirements.txt
--r ros2_ws/src/dori_llm/requirements.txt
--r ros2_ws/src/dori_perception/requirements.txt
--r ros2_ws/src/dori_dashboard/requirements.txt
--r ros2_ws/src/dori_observability/requirements.txt
--r ros2_ws/src/dori_core/requirements.txt
+# Base robot runtime. Install microphone models with scripts/prepare_voice.sh.
+# Optional vision dependencies: scripts/install_dependencies.sh --vision.
+-r requirements-runtime.txt

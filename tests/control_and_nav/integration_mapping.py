@@ -22,7 +22,7 @@ from tf2_ros import Buffer, TransformListener
 from rclpy.time import Time
 from tests.control_and_nav.lidar_scene import ranges
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT/'scripts'))
 from robot_stack import stop_children
 

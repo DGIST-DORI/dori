@@ -75,12 +75,11 @@ export function createAudioOutputRouter({ mode, executionProfile, addLog, setAct
     });
 
     const removeUnlockHandlers = tts.bindFirstGestureUnlock();
-    const unsub = subscribeROS('/dori/tts/text', undefined, (payload, rawMsg) => {
-      tts.speak({
-        payload,
-        messageId: rawMsg?.id || rawMsg?.header?.stamp,
-        source: '/dori/tts/text',
-      });
+    const unsub = subscribeROS('/dori/tts/audio_event', 'std_msgs/msg/String', (payload) => {
+      let event;
+      try { event = typeof payload === 'string' ? JSON.parse(payload) : payload; } catch { return; }
+      if (event?.event_type !== 'tts_text' || event.playback_mode === 'local_only') return;
+      tts.speak({ payload: event.text, messageId: event.timestamp, source: '/dori/tts/audio_event' });
     });
 
     cleanups.push(() => {

@@ -136,7 +136,6 @@ function CategoryBlock({
 
 export default function Sidebar({
   themeMode,
-  onThemeModeChange,
   expanded,
   onExpand,
   onCollapse,
@@ -170,7 +169,7 @@ export default function Sidebar({
   }, [themeMode]);
 
   const [query,        setQuery]        = useState('');
-  const [pendingFocus, setPendingFocus] = useState(false);
+  const pendingFocus = useRef(false);
   const [openCategoryMap, setOpenCategoryMap] = useState({});
   const searchInputRef = useRef(null);
   const searchActive   = query.trim().length > 0;
@@ -222,11 +221,12 @@ export default function Sidebar({
   const visibleTree = useMemo(() => filterTree(translatedTree, query), [translatedTree, query]);
 
   useEffect(() => {
-    if (expanded && pendingFocus) {
+    if (expanded && pendingFocus.current) {
       searchInputRef.current?.focus();
-      setPendingFocus(false);
+      pendingFocus.current = false;
+
     }
-  }, [expanded, pendingFocus]);
+  }, [expanded]);
 
   const isDark = themeMode === 'dark' || (themeMode === 'auto' && autoIsDark);
   const LogoText = isDark ? DoriLogoTextDark : DoriLogoText;
@@ -294,7 +294,7 @@ export default function Sidebar({
         ) : (
           <button
             className="sb-search-btn"
-            onClick={() => { onExpand(); setPendingFocus(true); }}
+            onClick={() => { onExpand(); pendingFocus.current = true; }}
           >
             <SearchIcon className="sb-search-btn-icon" />
             <span className="sb-tooltip">{t('sidebar.search.placeholder')}</span>

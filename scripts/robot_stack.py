@@ -12,7 +12,7 @@ import time
 import urllib.request
 
 ROOT=Path(__file__).resolve().parents[1]
-sys.path.insert(0,str(ROOT/'src/robot_navigation/scripts'))
+sys.path.insert(0,str(ROOT/'ros2_ws/src/robot_navigation/scripts'))
 from navigation_contract import validate_map
 
 

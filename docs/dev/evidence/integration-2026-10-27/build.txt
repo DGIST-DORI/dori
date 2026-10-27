@@ -1,0 +1,67 @@
+[0.157s] colcon.colcon_core.package_selection WARNING Some selected packages are already built in one or more underlay workspaces:
+	'dynamixel_sdk' is in: /opt/ros/humble
+If a package in a merged underlay workspace is overridden and it installs headers, then all packages in the overlay must sort their include directories by workspace order. Failure to do so may result in build failures or undefined behavior at run time.
+If the overridden package is used by another package in any underlay, then the overriding package in the overlay must be API and ABI compatible or undefined behavior at run time may occur.
+
+If you understand the risks and want to override a package anyways, add the following to the command line:
+	--allow-overriding dynamixel_sdk
+
+This may be promoted to an error in a future release of colcon-override-check.
+Starting >>> robot_msgs
+Starting >>> dori_msgs
+Finished <<< dori_msgs [0.24s]
+Starting >>> dynamixel_sdk_custom_interfaces
+Finished <<< robot_msgs [0.26s]
+Starting >>> dynamixel_sdk
+Finished <<< dynamixel_sdk [0.07s]
+Starting >>> robot_drive
+Finished <<< robot_drive [0.08s]
+Starting >>> cubemars_hardware
+Finished <<< cubemars_hardware [0.07s]
+Starting >>> imu_serial
+Finished <<< dynamixel_sdk_custom_interfaces [0.35s]
+Starting >>> robot_input
+Finished <<< robot_input [0.07s]
+Starting >>> sllidar_ros2
+Finished <<< sllidar_ros2 [0.07s]
+Starting >>> dynamixel_sdk_examples
+Finished <<< dynamixel_sdk_examples [0.07s]
+Starting >>> robot_error
+Finished <<< robot_error [0.07s]
+Starting >>> robot_supervisor
+Finished <<< robot_supervisor [0.06s]
+Starting >>> robot_transform
+Finished <<< robot_transform [0.07s]
+Starting >>> dori_core
+Finished <<< imu_serial [0.66s]
+Starting >>> dori_observability
+Finished <<< dori_core [0.64s]
+Starting >>> robot_mapping
+Finished <<< dori_observability [0.64s]
+Starting >>> robot_bringup
+Finished <<< robot_bringup [0.06s]
+Starting >>> dori_perception
+Finished <<< robot_mapping [0.30s]
+Starting >>> dori_perception_camera
+Finished <<< dori_perception_camera [0.06s]
+Starting >>> dori_bt
+Finished <<< dori_bt [0.07s]
+Starting >>> dori_dashboard
+Finished <<< dori_perception [0.66s]
+Starting >>> dori_hri
+Finished <<< dori_dashboard [0.65s]
+Starting >>> dori_llm
+Finished <<< dori_hri [0.66s]
+Starting >>> dori_navigation
+Finished <<< dori_llm [0.64s]
+Starting >>> dori_mapping
+Finished <<< dori_mapping [0.05s]
+Starting >>> robot_navigation
+Finished <<< robot_navigation [0.24s]
+Starting >>> dori_hardware
+Finished <<< dori_hardware [0.06s]
+Finished <<< dori_navigation [0.65s]
+Starting >>> dori_bringup
+Finished <<< dori_bringup [0.07s]
+
+Summary: 28 packages finished [3.99s]

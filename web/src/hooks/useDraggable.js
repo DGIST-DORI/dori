@@ -21,7 +21,6 @@ export function useDraggable({ x, y, onMove, onFocus }) {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const w  = el?.offsetWidth  ?? 200;
-    const h  = el?.offsetHeight ?? MIN_VISIBLE;
 
     const cx = Math.min(Math.max(nx, -(w - MIN_VISIBLE)), vw - MIN_VISIBLE);
     const cy = Math.min(Math.max(ny, 0), vh - MIN_VISIBLE);

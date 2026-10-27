@@ -24,6 +24,7 @@ const STAGGER   = 28;
 
 // Per-panel default sizes [w, h] in px — unlisted panels use DEFAULT_W x DEFAULT_H
 const PANEL_SIZES = {
+  'campus-map':         [1000, 600],
   'stt':                [420, 300],
   'wakeword':           [340, 180],
   'tts':                [420, 320],
@@ -57,6 +58,10 @@ function defaultPosition(count) {
 
 function defaultSize(id) {
   const [w, h] = PANEL_SIZES[id] ?? [DEFAULT_W, DEFAULT_H];
+  if (id === 'campus-map' && typeof window !== 'undefined') {
+    return { w: Math.max(320, Math.min(w, window.innerWidth - 300)),
+      h: Math.max(300, Math.min(h, window.innerHeight - 140)) };
+  }
   return { w, h };
 }
 

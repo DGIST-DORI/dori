@@ -16,13 +16,15 @@
   <depend>std_msgs</depend>
 
   <!-- BehaviorTree.CPP v4 -->
-  <depend>behaviortree_cpp</depend>
+  <depend>behaviortree_cpp_v3</depend>
 
   <!-- Dori Custom Messages (LLMQuery, Speak 등) -->
   <depend>dori_msgs</depend>
 
   <!-- Nav2 BT Plugins (주행 연동을 위해 권장) -->
-  <depend>nav2_behavior_tree</depend>
+  <depend>nav2_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>nlohmann_json</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

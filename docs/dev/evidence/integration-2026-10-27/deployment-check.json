@@ -1,0 +1,16 @@
+{
+  "python": "3.10.12",
+  "ros_distro": "humble",
+  "repository": "/home/data1/workspace/dori/robot",
+  "hardware_actuated": false,
+  "map": {
+    "map": "/home/data1/workspace/dori/robot/maps/live_navigation_20261023_1938.yaml",
+    "image": "/home/data1/workspace/dori/robot/maps/live_navigation_20261023_1938.pgm",
+    "resolution": 0.05,
+    "width": 518,
+    "height": 670,
+    "points": 0
+  },
+  "errors": [],
+  "ok": true
+}

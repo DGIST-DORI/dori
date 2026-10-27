@@ -11,7 +11,7 @@ from launch_ros.actions import Node
 from launch.utilities import normalize_to_list_of_substitutions, perform_substitutions
 from ament_index_python.packages import get_package_share_directory
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 class RuntimePackaging(unittest.TestCase):
@@ -37,10 +37,10 @@ class RuntimePackaging(unittest.TestCase):
     def test_installed_packages_belong_to_this_workspace(self):
         for package in ['robot_bringup', 'robot_mapping', 'robot_navigation', 'imu_serial']:
             share = Path(get_package_share_directory(package))
-            self.assertTrue(share.is_relative_to(ROOT/'install'), share)
+            self.assertTrue(share.is_relative_to(ROOT/'ros2_ws/install'), share)
 
     def test_mapping_uses_external_lidar_odom_without_imu(self):
-        path = ROOT/'src/robot_mapping/launch/lidar_only_cartographer.launch.py'
+        path = ROOT/'ros2_ws/src/robot_mapping/launch/lidar_only_cartographer.launch.py'
         spec = importlib.util.spec_from_file_location('mapping_launch', path)
         module = importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
         context = LaunchContext()
@@ -60,7 +60,7 @@ class RuntimePackaging(unittest.TestCase):
             self.assertEqual(len(nodes), 5)
 
     def test_no_old_workspace_path_in_runtime(self):
-        for folder in ['scripts', 'src/robot_navigation', 'src/robot_mapping']:
+        for folder in ['scripts', 'ros2_ws/src/robot_navigation', 'ros2_ws/src/robot_mapping']:
             for path in (ROOT/folder).rglob('*'):
                 if path.suffix in ('.py', '.sh', '.yaml', '.xml', '.cpp'):
                     self.assertNotIn('/home/dori/robot_ws', path.read_text(), str(path))

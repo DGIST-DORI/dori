@@ -33,7 +33,9 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile, Request
+from fastapi.responses import Response, RedirectResponse
+import httpx
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -119,7 +121,7 @@ logger = logging.getLogger(__name__)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['*'],
+    allow_origins=[],
     allow_methods=['*'],
     allow_headers=['*'],
 )
@@ -144,6 +146,32 @@ def _resolve_web_dir() -> Path | None:
 
 
 # ── /api/knowledge/parse-menu ─────────────────────────────────────────────────
+
+@app.get('/navigation', include_in_schema=False)
+async def navigation_redirect():
+    return RedirectResponse('/navigation/')
+
+
+@app.api_route('/navigation/{path:path}', methods=['GET', 'POST'])
+async def navigation_proxy(path: str, request: Request):
+    """Keep map assets, CSRF and control leases on the dashboard origin."""
+    if path not in ('', 'app.js', 'style.css', 'api/session', 'api/state', 'api/map.png', 'api/command'):
+        raise HTTPException(404, 'Unknown navigation resource')
+    body = await request.body()
+    if len(body) > 2048:
+        raise HTTPException(413, 'Request too large')
+    headers = {k: v for k, v in request.headers.items()
+               if k.lower() in ('host', 'origin', 'content-type', 'x-dori-control', 'sec-fetch-site')}
+    try:
+        async with httpx.AsyncClient(timeout=4., trust_env=False) as client:
+            response = await client.request(request.method, 'http://127.0.0.1:8080/'+path,
+                params=request.query_params, content=body, headers=headers)
+        return Response(content=response.content, status_code=response.status_code,
+            headers={k: v for k, v in response.headers.items() if k.lower() in
+                ('content-type', 'cache-control', 'content-security-policy', 'x-content-type-options')})
+    except httpx.HTTPError:
+        return JSONResponse({'error': 'Navigation service unavailable'}, status_code=503)
+
 
 @app.post('/api/knowledge/parse-menu')
 async def parse_menu(files: list[UploadFile] = File(...)):
@@ -623,68 +651,6 @@ async def get_tunnel_url():
         'ws_url':        ws_url,
         'ready':         ws_url is not None,
     }
-
-# ── Static file serving ────────────────────────────────────────────────────────
-# MUST be registered after all /api/* routes.
-# app.mount('/') is intentionally avoided — it shadows FastAPI routes.
-
-WEB_DIR = _resolve_web_dir()
-
-if WEB_DIR:
-    from fastapi.responses import FileResponse as _FileResponse
-
-    _STATIC_FILE_EXTENSIONS = {
-        '.js', '.mjs', '.css', '.map', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.otf', '.eot',
-    }
-    _IMMUTABLE_ASSET_EXTENSIONS = {
-        '.js', '.mjs', '.css', '.map', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.otf', '.eot',
-    }
-
-    def _is_versioned_asset(requested_path: Path) -> bool:
-        if 'assets' not in requested_path.parts:
-            return False
-
-        stem_parts = [part for part in requested_path.stem.split('.') if part]
-        return len(stem_parts) > 1
-
-
-    def _static_cache_headers(requested_path: Path) -> dict[str, str]:
-        normalized_parts = tuple(part for part in requested_path.parts if part not in ('', '.'))
-        suffix = requested_path.suffix.lower()
-
-        if normalized_parts == ('index.html',):
-            return {'Cache-Control': 'no-cache, no-store, must-revalidate'}
-
-        if _is_versioned_asset(requested_path) and suffix in _IMMUTABLE_ASSET_EXTENSIONS:
-            return {'Cache-Control': 'public, max-age=31536000, immutable'}
-
-        if suffix in {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.otf', '.eot'}:
-            return {'Cache-Control': 'public, max-age=3600'}
-
-        return {'Cache-Control': 'public, max-age=300'}
-
-
-    @app.get('/{full_path:path}', include_in_schema=False)
-    async def serve_spa(full_path: str):
-        # 실제 파일이 있으면 그대로 반환 (JS, CSS, 이미지 등)
-        target = WEB_DIR / full_path
-        requested_path = Path(full_path)
-        if target.is_file():
-            return _FileResponse(str(target), headers=_static_cache_headers(requested_path))
-
-        is_asset_request = (
-            'assets' in requested_path.parts
-            or requested_path.suffix.lower() in _STATIC_FILE_EXTENSIONS
-        )
-        if is_asset_request:
-            raise HTTPException(404, 'Not Found')
-
-        # 파일 확장자가 없는 SPA route만 index.html fallback 처리
-        if not requested_path.suffix:
-            index_path = Path('index.html')
-            return _FileResponse(str(WEB_DIR / index_path), headers=_static_cache_headers(index_path))
-
-        raise HTTPException(404, 'Not Found')
 
 # ── /api/webhook + /api/deploy/* ──────────────────────────────────────────────
 # GitHub Webhook receiver + async deploy pipeline
@@ -1228,6 +1194,8 @@ def _deploy_pipeline(*, force_web_repair: bool = False):
 @app.post('/api/webhook')
 async def github_webhook(request: Request):
     """Receive GitHub push webhook, trigger deploy pipeline on main branch."""
+    if os.getenv('DORI_ALLOW_LIVE_DEPLOY') != '1':
+        raise HTTPException(423, 'Robot deployment is locked; stop the robot and deploy from the terminal')
     body = await request.body()
     sig  = request.headers.get('X-Hub-Signature-256')
 
@@ -1258,12 +1226,14 @@ async def github_webhook(request: Request):
 @app.get('/api/deploy/status')
 async def deploy_status():
     """Poll deploy pipeline progress."""
-    return JSONResponse(_deploy_job)
+    return JSONResponse({**_deploy_job, 'enabled': os.getenv('DORI_ALLOW_LIVE_DEPLOY') == '1'})
 
 
 @app.post('/api/deploy/trigger')
 async def deploy_trigger():
     """Manually trigger the deploy pipeline (no webhook needed, dev use)."""
+    if os.getenv('DORI_ALLOW_LIVE_DEPLOY') != '1':
+        raise HTTPException(423, 'Stop the robot and deploy from the terminal')
     with _deploy_lock:
         if _deploy_job['status'] == 'running':
             return JSONResponse({'skipped': 'deploy already in progress'}, status_code=409)
@@ -1275,6 +1245,8 @@ async def deploy_trigger():
 @app.post('/api/deploy/repair-web')
 async def deploy_repair_web():
     """Run a web integrity check and repair-publish if required."""
+    if os.getenv('DORI_ALLOW_LIVE_DEPLOY') != '1':
+        raise HTTPException(423, 'Stop the robot and deploy from the terminal')
     with _deploy_lock:
         if _deploy_job['status'] == 'running':
             return JSONResponse({'skipped': 'deploy already in progress'}, status_code=409)
@@ -1285,6 +1257,73 @@ async def deploy_repair_web():
         )
         thread.start()
     return JSONResponse({'ok': True, 'message': 'Repair deploy started'})
+
+# ── Static file serving ────────────────────────────────────────────────────────
+# MUST be registered after all /api/* routes.
+# app.mount('/') is intentionally avoided — it shadows FastAPI routes.
+
+WEB_DIR = _resolve_web_dir()
+
+if WEB_DIR:
+    from fastapi.responses import FileResponse as _FileResponse
+
+    _STATIC_FILE_EXTENSIONS = {
+        '.js', '.mjs', '.css', '.map', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.otf', '.eot',
+    }
+    _IMMUTABLE_ASSET_EXTENSIONS = {
+        '.js', '.mjs', '.css', '.map', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.otf', '.eot',
+    }
+
+    def _is_versioned_asset(requested_path: Path) -> bool:
+        if 'assets' not in requested_path.parts:
+            return False
+
+        stem_parts = [part for part in requested_path.stem.split('.') if part]
+        return len(stem_parts) > 1
+
+
+    def _static_cache_headers(requested_path: Path) -> dict[str, str]:
+        normalized_parts = tuple(part for part in requested_path.parts if part not in ('', '.'))
+        suffix = requested_path.suffix.lower()
+
+        if normalized_parts == ('index.html',):
+            return {'Cache-Control': 'no-cache, no-store, must-revalidate'}
+
+        if _is_versioned_asset(requested_path) and suffix in _IMMUTABLE_ASSET_EXTENSIONS:
+            return {'Cache-Control': 'public, max-age=31536000, immutable'}
+
+        if suffix in {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.otf', '.eot'}:
+            return {'Cache-Control': 'public, max-age=3600'}
+
+        return {'Cache-Control': 'public, max-age=300'}
+
+
+    @app.get('/{full_path:path}', include_in_schema=False)
+    async def serve_spa(full_path: str):
+        # 실제 파일이 있으면 그대로 반환 (JS, CSS, 이미지 등)
+        target = (WEB_DIR / full_path).resolve()
+        if not target.is_relative_to(WEB_DIR.resolve()):
+            raise HTTPException(404, "Not Found")
+        if full_path.startswith("api/"):
+            raise HTTPException(404, "Unknown API")
+        requested_path = Path(full_path)
+        if target.is_file():
+            return _FileResponse(str(target), headers=_static_cache_headers(requested_path))
+
+        is_asset_request = (
+            'assets' in requested_path.parts
+            or requested_path.suffix.lower() in _STATIC_FILE_EXTENSIONS
+        )
+        if is_asset_request:
+            raise HTTPException(404, 'Not Found')
+
+        # 파일 확장자가 없는 SPA route만 index.html fallback 처리
+        if not requested_path.suffix:
+            index_path = Path('index.html')
+            return _FileResponse(str(WEB_DIR / index_path), headers=_static_cache_headers(index_path))
+
+        raise HTTPException(404, 'Not Found')
+
 
 # ── Entrypoint ─────────────────────────────────────────────────────────────────
 

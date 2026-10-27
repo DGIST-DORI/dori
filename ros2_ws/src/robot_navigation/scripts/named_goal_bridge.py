@@ -8,7 +8,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
 from rclpy.qos import QoSProfile, DurabilityPolicy
-from nav2_msgs.action import NavigateToPose
+from dori_msgs.action import Navigate
 from std_msgs.msg import String, Bool, Int32
 from visualization_msgs.msg import Marker, MarkerArray
 from navigation_contract import load_points_csv, rviz_goal_point
@@ -34,15 +34,13 @@ class NamedGoalBridge(Node):
         self.points = load_points_csv(self.points_file) if self.goal_source=='named' else {}
         self.goal_topic = self.declare_parameter('goal_topic', '/named_goal').value
         status_topic = self.declare_parameter('status_topic', '/named_goal_status').value
-        action_name = self.declare_parameter('action_name', '/navigate_to_pose').value
+        action_name = self.declare_parameter('action_name', '/dori/nav/navigate_to').value
         latch = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.status = self.create_publisher(String, status_topic, latch)
-        self.enabled_pub = self.create_publisher(Bool, '/navigation/enabled', latch)
         self.feedback_pub = self.create_publisher(String, '/navigation/feedback', 10)
-        self.active_pub = self.create_publisher(Bool, '/navigation/goal_active', latch)
         self.retry_pub = self.create_publisher(String, '/navigation/retry_status', latch)
         self.markers = self.create_publisher(MarkerArray, '/named_goal_marker', latch)
-        self.client = ActionClient(self, NavigateToPose, action_name)
+        self.client = ActionClient(self, Navigate, action_name)
         self.enabled = False; self.sequence = 0; self.pending = None
         self.goal_handle = None; self.sending = False; self.cancelling = False
         self.pending_since = 0
@@ -59,8 +57,6 @@ class NamedGoalBridge(Node):
         self.create_subscription(Bool, '/emergency_stop', self.on_estop, 10)
         self.create_subscription(Int32, '/system/action_state', self.on_action, latch)
         self.create_timer(0.05, self.tick)
-        self.active_pub.publish(Bool(data=False))
-        self.enabled_pub.publish(Bool(data=False))
         self.publish_status('ready:mode=0')
         self.publish_retry('idle')
 
@@ -78,19 +74,17 @@ class NamedGoalBridge(Node):
         self.sequence += 1; self.pending = None
         self.retry_at = 0.; self.retry_count = 0
         self.publish_retry('idle')
-        self.active_pub.publish(Bool(data=False))
         self.cancel_current()
 
     def on_mode(self, msg):
         if msg.data not in (0, 1): return
         self.enabled = msg.data == 1
-        self.enabled_pub.publish(Bool(data=self.enabled))
         if not self.enabled:
             self.stop(); self.publish_status('cancel_requested:mode_off')
 
     def on_estop(self, msg):
         if msg.data:
-            self.enabled = False; self.enabled_pub.publish(Bool(data=False)); self.stop()
+            self.enabled = False; self.stop()
 
     def on_action(self, msg):
         self.hardware_inhibited = msg.data >= 2
@@ -132,7 +126,6 @@ class NamedGoalBridge(Node):
         self.publish_retry('idle')
         self.pending = (self.sequence, key)
         self.pending_since = time.monotonic()
-        self.active_pub.publish(Bool(data=False))
         self.cancel_current()
 
     def cancel_current(self):
@@ -168,15 +161,15 @@ class NamedGoalBridge(Node):
             return
         sequence, key = self.pending; self.pending = None
         p = self.points[key]
-        goal = NavigateToPose.Goal()
+        goal = Navigate.Goal()
         if key=='relative_goal' and self.goal_source in ('rviz','web'):
-            goal.behavior_tree=self.relative_behavior_tree
-        goal.pose.header.frame_id = 'map'
-        goal.pose.header.stamp = self.get_clock().now().to_msg()
-        goal.pose.pose.position.x = p['x']; goal.pose.pose.position.y = p['y']
+            goal.precise=True
+        goal.destination.header.frame_id = 'map'
+        goal.destination.header.stamp = self.get_clock().now().to_msg()
+        goal.destination.pose.position.x = p['x']; goal.destination.pose.position.y = p['y']
         yaw = math.radians(p['yaw_deg'])
-        goal.pose.pose.orientation.z = math.sin(yaw/2)
-        goal.pose.pose.orientation.w = math.cos(yaw/2)
+        goal.destination.pose.orientation.z = math.sin(yaw/2)
+        goal.destination.pose.orientation.w = math.cos(yaw/2)
         self.sending = True
         self.goal_feedback = None
         future = self.client.send_goal_async(goal, feedback_callback=lambda msg: self.on_feedback(sequence,msg))
@@ -189,8 +182,8 @@ class NamedGoalBridge(Node):
         self.goal_feedback = feedback.current_pose
         self.feedback_pub.publish(String(data=json.dumps({
             'distance_remaining': feedback.distance_remaining,
-            'recoveries': feedback.number_of_recoveries,
-            'navigation_time': feedback.navigation_time.sec,
+            'recoveries': 0,
+            'navigation_time': 0,
         })))
 
     def on_response(self, sequence, key, goal, future):
@@ -207,17 +200,16 @@ class NamedGoalBridge(Node):
                 self.publish_status(f'finished:{key}:status=6')
             return
         self.goal_handle = handle; self.cancelling = False
-        self.active_target = goal.pose
-        self.active_arrival_xy = self.relative_arrival_xy if goal.behavior_tree==self.relative_behavior_tree else self.arrival_xy
+        self.active_target = goal.destination
+        self.active_arrival_xy = self.relative_arrival_xy if goal.precise else self.arrival_xy
         result = handle.get_result_async()
         result.add_done_callback(lambda f: self.on_result(handle, key, sequence, f))
         if not self.enabled or sequence != self.sequence:
             self.cancel_current(); return
-        self.active_pub.publish(Bool(data=True))
         self.publish_status('accepted:'+key)
         marker = Marker()
-        marker.header = goal.pose.header; marker.ns = 'named_goal'; marker.id = 0
-        marker.type = Marker.ARROW; marker.action = Marker.ADD; marker.pose = goal.pose.pose
+        marker.header = goal.destination.header; marker.ns = 'named_goal'; marker.id = 0
+        marker.type = Marker.ARROW; marker.action = Marker.ADD; marker.pose = goal.destination.pose
         marker.scale.x=0.5; marker.scale.y=0.1; marker.scale.z=0.1
         marker.color.g=1.0; marker.color.a=1.0
         self.markers.publish(MarkerArray(markers=[marker]))
@@ -226,7 +218,6 @@ class NamedGoalBridge(Node):
         if self.goal_handle is not handle: return
         was_cancelling = self.cancelling
         self.goal_handle = None; self.cancelling = False
-        self.active_pub.publish(Bool(data=False))
         # A replaced/cancelled goal must not overwrite its successor or restart.
         if sequence != self.sequence:return
         try:

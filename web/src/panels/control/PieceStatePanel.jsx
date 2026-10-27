@@ -43,7 +43,7 @@ function PieceStatePanel() {
         row.color.includes(q) || String(row.index).includes(q) ||
         row.coord.join(',').includes(q))
     );
-  }, [cubeState, activeFaces, search, coordMode]);
+  }, [cubeState, activeFaces, search]);
 
   return (
     <div className="piece-state-panel">

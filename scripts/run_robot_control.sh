@@ -8,7 +8,7 @@
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROBOT_CONTROL_WS="${ROBOT_CONTROL_WS:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+ROBOT_CONTROL_WS="${ROBOT_CONTROL_WS:-$(cd "$SCRIPT_DIR/../ros2_ws" && pwd)}"
 ROBOT_CONTROL_JOYSTICK=true
 ROBOT_CONTROL_CHECK_ONLY=false
 ROBOT_CONTROL_PREPARE_ONLY=false
@@ -53,8 +53,15 @@ fail() { printf '실행 중단: %s\n' "$*" >&2; exit 1; }
 
 # ROS setup 스크립트의 미정의 환경변수 사용 때문에 nounset은 사용하지 않는다.
 unset AMENT_PREFIX_PATH COLCON_PREFIX_PATH CMAKE_PREFIX_PATH PYTHONPATH LD_LIBRARY_PATH
+unset CONDA_PREFIX CONDA_DEFAULT_ENV CONDA_SHLVL
+export PATH="$(/usr/bin/python3 -c 'import os; print(":".join(p for p in os.environ["PATH"].split(":") if "conda" not in p.lower()))')"
 source /opt/ros/humble/setup.bash
 source "$ROBOT_CONTROL_WS/install/setup.bash"
+# The ROS Python interpreter also sees the workspace dependencies.
+if [[ -d "$ROBOT_CONTROL_WS/../.venv/lib/python3.10/site-packages" ]]; then
+    export PYTHONPATH="$ROBOT_CONTROL_WS/../.venv/lib/python3.10/site-packages:${PYTHONPATH:-}"
+fi
+export PYTHONNOUSERSITE=1
 export ROBOT_CONTROL_JOYSTICK
 
 # 준비 단계부터 잠가 두 실행이 동시에 CAN/입력 장치를 변경하지 않게 한다.
