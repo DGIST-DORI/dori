@@ -18,6 +18,8 @@ source scripts/env.sh
 python3 scripts/deployment_check.py --voice
 ```
 
+기존 `robot_*` 설치본에서 업데이트하면 `scripts/build.sh --clean`으로 이전 overlay를 보관하고 24개 `dori_*`/장치 패키지를 새로 빌드하세요. 메시지 타입도 `dori_msgs`로 통일했으므로 관련 노드를 함께 재시작해야 합니다. [패키지 변경표](docs/dev/package-ownership.md)와 AMM 20-15를 참고하세요.
+
 실물 운용 전 매뉴얼의 AMM 05 및 72 인수 절차를 수행하세요. 다음 명령은 실제 하드웨어를 준비하고 구동 노드를 실행합니다.
 
 ```bash
@@ -39,7 +41,7 @@ scripts/validate_release.sh
 # scripts/validate_release.sh --browser
 ```
 
-시험은 전용 localhost ROS 도메인 94–97을 사용합니다. 실제 Nav2, Cartographer, BT, LLM 규칙 엔진, TTS 이벤트, 웹 서버를 실행하고, 센서·차체·일부 장애 응답만 시험 장치로 대체합니다. [검증 기록](docs/dev/evidence/integration-2026-10-27/README.md)을 참조하세요. 실제 CAN·모터·마이크·카메라 성능과 현장 정지 거리는 이 시험으로 입증되지 않습니다.
+시험은 전용 localhost ROS 도메인 94–97, 99를 사용합니다. 실제 Nav2, Cartographer, BT, LLM 규칙 엔진, TTS 이벤트, 웹 서버를 실행하고, 센서·차체·일부 장애 응답만 시험 장치로 대체합니다. [최초 통합 기록](docs/dev/evidence/integration-2026-10-27/README.md)과 [R3 명칭 변경 후 재검증 기록](docs/dev/evidence/namespace-migration-2026-10-27/README.md)을 참조하세요. 실제 CAN·모터·마이크·카메라 성능과 현장 정지 거리는 이 시험으로 입증되지 않습니다.
 
 ## 구성 자료
 

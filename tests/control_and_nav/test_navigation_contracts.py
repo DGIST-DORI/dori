@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from PIL import Image
 ROOT=Path(__file__).resolve().parents[2]
-sys.path.insert(0,str(ROOT/'ros2_ws/src/robot_navigation/scripts'))
+sys.path.insert(0,str(ROOT/'ros2_ws/src/dori_navigation/scripts'))
 from navigation_contract import load_points_csv,validate_map,normalized_twist
 
 class Contracts(unittest.TestCase):

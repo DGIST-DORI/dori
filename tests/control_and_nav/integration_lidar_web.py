@@ -12,7 +12,7 @@ from sensor_msgs.msg import JointState,LaserScan,Imu
 from control_msgs.msg import DynamicJointState,InterfaceValue
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from std_msgs.msg import Int32,String
-from robot_msgs.msg import MitCommand
+from dori_msgs.msg import MitCommand
 from nav_msgs.msg import Odometry
 from lifecycle_msgs.srv import GetState
 from PIL import Image,ImageDraw
@@ -47,14 +47,14 @@ def main():
         params=[];heading_comparison={}
         if args.heading_test:
             import yaml,copy
-            settings=yaml.safe_load((ROOT/'ros2_ws/src/robot_navigation/config/nav2_real.yaml').read_text())
+            settings=yaml.safe_load((ROOT/'ros2_ws/src/dori_navigation/config/nav2_real.yaml').read_text())
             planner=settings['planner_server']['ros__parameters']
             planner['planner_plugins'].append('ExactHeading')
             planner['ExactHeading']=copy.deepcopy(planner['GridBased'])
             planner['ExactHeading']['plugin']='nav2_smac_planner/SmacPlannerHybrid'
             (d/'nav.yaml').write_text(yaml.safe_dump(settings));params=['params_file:='+str(d/'nav.yaml')]
         points=d/'points.csv';points.write_text('name,x,y,yaw_deg,frame_id\nalpha,0.8,0,0,map\n')
-        rclpy.init();n=Node('software_lidar_web_robot_test');executor=SingleThreadedExecutor();executor.add_node(n)
+        rclpy.init();n=Node('software_lidar_web_dori_test');executor=SingleThreadedExecutor();executor.add_node(n)
         joint=n.create_publisher(JointState,'/joint_states',20);scan=n.create_publisher(LaserScan,'/scan',10)
         imu=n.create_publisher(Imu,'/imu/data_raw',20)
         dynamic=n.create_publisher(DynamicJointState,'/dynamic_joint_states',20)
@@ -146,12 +146,12 @@ def main():
                 time.sleep(0.1)
             raise AssertionError(label+' '+str({k:v for k,v in state.items() if k!='odom'}))
         try:
-            start('supervisor',['ros2','run','robot_supervisor','mode_manager_node'])
-            start('drive',['ros2','run','robot_drive','drive_controller_node','--ros-args','--params-file',str(ROOT/'ros2_ws/src/robot_drive/config/drive_params.yaml'),'--params-file',str(ROOT/'ros2_ws/src/robot_drive/config/kinematics.yaml'),'-p','feedforward_enabled:=false'])
-            start('odometry',['ros2','launch','robot_mapping','lidar_odometry.launch.py'])
+            start('supervisor',['ros2','run','dori_supervisor','mode_manager_node'])
+            start('drive',['ros2','run','dori_drive','drive_controller_node','--ros-args','--params-file',str(ROOT/'ros2_ws/src/dori_drive/config/drive_params.yaml'),'--params-file',str(ROOT/'ros2_ws/src/dori_drive/config/kinematics.yaml'),'-p','feedforward_enabled:=false'])
+            start('odometry',['ros2','launch','dori_mapping','lidar_odometry.launch.py'])
             wait(lambda:state['odom'] is not None,'lidar odometry missing',30)
-            start('nav2',['ros2','launch','robot_navigation','real_nav2.launch.py','map:='+str(mp),'named_goals_file:='+str(d/'web_goals.json'),'goal_source:=web','publish_laser_tf:=false']+params)
-            start('web',['/usr/bin/python3',str(ROOT/'ros2_ws/src/robot_navigation/scripts/web_viewer.py'),'--mode','navigation','--host','127.0.0.1','--port','18080','--user-port','18070' if args.web_user_test else '0','--goals-file',str(d/'web_goals.json')]+(['--ros-args','-p','auto_alignment.period_s:=5.0'] if args.auto_alignment_test else []))
+            start('nav2',['ros2','launch','dori_navigation','real_nav2.launch.py','map:='+str(mp),'named_goals_file:='+str(d/'web_goals.json'),'goal_source:=web','publish_laser_tf:=false']+params)
+            start('web',['/usr/bin/python3',str(ROOT/'ros2_ws/src/dori_navigation/scripts/web_viewer.py'),'--mode','navigation','--host','127.0.0.1','--port','18080','--user-port','18070' if args.web_user_test else '0','--goals-file',str(d/'web_goals.json')]+(['--ros-args','-p','auto_alignment.period_s:=5.0'] if args.auto_alignment_test else []))
             if args.hri_test:
                 start('voice',['ros2','launch','dori_bringup','voice.launch.py','enable_stt:=false','tts_playback_mode:=publish_only'])
                 start('hri',['ros2','launch','dori_bringup','interaction.launch.py'])
@@ -192,6 +192,13 @@ def main():
                         time.sleep(.2)
             def snapshot(): return json.load(urllib.request.urlopen(base+'/api/state',timeout=3))
             wait(lambda:snapshot().get('map_available'),'web map missing',15)
+            # Map and sensor discovery are independent DDS streams. A latched
+            # map may arrive before the first live LiDAR sample in a new viewer.
+            def sensors_ready():
+                sensors=snapshot()['sensors']
+                return all(sensors[key]['age'] is not None and 0<=sensors[key]['age']<limit
+                           and sensors[key]['hz']>0 for key,limit in [('scan',.4),('odom',.25)])
+            wait(sensors_ready,'web scan/odometry discovery',15)
             request('initial_pose',x=.65,y=-.5,yaw=.6) if args.reverse_recovery else request('initial_pose',x=0.,y=0.,yaw=0.)
             wait(lambda:not snapshot()['readiness'],'web navigation readiness',30)
             contract=check_drive_contract(n,wait_future)

@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 from io import BytesIO
-sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'ros2_ws/src/robot_navigation'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'ros2_ws/src/dori_navigation'))
 from dori_web.goals import GoalStore,map_key
 from dori_web.voice import GeminiNavigator
 

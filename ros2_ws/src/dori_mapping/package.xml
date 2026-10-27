@@ -2,10 +2,30 @@
 <package format="3">
   <name>dori_mapping</name>
   <version>0.1.0</version>
-  <description>DORI LiDAR odometry and mapping launch boundary.</description>
+  <description>DORI LiDAR odometry and Cartographer mapping.</description>
   <maintainer email="maintainers@dgist-dori.xyz">DORI</maintainer>
   <license>Apache-2.0</license>
   <buildtool_depend>ament_cmake</buildtool_depend>
-  <exec_depend>robot_mapping</exec_depend>
-  <export><build_type>ament_cmake</build_type></export>
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>tf2_msgs</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-scipy</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>cartographer_ros</exec_depend>
+  <exec_depend>nav2_map_server</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>sllidar_ros2</exec_depend>
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
 </package>

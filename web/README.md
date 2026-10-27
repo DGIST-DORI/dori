@@ -24,20 +24,20 @@ source install/setup.bash
  
 The dashboard can be launched in three clear modes:
 
-- Full stack + dashboard (default): `ros2 launch dori_bringup robot_dev.launch.py`
-  - Equivalent explicit form: `ros2 launch dori_bringup robot_dev.launch.py enable_dashboard:=true`
-- Full stack without dashboard: `ros2 launch dori_bringup robot_dev.launch.py enable_dashboard:=false`
+- Full stack + dashboard (default): `ros2 launch dori_bringup dori_dev.launch.py`
+  - Equivalent explicit form: `ros2 launch dori_bringup dori_dev.launch.py enable_dashboard:=true`
+- Full stack without dashboard: `ros2 launch dori_bringup dori_dev.launch.py enable_dashboard:=false`
 - Dashboard only (standalone): `ros2 launch dori_dashboard dashboard.launch.py`
  
 ```bash
 # Full stack + dashboard (default)
-ros2 launch dori_bringup robot_dev.launch.py
+ros2 launch dori_bringup dori_dev.launch.py
 
 # Full stack + dashboard (explicit)
-ros2 launch dori_bringup robot_dev.launch.py enable_dashboard:=true
+ros2 launch dori_bringup dori_dev.launch.py enable_dashboard:=true
 
 # Full stack without dashboard
-ros2 launch dori_bringup robot_dev.launch.py enable_dashboard:=false
+ros2 launch dori_bringup dori_dev.launch.py enable_dashboard:=false
 ```
  
 If you need to run the dashboard standalone (without the full robot stack):

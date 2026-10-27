@@ -18,7 +18,7 @@ from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Joy, JointState, Imu
 from control_msgs.msg import DynamicJointState
 from std_msgs.msg import Int32, String, Float64
-from robot_msgs.msg import MitCommand, CommandFeedback
+from dori_msgs.msg import MitCommand, CommandFeedback
 
 
 def finite(value):

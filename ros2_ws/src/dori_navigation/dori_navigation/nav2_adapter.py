@@ -119,7 +119,7 @@ class Nav2Adapter(Node):
             goal = NavigateToPose.Goal()
             goal.pose = goal_handle.request.destination
             if goal_handle.request.precise:
-                goal.behavior_tree = str(Path(get_package_share_directory('robot_navigation')) /
+                goal.behavior_tree = str(Path(get_package_share_directory('dori_navigation')) /
                                          'config/navigate_relative.xml')
             sent = self._client.send_goal_async(goal,
                 feedback_callback=lambda msg: self._feedback(goal_handle, msg))

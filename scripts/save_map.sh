@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -eo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
-map_prefix="${1:-$ROBOT_WS/maps/robot_map}"
+map_prefix="${1:-$DORI_WS/maps/dori_map}"
 mkdir -p "$(dirname "$map_prefix")"
 # Cartographer can take longer than the upstream 2 s default to publish a map.
 # Volatile durability accepts both volatile and transient-local publishers.

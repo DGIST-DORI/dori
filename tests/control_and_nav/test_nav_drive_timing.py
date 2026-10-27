@@ -4,7 +4,7 @@ from collections import deque
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
-sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'ros2_ws/src/robot_navigation/scripts'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'ros2_ws/src/dori_navigation/scripts'))
 from nav_drive_bridge import NavDriveBridge
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import TransformStamped,Twist

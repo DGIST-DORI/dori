@@ -1,0 +1,125 @@
+{
+  "count": 24,
+  "packages": [
+    {
+      "name": "cubemars_hardware",
+      "path": "ros2_ws/src/cubemars_hardware",
+      "build_type": "ament_cmake"
+    },
+    {
+      "name": "dori_bringup",
+      "path": "ros2_ws/src/dori_bringup",
+      "build_type": "ament_cmake"
+    },
+    {
+      "name": "dori_bt",
+      "path": "ros2_ws/src/dori_bt",
+      "build_type": "ament_cmake"
+    },
+    {
+      "name": "dori_core",
+      "path": "ros2_ws/src/dori_core",
+      "build_type": "ament_python"
+    },
+    {
+      "name": "dori_dashboard",
+      "path": "ros2_ws/src/dori_dashboard",
+      "build_type": "ament_python"
+    },
+    {
+      "name": "dori_drive",
+      "path": "ros2_ws/src/dori_drive",
+      "build_type": "ament_cmake"
+    },
+    {
+      "name": "dori_error",
+      "path": "ros2_ws/src/dori_error",
+      "build_type": "ament_cmake"
+    },
+    {
+      "name": "dori_hardware",
+      "path": "ros2_ws/src/dori_hardware",
+      "build_type": "ament_cmake"
+    },
+    {
+      "name": "dori_hri",
+      "path": "ros2_ws/src/dori_hri",
+      "build_type": "ament_python"
+    },
+    {
+      "name": "dori_input",
+      "path": "ros2_ws/src/dori_input",
+      "build_type": "ament_cmake"
+    },
+    {
+      "name": "dori_llm",
+      "path": "ros2_ws/src/dori_llm",
+      "build_type": "ament_python"
+    },
+    {
+      "name": "dori_mapping",
+      "path": "ros2_ws/src/dori_mapping",
+      "build_type": "ament_cmake"
+    },
+    {
+      "name": "dori_msgs",
+      "path": "ros2_ws/src/dori_msgs",
+      "build_type": "ament_cmake"
+    },
+    {
+      "name": "dori_navigation",
+      "path": "ros2_ws/src/dori_navigation",
+      "build_type": "ament_cmake"
+    },
+    {
+      "name": "dori_observability",
+      "path": "ros2_ws/src/dori_observability",
+      "build_type": "ament_python"
+    },
+    {
+      "name": "dori_perception",
+      "path": "ros2_ws/src/dori_perception",
+      "build_type": "ament_python"
+    },
+    {
+      "name": "dori_perception_camera",
+      "path": "ros2_ws/src/dori_perception_camera",
+      "build_type": "ament_cmake"
+    },
+    {
+      "name": "dori_supervisor",
+      "path": "ros2_ws/src/dori_supervisor",
+      "build_type": "ament_cmake"
+    },
+    {
+      "name": "dori_transform",
+      "path": "ros2_ws/src/dori_transform",
+      "build_type": "ament_cmake"
+    },
+    {
+      "name": "dynamixel_sdk",
+      "path": "ros2_ws/src/third_party/DynamixelSDK/dynamixel_sdk",
+      "build_type": "ament_cmake"
+    },
+    {
+      "name": "dynamixel_sdk_custom_interfaces",
+      "path": "ros2_ws/src/third_party/DynamixelSDK/dynamixel_sdk_custom_interfaces",
+      "build_type": "ament_cmake"
+    },
+    {
+      "name": "dynamixel_sdk_examples",
+      "path": "ros2_ws/src/third_party/DynamixelSDK/dynamixel_sdk_examples",
+      "build_type": "ament_cmake"
+    },
+    {
+      "name": "imu_serial",
+      "path": "ros2_ws/src/imu_serial",
+      "build_type": "ament_python"
+    },
+    {
+      "name": "sllidar_ros2",
+      "path": "ros2_ws/src/third_party/sllidar_ros2",
+      "build_type": "ament_cmake"
+    }
+  ]
+}

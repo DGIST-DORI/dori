@@ -6,7 +6,7 @@ Run the real-robot profile from this directory (`ros2_ws`):
 source /opt/ros/humble/setup.bash
 colcon build --symlink-install
 source install/setup.bash
-ros2 launch dori_bringup robot.launch.py robot_mode:=real \
+ros2 launch dori_bringup robot.launch.py dori_mode:=real \
   real_map:=$PWD/maps/live_navigation_20261023_1938.yaml \
   real_named_goals_file:=$PWD/maps/web_goals.example.json
 ```

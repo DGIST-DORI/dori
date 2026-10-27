@@ -11,7 +11,7 @@ from urllib.error import HTTPError
 from pathlib import Path
 from concurrent.futures import Future
 from unittest.mock import Mock
-sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'ros2_ws/src/robot_navigation'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'ros2_ws/src/dori_navigation'))
 import rclpy
 from nav_msgs.msg import OccupancyGrid, Odometry
 from sensor_msgs.msg import LaserScan
@@ -119,7 +119,7 @@ class WebViewer(unittest.TestCase):
             self.assertTrue(self.node.commands.empty())
         finally:server.shutdown();server.server_close();thread.join(2)
 
-    def test_relative_goal_uses_robot_heading_and_rejects_motion_or_obstacles(self):
+    def test_relative_goal_uses_dori_heading_and_rejects_motion_or_obstacles(self):
         grid=OccupancyGrid();grid.header.frame_id='map';grid.info.width=grid.info.height=10;grid.info.resolution=1.;grid.info.origin.orientation.w=1.;grid.data=[0]*100
         self.node.receive_map(grid);self.node.mode='navigation';self.node.readiness=lambda:[]
         self.node.owner='test-browser';self.node.values['enabled']=True;self.node.goal_pub=Mock()

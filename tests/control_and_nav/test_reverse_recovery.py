@@ -4,7 +4,7 @@ import sys
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'ros2_ws/src/robot_navigation/scripts'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'ros2_ws/src/dori_navigation/scripts'))
 from reverse_clearance import rear_clearance
 from motion_interpreter import MotionInterpreter, AxisConfig, rolling_arc
 

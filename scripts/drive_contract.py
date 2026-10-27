@@ -18,8 +18,8 @@ def check_drive_contract(node, wait_future, *, check_routes=True):
     """Caller must spin node while wait_future waits; does not publish commands."""
     errors = []
     report = {'parameters': {}, 'routes': {}}
-    geometry = yaml.safe_load((ROOT/'ros2_ws/src/robot_drive/config/kinematics.yaml').read_text())['/**']['ros__parameters']
-    calibration = yaml.safe_load((ROOT/'ros2_ws/src/robot_navigation/config/motion_interpreter.yaml').read_text())['nav_drive_bridge']['ros__parameters']
+    geometry = yaml.safe_load((ROOT/'ros2_ws/src/dori_drive/config/kinematics.yaml').read_text())['/**']['ros__parameters']
+    calibration = yaml.safe_load((ROOT/'ros2_ws/src/dori_navigation/config/motion_interpreter.yaml').read_text())['nav_drive_bridge']['ros__parameters']
     for name, expected in (('drive_controller_node', geometry), ('nav_drive_bridge', geometry | calibration)):
         client = node.create_client(GetParameters, '/'+name+'/get_parameters')
         try:

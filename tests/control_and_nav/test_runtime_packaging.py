@@ -46,7 +46,7 @@ class RuntimePackaging(unittest.TestCase):
         context = LaunchContext()
         for filename in ('system_real.launch.py', 'system_real_with_imu.launch.py'):
             with self.subTest(launch=filename):
-                path = Path(get_package_share_directory('robot_bringup'))/'launch'/filename
+                path = Path(get_package_share_directory('dori_hardware'))/'launch'/filename
                 spec = importlib.util.spec_from_file_location('hardware_launch', path)
                 module = importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
                 description = module.generate_launch_description()
@@ -62,12 +62,12 @@ class RuntimePackaging(unittest.TestCase):
                     self.assertIn('servo3_pitch_follower_node', executables)
 
     def test_installed_packages_belong_to_this_workspace(self):
-        for package in ['robot_bringup', 'robot_mapping', 'robot_navigation', 'imu_serial']:
+        for package in ['dori_hardware', 'dori_mapping', 'dori_navigation', 'imu_serial']:
             share = Path(get_package_share_directory(package))
             self.assertTrue(share.is_relative_to(ROOT/'ros2_ws/install'), share)
 
     def test_mapping_uses_external_lidar_odom_without_imu(self):
-        path = ROOT/'ros2_ws/src/robot_mapping/launch/lidar_only_cartographer.launch.py'
+        path = ROOT/'ros2_ws/src/dori_mapping/launch/lidar_only_cartographer.launch.py'
         spec = importlib.util.spec_from_file_location('mapping_launch', path)
         module = importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
         context = LaunchContext()
@@ -87,10 +87,11 @@ class RuntimePackaging(unittest.TestCase):
             self.assertEqual(len(nodes), 5)
 
     def test_no_old_workspace_path_in_runtime(self):
-        for folder in ['scripts', 'ros2_ws/src/robot_navigation', 'ros2_ws/src/robot_mapping']:
+        for folder in ['scripts', 'ros2_ws/src/dori_navigation', 'ros2_ws/src/dori_mapping']:
             for path in (ROOT/folder).rglob('*'):
                 if path.suffix in ('.py', '.sh', '.yaml', '.xml', '.cpp'):
-                    self.assertNotIn('/home/dori/robot_ws', path.read_text(), str(path))
+                    for old_folder in ('robot_ws', 'dori_ws'):
+                        self.assertNotIn('/home/dori/'+old_folder, path.read_text(), str(path))
 
 
 if __name__ == '__main__':

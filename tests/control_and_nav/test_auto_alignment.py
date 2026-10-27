@@ -14,7 +14,7 @@ from geometry_msgs.msg import PoseWithCovarianceStamped,TransformStamped
 from nav_msgs.msg import Odometry
 from rclpy.time import Time
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'ros2_ws/src/robot_navigation'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'ros2_ws/src/dori_navigation'))
 from dori_web.auto_alignment import alignment_candidate
 from dori_web.bridge import WebBridge
 from dori_web.map_matcher import MapMatcher
@@ -92,7 +92,7 @@ class AutomaticLifecycle(unittest.TestCase):
         self.node.initial_pub.publish.assert_not_called()
         self.assertIsNone(self.auto.task)
 
-    def test_changed_map_and_robot_pose_discard_old_result(self):
+    def test_changed_map_and_dori_pose_discard_old_result(self):
         self.node.map_version+=1;self.auto.tick();self.node.initial_pub.publish.assert_not_called()
 
     def test_pending_goal_and_nan_velocity_are_not_idle(self):

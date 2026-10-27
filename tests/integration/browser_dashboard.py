@@ -49,7 +49,7 @@ def main():
             log=open(Path(directory)/(name+'.log'),'w'); logs.append(log)
             processes.append(subprocess.Popen(cmd,stdout=log,stderr=subprocess.STDOUT,start_new_session=True))
         try:
-            start('viewer',[sys.executable,str(ROOT/'ros2_ws/src/robot_navigation/scripts/web_viewer.py'),
+            start('viewer',[sys.executable,str(ROOT/'ros2_ws/src/dori_navigation/scripts/web_viewer.py'),
                 '--mode','monitor','--host','127.0.0.1','--port','8080','--user-port','0',
                 '--goals-file',str(Path(directory)/'goals.json')])
             start('api',[sys.executable,str(ROOT/'ros2_ws/src/dori_dashboard/dori_dashboard/knowledge_api.py'),
@@ -129,7 +129,7 @@ def main():
             assert '/dori/stt/result' in topics and '/dori/tts/text' in topics,topics
             assert all(p.poll() is None for p in processes)
             report=dict(ok=True,mode='real HTTP + rosbridge + headless Firefox, ROS domain 97',
-                navigation_iframe=True,synthetic_map_and_robot_rendered=True,api_routes=True,csrf_and_origin=True,live_deploy_locked=True,
+                navigation_iframe=True,synthetic_map_and_dori_rendered=True,api_routes=True,csrf_and_origin=True,live_deploy_locked=True,
                 tts_output_and_reconnect=True,local_only_not_duplicated=True,
                 no_legacy_velocity_publisher=True,
                 physical_audio_verified=False,hardware_actuated=False)

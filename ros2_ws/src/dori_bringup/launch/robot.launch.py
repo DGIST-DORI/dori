@@ -12,13 +12,13 @@ def setup(context):
     share = Path(get_package_share_directory('dori_bringup'))/'launch'
     def include(filename, params):
         return IncludeLaunchDescription(PythonLaunchDescriptionSource(str(share/filename)), launch_arguments=params.items())
-    if value('robot_mode') == 'real':
+    if value('dori_mode') == 'real':
         return [include('real_robot.launch.py', {'map':value('real_map'),
             'named_goals_file':value('real_named_goals_file'), 'use_joystick':value('real_use_joystick'),
             **{k:value(k) for k in ('namespace','enable_stt','enable_dashboard','enable_perception',
                                    'tts_playback_mode','wake_word','whisper_model','require_user_tracking')}})]
-    if value('robot_mode') not in ('sim', 'desktop'):
-        raise ValueError('robot_mode must be real, desktop or sim (desktop alias)')
+    if value('dori_mode') not in ('sim', 'desktop'):
+        raise ValueError('dori_mode must be real, desktop or sim (desktop alias)')
     actions = [include('voice.launch.py',{k:value(k) for k in (
         'namespace','enable_stt','tts_playback_mode','wake_word','whisper_model')}),
         include('interaction.launch.py', {'namespace':value('namespace')})]
@@ -31,7 +31,7 @@ def setup(context):
 
 
 def generate_launch_description():
-    defaults = dict(robot_mode='desktop', namespace='/dori', real_map='', real_named_goals_file='',
+    defaults = dict(dori_mode='desktop', namespace='/dori', real_map='', real_named_goals_file='',
         real_use_joystick='false', enable_stt='true', enable_dashboard='false', enable_perception='false',
         tts_playback_mode='local_only', wake_word='hey_mycroft', whisper_model='small', require_user_tracking='false')
     return LaunchDescription([DeclareLaunchArgument(k, default_value=v) for k,v in defaults.items()] +

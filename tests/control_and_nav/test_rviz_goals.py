@@ -2,7 +2,7 @@ import math,sys,unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 from types import SimpleNamespace
-sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'ros2_ws/src/robot_navigation/scripts'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'ros2_ws/src/dori_navigation/scripts'))
 from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Int32, Bool
 from rclpy.time import Time

@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "plant": "synthetic LiDAR only; no motor nodes",
+  "scans": 170,
+  "final_truth": [
+    1.2,
+    0.1,
+    0.15
+  ],
+  "odometry_error_m": 0.00020656345458188068,
+  "map_pose_error_m": 0.009377536010419796,
+  "known_cells": 33911,
+  "occupied_cells": 541,
+  "map_saved": true
+}

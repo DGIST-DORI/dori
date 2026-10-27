@@ -1,83 +1,72 @@
-# ROS 2 package naming and ownership decision
+# DORI package names and ownership
 
-**Status:** Accepted — this is the canonical ROS 2 package namespace.
+**Status:** canonical after the 2026-10-27 namespace migration (AMM R3).
+The workspace contains **24 ROS packages**. All nine former `robot_*` packages
+have been renamed or merged into existing `dori_*` packages. Hardware calibration,
+functional executable names and operational topic paths remain unchanged.
 
-This document fixes the final ROS 2 package names and the responsibility of every
-package currently under `ros2_ws/src/`.  It defines the canonical source
-directories, manifests, imports, and launch references.
+## Migration map
 
-## Physical integration rules (2026-10-27)
+| Previous package | Current package | Responsibility |
+|---|---|---|
+| `robot_bringup` | `dori_hardware` | Physical launch, CAN/servo/IMU configuration and controller setup |
+| `robot_drive` | `dori_drive` | Wheel control, normalized command scaling, watchdogs and diagnostic tools |
+| `robot_error` | `dori_error` | Hardware/system error handling |
+| `robot_input` | `dori_input` | Joystick, keyboard and explicitly selected virtual input tools |
+| `robot_supervisor` | `dori_supervisor` | Manual/AUTO authority, emergency stop and transform gating |
+| `robot_transform` | `dori_transform` | Physical transformation, stabilization and gimbal control |
+| `robot_msgs` | `dori_msgs` | Five physical-control messages alongside four HRI/navigation actions |
+| `robot_mapping` | `dori_mapping` | Metric LiDAR odometry, extrinsics and Cartographer configuration |
+| `robot_navigation` | `dori_navigation` | Nav2 plugin/configuration, TTA bridge, map viewer and public action adapters |
 
-The robot-tested `robot_*`, `cubemars_hardware`, `imu_serial` and bundled vendor
-package identities are retained. `dori_*` packages compose HRI, public actions
-and deployment around these controllers. Do not rename or retune calibrated
-controllers as part of a package naming cleanup. The workspace contains 28 ROS
-packages, including vendor packages.
+`dori_hardware` now directly owns `system_real.launch.py`,
+`system_real_with_imu.launch.py` and their configuration. Keeping these below
+`dori_bringup` avoids a `bringup -> hardware -> bringup` package dependency cycle.
+The old mapping wrapper was replaced with the actual odometry launch to prevent
+self-inclusion after the merge.
 
-- `robot_navigation` owns Nav2 configuration, motion interpretation and the map
-  web viewer; `dori_navigation` owns public action admission and named registry.
-- `robot_mapping` owns metric LiDAR odometry and Cartographer configuration;
-  `dori_mapping` exposes the composition boundary.
-- `robot_bringup`, `robot_supervisor`, `robot_drive`, `robot_transform`,
-  `robot_error`, `robot_input`, `robot_msgs`, `cubemars_hardware`, `imu_serial`
-  retain their physical control responsibilities. `dori_hardware` composes them.
-- `dori_bt` owns the session coordinator. `dori_hri` owns voice and emotion I/O.
-- The authoritative deployment instructions are [DORI AMM](../user/DORI-AMM.md).
+`dori_navigation` is an `ament_cmake` package using `ament_cmake_python`. It
+installs the native planner, the `dori_navigation` and `dori_web` Python modules,
+and the `nav2_adapter`, `named_goal_adapter`, and `web_viewer.py` executables.
+There is no second setup.py/resource identity for that package.
 
-## Final package map
+## Remaining package boundaries
 
-| ROS package | Owner area | Decision and boundary |
-| --- | --- | --- |
-| `dori_msgs` | Shared ROS interfaces | Interface-only package.  It owns `Navigate.action`, `LLMQuery.action`, `Speak.action`, and future cross-domain messages, services, and actions; it owns no application node. |
-| `dori_bt` | Robot decision orchestration | Owns BehaviorTree.CPP v3 (Humble) execution node (`dori_tree_executor`), tree XML definitions, custom BT action/condition nodes, and high-level task coordination. |
-| `dori_bringup` | System composition | Owns top-level and subsystem launch composition, common launch arguments, namespaces, and remappings.  It does not own functional nodes. |
-| `dori_navigation` | Navigation | Owns navigation execution, planning/control integration, and navigation configuration. |
-| `dori_llm` | Language intelligence | Owns intent handling, retrieval/index access, model integration, and `LLMQuery` action server implementation. |
-| `dori_perception` | Perception (Python vision) | Owns Python person, landmark, gesture, facial-expression, and any Python camera nodes, plus their models/configuration. |
-| `dori_perception_camera` | Perception (native camera adapter) | Auxiliary C++ camera-driver package owned by the perception area.  It isolates `ament_cmake`, RealSense/native SDK, and C++ ABI dependencies from Python vision dependencies. |
-| `dori_hri` | HRI & Voice I/O | Owns speech input (STT), speech synthesis (TTS Action server & direct text injection), emotion/expression publishing, and audio cues. |
-| `dori_dashboard` | Dashboard | Owns the ROS/web bridge, dashboard API/server, packaged frontend assets, and dashboard launch entry point. |
-| `dori_observability` | Operations and observability | Owns host/robot metrics collection.  It is consumed by the dashboard but remains deployable independently of the web deployment. |
+| Package | Responsibility |
+|---|---|
+| `dori_bringup` | Top-level launch composition, HRI, optional perception and dashboard |
+| `dori_bt` | BehaviorTree.CPP v3 session coordinator and ROS action clients |
+| `dori_core` | Shared Python application contracts |
+| `dori_dashboard` | Dashboard API, ROS/WebSocket composition and installed web assets |
+| `dori_hri` | Wake word, STT, TTS and emotion I/O |
+| `dori_llm` | Intent processing, knowledge and optional external LLM/RAG |
+| `dori_observability` | Runtime metrics |
+| `dori_perception` | Python person/gesture/expression/landmark processing |
+| `dori_perception_camera` | Native camera adapter |
 
-### Perception decision
+Device/vendor packages retain their established names: `cubemars_hardware`,
+`imu_serial`, `sllidar_ros2`, `dynamixel_sdk`, `dynamixel_sdk_custom_interfaces`,
+`dynamixel_sdk_examples`. ROS/Nav2 contract identifiers `robot_state_publisher`,
+`robot_description`, `robot_base_frame`, `robot_radius`, `robot_model_type` are
+external API names and must not be branded or renamed.
 
-We retain Python/C++ build boundaries rather than forcing a single hybrid ROS
-package.  `dori_perception` is the canonical perception package and
-`dori_perception_camera` is its explicitly named auxiliary package.  The system composition package
-selects the camera implementation by package/executable; it must not try to
-install both implementations as packages with the same ROS package name.
+## Upgrade contract
 
-### HRI decision
+- C++ headers/namespaces and Python imports now use the current package names.
+  For example, `dori_msgs/msg/MitCommand` replaces the former motor message type.
+  Fields are unchanged, but the DDS type identity changes; all clients using
+  these custom messages must be rebuilt and restarted together.
+- `/auto/cmd_vel`, `/drive/cmd_vel`, `/bldc_mit_speed_cmd`, `/dori/nav/*`, node
+  names and drive calibration values remain stable.
+- Helpers are `scripts/dori_stack.py`, `scripts/run_dori_control.sh`,
+  `dori_bringup/dori_dev.launch.py`; the repository environment variable is
+  `DORI_WS` and the mode argument of `robot.launch.py` is `dori_mode`.
+- No old ROS package alias or old generated interface is installed. Historical
+  evidence/legacy documentation intentionally retains the names it actually tested.
+- Stop the affected stack, run `scripts/build.sh --clean`, source
+  `scripts/env.sh` in a fresh shell, then follow [AMM 20-15](../user/DORI-AMM.md).
+  The clean build archives old build/install/log artifacts under `.state`.
 
-`dori_hri` owns speech and expression capabilities; `dori_bt` owns
-the coordinator. These capabilities are integrated together with their specialized model and
-audio dependencies, preserving an unambiguous ownership hierarchy.
-
-## Historical HRI rename scope contract
-
-This table describes the earlier HRI-only rename. The physical packages listed
-above are retained and take precedence over its general naming statements.
-
-The migration changes identity at package and Python-module boundaries.  Runtime
-node and graph names remain stable unless a later, separately approved ROS API
-change says otherwise.
-
-| Identifier kind | Target convention | What changes in this migration | What remains stable / is out of scope |
-| --- | --- | --- | --- |
-| ROS package name | Exact name in the package inventory, lowercase snake case, `dori_` prefix. | Directory name, `package.xml` `<name>`, ament resource marker, CMake/setup package name, dependency declarations, `get_package_share_directory()` calls, and `ros2 launch`/`ros2 run` package argument. | Superseded package names are not discoverable in the workspace. |
-| Python import package | Exact final Python package name for every `ament_python` package: `dori_navigation`, `dori_llm`, `dori_perception`, `dori_hri`, `dori_dashboard`, or `dori_observability`. | On-disk import directory, `setup.py` entry-point target, and all first-party imports.  Generated action imports change to `dori_msgs.action`. | Third-party import names are not renamed.  No import shim for `*_pkg` is supplied. |
-| Executable / console script | Functional, lowercase snake case name; existing unique names are retained (for example `navigator_node`, `llm_node`, `stt_node`, and `depth_camera_node`). | Entry-point module paths and launch `package=` fields change; the C++ target/install reference moves with `dori_perception_camera`. | Executable spelling does not gain a `dori_` prefix solely because its package did. |
-| ROS node name | Functional, lowercase snake case; launch may continue to assign instance names such as `depth_camera_front`. | Launch `package=` changes and node implementation/import movement are updated. | `name=`, node constructor names, namespaces, and node graph identities stay unchanged. |
-| Topic, service, and action graph names | Existing relative API names (for example `stt/result`, `tts/text`, and `nav/navigate_to`) with final routing owned by launch namespace/remapping. | Type references change from `dori_msgs/...` to `dori_msgs/...`; documentation and code imports follow that type package name. | Topic/service/action paths, parameter keys that carry them, and `/dori` namespace behavior do not change. |
-| Launch file name | Existing launch filenames remain functional entry points under `dori_bringup`, `dori_navigation`, and `dori_dashboard`. | Every included launch and package lookup uses the canonical package name. | No copied compatibility launch package or deprecated launch filename is retained. |
-
-## Required migration acceptance checks
-
-1. `colcon list` reports exactly the nine package names in the table and reports
-   no superseded package names.
-2. `ros2 pkg executables` and every launch file resolve canonical package names and
-   their retained executable names.
-3. `dori_msgs` remains a member of `rosidl_interface_packages`; all action
-   imports and action type references use `dori_msgs/action/Navigate`.
-4. A workspace search finds no superseded package import, dependency, launch
-   lookup, resource marker, alias package, deprecated launch, or wrapper.
+Acceptance checks cover the source/install package inventory, acyclic manifest
+dependencies, native message serialization, merged navigation assets, launch
+arguments and actual ROS drive/HRI/Nav2/web/mapping flows.

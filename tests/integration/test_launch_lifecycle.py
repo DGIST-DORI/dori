@@ -19,7 +19,7 @@ ROOT=Path(__file__).resolve().parents[2]
 ])
 def test_process_exit_propagates_to_session_shutdown(name,code,expected):
     path=ROOT/'ros2_ws/src/dori_bringup/launch/real_robot.launch.py'
-    spec=importlib.util.spec_from_file_location('robot_launch_under_test',path)
+    spec=importlib.util.spec_from_file_location('dori_launch_under_test',path)
     module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
     context=LaunchContext()
     context.launch_configurations['map']=str(ROOT/'maps/live_navigation_20261023_1938.yaml')

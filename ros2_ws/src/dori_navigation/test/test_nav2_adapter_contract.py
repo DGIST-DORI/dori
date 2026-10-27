@@ -1,14 +1,16 @@
 """Regression checks for the public DORI-to-Nav2 navigation boundary."""
 
 from pathlib import Path
+from ament_index_python.packages import get_package_prefix
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_legacy_navigator_is_not_packaged():
-    setup = (ROOT / 'setup.py').read_text()
-    assert 'navigator_node' not in setup
+    installed = Path(get_package_prefix('dori_navigation')) / 'lib' / 'dori_navigation'
+    assert (installed / 'nav2_adapter').is_file()
+    assert not (installed / 'navigator_node').exists()
     assert not (ROOT / 'dori_navigation' / 'navigator.py').exists()
     assert not (ROOT / 'launch' / 'navigation.launch.py').exists()
 
