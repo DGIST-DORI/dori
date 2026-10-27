@@ -18,6 +18,9 @@ def generate_launch_description():
                 'launch', 'system_real_with_imu.launch.py')),
             launch_arguments={
                 'use_joystick': LaunchConfiguration('use_joystick'),
+                # The legacy virtual VLM keyboard publishes normalized AUTO
+                # inputs directly; it must never compete with the TTA bridge.
+                'use_input_nodes': 'false',
                 'use_wheel_odometry': 'false',
                 'odom_publish_tf': 'false',
             }.items(),

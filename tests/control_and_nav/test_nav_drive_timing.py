@@ -28,7 +28,7 @@ class TimingTests(unittest.TestCase):
   self.stamp(self.n.scan,100.)
   self.n.hardware_feedback=DynamicJointState();self.stamp(self.n.hardware_feedback,100.)
   self.n.hardware_feedback.joint_names=['left_wheel_joint','right_wheel_joint']
-  self.n.hardware_feedback.interface_values=[InterfaceValue(interface_names=['feedback_age'],values=[.001]) for _ in range(2)]
+  self.n.hardware_feedback.interface_values=[InterfaceValue(interface_names=['feedback_age','position','velocity'],values=[.001,0.,0.]) for _ in range(2)]
   self.available={};self.n.buffer=Mock();self.n.buffer.lookup_transform=self.lookup
  def stamp(self,m,sec):m.header.stamp=Time(seconds=sec,clock_type=ClockType.ROS_TIME).to_msg()
  def feed(self,sec,with_tf=True):
@@ -61,6 +61,34 @@ class TimingTests(unittest.TestCase):
  def test_new_invalid_odom_stops_even_if_previous_pair_valid(self):
   self.feed(99.96);o=self.feed(99.98,False);o.pose.pose.position.x=math.nan
   self.assertEqual(self.n.reason(),'nonfinite_odom')
+ def test_invalid_lidar_velocity_stops_before_any_axis_can_drive(self):
+  o=self.feed(99.98);o.twist.twist.angular.z=math.nan
+  self.assertEqual(self.n.reason(),'nonfinite_odom')
+ def test_feedback_age_includes_delivery_and_measurement_delay(self):
+  self.feed(99.98);self.stamp(self.n.hardware_feedback,99.85)
+  self.n.hardware_feedback.interface_values[0].values[0]=.1
+  self.assertEqual(self.n.reason(),'stale_hardware_feedback')
+ def test_bad_encoder_sample_cannot_reuse_old_motion_for_learning(self):
+  self.n.wheel_motion=deque([(99.9,0.,0.)]);self.n.encoder_v=self.n.encoder_w=1.
+  self.n.hardware_feedback.interface_values[0].values[1]=math.nan
+  self.n.on_feedback(self.n.hardware_feedback)
+  self.assertFalse(self.n.feedback_valid());self.assertFalse(self.n.wheel_motion)
+  self.assertEqual((self.n.encoder_v,self.n.encoder_w),(0.,0.))
+ def test_applied_input_uses_header_age_and_drops_stale_invalid_samples(self):
+  self.n.wheel_radius=.234;self.n.wheel_separation=.184;self.n.scale_v=1.72;self.n.scale_w=7.
+  self.n.applied_history=deque();self.n.response_delay=[.15,0.]
+  m=DynamicJointState();m.joint_names=['left_wheel_joint','right_wheel_joint']
+  m.interface_values=[InterfaceValue(interface_names=['target_velocity'],values=[2.]) for _ in range(2)]
+  self.stamp(m,99.8);self.n.on_applied(m)
+  self.assertAlmostEqual(self.n.applied_v,.234*2/1.72)
+  self.assertGreaterEqual(time.monotonic()-self.n.applied_time,.2)
+  for invalid_stamp in (99.,101.):
+   self.stamp(m,invalid_stamp);self.n.on_applied(m)
+   self.assertEqual(self.n.applied_time,0.);self.assertFalse(self.n.applied_history)
+  self.stamp(m,100.);self.n.on_applied(m)
+  m.interface_values[0].values[0]=math.nan;self.n.on_applied(m)
+  self.assertEqual(self.n.applied_time,0.)
+  self.assertTrue(all(math.isnan(x) for x in self.n.learning_input(100.)))
  def test_authority_loss_stops_even_with_fresh_nav_command_and_sensors(self):
   self.feed(99.98);self.n.authority_time=time.monotonic()-1.
   self.assertEqual(self.n.reason(),'authority_stale')

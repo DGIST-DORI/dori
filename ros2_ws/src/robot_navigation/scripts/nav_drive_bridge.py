@@ -7,6 +7,8 @@ from collections import deque
 
 import rclpy
 from rclpy.node import Node
+from rclpy.executors import ExternalShutdownException
+from rclpy._rclpy_pybind11 import RCLError
 from rclpy.time import Time
 from rclpy.qos import QoSProfile, DurabilityPolicy, qos_profile_sensor_data
 from geometry_msgs.msg import Twist
@@ -17,6 +19,7 @@ from std_msgs.msg import Bool, Int32, String
 from action_msgs.msg import GoalStatusArray, GoalStatus
 from tf2_ros import Buffer, TransformListener, TransformException
 from rcl_interfaces.srv import GetParameters
+from rcl_interfaces.msg import SetParametersResult
 from navigation_contract import normalized_twist
 from motion_interpreter import MotionInterpreter, AxisConfig, rolling_arc
 from reverse_clearance import rear_clearance
@@ -29,6 +32,8 @@ class NavDriveBridge(Node):
         self.scale_w = self.declare_parameter('max_angular_velocity', 7.0).value
         self.wheel_radius = self.declare_parameter('wheel_radius', .234).value
         self.wheel_separation = self.declare_parameter('wheel_separation', .184).value
+        if not all(math.isfinite(x) and x > 0 for x in (self.wheel_radius, self.wheel_separation)):
+            raise ValueError('Wheel geometry must be finite and positive')
         self.max_v = self.declare_parameter('nav_max_linear', 0.3).value
         self.max_w = self.declare_parameter('nav_max_angular', 1.2).value
         self.reverse_max = self.declare_parameter('recovery_max_reverse_speed', .12).value
@@ -94,6 +99,10 @@ class NavDriveBridge(Node):
         self.create_subscription(DynamicJointState, '/drive/wheel_control', self.on_applied, qos_profile_sensor_data)
         self.create_subscription(Bool, '/emergency_stop', self.on_estop, 10)
         self.create_timer(0.05, self.tick)
+        # These attributes and interpreter state are built once above. Accepting
+        # a ROS parameter edit without rebuilding them would report false values.
+        self.add_on_set_parameters_callback(lambda _: SetParametersResult(
+            successful=False, reason='Startup calibration: restart nav_drive_bridge to change parameters'))
 
     def on_authority(self, msg):
         self.authority_time = time.monotonic() if msg.data else 0.
@@ -149,14 +158,19 @@ class NavDriveBridge(Node):
     def on_scan(self, msg): self.scan = msg
     def on_feedback(self, msg):
         self.hardware_feedback = msg
+        if not self.feedback_valid():
+            self.wheel_motion.clear()
+            self.encoder_v = self.encoder_w = 0.
+            return
         try:
             positions = []
             for name in ('left_wheel_joint', 'right_wheel_joint'):
                 values = msg.interface_values[msg.joint_names.index(name)]
                 positions.append(values.values[values.interface_names.index('position')])
             stamp = Time.from_msg(msg.header.stamp).nanoseconds/1e9
-            if not all(math.isfinite(x) for x in positions): return
-            if self.wheel_motion and stamp <= self.wheel_motion[-1][0]: self.wheel_motion.clear()
+            if self.wheel_motion and stamp <= self.wheel_motion[-1][0]:
+                self.wheel_motion.clear()
+                self.encoder_v = self.encoder_w = 0.
             self.wheel_motion.append((stamp, *positions))
             while len(self.wheel_motion)>1 and stamp-self.wheel_motion[1][0] >= .3: self.wheel_motion.popleft()
             old = self.wheel_motion[0]; interval = stamp-old[0]
@@ -166,25 +180,31 @@ class NavDriveBridge(Node):
                 self.encoder_v = self.wheel_radius*(left+right)/2
                 self.encoder_w = self.wheel_radius*(right-left)/self.wheel_separation
         except (ValueError, IndexError):
+            self.wheel_motion.clear()
             self.encoder_v = self.encoder_w = 0.
 
 
     def on_applied(self, msg):
         try:
+            if not self.fresh(msg, .3): raise ValueError('Stale applied input')
             targets=[]
             for name in ('left_wheel_joint','right_wheel_joint'):
                 values=msg.interface_values[msg.joint_names.index(name)]
                 targets.append(values.values[values.interface_names.index('target_velocity')])
-            if not all(math.isfinite(x) for x in targets): return
+            if not all(math.isfinite(x) for x in targets): raise ValueError('Invalid applied input')
             left,right=targets
             self.applied_v=self.wheel_radius*(left+right)/2/self.scale_v
             self.applied_w=self.wheel_radius*(right-left)/self.wheel_separation/self.scale_w
-            self.applied_time=time.monotonic()
+            age=max(0., (self.get_clock().now()-Time.from_msg(msg.header.stamp)).nanoseconds/1e9)
+            self.applied_time=time.monotonic()-age
             stamp=Time.from_msg(msg.header.stamp).nanoseconds/1e9
             if self.applied_history and stamp<=self.applied_history[-1][0]:self.applied_history.clear()
             self.applied_history.append((stamp,self.applied_v,self.applied_w))
         except (ValueError,IndexError):
-            pass
+            # A new bad sample must not leave the last good input eligible for TTA.
+            self.applied_v=self.applied_w=0.
+            self.applied_time=0.
+            self.applied_history.clear()
 
     def learning_input(self, stamp):
         result=[]
@@ -197,11 +217,14 @@ class NavDriveBridge(Node):
     def feedback_valid(self):
         msg = self.hardware_feedback
         if not self.fresh(msg, .25): return False
+        transport_age=max(0., (self.get_clock().now()-Time.from_msg(msg.header.stamp)).nanoseconds/1e9)
         for name in ('left_wheel_joint', 'right_wheel_joint'):
             try:
                 values = msg.interface_values[msg.joint_names.index(name)]
                 age = values.values[values.interface_names.index('feedback_age')]
-                if not math.isfinite(age) or not 0 <= age <= .2: return False
+                if not math.isfinite(age) or age < 0 or age+transport_age > .2: return False
+                for field in ('position', 'velocity'):
+                    if not math.isfinite(values.values[values.interface_names.index(field)]): return False
             except (ValueError, IndexError):
                 return False
         return True
@@ -213,7 +236,8 @@ class NavDriveBridge(Node):
             self.params_future.cancel()
             self.params_pending = False
         if not self.parameter_client.service_is_ready(): return
-        request = GetParameters.Request(); request.names = ['max_linear_velocity', 'max_angular_velocity']
+        request = GetParameters.Request()
+        request.names = ['max_linear_velocity', 'max_angular_velocity', 'wheel_radius', 'wheel_separation']
         self.params_pending = True
         future = self.parameter_client.call_async(request)
         self.params_future = future; self.params_requested = time.monotonic()
@@ -222,9 +246,9 @@ class NavDriveBridge(Node):
             self.params_pending = False
             try:
                 values = result.result().values
-                self.scale_verified = len(values) == 2 and all(
+                self.scale_verified = len(values) == 4 and all(
                     v.type == 3 and math.isclose(v.double_value, expected, rel_tol=1e-8)
-                    for v, expected in zip(values, [self.scale_v, self.scale_w]))
+                    for v, expected in zip(values, [self.scale_v, self.scale_w, self.wheel_radius, self.wheel_separation]))
                 self.params_time = time.monotonic()
             except Exception:
                 self.scale_verified = False
@@ -260,7 +284,10 @@ class NavDriveBridge(Node):
         if not self.fresh(self.odom, self.odom_timeout): return 'stale_odom'
         if self.odom.header.frame_id != 'odom' or self.odom.child_frame_id != 'base_link': return 'invalid_odom_frames'
         p, q = self.odom.pose.pose.position, self.odom.pose.pose.orientation
-        if not all(math.isfinite(v) for v in [p.x,p.y,p.z,q.x,q.y,q.z,q.w]): return 'nonfinite_odom'
+        velocity = self.odom.twist.twist
+        if not all(math.isfinite(v) for v in [p.x,p.y,p.z,q.x,q.y,q.z,q.w,
+                velocity.linear.x,velocity.linear.y,velocity.linear.z,
+                velocity.angular.x,velocity.angular.y,velocity.angular.z]): return 'nonfinite_odom'
         if not self.fresh(self.scan, self.scan_timeout): return 'stale_scan'
         if self.scan.header.frame_id != 'laser': return 'invalid_scan_frame'
         if not any(math.isfinite(x) and self.scan.range_min <= x <= self.scan.range_max for x in self.scan.ranges): return 'empty_scan'
@@ -344,10 +371,13 @@ class NavDriveBridge(Node):
 def main():
     rclpy.init(); node = NavDriveBridge()
     try: rclpy.spin(node)
-    except KeyboardInterrupt: pass
+    except (KeyboardInterrupt, ExternalShutdownException): pass
     finally:
         if rclpy.ok():
-            node.enabled=False; node.tick()
+            try:
+                node.enabled=False; node.tick()
+            except RCLError:
+                if rclpy.ok(): raise
         node.destroy_node()
         if rclpy.ok(): rclpy.shutdown()
 

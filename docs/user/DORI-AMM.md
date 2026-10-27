@@ -3,13 +3,13 @@
 | 문서 관리 | 값 |
 |---|---|
 | 문서 번호 | DORI-AMM-001 |
-| 개정 | R1 / 2026-10-27 |
+| 개정 | R2 / 2026-10-27 — 주행 단위·TTA 재감사 |
 | 적용 대상 | Ubuntu 22.04, ROS 2 Humble, Python 3.10, 기존 DORI 실물 제어장치 |
 | 소스 기준 | feature/control-and-navigation `ec23021db449fbb1cac91740f5a466fb5af9c1c8` |
 | main 대조 | `d4cc1ae079082ef5af94583ce684155c39f58c28` — 위 feature의 조상, 별도 미포함 HRI 커밋 없음 |
 | 통합 브랜치 | `integration/robot-hri-navigation` |
 | 검증 등급 | 소프트웨어 통합 검증 완료 / 실물 인수시험 미수행 |
-| 관련 기록 | [검증 기록 및 원시 결과](../dev/evidence/integration-2026-10-27/README.md) |
+| 관련 기록 | [최초 통합 검증](../dev/evidence/integration-2026-10-27/README.md), [R2 주행 재감사](../dev/evidence/drive-audit-2026-10-27/README.md) |
 
 이 문서는 항공기 정비서의 작업 번호·선행조건·작업·합격기준·복구 형식을 적용한 로봇 작업 문서다. 항공 인증 또는 현장 로봇의 운용 승인 문서가 아니다. 모든 명령은 별도 표시가 없으면 저장소 루트에서 일반 사용자로 실행한다.
 
@@ -127,14 +127,31 @@ python3 scripts/deployment_check.py --voice
   → /dori/nav/navigate_named → 지도별 목적지 검증
   → /dori/nav/navigate_to → nav2_adapter
   → /dori/internal/navigate_to_pose → 실제 Nav2
-  → /nav/cmd_vel → nav_drive_bridge → /auto/cmd_vel
-  → 기존 supervisor / drive_controller → 기존 모터 출력
+  → /nav/cmd_vel_raw → velocity_smoother → /nav/cmd_vel [m/s, rad/s]
+  → nav_drive_bridge [실측 역모델 + PI + 제한된 TTA]
+  → /auto/cmd_vel [-1..1 조이스틱 입력] → mode_manager_node
+  → /drive/cmd_vel [-1..1 조이스틱 입력] → drive_controller_node
+  → 가감속 제한 → /bldc_mit_speed_cmd [바퀴 rad/s 및 토크]
 
 웹 지도 / RViz → /goal_pose 또는 /relative_goal_pose
   → named_goal_bridge → 동일한 /dori/nav/navigate_to
 ```
 
 액션 수락 시부터 권한을 예약하므로 동시에 받은 주행 목표 중 하나만 실행한다. 모드 해제, 비상 정지, 하드웨어 억제 시 active를 내리고 실제 Nav2 취소 완료를 기다린다. 수락/취소 응답이 제한 시간을 넘으면 오류를 유지하고 재시작을 요구한다. 늦게 도착한 수락도 취소한다.
+
+### TASK 30-20-00 — SI 속도·조이스틱 단위·TTA 경로 점검
+
+**선행조건:** 정지 상태, 통합 세션 실행, 초기 위치 설정 완료. 이 작업은 읽기 검사이며 시험 속도를 직접 발행하지 않는다.
+
+1. `python3 scripts/preflight.py --stage navigation --hri --output log/preflight.json`을 실행한다.
+2. `drive_contract.ok`와 전체 `ok`가 모두 참인지 확인한다. 원시 Nav2 출력의 소유자는 controller/behavior server, 평활화 출력은 velocity_smoother, AUTO 출력은 nav_drive_bridge, 최종 정규화 출력은 mode_manager_node여야 한다. Humble의 BackUp/Wait는 같은 behavior_server 이름으로 각각 publisher를 가지므로 이 경우만 복수 endpoint를 허용한다.
+3. `ros2 topic echo /navigation/motion_interpreter --once`로 보정 활성화와 진단 필드를 확인한다. `desired`는 지면 목표 속도, `linear.input`/`angular.input`은 조이스틱 입력, `applied`는 `/drive/wheel_control`의 제한기 후 바퀴 목표에서 복원한 입력이다.
+4. 초기 선형 gain `0.62`, 시동 입력 `0.22`, 각 gain `1.67`, `motion.arc_only=true`와 기구 상수를 확인한다. 정속 전진 0.3 m/s의 초기 역모델은 `0.22 + 0.3/0.62 ≈ 0.704`다. 단순 `0.3/1.72 ≈ 0.174`는 실측 시동 입력보다 작아 이 기구의 AUTO 변환에 사용하지 않는다. 가감속·PI·TTA 때문에 순간 출력은 고정값이 아니다.
+5. 수동 조이스틱은 `/manual/cmd_vel`로 이미 정규화된 값을 보낸다. 수동 모드에서만 supervisor가 이를 전달하며, 이 입력에 AUTO의 역모델을 중복 적용하지 않는다.
+
+**합격기준:** 정확한 발행자·수신자 연결, TTA 활성화, YAML과 실행 파라미터 일치, 중복 제어 노드 및 일반 `/cmd_vel` 경로 없음.
+
+**불합격 조치:** 구형 `virtual_vlm_input_node`는 AUTO를 직접 발행하는 시험 도구다. 통합 하드웨어 launch는 `use_input_nodes=false`로 강제하고, 별도로 실행된 도구는 preflight에서 중복 발행자로 검출한다. 웹의 일반 토픽 발행 패널에서는 `/cmd_vel` 항목을 제거했다. 주행은 지도 목표 또는 HRI 안내 인터페이스를 사용한다. 기구 상수와 bridge 파라미터는 실행 중 변경하지 않고 설정 파일 수정 후 전체 세션을 재시작한다.
 
 | 인터페이스 | 소유자 / 의미 |
 |---|---|
@@ -272,7 +289,7 @@ scripts/save_map.sh "$PWD/maps/new_site"
 | 후진 복구 상한 | 0.12 m/s, 후방 여유 확인 필수 |
 | 주행 명령 신선도 | 0.4초 |
 | odom / scan 신선도 | 0.5초 / 0.8초 |
-| CAN 바퀴 피드백 허용 나이 | 각 바퀴 0.2초 이하 |
+| CAN 바퀴 피드백 허용 나이 | 각 바퀴 CAN 나이 + ROS 전달/보관 시간 합계 0.2초 이하 |
 | 권한 heartbeat | 0.5초 이내 |
 | 일반 / 상대 이동 도착 재검증 | 목표와 0.35 m / 0.15 m 이내의 최근 1초 map 피드백 |
 | 액션 수락 / 취소 대기 | 기본 각각 5초, 초과 시 오류 유지·해제 |
@@ -296,6 +313,7 @@ scripts/validate_release.sh
 | 95, localhost | 가상 차체/센서 → 실제 Nav2·drive·웹·HRI 폐루프 |
 | 96, localhost | 실제 ROS 액션 통신과 C++ BT, 제어 가능한 Nav2 시험 서버 |
 | 97, localhost | 실제 HTTP·프록시·rosbridge·Firefox 대시보드 |
+| 99, localhost | 실제 TTA bridge·supervisor·C++ drive, 실측 응답 모델·온라인 적응·오류 주입 |
 
 브라우저 시험은 개발용 Firefox Marionette 세션을 별도로 준비하고 `.venv/bin/python -m pip install marionette_driver`를 실행한다. 테스트 전용 빈 프로필을 사용한다.
 
@@ -334,6 +352,9 @@ Snap Firefox라면 프로필은 `~/snap/firefox/common/` 아래에 둔다. 시�
 | Nav2 action server unavailable | 내부 endpoint remap, lifecycle 상태 확인 | 패키지 설치·launch 경로 정리 후 전체 세션 재시작 |
 | 권한 오류 유지 / 수락·취소 timeout | 관련 로그와 실제 Nav2 종료 여부 확인 | 정지 확인 후 세션 재시작; 실행 중 강제로 오류만 해제하지 않음 |
 | 주행 준비가 계속 빨간색 | scan/odom/TF/CAN feedback 나이, 초기 위치, lifecycle 확인 | 원인 수정 후 preflight 재수행 |
+| `hardware_scale_unverified` | drive/bridge의 속도 스케일 2개와 반경·간격 2개 확인 | 네 값 모두 일치하도록 설정 후 재기동 |
+| `nonfinite_odom` / `stale_hardware_feedback` | pose 외 twist도 유한한지, encoder position/velocity와 CAN+ROS 총 나이 확인 | 잘못된 센서/전달 경로 복구; 예전 샘플로 학습을 계속하지 않음 |
+| TTA 계수가 학습되지 않음 | 새 LiDAR stamp, encoder 부호, 제한기 후 입력의 stamp와 0.15초 응답 지연 확인 | 정지·과도 구간의 학습 억제는 정상. 누락/오래된 applied 샘플의 기록·통신 경로 점검 |
 | 지도는 보이나 HRI 목적지 없음 | goals 파일, map_key, 중복 이름, free cell 확인 | 현재 지도에서 목적지 다시 저장 |
 | 스캔이 반대 방향 | 실제 장착 방향 및 laser_yaw, 초기 yaw 비교 | 측정한 외부 파라미터로 재기동 |
 | 웹 연결만 되고 상태 없음 | WebSocket 9090, ROS domain, rosapi 프로세스 확인 | 동일 도메인으로 재연결 |

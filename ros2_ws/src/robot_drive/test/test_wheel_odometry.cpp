@@ -17,6 +17,9 @@ TEST(WheelFeedback, RejectsMissingStaleAndNonfiniteFeedback)
     values.values = {1.0, 0.01};
   }
   EXPECT_TRUE(robot_drive::feedback_fresh(msg, "left", "right", 0.2));
+  EXPECT_TRUE(robot_drive::feedback_fresh(msg, "left", "right", 0.2, 0.1));
+  EXPECT_FALSE(robot_drive::feedback_fresh(msg, "left", "right", 0.2, 0.195));
+  EXPECT_FALSE(robot_drive::feedback_fresh(msg, "left", "right", 0.2, -0.01));
   msg.interface_values[0].values[1] = 0.3;
   EXPECT_FALSE(robot_drive::feedback_fresh(msg, "left", "right", 0.2));
   msg.interface_values[0].values[1] = std::numeric_limits<double>::infinity();
