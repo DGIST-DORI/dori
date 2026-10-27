@@ -4,7 +4,7 @@ from collections import deque
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src/robot_navigation/scripts'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'ros2_ws/src/robot_navigation/scripts'))
 from nav_drive_bridge import NavDriveBridge
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import TransformStamped,Twist
@@ -19,6 +19,7 @@ class TimingTests(unittest.TestCase):
  def setUp(self):
   self.n=NavDriveBridge.__new__(NavDriveBridge);self.now=100.
   self.n.get_clock=lambda:SimpleNamespace(now=lambda:Time(seconds=self.now,clock_type=ClockType.ROS_TIME))
+  self.n.authority_time=time.monotonic()
   self.n.enabled=True;self.n.control_mode=1;self.n.scale_verified=True;self.n.params_time=time.monotonic()
   self.n.action_state=1;self.n.goal_active=True;self.n.odom=None;self.n.odom_history=deque(maxlen=20)
   self.n.odom_timeout=.25;self.n.scan_timeout=.5;self.n.cmd_timeout=.25
@@ -60,6 +61,9 @@ class TimingTests(unittest.TestCase):
  def test_new_invalid_odom_stops_even_if_previous_pair_valid(self):
   self.feed(99.96);o=self.feed(99.98,False);o.pose.pose.position.x=math.nan
   self.assertEqual(self.n.reason(),'nonfinite_odom')
+ def test_authority_loss_stops_even_with_fresh_nav_command_and_sensors(self):
+  self.feed(99.98);self.n.authority_time=time.monotonic()-1.
+  self.assertEqual(self.n.reason(),'authority_stale')
  def test_time_reversal_discards_prior_pairs(self):
   self.feed(99.98);self.feed(99.95,False)
   self.assertEqual(len(self.n.odom_history),1);self.assertEqual(self.n.reason(),'waiting_for_tf')

@@ -1,0 +1,10 @@
+{
+  "ok": true,
+  "models_loaded_locally": true,
+  "wake_model": [
+    "hey_mycroft"
+  ],
+  "silent_whisper_segments": 0,
+  "physical_microphone_verified": false,
+  "speech_accuracy_verified": false
+}

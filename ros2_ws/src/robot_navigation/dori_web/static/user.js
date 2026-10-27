@@ -10,7 +10,7 @@ function speak(text){if(!sound)return;if(!globalThis.speechSynthesis){$('voice-s
 function message(text,role='robot'){const item=document.createElement('div');item.className='message '+role;item.textContent=text;$('messages').append(item);while($('messages').children.length>9)$('messages').firstChild.remove();$('messages').scrollTop=$('messages').scrollHeight;}
 function showError(error){if(error.name==='AbortError')return;message(error.message||'Please try again.','error');$('voice-status').textContent='You can try another request.';}
 async function post(path,data,timeout=4000){const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json','X-Dori-Control':csrf},body:JSON.stringify(data),signal:AbortSignal.timeout(timeout)});const body=await response.json();if(!response.ok)throw Error(body.error||'Request failed.');return body;}
-function command(action,extra={}){return post('/api/command',{action,client,...extra})}
+function command(action,extra={}){return post('api/command',{action,client,...extra})}
 function assertCurrent(token){if(token!==sequence)throw new DOMException('Request cancelled','AbortError')}
 async function waitFor(predicate,token,timeout=6000){const end=Date.now()+timeout;while(Date.now()<end){assertCurrent(token);if(Date.now()-lastUpdate>2000)throw Error('The robot connection was interrupted.');if(predicate())return;await delay(100)}throw Error('Dori did not accept the request. Please try again.')}
 async function navigate(goal,token=null){
@@ -35,7 +35,7 @@ async function ask(text){
   if(/^(stop|stop please|please stop|cancel|cancel navigation|emergency stop)[.!]?$/i.test(text)){message(text,'user');await stop();return}
   const token=++sequence;busy=true;updateButtons();message(text,'user');$('voice-status').textContent='Thinking…';
   try{
-    const result=await post('/api/chat',{text,history},20000);assertCurrent(token);history.push({role:'user',text});history=history.slice(-6);
+    const result=await post('api/chat',{text,history},20000);assertCurrent(token);history.push({role:'user',text});history=history.slice(-6);
     if(result.action==='navigate'){const goal=state?.destinations?.find(g=>g.id===result.destination_id);if(!goal)throw Error('That destination has changed. Please choose it again.');await navigate(goal,token)}
     else if(result.action==='move_relative'){await navigate({kind:'relative',distance_m:result.distance_m,name:`${result.distance_m} m forward`},token)}
     else if(result.action==='stop'){await stop()}
@@ -64,7 +64,7 @@ function renderStatus(){const v=state.values||{},ready=!state.readiness?.length;
   $('position').textContent=state.robot?`Dori · ${state.robot[0].toFixed(1)}, ${state.robot[1].toFixed(1)} m`:'Position unavailable';
 }
 async function update(){try{
-  const response=await fetch('/api/state',{signal:AbortSignal.timeout(2000)});if(!response.ok)throw Error();const next=await response.json();if(next.server_age>2)throw Error();
+  const response=await fetch('api/state',{signal:AbortSignal.timeout(2000)});if(!response.ok)throw Error();const next=await response.json();if(next.server_age>2)throw Error();
   if(instance!==next.instance_id){if(instance!==null){sequence++;busy=false;announced=null;wasActive=false;history=[]}map.reset();placeVersion='';instance=next.instance_id}
   if(version&&version!==next.ui_version){location.reload();return}version=next.ui_version;state=next;csrf=state.csrf;lastUpdate=Date.now();$('connection').textContent='Connected';$('connection-dot').className='live';map.update(state);renderPlaces();renderStatus();
   if(state.control_owner===client&&!heartbeat){heartbeat=true;command('heartbeat').catch(()=>{}).finally(()=>heartbeat=false)}
@@ -72,7 +72,7 @@ async function update(){try{
 async function processRecording(blob){
   const token=sequence;busy=true;updateButtons();$('voice-status').textContent='Transcribing…';
   try{if(blob.size<100)throw Error('The recording was empty. Please try again.');
-    const result=await post('/api/transcribe',{audio:await audioBase64(blob),mime_type:blob.type},25000);assertCurrent(token);
+    const result=await post('api/transcribe',{audio:await audioBase64(blob),mime_type:blob.type},25000);assertCurrent(token);
     if(!result.transcript)throw Error('I could not hear any clear speech. Please try again.');
     busy=false;await ask(result.transcript);
   }catch(error){showError(error)}finally{if(token===sequence){busy=false;updateButtons()}}
@@ -96,4 +96,4 @@ $('stop').onclick=stop;$('fit').onclick=()=>{map.fit();$('follow').classList.rem
 $('sound').onclick=()=>{sound=!sound;$('sound').textContent=sound?'Sound on':'Sound off';$('sound').setAttribute('aria-pressed',String(sound));if(!sound)globalThis.speechSynthesis?.cancel()};
 $('chat-form').onsubmit=e=>{e.preventDefault();const text=$('message').value;$('message').value='';ask(text)};
 document.addEventListener('keydown',e=>{if(e.key==='Escape')stop()});
-fetch('/api/session').then(r=>r.json()).then(session=>{csrf=session.csrf;setupSpeech(session);update()}).catch(()=>{$('connection').textContent='Disconnected';update()});
+fetch('api/session').then(r=>r.json()).then(session=>{csrf=session.csrf;setupSpeech(session);update()}).catch(()=>{$('connection').textContent='Disconnected';update()});

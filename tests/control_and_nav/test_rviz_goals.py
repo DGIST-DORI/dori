@@ -2,7 +2,7 @@ import math,sys,unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 from types import SimpleNamespace
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src/robot_navigation/scripts'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'ros2_ws/src/robot_navigation/scripts'))
 from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Int32, Bool
 from rclpy.time import Time
@@ -30,9 +30,8 @@ class RvizGoals(unittest.TestCase):
         p=rviz_goal_point(self.pose);self.assertEqual(p['x'],2.);self.assertAlmostEqual(p['yaw_deg'],90)
         self.n.on_rviz_goal(self.pose);self.n.tick()
         g=self.n.client.send_goal_async.call_args.args[0]
-        self.assertEqual(g.pose.header.frame_id,'map');self.assertEqual(g.pose.pose.position.x,2.)
-        self.assertAlmostEqual(g.pose.pose.orientation.z,math.sin(math.pi/4))
-        self.assertFalse(self.n.active_pub.publish.call_args.args[0].data)
+        self.assertEqual(g.destination.header.frame_id,'map');self.assertEqual(g.destination.pose.position.x,2.)
+        self.assertAlmostEqual(g.destination.pose.orientation.z,math.sin(math.pi/4))
     def test_mode_off_and_invalid_pose_do_not_send(self):
         self.n.enabled=False;self.n.on_rviz_goal(self.pose);self.assertIsNone(self.n.pending)
         self.n.enabled=True
@@ -49,7 +48,7 @@ class RvizGoals(unittest.TestCase):
         old.cancel_goal_async.assert_called_once();self.n.client.send_goal_async.assert_not_called()
         self.pose.pose.position.x=3.;self.n.on_rviz_goal(self.pose)
         self.n.on_result(old, 'old', 0, Mock(result=lambda:SimpleNamespace(status=5)))
-        self.n.tick();self.assertEqual(self.n.client.send_goal_async.call_args.args[0].pose.pose.position.x,3.)
+        self.n.tick();self.assertEqual(self.n.client.send_goal_async.call_args.args[0].destination.pose.position.x,3.)
     def test_mode_stop_invalidates_inflight_acceptance(self):
         self.n.on_rviz_goal(self.pose);seq=self.n.sequence
         self.n.on_mode(Int32(data=0));self.assertIsNone(self.n.pending)
@@ -62,7 +61,6 @@ class RvizGoals(unittest.TestCase):
         self.n.on_result(handle,'rviz_goal',self.n.sequence,Mock(result=lambda:SimpleNamespace(status=4)))
         self.n.publish_status.assert_any_call('arrival_unverified:rviz_goal')
         self.n.publish_status.assert_called_with('finished:rviz_goal:status=6')
-        self.assertFalse(self.n.active_pub.publish.call_args.args[0].data)
 
     def test_approximate_heading_is_verified_without_accepting_wrong_position(self):
         self.n.active_target=self.pose
@@ -77,7 +75,7 @@ class RvizGoals(unittest.TestCase):
     def active_goal(self):
         self.n.on_rviz_goal(self.pose);self.n.tick()
         handle=Mock();handle.accepted=True
-        self.n.on_response(self.n.sequence,'rviz_goal',SimpleNamespace(pose=self.pose,behavior_tree=''),Mock(result=lambda:handle))
+        self.n.on_response(self.n.sequence,'rviz_goal',SimpleNamespace(destination=self.pose,precise=False),Mock(result=lambda:handle))
         return handle
 
     def abort(self,handle):
@@ -87,11 +85,10 @@ class RvizGoals(unittest.TestCase):
         with patch('named_goal_bridge.time.monotonic',return_value=100.) as clock:
             handle=self.active_goal();self.abort(handle)
             self.assertEqual(self.n.retry_at,105.);self.assertEqual(self.n.retry_count,1)
-            self.assertFalse(self.n.active_pub.publish.call_args.args[0].data)
             self.n.tick();self.assertEqual(self.n.client.send_goal_async.call_count,1)
             clock.return_value=105.1;self.n.tick()
             self.assertEqual(self.n.client.send_goal_async.call_count,2)
-            self.assertEqual(self.n.client.send_goal_async.call_args.args[0].pose.pose.position.x,2.)
+            self.assertEqual(self.n.client.send_goal_async.call_args.args[0].destination.pose.position.x,2.)
 
     def test_stop_estop_and_hardware_cancel_pending_retry(self):
         for stop in (lambda:self.n.on_mode(Int32(data=0)),lambda:self.n.on_estop(Bool(data=True)),lambda:self.n.on_action(Int32(data=4))):
@@ -102,7 +99,7 @@ class RvizGoals(unittest.TestCase):
     def test_new_goal_replaces_retry_without_inheriting_delay(self):
         self.abort(self.active_goal());self.pose.pose.position.x=3.;self.n.on_rviz_goal(self.pose)
         self.assertEqual(self.n.retry_at,0.);self.assertEqual(self.n.retry_count,0)
-        self.n.tick();self.assertEqual(self.n.client.send_goal_async.call_args.args[0].pose.pose.position.x,3.)
+        self.n.tick();self.assertEqual(self.n.client.send_goal_async.call_args.args[0].destination.pose.position.x,3.)
 
     def test_retry_limit_and_cancellation_do_not_restart(self):
         handle=self.active_goal();self.n.retry_count=3;self.abort(handle)
@@ -119,19 +116,18 @@ class RvizGoals(unittest.TestCase):
     def test_relative_goal_selects_precise_checker_and_retries_fixed_target(self):
         self.n.on_relative_goal(self.pose);self.n.tick()
         first=self.n.client.send_goal_async.call_args.args[0]
-        self.assertEqual(first.behavior_tree,self.n.relative_behavior_tree)
+        self.assertEqual(first.precise,True)
         handle=Mock();handle.accepted=True
         self.n.on_response(self.n.sequence,'relative_goal',first,Mock(result=lambda:handle))
         self.assertEqual(self.n.active_arrival_xy,.15)
         self.n.on_result(handle,'relative_goal',self.n.sequence,Mock(result=lambda:SimpleNamespace(status=6)))
         self.n.retry_at=1.;self.n.tick()
         next_goal=self.n.client.send_goal_async.call_args.args[0]
-        self.assertEqual(next_goal.pose.pose.position.x,first.pose.pose.position.x)
-        self.assertEqual(next_goal.behavior_tree,first.behavior_tree)
+        self.assertEqual(next_goal.destination.pose.position.x,first.destination.pose.position.x)
+        self.assertEqual(next_goal.precise,first.precise)
 
     def test_goal_rejected_does_not_enable_motion(self):
         self.n.on_rviz_goal(self.pose)
         self.n.on_response(self.n.sequence,'rviz_goal',Mock(),Mock(result=lambda:SimpleNamespace(accepted=False)))
         self.assertIsNone(self.n.goal_handle)
-        self.assertFalse(self.n.active_pub.publish.call_args.args[0].data)
 if __name__=='__main__':unittest.main()

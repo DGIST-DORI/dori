@@ -135,7 +135,11 @@ export const TOPIC_META = {
   // CI warning check: python3 tools/topic/topic_lint.py --check
   '/dori/hri/manager_state':       { tag: LOG_TAGS.STATE,   label: 'HRI State' },
   '/dori/stt/wake_word_detected':  { tag: LOG_TAGS.WAKE,    label: 'Wake Word' },
+  '/dori/llm/response': { tag: LOG_TAGS.LLM, label: 'LLM Response' },
+  '/dori/nav/locations': { tag: LOG_TAGS.NAV, label: 'Map Destinations' },
+  '/dori/hri/status': { tag: LOG_TAGS.STATE, label: 'HRI Status' },
   '/dori/stt/result':              { tag: LOG_TAGS.STT,     label: 'STT Result' },
+  '/dori/tts/audio_event': { tag: LOG_TAGS.TTS, label: 'TTS Output' },
   '/dori/tts/text':                { tag: LOG_TAGS.TTS,     label: 'TTS Text' },
   '/dori/tts/speaking':            { tag: LOG_TAGS.TTS,     label: 'TTS Speaking' },
   '/dori/tts/done':                { tag: LOG_TAGS.TTS,     label: 'TTS Done' },
@@ -588,6 +592,21 @@ export const useStore = create((set, get) => ({
           const text = parsed?.text || payload;
           set({ lastSttText: text });
           addLog(LOG_TAGS.STT, `stt_result: text="${text}" conf=${parsed?.confidence?.toFixed(2) ?? '?'}`, rawVal);
+          break;
+        }
+
+        case '/dori/llm/response': {
+          const text = parsed?.text || parsed?.response_text || payload;
+          set({ lastLlmResponse: text });
+          addLog(LOG_TAGS.LLM, `response: ${text}`, rawVal);
+          break;
+        }
+
+        case '/dori/tts/audio_event': {
+          if (parsed?.event_type === 'tts_text') {
+            set({ lastTtsText: parsed.text });
+            addLog(LOG_TAGS.TTS, `speak: "${parsed.text}"`, rawVal);
+          }
           break;
         }
 

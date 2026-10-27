@@ -16,11 +16,12 @@ from robot_msgs.msg import MitCommand
 from nav_msgs.msg import Odometry
 from lifecycle_msgs.srv import GetState
 from PIL import Image,ImageDraw
-ROOT=Path(__file__).resolve().parents[1]
+ROOT=Path(__file__).resolve().parents[2]
 
 
 def main():
     parser=argparse.ArgumentParser()
+    parser.add_argument('--hri-test',action='store_true',help='Real BT, offline LLM, TTS publish path and Nav2; inject an STT transcript')
     parser.add_argument('--motor-dynamics',action='store_true')
     parser.add_argument('--goal-x',type=float,default=.8)
     parser.add_argument('--reverse-recovery',action='store_true')
@@ -43,7 +44,7 @@ def main():
         params=[];heading_comparison={}
         if args.heading_test:
             import yaml,copy
-            settings=yaml.safe_load((ROOT/'src/robot_navigation/config/nav2_real.yaml').read_text())
+            settings=yaml.safe_load((ROOT/'ros2_ws/src/robot_navigation/config/nav2_real.yaml').read_text())
             planner=settings['planner_server']['ros__parameters']
             planner['planner_plugins'].append('ExactHeading')
             planner['ExactHeading']=copy.deepcopy(planner['GridBased'])
@@ -57,6 +58,12 @@ def main():
         initial=n.create_publisher(PoseWithCovarianceStamped,'/initialpose',10)
         mode=n.create_publisher(Int32,'/NAVIGATION_MODE',10);text=n.create_publisher(String,'/NAVIGATION_TEXT',10)
         state={'target_l':0.,'target_r':0.,'torque_l':0.,'torque_r':0.,'x':0.0,'y':0.0,'yaw':0.0,'l':0.0,'r':0.0,'vl':0.0,'vr':0.0,'last':time.monotonic(),'command':0.0,'status':[],'odom':None,'distance':0.0}
+        state['hri_states']=[];state['speech']=[];state['locations']=[]
+        stt=n.create_publisher(String,'/dori/stt/result',10)
+        n.create_subscription(String,'/dori/hri/manager_state',lambda m:state['hri_states'].append(json.loads(m.data)['state']),10)
+        n.create_subscription(String,'/dori/tts/audio_event',lambda m:state['speech'].append(json.loads(m.data)),10)
+        from rclpy.qos import QoSProfile,DurabilityPolicy
+        n.create_subscription(String,'/dori/nav/locations',lambda m:state.update(locations=json.loads(m.data).get('goals',[])),QoSProfile(depth=1,durability=DurabilityPolicy.TRANSIENT_LOCAL))
         state.update(reverse_distance=0.,backup_seen=False,block_rear=False,block_goal=False)
         def on_motor(m):
             side='l' if m.motor_id==1 else 'r'
@@ -137,11 +144,14 @@ def main():
             raise AssertionError(label+' '+str({k:v for k,v in state.items() if k!='odom'}))
         try:
             start('supervisor',['ros2','run','robot_supervisor','mode_manager_node'])
-            start('drive',['ros2','run','robot_drive','drive_controller_node','--ros-args','--params-file',str(ROOT/'src/robot_drive/config/drive_params.yaml'),'--params-file',str(ROOT/'src/robot_drive/config/kinematics.yaml'),'-p','feedforward_enabled:=false'])
+            start('drive',['ros2','run','robot_drive','drive_controller_node','--ros-args','--params-file',str(ROOT/'ros2_ws/src/robot_drive/config/drive_params.yaml'),'--params-file',str(ROOT/'ros2_ws/src/robot_drive/config/kinematics.yaml'),'-p','feedforward_enabled:=false'])
             start('odometry',['ros2','launch','robot_mapping','lidar_odometry.launch.py'])
             wait(lambda:state['odom'] is not None,'lidar odometry missing',30)
-            start('nav2',['ros2','launch','robot_navigation','real_nav2.launch.py','map:='+str(mp),'goal_source:=web','publish_laser_tf:=false']+params)
-            start('web',['/usr/bin/python3',str(ROOT/'src/robot_navigation/scripts/web_viewer.py'),'--mode','navigation','--host','127.0.0.1','--port','18080','--user-port','18070' if args.web_user_test else '0','--goals-file',str(d/'web_goals.json')]+(['--ros-args','-p','auto_alignment.period_s:=5.0'] if args.auto_alignment_test else []))
+            start('nav2',['ros2','launch','robot_navigation','real_nav2.launch.py','map:='+str(mp),'named_goals_file:='+str(d/'web_goals.json'),'goal_source:=web','publish_laser_tf:=false']+params)
+            start('web',['/usr/bin/python3',str(ROOT/'ros2_ws/src/robot_navigation/scripts/web_viewer.py'),'--mode','navigation','--host','127.0.0.1','--port','18080','--user-port','18070' if args.web_user_test else '0','--goals-file',str(d/'web_goals.json')]+(['--ros-args','-p','auto_alignment.period_s:=5.0'] if args.auto_alignment_test else []))
+            if args.hri_test:
+                start('voice',['ros2','launch','dori_bringup','voice.launch.py','enable_stt:=false','tts_playback_mode:=publish_only'])
+                start('hri',['ros2','launch','dori_bringup','interaction.launch.py'])
             client=n.create_client(GetState,'/amcl/get_state')
             wait(lambda:client.service_is_ready(),'AMCL discovery',20)
             end=time.monotonic()+45
@@ -231,18 +241,27 @@ def main():
                 if args.relative_test:assert intent['action']=='move_relative' and intent['distance_m']==goal_x,intent
                 else:assert intent['action']=='navigate' and intent['destination_id']==named_goal['id'],intent
                 print('Intent selection ('+('fixture' if args.offline_intent else 'Gemini')+'):',intent,flush=True)
-            request('enable',public=args.web_user_test)
+            if args.hri_test:
+                request('save_destination',name='Lobby',x=goal_x,y=0.,yaw=0.)
+                wait(lambda:len(state['locations'])==1 and stt.get_subscription_count()>0,'HRI registry/startup',10)
+                stt.publish(String(data=json.dumps(dict(text='hello',confidence=1.,event='stt_result'))))
+                wait(lambda:'RESPONDING' in state['hri_states'] and state['hri_states'][-1]=='IDLE','HRI question answer',10)
+                assert state['distance']<.01,'Q&A caused movement'
+                stt.publish(String(data=json.dumps(dict(text='Please take me to Lobby',confidence=1.,event='stt_result'))))
+            else:
+                request('enable',public=args.web_user_test)
             wait(lambda:snapshot()['values'].get('enabled'),'mode acknowledgement',5)
             state['block_rear']=args.blocked_rear or args.retry_test
             state['block_goal']=args.retry_test
             if args.retry_test:time.sleep(1.5)  # Allow the real obstacle costmap to mark the occupied goal.
-            if args.relative_test:request('relative_goal',public=True,distance_m=intent['distance_m'])
+            if args.hri_test:pass
+            elif args.relative_test:request('relative_goal',public=True,distance_m=intent['distance_m'])
             elif args.web_user_test:request('named_goal',public=True,id=named_goal['id'])
             else:request('goal',x=goal_x,y=0.,yaw=math.radians(150) if args.heading_test else 0.)
             retry_started=None;retry_distance=None;retry_resumed=None
             deadline=time.monotonic()+120
             while time.monotonic()<deadline:
-                request('heartbeat')
+                if not args.hri_test:request('heartbeat')
                 observed=snapshot();od=state['odom'];q=od.pose.pose.orientation
                 retry=json.loads(observed['values'].get('retry','{}'))
                 if retry.get('state')=='waiting':
@@ -260,7 +279,7 @@ def main():
                 if len(trace)%4==0:
                     (ROOT/'log/lidar_web_navigation_trace.json').write_text(json.dumps(trace,indent=2)+'\n')
                 terminal='finished:'+('relative_goal' if args.relative_test else 'rviz_goal')+':status='+('6' if args.blocked_rear else '4')
-                if terminal in state['status']:break
+                if (args.hri_test and 'ARRIVED' in state['hri_states']) or (not args.hri_test and terminal in state['status']):break
                 if any(p.poll() is not None for p in processes):raise AssertionError('Test process exited')
                 time.sleep(.5)
             else:raise AssertionError('Web goal did not succeed: '+str(state['status']))
@@ -291,7 +310,10 @@ def main():
             report={'ok':True,'web_goal':True,'web_stop':True,'lease_expiry':True,'plant':'software only, no physical motors','nav2_result':'ABORTED_REAR_BLOCKED' if args.blocked_rear else 'SUCCEEDED','web_user_test':args.web_user_test,'heading_test':args.heading_test,'heading_path_lengths_m':heading_comparison,'distance_traveled_m':state['distance'],'motor_dynamics':args.motor_dynamics,'reverse_recovery':args.reverse_recovery,'blocked_rear':args.blocked_rear,'reverse_distance_m':state['reverse_distance'],'goal_x':goal_x,
                     'final_xy':[state['x'],state['y']],'distance_to_goal_m':distance_to_goal,
                     'lidar_odom_position_error_m':math.hypot(od.x-state['x'],od.y-state['y'])}
-            report.update(relative_test=args.relative_test,retry_test=args.retry_test,intent_provider='fixture' if args.offline_intent else 'Gemini' if args.web_user_test else None,
+            if args.hri_test:
+                assert state['hri_states'][-1]=='IDLE' and 'GUIDING' in state['hri_states'],state['hri_states']
+                assert any('목적지에 도착' in json.dumps(m,ensure_ascii=False) for m in state['speech'])
+            report.update(hri_test=args.hri_test,hri_states=state['hri_states'],speech_events=state['speech'],relative_test=args.relative_test,retry_test=args.retry_test,intent_provider='fixture' if args.offline_intent else 'Gemini' if args.web_user_test else None,
                 retry_wait_seconds=retry_resumed-retry_started if retry_resumed else None,nav2_status=state['status'])
             (ROOT/'log/lidar_web_navigation_results.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2));passed=True
         except Exception as error:
@@ -301,7 +323,8 @@ def main():
             raise
         finally:
             (ROOT/'log/lidar_web_navigation_trace.json').write_text(json.dumps(trace,indent=2)+'\n')
-            mode.publish(Int32(data=0));time.sleep(0.2)
+            if rclpy.ok():
+                mode.publish(Int32(data=0));time.sleep(0.2)
             for p in reversed(processes):
                 if p.poll() is None:p.send_signal(signal.SIGINT)
             for p in processes:
@@ -309,7 +332,8 @@ def main():
                 except subprocess.TimeoutExpired:os.killpg(p.pid,signal.SIGTERM);p.wait(timeout=3)
             for f in handles:f.close()
             for timer in n.timers:timer.cancel()
-            executor.shutdown(timeout_sec=3);thread.join(timeout=3);n.destroy_node();rclpy.shutdown()
+            executor.shutdown(timeout_sec=3);thread.join(timeout=3);n.destroy_node()
+            if rclpy.ok():rclpy.shutdown()
             if not passed:print('Inspect log/software_lidar_web_*.log for details')
 
 if __name__=='__main__':main()

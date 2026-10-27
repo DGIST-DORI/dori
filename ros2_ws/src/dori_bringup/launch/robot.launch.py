@@ -1,192 +1,38 @@
-"""
-Top-level assembly launch for DORI.
-
-This launch only assembles subsystem launch files:
-  - perception.launch.py   (camera/vision)
-  - interaction.launch.py  (state machine/coordinator)
-  - voice.launch.py        (stt/llm/tts)
-  - (optional) navigation.launch.py
-"""
-
-import os
-
+"""Select a complete physical robot or a desktop HRI session, with one owner per node."""
+from pathlib import Path
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.logging import get_logger
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
-from launch.conditions import IfCondition
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PythonExpression
-
-try:
-    from dori_llm.paths import is_repo_root
-except Exception:
-    def is_repo_root(parent):
-        has_readme = (parent / 'README.md').exists()
-        has_ros2_src = (parent / 'ros2_ws' / 'src').is_dir()
-        has_git = (parent / '.git').exists()
-        return has_readme and (has_ros2_src or has_git)
+from launch.substitutions import LaunchConfiguration
 
 
-def _resolve_path(share_relative: str, pkg_name: str, data_relative: str) -> str:
-    """Resolve an asset path from installed share first, then repository root."""
-    import pathlib
-
-    try:
-        share_path = pathlib.Path(get_package_share_directory(pkg_name)) / share_relative
-        if share_path.exists():
-            return str(share_path)
-    except Exception:
-        pass
-
-    this_file = pathlib.Path(__file__).resolve()
-    for parent in this_file.parents:
-        if is_repo_root(parent):
-            candidate = parent / data_relative
-            if candidate.exists():
-                return str(candidate)
-            break
-
-    return ''
+def setup(context):
+    value = lambda n: LaunchConfiguration(n).perform(context)
+    share = Path(get_package_share_directory('dori_bringup'))/'launch'
+    def include(filename, params):
+        return IncludeLaunchDescription(PythonLaunchDescriptionSource(str(share/filename)), launch_arguments=params.items())
+    if value('robot_mode') == 'real':
+        return [include('real_robot.launch.py', {'map':value('real_map'),
+            'named_goals_file':value('real_named_goals_file'), 'use_joystick':value('real_use_joystick'),
+            **{k:value(k) for k in ('namespace','enable_stt','enable_dashboard','enable_perception',
+                                   'tts_playback_mode','wake_word','whisper_model','require_user_tracking')}})]
+    if value('robot_mode') not in ('sim', 'desktop'):
+        raise ValueError('robot_mode must be real, desktop or sim (desktop alias)')
+    actions = [include('voice.launch.py',{k:value(k) for k in (
+        'namespace','enable_stt','tts_playback_mode','wake_word','whisper_model')}),
+        include('interaction.launch.py', {'namespace':value('namespace')})]
+    if value('enable_perception') == 'true':
+        actions.append(include('perception.launch.py',{'namespace':value('namespace')}))
+    if value('enable_dashboard') == 'true':
+        dashboard = Path(get_package_share_directory('dori_dashboard'))/'launch/dashboard.launch.py'
+        actions.append(IncludeLaunchDescription(PythonLaunchDescriptionSource(str(dashboard))))
+    return actions
 
 
 def generate_launch_description():
-    dori_bringup_dir = get_package_share_directory('dori_bringup')
-
-    knowledge_file_default = _resolve_path(
-        share_relative='config/campus_knowledge.json',
-        pkg_name='dori_llm',
-        data_relative='data/campus/indexed/campus_knowledge.json',
-    )
-    rag_index_dir_default = _resolve_path(
-        share_relative='indexed',
-        pkg_name='dori_llm',
-        data_relative='data/campus/indexed',
-    )
-    wake_word_model_default = _resolve_path(
-        share_relative='models/doridori_ko_linux_v4_0_0.ppn',
-        pkg_name='dori_hri',
-        data_relative='ros2_ws/src/dori_hri/models/doridori_ko_linux_v4_0_0.ppn',
-    )
-
-    args = [
-        # Perception module boundary args
-        DeclareLaunchArgument('person_model', default_value='yolov8n.pt'),
-        DeclareLaunchArgument('landmark_model', default_value='yolov8n.pt'),
-        DeclareLaunchArgument('landmark_db', default_value='landmark_db.json'),
-        DeclareLaunchArgument('device', default_value='cuda'),
-        DeclareLaunchArgument('visualize', default_value='false'),
-        DeclareLaunchArgument('enable_landmark', default_value='true'),
-        DeclareLaunchArgument('enable_gesture', default_value='true'),
-        DeclareLaunchArgument('enable_expression', default_value='true'),
-        DeclareLaunchArgument('camera_fps', default_value='15'),
-        DeclareLaunchArgument('camera_width', default_value='640'),
-        DeclareLaunchArgument('camera_height', default_value='480'),
-
-        # Interaction module boundary args
-        DeclareLaunchArgument('idle_timeout_sec', default_value='10.0'),
-        DeclareLaunchArgument(
-            'greeting_text',
-            default_value='안녕하세요! 저는 캠퍼스 안내 로봇 도리입니다. 어디로 안내해드릴까요?',
-        ),
-        # Interaction / BehaviorTree module boundary args
-        DeclareLaunchArgument('tree_xml_file', default_value=''),
-
-        # Voice module boundary args
-        DeclareLaunchArgument('use_external_llm', default_value='false'),
-        DeclareLaunchArgument('knowledge_file', default_value=knowledge_file_default),
-        DeclareLaunchArgument('rag_index_dir', default_value=rag_index_dir_default),
-        DeclareLaunchArgument('llm_model', default_value='gemini-2.5-flash'),
-        DeclareLaunchArgument('rag_top_k', default_value='3'),
-        DeclareLaunchArgument('whisper_model', default_value='small'),
-        DeclareLaunchArgument('whisper_device', default_value='cpu'),
-        DeclareLaunchArgument('wake_word', default_value='porcupine'),
-        DeclareLaunchArgument('wake_word_paths', default_value=wake_word_model_default),
-        DeclareLaunchArgument('tts_engine', default_value='gtts'),
-        DeclareLaunchArgument('tts_language', default_value='ko'),
-        DeclareLaunchArgument('namespace', default_value='/dori'),
-
-        DeclareLaunchArgument('robot_mode', default_value='sim',
-                              description='sim: interaction only; real: hardware and Nav2'),
-        DeclareLaunchArgument('real_map', default_value='',
-                              description='Map YAML required when robot_mode:=real'),
-        DeclareLaunchArgument('real_named_goals_file', default_value=''),
-        DeclareLaunchArgument('real_use_joystick', default_value='false'),
-    ]
-
-    perception_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(dori_bringup_dir, 'launch', 'perception.launch.py')
-        ),
-        launch_arguments={
-            'person_model': LaunchConfiguration('person_model'),
-            'landmark_model': LaunchConfiguration('landmark_model'),
-            'landmark_db': LaunchConfiguration('landmark_db'),
-            'device': LaunchConfiguration('device'),
-            'visualize': LaunchConfiguration('visualize'),
-            'enable_landmark': LaunchConfiguration('enable_landmark'),
-            'enable_gesture': LaunchConfiguration('enable_gesture'),
-            'enable_expression': LaunchConfiguration('enable_expression'),
-            'camera_fps': LaunchConfiguration('camera_fps'),
-            'camera_width': LaunchConfiguration('camera_width'),
-            'camera_height': LaunchConfiguration('camera_height'),
-            'namespace': LaunchConfiguration('namespace'),
-        }.items(),
-    )
-
-    interaction_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(dori_bringup_dir, 'launch', 'interaction.launch.py')
-        ),
-        launch_arguments={
-            'idle_timeout_sec': LaunchConfiguration('idle_timeout_sec'),
-            'greeting_text': LaunchConfiguration('greeting_text'),
-            'tree_xml_file': LaunchConfiguration('tree_xml_file'),
-            'namespace': LaunchConfiguration('namespace'),
-        }.items(),
-    )
-
-    voice_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(dori_bringup_dir, 'launch', 'voice.launch.py')
-        ),
-        launch_arguments={
-            'use_external_llm': LaunchConfiguration('use_external_llm'),
-            'knowledge_file': LaunchConfiguration('knowledge_file'),
-            'rag_index_dir': LaunchConfiguration('rag_index_dir'),
-            'llm_model': LaunchConfiguration('llm_model'),
-            'rag_top_k': LaunchConfiguration('rag_top_k'),
-            'whisper_model': LaunchConfiguration('whisper_model'),
-            'whisper_device': LaunchConfiguration('whisper_device'),
-            'wake_word': LaunchConfiguration('wake_word'),
-            'wake_word_paths': LaunchConfiguration('wake_word_paths'),
-            'tts_engine': LaunchConfiguration('tts_engine'),
-            'tts_language': LaunchConfiguration('tts_language'),
-            'namespace': LaunchConfiguration('namespace'),
-        }.items(),
-    )
-
-    launch_list = [
-        *args,
-        perception_launch,
-        interaction_launch,
-        voice_launch,
-    ]
-
-    real_bringup = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(dori_bringup_dir, 'launch', 'real_robot.launch.py')
-        ),
-        condition=IfCondition(PythonExpression([
-            "'", LaunchConfiguration('robot_mode'), "' == 'real'"
-        ])),
-        launch_arguments={
-            'namespace': LaunchConfiguration('namespace'),
-            'map': LaunchConfiguration('real_map'),
-            'named_goals_file': LaunchConfiguration('real_named_goals_file'),
-            'use_joystick': LaunchConfiguration('real_use_joystick'),
-        }.items(),
-    )
-    launch_list.append(real_bringup)
-
-    return LaunchDescription(launch_list)
+    defaults = dict(robot_mode='desktop', namespace='/dori', real_map='', real_named_goals_file='',
+        real_use_joystick='false', enable_stt='true', enable_dashboard='false', enable_perception='false',
+        tts_playback_mode='local_only', wake_word='hey_mycroft', whisper_model='small', require_user_tracking='false')
+    return LaunchDescription([DeclareLaunchArgument(k, default_value=v) for k,v in defaults.items()] +
+                             [OpaqueFunction(function=setup)])

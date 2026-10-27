@@ -310,13 +310,6 @@ function ConversationTabContent() {
 
   const sessions = source === 'live' ? liveSessions : importedSessions;
 
-  // Auto-select newest live session
-  useEffect(() => {
-    if (source === 'live' && liveSessions.length > 0 && !selectedId) {
-      setSelectedId(liveSessions[0].id);
-    }
-  }, [liveSessions, source, selectedId]);
-
   // Scroll chat to top on session change
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = 0;

@@ -31,16 +31,16 @@ export default function HomeTab() {
     baseline: {},
     failedAt: null,
   });
-  const [tick, setTick] = useState(0);
+  const [tick, setTick] = useState(() => Date.now());
 
   useEffect(() => {
     if (runState.phase !== 'running') return undefined;
-    const id = setInterval(() => setTick(t => t + 1), 250);
+    const id = setInterval(() => setTick(Date.now()), 250);
     return () => clearInterval(id);
   }, [runState.phase]);
 
   const startedAt = runState.startedAt ?? 0;
-  const elapsedMs = runState.phase === 'running' ? Math.max(0, Date.now() - startedAt) : 0;
+  const elapsedMs = runState.phase === 'running' ? Math.max(0, tick - startedAt) : 0;
 
   const stepStatuses = useMemo(() => {
     void tick;
@@ -75,6 +75,7 @@ export default function HomeTab() {
   useEffect(() => {
     if (runState.phase !== 'running') return;
 
+    const timer = setTimeout(() => {
     const allPassed = stepStatuses.every(s => s.status === 'pass');
     if (allPassed) {
       addLog(LOG_TAGS.TEST, '[e2e] conversation pipeline PASSED');
@@ -88,6 +89,8 @@ export default function HomeTab() {
       addLog(LOG_TAGS.ERROR, `[e2e] conversation pipeline FAILED at ${failedStep || 'unknown step'}`);
       setRunState(s => ({ ...s, phase: 'failed', failedAt: failedStep || null }));
     }
+    }, 0);
+    return () => clearTimeout(timer);
   }, [stepStatuses, elapsedMs, runState.phase, addLog]);
 
   function startConversationE2E() {

@@ -11,7 +11,7 @@ from urllib.error import HTTPError
 from pathlib import Path
 from concurrent.futures import Future
 from unittest.mock import Mock
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src/robot_navigation'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'ros2_ws/src/robot_navigation'))
 import rclpy
 from nav_msgs.msg import OccupancyGrid, Odometry
 from sensor_msgs.msg import LaserScan
@@ -82,7 +82,7 @@ class WebViewer(unittest.TestCase):
         try:
             with urllib.request.urlopen(base) as response:
                 self.assertIn(b'<canvas',response.read())
-                self.assertIn("frame-ancestors 'none'",response.headers['Content-Security-Policy'])
+                self.assertIn("frame-ancestors 'self'",response.headers['Content-Security-Policy'])
             data=json.load(urllib.request.urlopen(base+'/api/state'))
             self.assertEqual(data['instance_id'],self.node.instance_id)
             self.assertLess(data['server_age'],2.)

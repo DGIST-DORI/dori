@@ -3,7 +3,7 @@ from pathlib import Path
 import sys
 import unittest
 import numpy as np
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src/robot_mapping'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'ros2_ws/src/robot_mapping'))
 from lidar_odometry.core import Odometry, Reference, Settings, RegistrationError, scan_points, transform
 from tests.control_and_nav.lidar_scene import ranges
 

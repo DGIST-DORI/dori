@@ -10,7 +10,7 @@ from pathlib import Path
 from marionette_driver.marionette import Marionette
 from marionette_driver.by import By
 
-ROOT=Path(__file__).resolve().parents[1]
+ROOT=Path(__file__).resolve().parents[2]
 state=dict(instance_id='isolated-browser-test',ui_version='1',server_age=0,
     frame='map',robot=[0.,0.,0.],map=None,scan=[],paths={},destinations=[],
     readiness=[],control_owner=None,goal_revision=0,csrf='test-only',goal_name=None,
@@ -30,7 +30,7 @@ class Handler(BaseHTTPRequestHandler):
         name='user.html' if self.path=='/' else self.path.lstrip('/')
         if name not in ['user.html','user.css','user.js','user-map.js','microphone.js']:
             self.send_error(404);return
-        return self.send((ROOT/'src/robot_navigation/dori_web/static'/name).read_bytes(),
+        return self.send((ROOT/'ros2_ws/src/robot_navigation/dori_web/static'/name).read_bytes(),
             'text/javascript' if name.endswith('.js') else 'text/css' if name.endswith('.css') else 'text/html')
     def do_POST(self):
         data=json.loads(self.rfile.read(int(self.headers['Content-Length'])))

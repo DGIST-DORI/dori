@@ -6,6 +6,11 @@ const STATE_COLOR = {
   IDLE:       'var(--text-muted)',
   LISTENING:  'var(--color-info)',
   RESPONDING: 'var(--color-warn)',
+  GUIDING:    'var(--color-ok)',
+  ARRIVED:    'var(--color-ok)',
+  USER_LOST_CONFIRM: 'var(--color-warn)',
+  ACCESS_HELP: 'var(--color-warn)',
+  ERROR:      'var(--color-warn)',
   NAVIGATING: 'var(--color-ok)',
 };
 

@@ -28,14 +28,16 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Bool, String
 
-import sounddevice as sd
+try:
+    import sounddevice as sd
+except (ImportError, OSError):
+    sd = None
 
 try:
     import openwakeword
     from openwakeword.model import Model
-    openwakeword.utils.download_models() # 기본 모델 다운로드
     OPENWAKEWORD_AVAILABLE = True
-except (ImportError, Exception):
+except ImportError:
     OPENWAKEWORD_AVAILABLE = False
 
 try:
@@ -44,11 +46,6 @@ try:
 except ImportError:
     WHISPER_AVAILABLE = False
 
-try:
-    import torch
-    TORCH_AVAILABLE = True
-except ImportError:
-    TORCH_AVAILABLE = False
 
 
 SAMPLE_RATE    = 16000
@@ -109,51 +106,27 @@ class STTNode(Node):
         self.state           = STTState.IDLE
         self.robot_speaking  = False
         self.mute_until      = 0.0 # 잔향 방지를 위한 음소거 유예 시간
-        self.audio_queue     = queue.Queue()
+        self.audio_queue     = queue.Queue(maxsize=160)
         self.buffer          = []
         self.listen_start_time: float | None = None
         self.last_voice_time: float | None   = None
         self.state_lock      = threading.Lock()
 
-        # openWakeWord (wake word)
-        if not OPENWAKEWORD_AVAILABLE:
-            self.get_logger().warn('openwakeword not found: pip install openwakeword')
-            return
-
-        try:
-            self.oww_model = Model(
-                wakeword_models=[wake_word],
-                inference_framework='onnx'
-            )
-            self.get_logger().info(f'openWakeWord ready (model: {wake_word})')
-        except Exception as e:
-            self.get_logger().error(f'openWakeWord init failed: {e}')
-            return
-
-        # Silero VAD
+        if self.audio_input_mode not in ('microphone', 'topic'):
+            raise ValueError('audio_input_mode must be microphone or topic')
+        self.oww_model = None
+        if self.audio_input_mode == 'microphone':
+            if sd is None:
+                raise RuntimeError('Microphone requires sounddevice and libportaudio2')
+            if not OPENWAKEWORD_AVAILABLE:
+                raise RuntimeError('Install openwakeword and prepare models before microphone startup')
+            self.oww_model = Model(wakeword_models=[wake_word], inference_framework='onnx')
+        # Energy VAD has no network dependency; Whisper handles transcription.
         self.vad_model = None
-        self.get_vad_speech_prob = None
-        if TORCH_AVAILABLE:
-            try:
-                self.vad_model, utils = torch.hub.load(
-                    repo_or_dir='snakers4/silero-vad',
-                    model='silero_vad',
-                    force_reload=False,
-                    onnx=False,
-                )
-                self.get_vad_speech_prob = utils[0]
-                self.get_logger().info(
-                    f'Silero VAD ready (threshold={self.vad_threshold})'
-                )
-            except Exception as e:
-                self.get_logger().warn(f'VAD init failed, falling back to silence detection: {e}')
-        else:
-            self.get_logger().warn('torch not available — VAD disabled')
 
         # Whisper
         if not WHISPER_AVAILABLE:
-            self.get_logger().error('faster-whisper not found: pip install faster-whisper')
-            return
+            raise RuntimeError('faster-whisper is required; run scripts/prepare_voice.sh')
 
         try:
             self.get_logger().info(f'Loading Whisper ({model_size})...')
@@ -164,8 +137,7 @@ class STTNode(Node):
             )
             self.get_logger().info('Whisper ready')
         except Exception as e:
-            self.get_logger().error(f'Whisper init failed: {e}')
-            return
+            raise RuntimeError(f'Whisper init failed: {e}') from e
 
         # Audio stream
         if self.audio_input_mode == 'microphone':
@@ -180,8 +152,7 @@ class STTNode(Node):
                 self.stream.start()
                 self.get_logger().info('Audio stream started')
             except Exception as e:
-                self.get_logger().error(f'Audio stream failed: {e}')
-                return
+                raise RuntimeError(f'Audio stream failed: {e}') from e
         else:
             self.get_logger().info(
                 f'Audio input mode is "{self.audio_input_mode}" - microphone capture disabled'
@@ -241,7 +212,7 @@ class STTNode(Node):
                             break
 
                 elif self.state == STTState.LISTENING:
-                    self.audio_queue.put(bytes(indata))
+                    self.audio_queue.put_nowait(bytes(indata))
 
         except Exception as e:
             self.get_logger().error(f'Audio callback error: {e}')
@@ -261,7 +232,9 @@ class STTNode(Node):
             audio_b64 = payload.get('audio_b64')
             if not audio_b64:
                 return
-            wav_bytes = base64.b64decode(audio_b64)
+            if not isinstance(audio_b64, str) or len(audio_b64) > 500000:
+                raise ValueError('Audio message exceeds 10 seconds')
+            wav_bytes = base64.b64decode(audio_b64, validate=True)
             with wave.open(BytesIO(wav_bytes), 'rb') as wf:
                 sr = wf.getframerate()
                 ch = wf.getnchannels()
@@ -274,6 +247,8 @@ class STTNode(Node):
                 )
                 return
             audio = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
+            if not MIN_SPEECH_SEC <= len(audio)/SAMPLE_RATE <= MAX_BUFFER_SEC:
+                raise ValueError('Audio duration must be 0.5 to 10 seconds')
             self.buffer = [audio]
             self._transcribe()
             self.buffer.clear()
@@ -325,9 +300,9 @@ class STTNode(Node):
                 self.buffer.clear()
 
     def _has_voice(self, audio: np.ndarray) -> bool:
-        """Return True if VAD detects speech, or True by default if VAD unavailable."""
+        """Detect voice energy without fetching a model at runtime."""
         if self.vad_model is None:
-            return True
+            return float(np.sqrt(np.mean(audio * audio))) > .01
         try:
             import torch
             tensor = torch.from_numpy(audio)

@@ -1,0 +1,35 @@
+{
+  "ok": true,
+  "web_goal": true,
+  "web_stop": true,
+  "lease_expiry": true,
+  "plant": "software only, no physical motors",
+  "nav2_result": "SUCCEEDED",
+  "web_user_test": false,
+  "heading_test": false,
+  "heading_path_lengths_m": {},
+  "distance_traveled_m": 0.5760934851032664,
+  "motor_dynamics": false,
+  "reverse_recovery": false,
+  "blocked_rear": false,
+  "reverse_distance_m": 0.0,
+  "goal_x": 0.8,
+  "final_xy": [
+    0.5760934851032664,
+    0.0
+  ],
+  "distance_to_goal_m": 0.22390651489673363,
+  "lidar_odom_position_error_m": 1.887060828566539e-05,
+  "relative_test": false,
+  "retry_test": false,
+  "intent_provider": null,
+  "retry_wait_seconds": null,
+  "nav2_status": [
+    "cancel_requested:mode_off",
+    "sent:rviz_goal",
+    "accepted:rviz_goal",
+    "finished:rviz_goal:status=4",
+    "cancel_requested:mode_off",
+    "cancel_requested:mode_off"
+  ]
+}

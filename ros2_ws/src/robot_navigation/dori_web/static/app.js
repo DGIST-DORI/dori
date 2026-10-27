@@ -13,7 +13,7 @@ const qualities = {tracking:'정상', scan_timeout:'스캔 미수신', waiting_f
 function notice(text, error=false) { $('notice').textContent=text; $('notice').classList.toggle('error',error); }
 async function command(action, extra={}) {
   if (!csrf) throw new Error('연결을 기다리세요');
-  const response = await fetch('/api/command', {method:'POST', headers:{'Content-Type':'application/json','X-Dori-Control':csrf}, body:JSON.stringify({action,client,...extra}), signal:AbortSignal.timeout(3000)});
+  const response = await fetch('api/command', {method:'POST', headers:{'Content-Type':'application/json','X-Dori-Control':csrf}, body:JSON.stringify({action,client,...extra}), signal:AbortSignal.timeout(3000)});
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || '명령 실패');
   if (result.message) notice(result.message);
@@ -77,7 +77,7 @@ function resetView(){mapImage=null;imageVersion=-1;loadingVersion=-1;fitted=fals
 $('reset-view').onclick=()=>{resetView();notice('화면을 초기화했습니다. 최신 데이터를 불러옵니다.');};
 function formatVelocity(v,normalized=false){return v?`${v[0].toFixed(2)}${normalized?'':' m/s'} / ${v[1].toFixed(2)}${normalized?'':' rad/s'}`:'—'}
 async function update(){try{
-  const response=await fetch('/api/state',{signal:AbortSignal.timeout(2000)});if(!response.ok)throw Error('HTTP '+response.status);
+  const response=await fetch('api/state',{signal:AbortSignal.timeout(2000)});if(!response.ok)throw Error('HTTP '+response.status);
   state=await response.json();if(state.server_age>2)throw Error('ROS 상태 갱신 중단');csrf=state.csrf||csrf;if(serverInstance!==state.instance_id){resetView();serverInstance=state.instance_id;} if(uiVersion&&uiVersion!==state.ui_version){location.reload();return;}uiVersion=state.ui_version;lastUpdate=Date.now();$('connection').textContent='연결됨';$('connection-dot').className='ok';$('mode').textContent=modes[state.mode];
   if(previousFrame!==state.frame){view={x:0,y:0,scale:55};fitted=false;previousFrame=state.frame;if(state.map)fit();}
   $('empty').style.display=state.map||state.robot||state.scan?.length?'none':'flex';$('frame').textContent=`${state.frame==='laser'?'원시 라이다 · 위치 추정 대기 · ':''}좌표계 ${state.frame||'odom'} · 단위 m`;
@@ -98,14 +98,16 @@ async function update(){try{
   $('localization-status').textContent=state.localization?.state==='ready'?'마지막 수동 정합 · '+state.localization.message:state.localization?.message||'';
   const alignment=state.auto_alignment, check=alignment?.last_check;
   $('auto-alignment-status').textContent=alignment?.enabled?alignment.message+(check?` · 최근 점검 일치율 ${Math.round(check.matched_fraction*100)}%`:''):'자동 지도 정합 꺼짐';
+  let hri={};try{hri=JSON.parse(v.hri_state||'{}');}catch{}
+  $('hri-state').textContent=hri.state||'미연결';
   $('nav-state').textContent=v.enabled?'활성':'비활성';$('nav-velocity').textContent=formatVelocity(state.velocities?.nav_velocity);$('drive-velocity').textContent=formatVelocity(state.velocities?.drive_velocity,true);$('goal-status').textContent=v.goal_status||'—';$('drive-status').textContent=reasons[v.drive]||v.drive||'주행 브리지 미수신';$('readiness').textContent=state.mode==='navigation'?(state.readiness||[]).join(' · '):'목표 지정은 주행 세션에서 사용할 수 있습니다.';
   try{const retry=JSON.parse(v.retry||'{}');if(v.enabled&&retry.state==='waiting')$('goal-status').textContent=`경로 재시도 ${retry.attempt}/${retry.max_attempts} · ${Math.ceil(retry.remaining_seconds||0)}초 후`;}catch{}
-  if(state.map&&state.map.version!==imageVersion&&state.map.version!==loadingVersion){const version=state.map.version;loadingVersion=version;const image=new Image();image.onload=()=>{if(state.map?.version===version){mapImage=image;imageVersion=version;if(!fitted)fit();draw()}loadingVersion=-1};image.onerror=()=>loadingVersion=-1;image.src=`/api/map.png?v=${version}`;}
+  if(state.map&&state.map.version!==imageVersion&&state.map.version!==loadingVersion){const version=state.map.version;loadingVersion=version;const image=new Image();image.onload=()=>{if(state.map?.version===version){mapImage=image;imageVersion=version;if(!fitted)fit();draw()}loadingVersion=-1};image.onerror=()=>loadingVersion=-1;image.src=`api/map.png?v=${version}`;}
   if(state.control_owner===client&&!heartbeat){heartbeat=true;command('heartbeat').catch(e=>notice(e.message,true)).finally(()=>heartbeat=false)}
   renderDestinations();updateButtons();draw();
 }catch(error){$('connection').textContent='연결 끊김';$('connection-dot').className='';updateButtons();draw();}finally{setTimeout(update,200)}}
 new ResizeObserver(resize).observe(canvas);
-fetch('/api/session').then(r=>r.json()).then(s=>{csrf=s.csrf;notice('지도: 드래그 이동 · 휠 확대/축소');update()}).catch(e=>{notice('서버 연결 실패: '+e.message,true);update()});
+fetch('api/session').then(r=>r.json()).then(s=>{csrf=s.csrf;notice('지도: 드래그 이동 · 휠 확대/축소');update()}).catch(e=>{notice('서버 연결 실패: '+e.message,true);update()});
 
 function renderDestinations(){
   const items=state?.destinations||[],version=JSON.stringify(items);if(version===destinationVersion)return;destinationVersion=version;

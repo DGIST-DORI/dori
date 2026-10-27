@@ -13,7 +13,7 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, GroupAction
 from launch.conditions import IfCondition, UnlessCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -36,7 +36,12 @@ def generate_launch_description():
         DeclareLaunchArgument('person_model', default_value='yolov8n.pt'),
         DeclareLaunchArgument('landmark_model', default_value='yolov8n.pt'),
         DeclareLaunchArgument('landmark_db', default_value=landmark_db_default),
-        DeclareLaunchArgument('device', default_value='cuda'),
+        DeclareLaunchArgument('device', default_value='cpu'),
+        DeclareLaunchArgument('front_serial', default_value=''),
+        DeclareLaunchArgument('rear_serial', default_value=''),
+        DeclareLaunchArgument('enable_rear_camera', default_value='false'),
+        DeclareLaunchArgument('hand_model_path', default_value=''),
+        DeclareLaunchArgument('face_model_path', default_value=''),
         DeclareLaunchArgument('visualize', default_value='false'),
         DeclareLaunchArgument('enable_landmark', default_value='true'),
         DeclareLaunchArgument('enable_gesture', default_value='true'),
@@ -62,7 +67,7 @@ def generate_launch_description():
         name='depth_camera_front',
         namespace='dori/camera/front',
         output='screen',
-        parameters=[{**camera_params, 'serial_number': ''}],
+        parameters=[{**camera_params, 'serial_number': LaunchConfiguration('front_serial')}],
         condition=UnlessCondition(LaunchConfiguration('use_cpp_depth_camera')),
         remappings=[
             ('color/image_raw', _topic(dori_ns, '/camera/front/color/image_raw')),
@@ -80,7 +85,7 @@ def generate_launch_description():
         name='depth_camera_rear',
         namespace='dori/camera/rear',
         output='screen',
-        parameters=[{**camera_params, 'serial_number': ''}],
+        parameters=[{**camera_params, 'serial_number': LaunchConfiguration('rear_serial')}],
         condition=UnlessCondition(LaunchConfiguration('use_cpp_depth_camera')),
         remappings=[
             ('color/image_raw', _topic(dori_ns, '/camera/rear/color/image_raw')),
@@ -98,7 +103,7 @@ def generate_launch_description():
         name='depth_camera_front',
         namespace='dori/camera/front',
         output='screen',
-        parameters=[{**camera_params, 'serial_number': ''}],
+        parameters=[{**camera_params, 'serial_number': LaunchConfiguration('front_serial')}],
         condition=IfCondition(LaunchConfiguration('use_cpp_depth_camera')),
         remappings=[
             ('color/image_raw', _topic(dori_ns, '/camera/front/color/image_raw')),
@@ -115,7 +120,7 @@ def generate_launch_description():
         name='depth_camera_rear',
         namespace='dori/camera/rear',
         output='screen',
-        parameters=[{**camera_params, 'serial_number': ''}],
+        parameters=[{**camera_params, 'serial_number': LaunchConfiguration('rear_serial')}],
         condition=IfCondition(LaunchConfiguration('use_cpp_depth_camera')),
         remappings=[
             ('color/image_raw', _topic(dori_ns, '/camera/rear/color/image_raw')),
@@ -180,6 +185,7 @@ def generate_launch_description():
         output='screen',
         parameters=[{
             'visualize': LaunchConfiguration('visualize'),
+            'hand_model_path': LaunchConfiguration('hand_model_path'),
             'active_only_on_trigger': True,
             'topics.color_image_sub': _topic(dori_ns, '/camera/front/color/image_raw'),
             'topics.interaction_trigger_sub': _topic(dori_ns, '/hri/interaction_trigger'),
@@ -198,6 +204,7 @@ def generate_launch_description():
         output='screen',
         parameters=[{
             'visualize': LaunchConfiguration('visualize'),
+            'face_model_path': LaunchConfiguration('face_model_path'),
             'active_only_on_trigger': True,
             'topics.color_image_sub': _topic(dori_ns, '/camera/front/color/image_raw'),
             'topics.interaction_trigger_sub': _topic(dori_ns, '/hri/interaction_trigger'),
@@ -211,9 +218,9 @@ def generate_launch_description():
     return LaunchDescription([
         *args,
         depth_camera_front_py,
-        depth_camera_rear_py,
         depth_camera_front_cpp,
-        depth_camera_rear_cpp,
+        GroupAction([depth_camera_rear_py, depth_camera_rear_cpp],
+                    condition=IfCondition(LaunchConfiguration('enable_rear_camera'))),
         person_detection_node,
         landmark_detection_node,
         gesture_recognition_node,

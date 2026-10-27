@@ -11,7 +11,7 @@ import time
 import urllib.request
 from urllib.parse import urlsplit
 
-from scripts.robot_stack import ROOT, stop_children, wait_for_base
+from robot_stack import ROOT, stop_children, wait_for_base
 from navigation_contract import validate_map
 
 GROUPS = {
@@ -20,7 +20,8 @@ GROUPS = {
     'lidar': {'sllidar_node'},
     'odometry': {'lidar_odometry'},
     'navigation': {'map_server','amcl','controller_server','planner_server',
-                   'behavior_server','bt_navigator','velocity_smoother','named_goal_bridge','nav_drive_bridge'},
+                   'behavior_server','bt_navigator','velocity_smoother','named_goal_bridge','nav_drive_bridge',
+                   'nav2_adapter','named_goal_adapter'},
 }
 
 

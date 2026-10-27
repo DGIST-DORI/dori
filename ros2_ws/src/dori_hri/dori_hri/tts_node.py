@@ -58,12 +58,6 @@ try:
 except ImportError:
     GCP_TTS_AVAILABLE = False
 
-try:
-    import sounddevice as sd
-    import soundfile as sf
-    AUDIO_AVAILABLE = True
-except ImportError:
-    AUDIO_AVAILABLE = False
 
 
 class TTSNode(Node):
@@ -72,6 +66,7 @@ class TTSNode(Node):
 
         # Parameters
         self.declare_parameter('language', 'ko')
+        self.declare_parameter('tts_engine', 'gtts')
         self.declare_parameter('speech_rate', 150)
         self.declare_parameter('volume', 0.9)
         self.declare_parameter('topics.speaking_pub', 'tts/speaking')
@@ -99,6 +94,8 @@ class TTSNode(Node):
 
         # State
         self.is_speaking = False
+        self._speech_lock = threading.Lock()
+        self._busy = False
         self.sfx_queue = queue.Queue()
         self.sfx_base_path = self._resolve_sfx_base_path(
             self.get_parameter('sfx.base_path').value
@@ -135,8 +132,6 @@ class TTSNode(Node):
         # Action Server 초기화
         self._action_server = ActionServer(
             self,
-            Speak, # 임포트한 Action 타입
-            'tts/speak',
             Speak,
             action_name,
             execute_callback=self.execute_callback,
@@ -154,10 +149,13 @@ class TTSNode(Node):
         self.get_logger().info('TTS Action Node started')
 
     def _init_engine(self):
+        self.gcp_client = None
+        if self.playback_mode == 'publish_only':
+            return
         if not GTTS_AVAILABLE:
             raise RuntimeError('gTTS engine required for fallback')
             
-        if GCP_TTS_AVAILABLE:
+        if GCP_TTS_AVAILABLE and self.get_parameter('tts_engine').value in ('gcp', 'auto'):
             try:
                 self.gcp_client = texttospeech.TextToSpeechClient()
                 self.db = TTSDatabaseManager('tts_usage.db') # DB 매니저 연동
@@ -170,7 +168,10 @@ class TTSNode(Node):
 
     # --- Action Server Callbacks ---
     def goal_callback(self, goal_request):
-        self.get_logger().info(f'Received Goal text: "{goal_request.text[:50]}"')
+        with self._speech_lock:
+            if self._busy or not 0 < len(goal_request.text.strip()) <= 4000:
+                return GoalResponse.REJECT
+            self._busy = True
         return GoalResponse.ACCEPT
 
     def cancel_callback(self, goal_handle):
@@ -191,12 +192,27 @@ class TTSNode(Node):
         goal_handle.publish_feedback(feedback)
         
         try:
+            if goal_handle.is_cancel_requested:
+                goal_handle.canceled()
+                result.success = False
+                result.message = 'Canceled before synthesis'
+                self._finish_speaking(success=False, text=text)
+                return result
             # 1. 텍스트 합성 (파일 경로만 반환받음)
-            if self.gcp_client:
+            if self.playback_mode == 'publish_only':
+                used_engine = 'browser'
+            elif self.gcp_client:
                 audio_file_path, used_engine = self._speak_with_waterfall(text)
             else:
                 audio_file_path = self._synthesize_gtts(text)
 
+            if goal_handle.is_cancel_requested:
+                goal_handle.canceled()
+                result.success = False
+                result.message = 'Canceled during synthesis'
+                self._cleanup_temp_file(audio_file_path)
+                self._finish_speaking(success=False, text=text)
+                return result
             self._publish_audio_event('tts_text', {'text': text, 'engine': used_engine})
 
             # 2. 재생 처리 (취소 가능하도록 subprocess 적용)
@@ -210,11 +226,20 @@ class TTSNode(Node):
                     stderr=subprocess.DEVNULL
                 )
 
+                deadline = time.monotonic()+60.
                 while play_process.poll() is None:
+                    if time.monotonic()>deadline or not rclpy.ok():
+                        play_process.kill()
+                        play_process.wait(timeout=2)
+                        raise RuntimeError("Audio playback timeout/shutdown")
                     # 재생 중 취소 요청 감지
                     if goal_handle.is_cancel_requested:
                         play_process.terminate()
-                        play_process.wait()
+                        try:
+                            play_process.wait(timeout=2)
+                        except subprocess.TimeoutExpired:
+                            play_process.kill()
+                            play_process.wait(timeout=2)
                         
                         goal_handle.canceled()
                         result.success = False
@@ -224,6 +249,9 @@ class TTSNode(Node):
                         return result
                         
                     time.sleep(0.1)
+
+                if play_process.returncode != 0:
+                    raise RuntimeError(f'Audio player exited {play_process.returncode}')
 
             # 정상 종료
             goal_handle.succeed()
@@ -243,7 +271,9 @@ class TTSNode(Node):
             return result
 
     def _finish_speaking(self, success=True, error='', text=''):
-        self.is_speaking = False
+        with self._speech_lock:
+            self._busy = False
+            self.is_speaking = False
         self._pub_speaking(False)
         self._pub_done(success=success, error=error, text=text)
 
@@ -255,9 +285,11 @@ class TTSNode(Node):
         threading.Thread(target=self._play_direct_text, args=(text,), daemon=True).start()
 
     def _play_direct_text(self, text: str):
-        if self.is_speaking:
-            self.get_logger().warn('TTS is currently busy. Direct TTS request ignored.')
-            return
+        with self._speech_lock:
+            if self._busy:
+                self.get_logger().warning("TTS busy; direct request ignored")
+                return
+            self._busy = True
 
         self.is_speaking = True
         self._pub_speaking(True)
@@ -265,7 +297,9 @@ class TTSNode(Node):
         audio_file_path = None
 
         try:
-            if self.gcp_client:
+            if self.playback_mode == 'publish_only':
+                used_engine = 'browser'
+            elif self.gcp_client:
                 audio_file_path, used_engine = self._speak_with_waterfall(text)
             else:
                 audio_file_path = self._synthesize_gtts(text)
@@ -273,12 +307,9 @@ class TTSNode(Node):
             self._publish_audio_event('tts_text', {'text': text, 'engine': used_engine})
 
             if self.playback_mode != 'publish_only' and audio_file_path:
-                play_process = subprocess.Popen(
-                    ['mpg123', '-q', audio_file_path],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL
-                )
-                play_process.wait()
+                subprocess.run(['mpg123', '-q', audio_file_path],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    timeout=60, check=True)
 
             self._cleanup_temp_file(audio_file_path)
             self._finish_speaking(success=True, text=text)
@@ -330,7 +361,7 @@ class TTSNode(Node):
         audio_config = texttospeech.AudioConfig(audio_encoding=texttospeech.AudioEncoding.MP3)
 
         response = self.gcp_client.synthesize_speech(
-            input=synthesis_input, voice=voice, audio_config=audio_config
+            input=synthesis_input, voice=voice, audio_config=audio_config, timeout=10
         )
         
         with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as fp:
@@ -340,8 +371,12 @@ class TTSNode(Node):
     def _synthesize_gtts(self, text: str) -> str:
         with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as fp:
             tmp = fp.name
-        gTTS(text=text, lang=self.language, slow=False).save(tmp)
-        return tmp
+        try:
+            gTTS(text=text, lang=self.language, slow=False, timeout=(3, 10)).save(tmp)
+            return tmp
+        except Exception:
+            self._cleanup_temp_file(tmp)
+            raise
 
     # --- SFX & Publishers 유지 ---
     def _on_audio_cue(self, msg: String):
@@ -368,7 +403,8 @@ class TTSNode(Node):
             return
 
         if self.playback_mode != 'publish_only':
-            os.system(f'mpg123 -q "{cue_path}" 2>/dev/null')
+            subprocess.run(["mpg123", "-q", str(cue_path)], stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, timeout=10, check=False)
 
     def _resolve_sfx_base_path(self, configured_path: str) -> str:
         if configured_path: return configured_path
@@ -384,7 +420,7 @@ class TTSNode(Node):
         return Path(self.sfx_base_path) / f'{cue_name}.wav'
 
     def _publish_audio_event(self, event_type: str, payload: dict):
-        if self.playback_mode == 'local_only': return
+        # Always publish output metadata; browsers suppress local_only playback.
         msg = String()
         msg.data = json.dumps({
             'event_type': event_type,

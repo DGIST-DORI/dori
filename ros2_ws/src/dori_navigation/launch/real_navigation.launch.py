@@ -29,7 +29,7 @@ def generate_launch_description():
             output='screen',
             parameters=[{
                 'goals_file': LaunchConfiguration('named_goals_file'),
-                'goal_topic': [LaunchConfiguration('namespace'), '/internal/named_goal'],
+                'named_action_name': [LaunchConfiguration('namespace'), '/nav/navigate_named'],
                 'action_name': [LaunchConfiguration('namespace'), '/nav/navigate_to'],
             }],
         ),

@@ -88,12 +88,10 @@ function EventLogPanel() {
   const [search,     setSearch]     = useState('');
 
   const listRef   = useRef(null);
-  const frozenLog = useRef([]);
+  const [frozenLog, setFrozenLog] = useState([]);
 
   useEffect(() => {
     if (!paused && listRef.current) listRef.current.scrollTop = 0;
-    if (paused && frozenLog.current.length === 0) frozenLog.current = log;
-    if (!paused) frozenLog.current = [];
   }, [log, paused]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
@@ -134,7 +132,7 @@ function EventLogPanel() {
 
   // ── Filtering ─────────────────────────────────────────────────────────────────
 
-  const displayLog = paused ? frozenLog.current : log;
+  const displayLog = paused ? frozenLog : log;
 
   const filtered = useMemo(() => displayLog.filter(e => {
     if (!isAllMode && !activeTags.has(e.tag)) return false;
@@ -201,7 +199,7 @@ function EventLogPanel() {
           />
           <button
             className={`el-action-btn ${paused ? 'active' : ''}`}
-            onClick={() => setPaused(p => !p)}
+            onClick={() => setPaused(p => { setFrozenLog(p ? [] : log); return !p; })}
             title="Pause auto-scroll"
           >
             {paused ? '▶ resume' : '⏸ pause'}

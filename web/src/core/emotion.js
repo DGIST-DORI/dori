@@ -18,6 +18,14 @@ export const STATE_TO_EMOTION = Object.freeze({
   LISTENING: 'ATTENTIVE',
   RESPONDING: 'THINKING',
   NAVIGATING: 'HAPPY',
+  INTERACTION: 'THINKING',
+  GUIDING: 'HAPPY',
+  ARRIVED: 'HAPPY',
+  USER_LOST_CONFIRM: 'CURIOUS',
+  ACCESS_HELP: 'CURIOUS',
+  WAIT_MIC_RETURN: 'ATTENTIVE',
+  CANCELED: 'CALM',
+  ERROR: 'SURPRISED',
 });
 
 export const normalizeEmotionKey = (emotion) => {

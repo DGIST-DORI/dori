@@ -70,6 +70,8 @@ class NavDriveBridge(Node):
         self.motion_status = self.create_publisher(String, '/navigation/motion_interpreter', 5)
         self.mode_cmd = self.create_publisher(Int32, '/control_mode_cmd', 10)
         self.nav_mode = self.create_publisher(Int32, '/NAVIGATION_MODE', 10)
+        self.authority_time = 0.
+        self.create_subscription(Bool, "/navigation/authority_heartbeat", self.on_authority, 10)
         self.enabled = False; self.control_mode = None; self.action_state = None
         self.goal_active = False; self.cmd = None; self.cmd_time = 0
         self.odom = None; self.scan = None; self.last_reason = None; self.last_halt = None
@@ -92,6 +94,9 @@ class NavDriveBridge(Node):
         self.create_subscription(DynamicJointState, '/drive/wheel_control', self.on_applied, qos_profile_sensor_data)
         self.create_subscription(Bool, '/emergency_stop', self.on_estop, 10)
         self.create_timer(0.05, self.tick)
+
+    def on_authority(self, msg):
+        self.authority_time = time.monotonic() if msg.data else 0.
 
     def on_cmd(self, msg):
         values = [msg.linear.x, msg.linear.y, msg.linear.z, msg.angular.x, msg.angular.y, msg.angular.z]
@@ -246,6 +251,7 @@ class NavDriveBridge(Node):
 
     def reason(self):
         if not self.enabled: return 'disabled'
+        if time.monotonic()-self.authority_time > .5: return 'authority_stale'
         if self.control_mode != 1: return 'waiting_for_hardware_auto_mode'
         if not self.scale_verified or time.monotonic()-self.params_time > 3: return 'hardware_scale_unverified'
         if self.action_state not in (0, 1): return 'hardware_inhibited'
