@@ -18,7 +18,7 @@ def include(package, filename, arguments):
 
 def setup(context):
     value = lambda n: LaunchConfiguration(n).perform(context)
-    nav_share = Path(get_package_share_directory('robot_navigation'))
+    nav_share = Path(get_package_share_directory('dori_navigation'))
     sys.path.insert(0, str(nav_share/'scripts'))
     from navigation_contract import validate_map
     validate_map(value('map'))
@@ -35,11 +35,11 @@ def setup(context):
         include('dori_hardware', 'real_hardware.launch.py', {'use_joystick': value('use_joystick')}),
         include('sllidar_ros2', 'sllidar_c1_launch.py', {'serial_port': value('lidar_port'),
             'serial_baudrate': '460800', 'frame_id': 'laser', 'scan_mode': 'Standard'}),
-        include('robot_mapping', 'lidar_odometry.launch.py', {
+        include('dori_mapping', 'lidar_odometry.launch.py', {
             'laser_'+axis: value('laser_'+axis) for axis in ('x','y','z','roll','pitch','yaw')}),
-        include('robot_navigation', 'real_nav2.launch.py', {'map': value('map'),
+        include('dori_navigation', 'real_nav2.launch.py', {'map': value('map'),
             'named_goals_file': value('named_goals_file'), 'publish_laser_tf': 'false', 'rviz': value('rviz')}),
-        Node(package='robot_navigation', executable='web_viewer.py', name='dori_web_viewer',
+        Node(package='dori_navigation', executable='web_viewer.py', name='dori_web_viewer',
              arguments=['--mode','navigation','--goals-file',value('named_goals_file'),
                         '--host',value('web_host'),'--port','8080','--user-port','7070'], output='screen'),
     ]

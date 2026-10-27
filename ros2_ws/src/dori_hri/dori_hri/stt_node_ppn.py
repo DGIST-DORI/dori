@@ -141,7 +141,7 @@ class STTNode(Node):
 
         # State
         self.state           = STTState.IDLE
-        self.robot_speaking  = False
+        self.dori_speaking  = False
         self.audio_queue     = queue.Queue()
         self.buffer          = []
         self.listen_start_time: float | None = None
@@ -274,8 +274,8 @@ class STTNode(Node):
     def _on_tts_speaking(self, msg: Bool):
         """Mute microphone while TTS is playing to prevent self-detection."""
         with self.state_lock:
-            self.robot_speaking = msg.data
-            if self.robot_speaking:
+            self.dori_speaking = msg.data
+            if self.dori_speaking:
                 self.get_logger().info('TTS speaking — STT muted')
                 self.state = STTState.IDLE
                 self.buffer.clear()
@@ -286,7 +286,7 @@ class STTNode(Node):
         if status:
             self.get_logger().warn(f'Audio status: {status}')
 
-        if self.robot_speaking:
+        if self.dori_speaking:
             return
 
         try:
@@ -313,7 +313,7 @@ class STTNode(Node):
             self.get_logger().error(f'Audio callback error: {e}')
 
     def _on_audio_input_topic(self, msg: String):
-        if self.robot_speaking:
+        if self.dori_speaking:
             return
         if self.audio_input_mode != 'topic':
             return
@@ -348,7 +348,7 @@ class STTNode(Node):
 
     # Audio processing (timer callback)
     def _process_audio(self):
-        if self.robot_speaking:
+        if self.dori_speaking:
             return
 
         with self.state_lock:

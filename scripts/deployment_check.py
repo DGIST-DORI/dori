@@ -9,7 +9,7 @@ import platform
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0,str(ROOT/'ros2_ws/src/robot_navigation/scripts'))
+sys.path.insert(0,str(ROOT/'ros2_ws/src/dori_navigation/scripts'))
 from navigation_contract import validate_map
 
 
@@ -26,10 +26,10 @@ def check(map_file, voice=False):
         report['map'] = validate_map(map_file)
     except (OSError,ValueError) as exc:
         errors.append(str(exc))
-    executables = {'dori_bt':'dori_tree_executor', 'dori_navigation':'nav2_adapter',
-        'dori_hri':'tts_node', 'dori_llm':'llm_node', 'robot_drive':'drive_controller_node',
-        'robot_navigation':'web_viewer.py'}
-    for package, executable in executables.items():
+    executables = [('dori_bt','dori_tree_executor'), ('dori_navigation','nav2_adapter'),
+        ('dori_navigation','named_goal_adapter'), ('dori_navigation','web_viewer.py'),
+        ('dori_hri','tts_node'), ('dori_llm','llm_node'), ('dori_drive','drive_controller_node')]
+    for package, executable in executables:
         try:
             prefix = Path(get_package_prefix(package))
             if not prefix.is_relative_to(ROOT/'ros2_ws/install'):
@@ -38,7 +38,7 @@ def check(map_file, voice=False):
                 errors.append(f'Executable missing: {package}/{executable}')
         except LookupError:
             errors.append('Package missing: '+package)
-    for module in ('rclpy','dori_msgs.action','fastapi','uvicorn','httpx','PIL','scipy','serial','gtts'):
+    for module in ('rclpy','dori_msgs.action','dori_msgs.msg','fastapi','uvicorn','httpx','PIL','scipy','serial','gtts'):
         try:
             importlib.import_module(module)
         except Exception as exc:

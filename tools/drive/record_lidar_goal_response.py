@@ -10,7 +10,7 @@ from nav_msgs.msg import Odometry
 from sensor_msgs.msg import JointState
 from control_msgs.msg import DynamicJointState
 from std_msgs.msg import Int32,String,Bool
-from robot_msgs.msg import MitCommand
+from dori_msgs.msg import MitCommand
 
 
 def main():

@@ -36,7 +36,7 @@ def main():
     args=parser.parse_args()
     if not math.isfinite(args.discovery_timeout) or not 0<=args.discovery_timeout<=60:parser.error('Invalid discovery timeout')
     args.duration=max(5.0,args.duration)  # Allow DDS discovery before attributing TF publishers.
-    rclpy.init();n=Node('robot_contract_preflight');buffer=Buffer();listener=TransformListener(buffer,n)
+    rclpy.init();n=Node('dori_contract_preflight');buffer=Buffer();listener=TransformListener(buffer,n)
     latest={};counts={};edges={};odom_history=[];supervisor={}
     latch=QoSProfile(depth=1,durability=DurabilityPolicy.TRANSIENT_LOCAL)
     for topic in ['/system/action_state','/system/control_mode']:
@@ -57,7 +57,7 @@ def main():
         deadline=time.monotonic()+timeout
         while not future.done() and time.monotonic()<deadline:time.sleep(.005)
     observation=args.duration+args.discovery_timeout
-    authority=subprocess.Popen(['ros2','run','robot_drive','tf_authority_check','--ros-args','-p','duration:='+str(observation)],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+    authority=subprocess.Popen(['ros2','run','dori_drive','tf_authority_check','--ros-args','-p','duration:='+str(observation)],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
     end=time.monotonic()+observation
     while (time.monotonic()<end or authority.poll() is None) and time.monotonic()<end+10:
         time.sleep(0.01)
@@ -115,7 +115,7 @@ def main():
     report['odom_source']='lidar_odometry'
     if odom_publishers!=['lidar_odometry'] or owners!=['lidar_odometry']:
         errors.append('/odom and odom->base_link must be owned only by lidar_odometry')
-    expected_params=yaml.safe_load((ROOT/'ros2_ws/src/robot_drive/config/kinematics.yaml').read_text())['/**']['ros__parameters']
+    expected_params=yaml.safe_load((ROOT/'ros2_ws/src/dori_drive/config/kinematics.yaml').read_text())['/**']['ros__parameters']
     client=n.create_client(GetParameters,'/drive_controller_node/get_parameters')
     if client.wait_for_service(timeout_sec=0.5):
         request=GetParameters.Request();request.names=list(expected_params)

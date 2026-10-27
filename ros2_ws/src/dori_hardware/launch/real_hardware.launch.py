@@ -14,7 +14,7 @@ def generate_launch_description():
         DeclareLaunchArgument('use_joystick', default_value='false'),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(os.path.join(
-                get_package_share_directory('robot_bringup'),
+                get_package_share_directory('dori_hardware'),
                 'launch', 'system_real_with_imu.launch.py')),
             launch_arguments={
                 'use_joystick': LaunchConfiguration('use_joystick'),

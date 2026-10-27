@@ -3,13 +3,13 @@
 | 문서 관리 | 값 |
 |---|---|
 | 문서 번호 | DORI-AMM-001 |
-| 개정 | R2 / 2026-10-27 — 주행 단위·TTA 재감사 |
+| 개정 | R3 / 2026-10-27 — DORI 패키지 명칭 통일 |
 | 적용 대상 | Ubuntu 22.04, ROS 2 Humble, Python 3.10, 기존 DORI 실물 제어장치 |
 | 소스 기준 | feature/control-and-navigation `ec23021db449fbb1cac91740f5a466fb5af9c1c8` |
 | main 대조 | `d4cc1ae079082ef5af94583ce684155c39f58c28` — 위 feature의 조상, 별도 미포함 HRI 커밋 없음 |
 | 통합 브랜치 | `integration/robot-hri-navigation` |
 | 검증 등급 | 소프트웨어 통합 검증 완료 / 실물 인수시험 미수행 |
-| 관련 기록 | [최초 통합 검증](../dev/evidence/integration-2026-10-27/README.md), [R2 주행 재감사](../dev/evidence/drive-audit-2026-10-27/README.md) |
+| 관련 기록 | [최초 통합 검증](../dev/evidence/integration-2026-10-27/README.md), [R2 주행 재감사](../dev/evidence/drive-audit-2026-10-27/README.md), [R3 명칭 변경 검증](../dev/evidence/namespace-migration-2026-10-27/README.md) |
 
 이 문서는 항공기 정비서의 작업 번호·선행조건·작업·합격기준·복구 형식을 적용한 로봇 작업 문서다. 항공 인증 또는 현장 로봇의 운용 승인 문서가 아니다. 모든 명령은 별도 표시가 없으면 저장소 루트에서 일반 사용자로 실행한다.
 
@@ -17,7 +17,7 @@
 
 ### 00-10 적용 기준
 
-실제로 주행한 `robot_*`, `cubemars_hardware`, `imu_serial`, Dynamixel 드라이버와 주행 튜닝을 유지한다. `dori_*`는 HRI·액션 중계·상위 통합을 담당한다. 패키지 이름을 일괄 변경해 실측 제어 경로를 다시 만들지 않는다.
+실제로 주행한 제어 로직·튜닝은 유지하고 프로젝트 패키지는 `dori_*`로 통일한다. 하드웨어 기동은 `dori_hardware`, 제어는 `dori_drive`·`dori_supervisor`·`dori_transform`, 상위 조합은 `dori_bringup`이 담당한다. Nav2와 HRI 주행 중계는 `dori_navigation`, 센서 지도화는 `dori_mapping`, 메시지와 액션은 `dori_msgs`에 합쳤다. [전체 변경표](../dev/package-ownership.md)를 적용한다. 벤더·장치 패키지와 ROS 표준 파라미터 이름은 유지한다.
 
 `main`의 음성, 규칙/외부 LLM, RAG, 감정 표현, 사람 추적, 제스처, 표정, 랜드마크, 지식 관리 및 대시보드 코드를 포함한다. 카메라 모델·장치·API 키가 필요한 기능은 준비 후 활성화한다. 제거한 것은 빌드에서 제외돼 있던 구형 BT 모의 액션/조건 구현이며, 실제 ROS 액션 클라이언트로 대체했다.
 
@@ -45,13 +45,13 @@ Humble 액션 basename remap의 제약 때문에 내부 Nav2 액션의 send_goal
 
 **선행조건:** 로봇 정지, 기존 제어 세션 종료, 비상 정지 장치 접근 가능, 주행 구역 확보.
 
-**주의:** `start_robot.sh`, `run_robot_control.sh`, `start_mapping.sh`는 실제 구동기를 실행한다. `--text-only`도 구동기를 실행한다. `--prepare-only`는 CAN/장치 상태를 변경한다. `--check`와 `deployment_check.py`는 읽기 점검이다.
+**주의:** `start_robot.sh`, `run_dori_control.sh`, `start_mapping.sh`는 실제 구동기를 실행한다. `--text-only`도 구동기를 실행한다. `--prepare-only`는 CAN/장치 상태를 변경한다. `--check`와 `deployment_check.py`는 읽기 점검이다.
 
 1. 차체·바퀴·변형 기구 주변에서 사람과 장애물을 제거한다.
 2. 배터리, CANable, 서보, IMU, LiDAR의 전원·결선·커넥터를 확인한다.
 3. 적용 지도와 현장 구조가 일치하는지 확인한다. 지도만 같고 초기 위치가 다른 상태에서 출발하지 않는다.
 4. 다른 터미널·서비스에서 제어 노드가 실행 중이면 먼저 정상 종료한다.
-5. 현재 로봇의 udev 장치 별칭과 포트를 확인한다. LiDAR 기본 별칭은 `/dev/slamtec_c1`, CAN은 `can1`이다. IMU/서보 포트는 `robot_bringup`의 기존 실물 launch 설정을 적용한다.
+5. 현재 로봇의 udev 장치 별칭과 포트를 확인한다. LiDAR 기본 별칭은 `/dev/slamtec_c1`, CAN은 `can1`이다. IMU/서보 포트는 `dori_hardware`의 기존 실물 launch 설정을 적용한다.
 
 **합격기준:** 단일 제어 세션을 시작할 수 있고, 현장 정지 수단과 자유 주행 공간이 확보됨.
 
@@ -62,7 +62,7 @@ Humble 액션 basename remap의 제약 때문에 내부 Nav2 액션의 send_goal
 ```bash
 source scripts/env.sh
 python3 scripts/deployment_check.py --voice
-scripts/run_robot_control.sh --no-joystick --check
+scripts/run_dori_control.sh --no-joystick --check
 ```
 
 첫 명령은 지도, Python ABI, ROS overlay, 액션·실행 파일, 웹 설치, Python 라이브러리와 음성 자산을 확인한다. 두 번째는 실제 장치 및 중복 제어 프로세스를 읽기 점검한다. 장치가 없는 개발 PC에서 두 번째 명령이 통과할 필요는 없다.
@@ -91,7 +91,28 @@ python3 scripts/deployment_check.py --voice
 - frontend 빌드 후 ROS 빌드를 해야 설치된 대시보드에 최신 자산이 포함된다.
 - 다른 PC의 `.venv`, `ros2_ws/build`, `ros2_ws/install`을 로봇으로 복사해 사용하지 않는다. 콘솔 스크립트의 절대 경로와 아키텍처가 달라질 수 있다.
 
-**합격기준:** ROS 28개 패키지 빌드 성공, 웹 lint/build 성공, 읽기 점검 통과.
+**합격기준:** ROS 24개 패키지 빌드 성공, 웹 lint/build 성공, 읽기 점검 통과.
+
+### TASK 20-15-00 — 기존 robot 패키지 설치본에서 R3로 전환
+
+**선행조건:** 이전 로봇 세션 종료. 지도·목적지 파일과 현장 설정 백업. 작업 디렉터리는 저장소 루트.
+
+```bash
+# 이전 overlay를 source하지 않은 새 셸에서 실행
+scripts/build.sh --clean
+source scripts/env.sh
+python3 scripts/deployment_check.py --voice
+scripts/test.sh
+```
+
+`--clean`은 기존 `ros2_ws/build`, `install`, `log`를 `.state/build-backups/<시각>_<PID>`로 이동한 뒤 다시 빌드한다. 소스·지도·목적지·음성 모델은 유지한다. 이전 이름의 설치 폴더가 남아 있으면 일반 build/env가 중단되고 clean build를 안내한다.
+
+- `robot_msgs/msg/*` 대신 `dori_msgs/msg/*`를 사용한다. 필드는 같지만 ROS 메시지 타입 이름이 달라지므로 외부 ROS 클라이언트·rosbag 재생 설정도 새 타입으로 맞추고 재빌드한다. 기존 노드와 신규 노드를 섞어서 실행하지 않는다.
+- 수동 제어 도구는 `scripts/run_dori_control.sh`, 매핑/내비게이션 조합기는 `scripts/dori_stack.py`다. 저장소 환경변수는 `DORI_WS`, 제어 설정 환경변수는 `DORI_CONTROL_*`, `DORI_ODOM_*`, `DORI_USE_WHEEL_ODOMETRY`다.
+- 개발용 launch는 `ros2 launch dori_bringup dori_dev.launch.py`; `robot.launch.py`의 모드 인자는 `dori_mode:=real|desktop|sim`이다. 기본 실물 진입점 `scripts/start_robot.sh`는 동일하다.
+- 기존 `robot_bringup`의 장치 설정/launch 경로는 `dori_hardware`로 이동했다. 기존 현장 설정을 새 경로에 대조·반영한 뒤 기동한다.
+
+**합격기준:** workspace의 24개 패키지만 발견되며 구형 패키지 overlay가 없음. `ros2 pkg executables dori_navigation`에서 세 실행 파일이 보이고, `ros2 interface show dori_msgs/msg/MitCommand` 성공. AMM 30-20 및 72 인수 점검 통과.
 
 ### TASK 20-20-00 — 선택 기능 준비
 

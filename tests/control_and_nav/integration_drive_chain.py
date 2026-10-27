@@ -26,7 +26,7 @@ from rcl_interfaces.srv import SetParameters
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, DurabilityPolicy
-from robot_msgs.msg import MitCommand
+from dori_msgs.msg import MitCommand
 from sensor_msgs.msg import JointState, LaserScan
 from std_msgs.msg import Bool, Int32, String
 from tf2_ros import TransformBroadcaster, StaticTransformBroadcaster
@@ -121,15 +121,15 @@ def main():
         raise AssertionError(label+': '+str(state))
     def wait_future(future, timeout): wait(future.done,'parameter response',timeout)
     def stopped(): return max(abs(state['left']),abs(state['right']))<1e-6
-    drive_cmd=['ros2','run','robot_drive','drive_controller_node','--ros-args',
-               '--params-file',str(ROOT/'ros2_ws/src/robot_drive/config/drive_params.yaml'),
-               '--params-file',str(ROOT/'ros2_ws/src/robot_drive/config/kinematics.yaml')]
+    drive_cmd=['ros2','run','dori_drive','drive_controller_node','--ros-args',
+               '--params-file',str(ROOT/'ros2_ws/src/dori_drive/config/drive_params.yaml'),
+               '--params-file',str(ROOT/'ros2_ws/src/dori_drive/config/kinematics.yaml')]
     try:
-        start('supervisor',['ros2','run','robot_supervisor','mode_manager_node'])
+        start('supervisor',['ros2','run','dori_supervisor','mode_manager_node'])
         drive=start('controller',drive_cmd)
-        start('bridge',['/usr/bin/python3',str(ROOT/'ros2_ws/src/robot_navigation/scripts/nav_drive_bridge.py'),
-              '--ros-args','--params-file',str(ROOT/'ros2_ws/src/robot_navigation/config/motion_interpreter.yaml'),
-              '--params-file',str(ROOT/'ros2_ws/src/robot_drive/config/kinematics.yaml')])
+        start('bridge',['/usr/bin/python3',str(ROOT/'ros2_ws/src/dori_navigation/scripts/nav_drive_bridge.py'),
+              '--ros-args','--params-file',str(ROOT/'ros2_ws/src/dori_navigation/config/motion_interpreter.yaml'),
+              '--params-file',str(ROOT/'ros2_ws/src/dori_drive/config/kinematics.yaml')])
         wait(lambda: state['gate']=='disabled' and state['mode']==0, 'discovery',15)
         report['contract']=check_drive_contract(n,wait_future,check_routes=False)
         assert report['contract']['ok'],report['contract']

@@ -4,7 +4,7 @@
 
 This checkout includes the Dori MIT-protocol implementation and CAN fault tests.
 The active configuration is
-[`cubemars_mit.urdf.xacro`](../robot_bringup/config/cubemars_mit.urdf.xacro):
+[`cubemars_mit.urdf.xacro`](../dori_hardware/config/cubemars_mit.urdf.xacro):
 `protocol_mode=mit`, `can1`, physical left CAN ID 2 / sign +1 and physical
 right CAN ID 1 / sign -1. The sign is applied to both commands and feedback.
 The state interfaces include `feedback_age`, which measures the age of actual

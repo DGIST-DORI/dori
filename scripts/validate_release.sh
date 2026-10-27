@@ -2,7 +2,7 @@
 # Software plant only. Isolated ROS domains; never launches physical drivers.
 set -eo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
-cd "$ROBOT_WS"
+cd "$DORI_WS"
 export ROS_LOCALHOST_ONLY=1 OPENBLAS_NUM_THREADS=1
 mkdir -p log/validation
 scripts/test.sh | tee log/validation/tests.log

@@ -24,7 +24,7 @@ from tests.control_and_nav.lidar_scene import ranges
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT/'scripts'))
-from robot_stack import stop_children
+from dori_stack import stop_children
 
 
 def main():
@@ -67,7 +67,7 @@ def main():
         raise AssertionError(label)
 
     try:
-        start('odom', ['ros2', 'launch', 'robot_mapping', 'lidar_odometry.launch.py'])
+        start('odom', ['ros2', 'launch', 'dori_mapping', 'lidar_odometry.launch.py'])
         wait(lambda: state['odom'] is not None, 'LiDAR odometry missing', 20)
         start('cartographer', [str(ROOT/'scripts/run_mapping.sh')])
         wait(lambda: state['map'] is not None, 'Cartographer map missing', 35)

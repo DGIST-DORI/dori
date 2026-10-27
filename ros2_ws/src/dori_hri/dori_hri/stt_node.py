@@ -104,7 +104,7 @@ class STTNode(Node):
 
         # State
         self.state           = STTState.IDLE
-        self.robot_speaking  = False
+        self.dori_speaking  = False
         self.mute_until      = 0.0 # 잔향 방지를 위한 음소거 유예 시간
         self.audio_queue     = queue.Queue(maxsize=160)
         self.buffer          = []
@@ -167,17 +167,17 @@ class STTNode(Node):
     def _on_tts_speaking(self, msg: Bool):
         """Mute microphone while TTS is playing to prevent self-detection."""
         with self.state_lock:
-            was_speaking = self.robot_speaking
-            self.robot_speaking = msg.data
+            was_speaking = self.dori_speaking
+            self.dori_speaking = msg.data
 
-            if self.robot_speaking:
+            if self.dori_speaking:
                 self.get_logger().info('TTS speaking — STT muted')
                 self.state = STTState.IDLE
                 self.buffer.clear()
                 while not self.audio_queue.empty():
                     self.audio_queue.get_nowait()
 
-            elif was_speaking and not self.robot_speaking:
+            elif was_speaking and not self.dori_speaking:
                 self.mute_until = time.time() + 0.8
                 self.get_logger().info('TTS ended — STT deaf margin active for 0.8s')
 
@@ -185,7 +185,7 @@ class STTNode(Node):
         if status:
             self.get_logger().warn(f'Audio status: {status}')
 
-        if self.robot_speaking or time.time() < self.mute_until:
+        if self.dori_speaking or time.time() < self.mute_until:
             return
 
         try:
@@ -218,7 +218,7 @@ class STTNode(Node):
             self.get_logger().error(f'Audio callback error: {e}')
 
     def _on_audio_input_topic(self, msg: String):
-        if self.robot_speaking:
+        if self.dori_speaking:
             return
         if self.audio_input_mode != 'topic':
             return
@@ -257,7 +257,7 @@ class STTNode(Node):
 
     # Audio processing (timer callback)
     def _process_audio(self):
-        if self.robot_speaking:
+        if self.dori_speaking:
             return
 
         with self.state_lock:

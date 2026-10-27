@@ -2,9 +2,9 @@
 # Full HRI + calibrated real robot + dashboard. Run as the device-owning user.
 set -eo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
-cd "$ROBOT_WS"
-map_file="$ROBOT_WS/maps/live_navigation_20261023_1938.yaml"
-goals_file="$ROBOT_WS/maps/web_goals.json"
+cd "$DORI_WS"
+map_file="$DORI_WS/maps/live_navigation_20261023_1938.yaml"
+goals_file="$DORI_WS/maps/web_goals.json"
 launch_args=()
 check_only=false
 check_args=(--voice)
@@ -21,15 +21,15 @@ while (($#)); do
     esac
 done
 # Validate files before preparing actuators.
-python3 "$ROBOT_WS/scripts/deployment_check.py" --map "$map_file" "${check_args[@]}"
+python3 "$DORI_WS/scripts/deployment_check.py" --map "$map_file" "${check_args[@]}"
 if [[ "$check_only" == true ]]; then
-    exec "$ROBOT_WS/scripts/run_robot_control.sh" --no-joystick --check
+    exec "$DORI_WS/scripts/run_dori_control.sh" --no-joystick --check
 fi
 if [[ ! -e "$goals_file" ]]; then
-    if [[ "$goals_file" != "$ROBOT_WS/maps/web_goals.json" ]]; then
+    if [[ "$goals_file" != "$DORI_WS/maps/web_goals.json" ]]; then
         echo "Missing goals file: $goals_file" >&2; exit 1
     fi
-    cp "$ROBOT_WS/maps/web_goals.example.json" "$goals_file"
+    cp "$DORI_WS/maps/web_goals.example.json" "$goals_file"
 fi
-"$ROBOT_WS/scripts/run_robot_control.sh" --no-joystick --prepare-only
-exec ros2 launch dori_bringup real_robot.launch.py map:="$map_file" named_goals_file:="$goals_file" whisper_model:="$ROBOT_WS/.state/voice/whisper-small" "${launch_args[@]}"
+"$DORI_WS/scripts/run_dori_control.sh" --no-joystick --prepare-only
+exec ros2 launch dori_bringup real_robot.launch.py map:="$map_file" named_goals_file:="$goals_file" whisper_model:="$DORI_WS/.state/voice/whisper-small" "${launch_args[@]}"

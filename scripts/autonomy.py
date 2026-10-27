@@ -11,7 +11,7 @@ import time
 import urllib.request
 from urllib.parse import urlsplit
 
-from robot_stack import ROOT, stop_children, wait_for_base
+from dori_stack import ROOT, stop_children, wait_for_base
 from navigation_contract import validate_map
 
 GROUPS = {
@@ -143,14 +143,14 @@ def main():
         deadline=time.monotonic()+5
         while joystick_processes() and time.monotonic()<deadline:time.sleep(.1)
         if joystick_processes():raise RuntimeError('기존 조이스틱 입력이 종료되지 않았습니다. 해당 실행기를 확인하세요.')
-        control=[str(ROOT/'scripts/run_robot_control.sh'),'--no-joystick']
+        control=[str(ROOT/'scripts/run_dori_control.sh'),'--no-joystick']
         if plan['control']=='start':subprocess.run(control+['--prepare-only'],check=True)
-        env=os.environ.copy();env.update(ROBOT_USE_WHEEL_ODOMETRY='false',ROBOT_ODOM_PUBLISH_TF='false')
+        env=os.environ.copy();env.update(DORI_USE_WHEEL_ODOMETRY='false',DORI_ODOM_PUBLISH_TF='false')
         logs=ROOT/'log'/('autonomy_'+time.strftime('%Y%m%d_%H%M%S'));logs.mkdir(parents=True)
         (logs/'session.json').write_text(json.dumps({'map':str(args.map),'plan':plan},indent=2))
         if plan['control']=='start':start('control',control)
         if plan['lidar']=='start':start('lidar',[str(ROOT/'scripts/run_lidar.sh')])
-        if plan['odometry']=='start':start('odometry',['ros2','launch','robot_mapping','lidar_odometry.launch.py'])
+        if plan['odometry']=='start':start('odometry',['ros2','launch','dori_mapping','lidar_odometry.launch.py'])
         if plan['web']=='start':start('web',[str(ROOT/'scripts/start_web_viewer.sh'),'--mode','auto'])
         print('관리자: http://<robot-ip>:8080\n사용자: '+(https_url or 'http://<robot-ip>:7070'),flush=True)
         wait_for_base(children,env,logs)
