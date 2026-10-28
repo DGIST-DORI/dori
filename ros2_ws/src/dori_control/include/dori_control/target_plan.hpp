@@ -5,7 +5,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace dori_transform
+namespace dori_control
 {
 struct MotionStep
 {
@@ -83,4 +83,4 @@ inline TargetPlan makeTargetPlan(
   }
   return plan;
 }
-}  // namespace dori_transform
+}  // namespace dori_control

@@ -17,7 +17,7 @@ def setup(context):
     value = lambda name: LaunchConfiguration(name).perform(context)
     validate_map(value('map'))
     params = [value('params_file'), {'use_sim_time': False}]
-    kinematics = str(Path(get_package_share_directory('dori_drive')) / 'config/kinematics.yaml')
+    kinematics = str(Path(get_package_share_directory('dori_control')) / 'config/kinematics.yaml')
     specs = [('nav2_map_server','map_server'), ('nav2_amcl','amcl'),
              ('nav2_controller','controller_server'), ('nav2_planner','planner_server'),
              ('nav2_behaviors','behavior_server'),

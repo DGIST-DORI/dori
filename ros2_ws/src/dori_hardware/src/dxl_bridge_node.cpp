@@ -1,4 +1,4 @@
-#include "dori_transform/dxl_bridge_node.hpp"
+#include "dori_hardware/dxl_bridge_node.hpp"
 
 #include <algorithm>
 #include <cmath>

@@ -3,7 +3,7 @@
 #include <string>
 #include "control_msgs/msg/dynamic_joint_state.hpp"
 
-namespace dori_drive {
+namespace dori_control {
 inline bool feedback_fresh(const control_msgs::msg::DynamicJointState & msg,
   const std::string & left, const std::string & right, double timeout, double transport_age = 0.0)
 {

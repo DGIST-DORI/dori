@@ -6,6 +6,7 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
@@ -47,6 +48,15 @@ install(DIRECTORY include/
 
 install(DIRECTORY launch config
   DESTINATION share/${PROJECT_NAME}
+)
+
+ament_python_install_package(${PROJECT_NAME})
+install(PROGRAMS
+  scripts/imu_node
+  scripts/body_pitch_node
+  scripts/body_stabilizer_node
+  scripts/servo3_pitch_follower_node
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 ament_package()

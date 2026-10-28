@@ -7,14 +7,13 @@
   <maintainer email="jaewon1627@gmail.com">ofbt</maintainer>
   <license>TODO: License declaration</license>
 
-  <buildtool_depend>ament_python</buildtool_depend>
-  
   <exec_depend>rosbridge_server</exec_depend>
   <exec_depend>rosapi</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>python3-fastapi</exec_depend>
   <exec_depend>python3-uvicorn</exec_depend>
-  <exec_depend>python3-multipart</exec_depend>
+  <!-- python-multipart has no rosdep key; install via requirements-runtime.txt
+       in the workspace venv (also declared in setup.py install_requires). -->
   <exec_depend>dori_observability</exec_depend>
 
   <export>

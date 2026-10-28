@@ -8,14 +8,14 @@ from pathlib import Path
 
 
 def generate_launch_description():
-    config = str(Path(get_package_share_directory('dori_drive')) / 'config/odometry.yaml')
+    config = str(Path(get_package_share_directory('dori_control')) / 'config/odometry.yaml')
     return LaunchDescription([
         DeclareLaunchArgument('params_file', default_value=config),
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument('publish_tf', default_value='true'),
         DeclareLaunchArgument('odom_scale', default_value='1.0'),
-        Node(package='dori_drive', executable='wheel_odometry_node', output='screen',
-             parameters=[LaunchConfiguration('params_file'), str(Path(get_package_share_directory('dori_drive')) / 'config/kinematics.yaml'), {
+        Node(package='dori_control', executable='wheel_odometry_node', output='screen',
+             parameters=[LaunchConfiguration('params_file'), str(Path(get_package_share_directory('dori_control')) / 'config/kinematics.yaml'), {
                  'use_sim_time': LaunchConfiguration('use_sim_time'),
                  'publish_tf': LaunchConfiguration('publish_tf'),
                  'odom_scale': ParameterValue(LaunchConfiguration('odom_scale'), value_type=float),
