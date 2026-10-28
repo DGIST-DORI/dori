@@ -1,29 +1,21 @@
-# Physical robot workspace
+# Drive measurement tools
 
-Run the real-robot profile from this directory (`ros2_ws`):
+These tools record/analyze the existing calibrated drive path. Run them from
+the repository root after sourcing the environment in [AMM 20-12](../../docs/user/DORI-AMM.md).
+Hardware preparation and actual robot launch are described in AMM 20-30/40-10.
+The ROS workspace is `ros2_ws`; maps live at the repository root under `maps`.
 
-```bash
-source /opt/ros/humble/setup.bash
-colcon build --symlink-install
-source install/setup.bash
-ros2 launch dori_bringup robot.launch.py dori_mode:=real \
-  real_map:=$PWD/maps/live_navigation_20261023_1938.yaml \
-  real_named_goals_file:=$PWD/maps/web_goals.example.json
-```
+- `record_manual_drive.py`: record manual-input response.
+- `record_lidar_goal_response.py`: record the LiDAR/navigation response.
+- `check_sensor_timing.py`: inspect sensor timing.
+- `analyze_manual_drive.py`, `fit_drive_response.py`: analyze recorded response.
 
-Default map: `maps/live_navigation_20261023_1938.yaml`. The real profile owns
-hardware, odometry, TF and Nav2, and receives goals only through
-`/dori/nav/navigate_to`; do not start the retired standalone web/navigation
-scripts alongside it.
+Inspect each tool's `--help` before use. Recording a commanded drive experiment
+requires the physical acceptance procedure; it is outside P0/P2 validation.
+Calibration values and TTA behavior were not retuned by the package refactor.
 
-Named destinations used by the Behavior Tree are supplied as JSON through
-`real_named_goals_file`; `maps/web_goals.example.json` documents the expected
-format. The configured goal frame must be `map`.
+[Package ownership](../../docs/dev/package-ownership.md) ·
+[Validation scope](../../docs/dev/refactor-validation.md) ·
+[Map handling](../../maps/README.md)
 
-- [실행 안내](../docs/user/real-robot.md)
-- [코드 구성·토픽 계약](../docs/dev/real-robot-architecture.md)
-- [조이스틱 역모델·지연 보상·TTA](../docs/dev/real-robot-motion-interpreter.md)
-- [검증·메인 저장소 반영 범위](../docs/dev/real-robot-validation.md)
-
-Runtime logs, local calibration overrides and build outputs are excluded from
-version control.
+Runtime logs, local calibration overrides and build outputs remain outside Git.

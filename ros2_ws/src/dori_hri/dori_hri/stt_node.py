@@ -126,7 +126,7 @@ class STTNode(Node):
 
         # Whisper
         if not WHISPER_AVAILABLE:
-            raise RuntimeError('faster-whisper is required; run scripts/prepare_voice.sh')
+            raise RuntimeError('faster-whisper is required; follow DORI-AMM task 20-20 model preparation')
 
         try:
             self.get_logger().info(f'Loading Whisper ({model_size})...')
