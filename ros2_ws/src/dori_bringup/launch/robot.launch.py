@@ -16,11 +16,11 @@ def setup(context):
         return [include('real_robot.launch.py', {'map':value('real_map'),
             'named_goals_file':value('real_named_goals_file'), 'use_joystick':value('real_use_joystick'),
             **{k:value(k) for k in ('namespace','enable_stt','enable_dashboard','enable_perception',
-                                   'tts_playback_mode','wake_word','whisper_model','require_user_tracking')}})]
+                                   'tts_playback_mode','whisper_model','require_user_tracking')}})]
     if value('dori_mode') not in ('sim', 'desktop'):
         raise ValueError('dori_mode must be real, desktop or sim (desktop alias)')
     actions = [include('voice.launch.py',{k:value(k) for k in (
-        'namespace','enable_stt','tts_playback_mode','wake_word','whisper_model')}),
+        'namespace','enable_stt','tts_playback_mode','whisper_model')}),
         include('interaction.launch.py', {'namespace':value('namespace')})]
     if value('enable_perception') == 'true':
         actions.append(include('perception.launch.py',{'namespace':value('namespace')}))

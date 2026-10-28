@@ -45,7 +45,7 @@ def setup(context):
     ]
     if value('enable_hri') == 'true':
         actions += [include('dori_bringup','voice.launch.py',{k:value(k) for k in (
-            'namespace','enable_stt','stt_audio_input_mode','wake_word','whisper_model','whisper_device',
+            'namespace','enable_stt','stt_audio_input_mode','whisper_model','whisper_device',
             'tts_playback_mode','tts_engine','use_external_llm','llm_model','knowledge_file','rag_index_dir')}),
             include('dori_bringup','interaction.launch.py',{k:value(k) for k in (
                 'namespace','require_user_tracking','require_mic_return','tree_xml_file')})]
