@@ -27,7 +27,6 @@ __pycache__
 /maps/web_goals.json*
 *.db
 
-/scripts/
 **/evidence/
 
 ros2_ws/src/third_party/*
