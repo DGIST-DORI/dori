@@ -137,7 +137,7 @@ ros2 launch dori_bringup bringup.launch.py
 or
 
 ```bash
-ros2 launch dori_bringup robot_dev.launch.py enable_dashboard:=false
+ros2 launch dori_bringup bringup_dev.launch.py enable_dashboard:=false
 ```
 
 ### Topic Namespace (default vs multi-robot remap)
@@ -160,7 +160,7 @@ The default topic value is declared with `declare_parameter("topics.xxx", "...")
 
 ### Full Robot (with Dashboard)
  
-Launches the full robot stack via `robot_dev.launch.py`, together with the web dashboard (rosbridge + HTTP server + knowledge API).
+Launches the full robot stack via `bringup_dev.launch.py`, together with the web dashboard (rosbridge + HTTP server + knowledge API).
 `bringup.launch.py` is not responsible for dashboard orchestration in the current setup.
 The dashboard frontend must be built before the first run.
  
@@ -172,10 +172,10 @@ colcon build --symlink-install
 source install/setup.bash
  
 # Launch (default includes dashboard)
-ros2 launch dori_bringup robot_dev.launch.py
+ros2 launch dori_bringup bringup_dev.launch.py
 
 # Equivalent explicit form
-# ros2 launch dori_bringup robot_dev.launch.py enable_dashboard:=true
+# ros2 launch dori_bringup bringup_dev.launch.py enable_dashboard:=true
 ```
 
 Dashboard access:
