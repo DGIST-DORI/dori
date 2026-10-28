@@ -9,8 +9,8 @@
 #include "nav_msgs/msg/odometry.hpp"
 #include "geometry_msgs/msg/transform_stamped.hpp"
 #include "tf2_ros/transform_broadcaster.h"
-#include "dori_drive/wheel_odometry.hpp"
-#include "dori_drive/feedback_freshness.hpp"
+#include "dori_control/wheel_odometry.hpp"
+#include "dori_control/feedback_freshness.hpp"
 
 class WheelOdometryNode : public rclcpp::Node
 {
@@ -26,7 +26,7 @@ public:
     const auto wrap = declare_parameter("position_wrap_radians", 25.132741228718345);
     timeout_ = declare_parameter("joint_state_timeout_sec", 0.2);
     const auto max_speed = declare_parameter("max_wheel_speed", 30.0);
-    odometry_ = std::make_unique<dori_drive::WheelOdometry>(radius * odom_scale, separation, wrap, timeout_, max_speed);
+    odometry_ = std::make_unique<dori_control::WheelOdometry>(radius * odom_scale, separation, wrap, timeout_, max_speed);
     left_ = declare_parameter("left_joint_name", std::string("left_wheel_joint"));
     right_ = declare_parameter("right_joint_name", std::string("right_wheel_joint"));
     odom_frame_ = declare_parameter("odom_frame", std::string("odom"));
@@ -35,7 +35,7 @@ public:
     feedback_sub_ = create_subscription<control_msgs::msg::DynamicJointState>(
       "/dynamic_joint_states", rclcpp::SensorDataQoS(),
       [this](control_msgs::msg::DynamicJointState::ConstSharedPtr msg) {
-        feedback_valid_ = dori_drive::feedback_fresh(*msg, left_, right_, timeout_);
+        feedback_valid_ = dori_control::feedback_fresh(*msg, left_, right_, timeout_);
         feedback_stamp_ = rclcpp::Time(msg->header.stamp).nanoseconds();
       });
     if (left_.empty() || right_.empty() || left_ == right_ || odom_frame_.empty() ||
@@ -90,8 +90,8 @@ private:
     const auto ri = static_cast<size_t>(r - msg.name.begin());
     if (li >= msg.position.size() || ri >= msg.position.size()) {return;}
     const auto result = odometry_->update(stamp.seconds(), msg.position[li], msg.position[ri]);
-    if (result == dori_drive::WheelOdometry::Result::rejected) {return;}
-    if (result == dori_drive::WheelOdometry::Result::rebased) {
+    if (result == dori_control::WheelOdometry::Result::rejected) {return;}
+    if (result == dori_control::WheelOdometry::Result::rebased) {
       RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000, "Rebased wheel samples after a gap or position jump");
     }
     nav_msgs::msg::Odometry out;
@@ -117,7 +117,7 @@ private:
       tf_->sendTransform(transform);
     }
   }
-  std::unique_ptr<dori_drive::WheelOdometry> odometry_;
+  std::unique_ptr<dori_control::WheelOdometry> odometry_;
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pub_;
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr sub_;

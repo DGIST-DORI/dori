@@ -43,7 +43,7 @@ def generate_launch_description():
     # ============================================================
 
     imu_node = Node(
-        package="imu_serial",
+        package="dori_hardware",
         executable="imu_node",
         name="imu_node",
         output="screen"
@@ -60,7 +60,7 @@ def generate_launch_description():
     # ============================================================
 
     body_pitch_node = Node(
-        package="imu_serial",
+        package="dori_hardware",
         executable="body_pitch_node",
         name="body_pitch_node",
         output="screen",
@@ -82,7 +82,7 @@ def generate_launch_description():
     # ============================================================
 
     body_stabilizer_node = Node(
-        package="imu_serial",
+        package="dori_hardware",
         executable="body_stabilizer_node",
         name="body_stabilizer_node",
         output="screen",
@@ -141,7 +141,7 @@ def generate_launch_description():
     # ============================================================
 
     servo3_pitch_follower_node = Node(
-        package="imu_serial",
+        package="dori_hardware",
         executable="servo3_pitch_follower_node",
         name="servo3_pitch_follower_node",
         output="screen",

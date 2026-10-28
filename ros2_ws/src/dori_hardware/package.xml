@@ -7,6 +7,7 @@
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
 
   <depend>rclcpp</depend>
   <depend>std_msgs</depend>
@@ -16,12 +17,23 @@
   <depend>dynamixel_sdk_custom_interfaces</depend>
   
   <exec_depend>rclpy</exec_depend>
+  <exec_depend>python3-serial</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>xacro</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>dynamixel_sdk_examples</exec_depend>
+  <exec_depend>cubemars_hardware</exec_depend>
+  <exec_depend>controller_manager</exec_depend>
+  <exec_depend>joint_state_broadcaster</exec_depend>
+  <exec_depend>velocity_controllers</exec_depend>
+  <exec_depend>position_controllers</exec_depend>
+  <exec_depend>forward_command_controller</exec_depend>
+  <exec_depend>joy</exec_depend>
+  <exec_depend>dori_control</exec_depend>
+  <exec_depend>dori_supervisor</exec_depend>
+  <exec_depend>dori_diagnostics</exec_depend>
   
   <export>
     <build_type>ament_cmake</build_type>

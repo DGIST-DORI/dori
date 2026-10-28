@@ -1,4 +1,4 @@
-#include "dori_drive/bldc_command_bridge_node.hpp"
+#include "dori_control/bldc_command_bridge_node.hpp"
 
 #include <cmath>
 #include <chrono>

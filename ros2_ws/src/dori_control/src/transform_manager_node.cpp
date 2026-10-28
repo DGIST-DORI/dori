@@ -1,5 +1,5 @@
-#include "dori_transform/transform_manager_node.hpp"
-#include "dori_transform/target_plan.hpp"
+#include "dori_control/transform_manager_node.hpp"
+#include "dori_control/target_plan.hpp"
 #include <limits>
 
 #include <cmath>
@@ -459,7 +459,7 @@ void TransformManagerNode::buildFixedReferenceSequence()
   const std::array<double, 4> ratio = {
     this->get_parameter("left_bldc_motor_per_mechanical").as_double(),
     this->get_parameter("right_bldc_motor_per_mechanical").as_double(), 1.0, 1.0};
-  const auto plan = dori_transform::makeTargetPlan(
+  const auto plan = dori_control::makeTargetPlan(
     reference, feedback, ratio, current_pose_ == POSE_B);
 
   // Reject inconsistent calibration before issuing any preparation command.

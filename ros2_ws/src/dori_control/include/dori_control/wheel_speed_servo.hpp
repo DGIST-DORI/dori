@@ -4,7 +4,7 @@
 #include <cmath>
 #include <stdexcept>
 
-namespace dori_drive
+namespace dori_control
 {
 // Supplement the motor's existing MIT velocity loop with load/friction torque.
 // Units: wheel rad/s, Nm, seconds. No change to commanded velocity or geometry.
@@ -70,4 +70,4 @@ private:
   double integral_{0}, torque_{0}, filtered_{0}, previous_target_{0};
   bool initialized_{false};
 };
-}  // namespace dori_drive
+}  // namespace dori_control

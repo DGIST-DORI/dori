@@ -1,4 +1,4 @@
-#include "dori_input/joystick_input_node.hpp"
+#include "dori_control/joystick_input_node.hpp"
 #include <cmath>
 
 JoystickInputNode::JoystickInputNode()

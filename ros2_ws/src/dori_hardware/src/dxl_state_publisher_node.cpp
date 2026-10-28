@@ -1,4 +1,4 @@
-#include "dori_transform/dxl_state_publisher_node.hpp"
+#include "dori_hardware/dxl_state_publisher_node.hpp"
 #include <cmath>
 #include <limits>
 using namespace std::chrono_literals;

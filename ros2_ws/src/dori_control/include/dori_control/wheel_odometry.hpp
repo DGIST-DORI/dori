@@ -3,7 +3,7 @@
 #include <cmath>
 #include <stdexcept>
 
-namespace dori_drive
+namespace dori_control
 {
 // Joint positions are wheel radians with direction_sign already applied by hardware.
 class WheelOdometry
@@ -66,4 +66,4 @@ private:
   double stamp_{0}, left_{0}, right_{0};
   bool initialized_{false};
 };
-}  // namespace dori_drive
+}  // namespace dori_control

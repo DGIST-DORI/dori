@@ -15,8 +15,8 @@
 
 #include "dori_msgs/msg/command_feedback.hpp"
 #include "dori_msgs/msg/mit_command.hpp"
-#include "dori_drive/feedback_freshness.hpp"
-#include "dori_drive/wheel_speed_servo.hpp"
+#include "dori_control/feedback_freshness.hpp"
+#include "dori_control/wheel_speed_servo.hpp"
 
 
 namespace
@@ -50,7 +50,7 @@ public:
       "/dynamic_joint_states", rclcpp::SensorDataQoS(),
       [this](control_msgs::msg::DynamicJointState::ConstSharedPtr msg) {
         feedback_msg_ = msg;
-        feedback_valid_ = dori_drive::feedback_fresh(*msg, left_joint_name_, right_joint_name_, joint_state_timeout_sec_);
+        feedback_valid_ = dori_control::feedback_fresh(*msg, left_joint_name_, right_joint_name_, joint_state_timeout_sec_);
         feedback_stamp_ = rclcpp::Time(msg->header.stamp).nanoseconds();
       });
     control_mode_state_sub_ = create_subscription<std_msgs::msg::Int32>(
@@ -1061,7 +1061,7 @@ private:
     const double feedback_age = (this->now().nanoseconds() - feedback_stamp_) / 1e9;
     if (system_inhibited_ || (hardware_auto_ && navigation_halted_) ||
       (require_feedback_ && (!feedback_valid_ || !feedback_msg_ ||
-        !dori_drive::feedback_fresh(*feedback_msg_, left_joint_name_, right_joint_name_,
+        !dori_control::feedback_fresh(*feedback_msg_, left_joint_name_, right_joint_name_,
           joint_state_timeout_sec_, feedback_age))) ||
       command_age < 0 || command_age > command_timeout_sec_) {
       stopDriveImmediately();
@@ -1252,7 +1252,7 @@ private:
     // The body mixer can reserve torque. Do not wind up against that reservation.
     const bool servo_valid = wheel_servo_enabled_ && feedback_fresh &&
       !(stabilization_priority_enabled_ && std::abs(pd_tau) >= stabilization_priority_threshold_);
-    auto compensate = [&](dori_drive::WheelSpeedServo & servo, double desired, double actual) {
+    auto compensate = [&](dori_control::WheelSpeedServo & servo, double desired, double actual) {
       const double profile = std::abs(desired) > 0.05 ? std::copysign(speed_mode_tau_ff_, desired) : 0.0;
       return servo.update(desired, actual, dt, servo_valid,
         -final_torque_limit_ - pd_tau - ff_tau - profile,
@@ -1322,8 +1322,8 @@ private:
   // ===========================================================
 
   bool wheel_servo_enabled_{true};
-  dori_drive::WheelServoConfig servo_config_;
-  dori_drive::WheelSpeedServo left_servo_, right_servo_;
+  dori_control::WheelServoConfig servo_config_;
+  dori_control::WheelSpeedServo left_servo_, right_servo_;
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr servo_parameters_;
   rclcpp::Publisher<control_msgs::msg::DynamicJointState>::SharedPtr servo_debug_pub_;
   int servo_debug_ticks_{0};

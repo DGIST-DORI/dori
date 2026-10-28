@@ -12,7 +12,7 @@ find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(dori_msgs REQUIRED)
 
-# dori_drive에서 추가된 의존성 패키지
+# Odometry and controller-switching dependencies
 find_package(nav_msgs REQUIRED)
 find_package(control_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
@@ -22,7 +22,7 @@ find_package(controller_manager_msgs REQUIRED)
 include_directories(include)
 
 # ==========================================
-# 1. Transform Nodes (기존 dori_control)
+# 1. Transform nodes
 # ==========================================
 add_executable(transform_manager_node src/transform_manager_node.cpp)
 ament_target_dependencies(transform_manager_node rclcpp std_msgs geometry_msgs sensor_msgs dori_msgs)
@@ -34,7 +34,7 @@ add_executable(fake_joint_states_node src/fake_joint_states_node.cpp)
 ament_target_dependencies(fake_joint_states_node rclcpp std_msgs geometry_msgs sensor_msgs dori_msgs)
 
 # ==========================================
-# 2. Input Nodes (구 dori_input)
+# 2. Input nodes
 # ==========================================
 add_executable(keyboard_input_node src/keyboard_input_node.cpp)
 ament_target_dependencies(keyboard_input_node rclcpp std_msgs geometry_msgs)
@@ -46,7 +46,7 @@ add_executable(joystick_input_node src/joystick_input_node.cpp)
 ament_target_dependencies(joystick_input_node rclcpp std_msgs geometry_msgs sensor_msgs)
 
 # ==========================================
-# 3. Drive Nodes (구 dori_drive)
+# 3. Drive nodes
 # ==========================================
 add_executable(tf_authority_check src/tf_authority_check.cpp)
 ament_target_dependencies(tf_authority_check rclcpp tf2_msgs)

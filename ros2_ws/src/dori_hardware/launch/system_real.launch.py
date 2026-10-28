@@ -33,19 +33,19 @@ def generate_launch_description():
     ])
 
     drive_params = PathJoinSubstitution([
-        FindPackageShare("dori_drive"),
+        FindPackageShare("dori_control"),
         "config",
         "drive_params.yaml"
     ])
 
     transform_params = PathJoinSubstitution([
-        FindPackageShare("dori_transform"),
+        FindPackageShare("dori_control"),
         "config",
         "transform_params.yaml"
     ])
 
     dxl_bridge_params = PathJoinSubstitution([
-        FindPackageShare("dori_transform"),
+        FindPackageShare("dori_hardware"),
         "config",
         "dxl_bridge_params.yaml"
     ])
@@ -56,7 +56,7 @@ def generate_launch_description():
         "cubemars_mit.urdf.xacro"
     ])
 
-    kinematics_file = PathJoinSubstitution([FindPackageShare("dori_drive"), "config", "kinematics.yaml"])
+    kinematics_file = PathJoinSubstitution([FindPackageShare("dori_control"), "config", "kinematics.yaml"])
 
     controllers_file = PathJoinSubstitution([
         FindPackageShare("dori_hardware"),
@@ -100,10 +100,10 @@ def generate_launch_description():
         DeclareLaunchArgument("odom_publish_tf", default_value="false"),
         DeclareLaunchArgument("odom_scale", default_value="1.0"),
         Node(
-            package="dori_drive", executable="wheel_odometry_node",
+            package="dori_control", executable="wheel_odometry_node",
             condition=IfCondition(LaunchConfiguration("use_wheel_odometry")),
             parameters=[PathJoinSubstitution([
-                FindPackageShare("dori_drive"), "config", "odometry.yaml"
+                FindPackageShare("dori_control"), "config", "odometry.yaml"
             ]), kinematics_file, {"publish_tf": LaunchConfiguration("odom_publish_tf"), "odom_scale": ParameterValue(LaunchConfiguration("odom_scale"), value_type=float)}],
             output="screen"
         ),
@@ -220,7 +220,7 @@ def generate_launch_description():
         # ========================================================
 
         Node(
-            package="dori_drive",
+            package="dori_control",
             executable="bldc_command_bridge_node",
             output="screen"
         ),
@@ -237,7 +237,7 @@ def generate_launch_description():
         ),
 
         Node(
-            package="dori_transform",
+            package="dori_hardware",
             executable="dxl_bridge_node",
             parameters=[
                 dxl_bridge_params
@@ -246,7 +246,7 @@ def generate_launch_description():
         ),
 
         Node(
-            package="dori_transform",
+            package="dori_hardware",
             executable="dxl_state_publisher_node",
             parameters=[
                 dxl_bridge_params
@@ -278,7 +278,7 @@ def generate_launch_description():
         # ========================================================
 
         Node(
-            package="dori_drive",
+            package="dori_control",
             executable="drive_controller_node",
             name="drive_controller_node",
             parameters=[
@@ -392,7 +392,7 @@ def generate_launch_description():
         # ========================================================
 
         Node(
-            package="dori_transform",
+            package="dori_control",
             executable="transform_manager_node",
             parameters=[
                 transform_params
@@ -402,7 +402,7 @@ def generate_launch_description():
 
 
         Node(
-            package="dori_transform",
+            package="dori_control",
             executable="transform_controller_node",
             parameters=[
                 transform_params
@@ -425,14 +425,14 @@ def generate_launch_description():
         # ========================================================
 
         Node(
-            package="dori_input",
+            package="dori_control",
             executable="keyboard_input_node",
             condition=IfCondition(use_input_nodes),
             output="screen"
         ),
 
         Node(
-            package="dori_input",
+            package="dori_control",
             executable="virtual_vlm_input_node",
             condition=IfCondition(use_input_nodes),
             output="screen"
@@ -450,7 +450,7 @@ def generate_launch_description():
         ),
 
         Node(
-            package="dori_input",
+            package="dori_control",
             executable="joystick_input_node",
             condition=IfCondition(use_joystick),
             parameters=[{

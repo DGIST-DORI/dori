@@ -1,29 +1,29 @@
 #include <gtest/gtest.h>
 #include <limits>
-#include "dori_drive/wheel_odometry.hpp"
-#include "dori_drive/feedback_freshness.hpp"
+#include "dori_control/wheel_odometry.hpp"
+#include "dori_control/feedback_freshness.hpp"
 
-using dori_drive::WheelOdometry;
+using dori_control::WheelOdometry;
 using Result = WheelOdometry::Result;
 
 TEST(WheelFeedback, RejectsMissingStaleAndNonfiniteFeedback)
 {
   control_msgs::msg::DynamicJointState msg;
-  EXPECT_FALSE(dori_drive::feedback_fresh(msg, "left", "right", 0.2));
+  EXPECT_FALSE(dori_control::feedback_fresh(msg, "left", "right", 0.2));
   msg.joint_names = {"right", "left"};
   msg.interface_values.resize(2);
   for (auto & values : msg.interface_values) {
     values.interface_names = {"position", "feedback_age"};
     values.values = {1.0, 0.01};
   }
-  EXPECT_TRUE(dori_drive::feedback_fresh(msg, "left", "right", 0.2));
-  EXPECT_TRUE(dori_drive::feedback_fresh(msg, "left", "right", 0.2, 0.1));
-  EXPECT_FALSE(dori_drive::feedback_fresh(msg, "left", "right", 0.2, 0.195));
-  EXPECT_FALSE(dori_drive::feedback_fresh(msg, "left", "right", 0.2, -0.01));
+  EXPECT_TRUE(dori_control::feedback_fresh(msg, "left", "right", 0.2));
+  EXPECT_TRUE(dori_control::feedback_fresh(msg, "left", "right", 0.2, 0.1));
+  EXPECT_FALSE(dori_control::feedback_fresh(msg, "left", "right", 0.2, 0.195));
+  EXPECT_FALSE(dori_control::feedback_fresh(msg, "left", "right", 0.2, -0.01));
   msg.interface_values[0].values[1] = 0.3;
-  EXPECT_FALSE(dori_drive::feedback_fresh(msg, "left", "right", 0.2));
+  EXPECT_FALSE(dori_control::feedback_fresh(msg, "left", "right", 0.2));
   msg.interface_values[0].values[1] = std::numeric_limits<double>::infinity();
-  EXPECT_FALSE(dori_drive::feedback_fresh(msg, "left", "right", 0.2));
+  EXPECT_FALSE(dori_control::feedback_fresh(msg, "left", "right", 0.2));
 }
 
 TEST(WheelOdometry, StraightAndReverse)

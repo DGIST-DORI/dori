@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
 #include <limits>
-#include "dori_drive/wheel_speed_servo.hpp"
-using dori_drive::WheelSpeedServo;
-using dori_drive::WheelServoConfig;
+#include "dori_control/wheel_speed_servo.hpp"
+using dori_control::WheelSpeedServo;
+using dori_control::WheelServoConfig;
 
 TEST(WheelSpeedServo, TracksVelocityThroughFrictionAndMotorLag)
 {
