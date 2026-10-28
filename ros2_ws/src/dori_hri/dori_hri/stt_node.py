@@ -79,6 +79,7 @@ class STTNode(Node):
         self.declare_parameter('audio_input_mode', 'microphone')
 
         wake_word        = self.get_parameter('wake_word').value
+        wake_word_models = [w.strip() for w in wake_word.split(',')]
         self.wake_word_threshold = self.get_parameter('wake_word_threshold').value
         model_size       = self.get_parameter('whisper_model').value
         device           = self.get_parameter('whisper_device').value
@@ -120,7 +121,7 @@ class STTNode(Node):
                 raise RuntimeError('Microphone requires sounddevice and libportaudio2')
             if not OPENWAKEWORD_AVAILABLE:
                 raise RuntimeError('Install openwakeword and prepare models before microphone startup')
-            self.oww_model = Model(wakeword_models=[wake_word], inference_framework='onnx')
+            self.oww_model = Model(wakeword_models=wake_word_models, inference_framework='onnx')
         # Energy VAD has no network dependency; Whisper handles transcription.
         self.vad_model = None
 

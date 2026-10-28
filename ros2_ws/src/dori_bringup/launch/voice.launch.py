@@ -1,4 +1,6 @@
 """HRI voice actions share the same namespace as the BT and dashboard."""
+import os
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
@@ -7,9 +9,14 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
+    hri_share_dir = get_package_share_directory('dori_hri')
+    model_dir = os.path.join(hri_share_dir, 'models')
+    # custom_wake_words = f"{model_dir}/doriya.onnx,{model_dir}/hey_dori.onnx"
+    custom_wake_words = f"{model_dir}/hey_dori.onnx"
+
     defaults = dict(namespace='/dori', enable_stt='true', use_external_llm='false',
         knowledge_file='', rag_index_dir='', llm_model='gemini-2.5-flash', rag_top_k='3',
-        whisper_model='small', whisper_device='cpu', wake_word='hey_mycroft',
+        whisper_model='small', whisper_device='cpu', wake_word=custom_wake_words,
         stt_audio_input_mode='microphone', tts_engine='gtts', tts_language='ko',
         tts_playback_mode='local_only', sfx_base_path='')
     arg = LaunchConfiguration

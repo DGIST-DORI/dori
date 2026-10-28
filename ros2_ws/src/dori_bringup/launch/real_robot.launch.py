@@ -63,7 +63,7 @@ def setup(context):
 def generate_launch_description():
     defaults = dict(namespace='/dori', named_goals_file='', use_joystick='false', rviz='false',
         lidar_port='/dev/slamtec_c1', enable_hri='true', enable_stt='true',
-        stt_audio_input_mode='microphone', wake_word='hey_mycroft', whisper_model='small', whisper_device='cpu',
+        stt_audio_input_mode='microphone', whisper_model='small', whisper_device='cpu',
         tts_playback_mode='local_only', tts_engine='gtts', use_external_llm='false', llm_model='gemini-2.5-flash',
         knowledge_file='', rag_index_dir='', enable_perception='false', perception_device='cpu',
         enable_gesture='false', enable_expression='false', enable_landmark='false',

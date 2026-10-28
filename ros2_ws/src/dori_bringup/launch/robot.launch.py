@@ -33,6 +33,6 @@ def setup(context):
 def generate_launch_description():
     defaults = dict(dori_mode='desktop', namespace='/dori', real_map='', real_named_goals_file='',
         real_use_joystick='false', enable_stt='true', enable_dashboard='false', enable_perception='false',
-        tts_playback_mode='local_only', wake_word='hey_mycroft', whisper_model='small', require_user_tracking='false')
+        tts_playback_mode='local_only', whisper_model='small', require_user_tracking='false')
     return LaunchDescription([DeclareLaunchArgument(k, default_value=v) for k,v in defaults.items()] +
                              [OpaqueFunction(function=setup)])
