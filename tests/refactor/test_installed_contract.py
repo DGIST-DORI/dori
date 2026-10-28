@@ -32,7 +32,7 @@ EXPECTED = {
     'dori_mapping', 'dori_msgs', 'dori_navigation', 'dori_observability',
     'dori_perception', 'dori_perception_camera', 'dori_supervisor',
     'dynamixel_sdk', 'dynamixel_sdk_custom_interfaces', 'dynamixel_sdk_examples',
-    'sllidar_ros2',
+    'behaviortree_cpp', 'sllidar_ros2',
 }
 REMOVED = {
     'dori_drive', 'dori_input', 'dori_transform', 'dori_error', 'imu_serial',
