@@ -26,3 +26,7 @@ __pycache__
 /.venv/
 /maps/web_goals.json*
 *.db
+
+/scripts/
+
+**/evidence/
