@@ -11,7 +11,7 @@ functional executable names and operational topic paths remain unchanged.
 |---|---|---|
 | `robot_bringup` | `dori_hardware` | Physical launch, CAN/servo/IMU configuration and controller setup |
 | `robot_drive` | `dori_drive` | Wheel control, normalized command scaling, watchdogs and diagnostic tools |
-| `robot_error` | `dori_error` | Hardware/system error handling |
+| `robot_error` | `dori_diagnostics` | Hardware/system error handling |
 | `robot_input` | `dori_input` | Joystick, keyboard and explicitly selected virtual input tools |
 | `robot_supervisor` | `dori_supervisor` | Manual/AUTO authority, emergency stop and transform gating |
 | `robot_transform` | `dori_transform` | Physical transformation, stabilization and gimbal control |

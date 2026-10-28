@@ -1,4 +1,4 @@
-#include "dori_error/error_manager_node.hpp"
+#include "dori_diagnostics/error_manager_node.hpp"
 
 ErrorManagerNode::ErrorManagerNode()
 : Node("error_manager_node")

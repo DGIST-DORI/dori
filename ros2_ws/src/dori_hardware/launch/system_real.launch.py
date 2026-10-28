@@ -415,7 +415,7 @@ def generate_launch_description():
         # ========================================================
 
         Node(
-            package="dori_error",
+            package="dori_diagnostics",
             executable="error_manager_node",
             output="screen"
         ),

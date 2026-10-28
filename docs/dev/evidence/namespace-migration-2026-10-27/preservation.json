@@ -156,14 +156,14 @@
     },
     {
       "old": "ros2_ws/src/robot_error/include/robot_error/error_manager_node.hpp",
-      "new": "ros2_ws/src/dori_error/include/dori_error/error_manager_node.hpp",
+      "new": "ros2_ws/src/dori_diagnostics/include/dori_diagnostics/error_manager_node.hpp",
       "naming_only": true,
       "old_sha256": "db56cf8ffbcbe21fb52bb088f596a38f1e5d353f476a61ddcd4a886aedc775a0",
       "sha256": "786dbd50b9048f77e690c8e7d70404d85c38d93f2706cc521624a4effe3beab4"
     },
     {
       "old": "ros2_ws/src/robot_error/src/error_manager_node.cpp",
-      "new": "ros2_ws/src/dori_error/src/error_manager_node.cpp",
+      "new": "ros2_ws/src/dori_diagnostics/src/error_manager_node.cpp",
       "naming_only": true,
       "old_sha256": "a3d60b9a21d56fb5d9d2044f115d64af997694f47e5f353e15fff92fc088acb1",
       "sha256": "104ce203070b29302a1bcfeb619ed5fa27bc2ab5da6c678cd10661594a9cc7d6"

@@ -32,8 +32,8 @@
       "build_type": "ament_cmake"
     },
     {
-      "name": "dori_error",
-      "path": "ros2_ws/src/dori_error",
+      "name": "dori_diagnostics",
+      "path": "ros2_ws/src/dori_diagnostics",
       "build_type": "ament_cmake"
     },
     {
