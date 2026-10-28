@@ -63,7 +63,7 @@ void DxlStatePublisherNode::requestTimerCallback()
         const int raw = response->position;
         const int minimum = index < 2 ? -1048575 : dxl_position_min_;
         const int maximum = index < 2 ? 1048575 : dxl_position_max_;
-        if (!response->success || raw < minimum || raw > maximum) {
+        if (raw < minimum || raw > maximum) {
           joint_valid_[index] = false;
           sample_seen_[index] = false;
           return;
