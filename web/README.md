@@ -12,35 +12,36 @@ npm ci   # or: npm install
 npm run build
 ```
 
-After the build completes, continue from the ROS workspace root:
-
-```bash
-cd ..
-colcon build --symlink-install
-source install/setup.bash
-```
+Return to the repository root with `cd ..`, then build ROS and source the
+Humble/Python 3.10 environment following [AMM 20-10/20-12](../docs/user/DORI-AMM.md).
+The ROS workspace is `ros2_ws`; the installed dashboard must contain this fresh
+web build. For package migrations, follow the clean-overlay procedure in AMM 20-15.
 
 ## Launch
  
-The dashboard can be launched in three clear modes:
+The development launch below starts desktop HRI, not physical navigation.
+For hardware + Nav2 + map viewer + HRI, use `dori_bringup real_robot.launch.py`
+with the device preparation and arguments in AMM 40-10.
 
-- Full stack + dashboard (default): `ros2 launch dori_bringup dori_dev.launch.py`
+Desktop dashboard options:
+
+- Desktop HRI + dashboard (default): `ros2 launch dori_bringup dori_dev.launch.py`
   - Equivalent explicit form: `ros2 launch dori_bringup dori_dev.launch.py enable_dashboard:=true`
-- Full stack without dashboard: `ros2 launch dori_bringup dori_dev.launch.py enable_dashboard:=false`
+- Desktop HRI without dashboard: `ros2 launch dori_bringup dori_dev.launch.py enable_dashboard:=false`
 - Dashboard only (standalone): `ros2 launch dori_dashboard dashboard.launch.py`
  
 ```bash
-# Full stack + dashboard (default)
+# Desktop HRI + dashboard (default)
 ros2 launch dori_bringup dori_dev.launch.py
 
-# Full stack + dashboard (explicit)
+# Desktop HRI + dashboard (explicit)
 ros2 launch dori_bringup dori_dev.launch.py enable_dashboard:=true
 
-# Full stack without dashboard
+# Desktop HRI without dashboard
 ros2 launch dori_bringup dori_dev.launch.py enable_dashboard:=false
 ```
  
-If you need to run the dashboard standalone (without the full robot stack):
+If you need to run the dashboard standalone (without the desktop HRI stack):
  
 ```bash
 ros2 launch dori_dashboard dashboard.launch.py

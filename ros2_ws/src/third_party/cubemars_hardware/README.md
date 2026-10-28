@@ -4,14 +4,15 @@
 
 This checkout includes the Dori MIT-protocol implementation and CAN fault tests.
 The active configuration is
-[`cubemars_mit.urdf.xacro`](../dori_hardware/config/cubemars_mit.urdf.xacro):
+[`cubemars_mit.urdf.xacro`](../../dori_hardware/config/cubemars_mit.urdf.xacro):
 `protocol_mode=mit`, `can1`, physical left CAN ID 2 / sign +1 and physical
 right CAN ID 1 / sign -1. The sign is applied to both commands and feedback.
 The state interfaces include `feedback_age`, which measures the age of actual
 CAN feedback rather than the publication time of a joint-state message.
 
-Start through `ros2_ws/scripts/start_autonomy.sh` or `start_mapping.sh` as
-described in the [operation guide](../../../docs/user/real-robot.md).
+Prepare devices and use `ros2 launch dori_bringup real_robot.launch.py` as
+described in [AMM R4](../../../../docs/user/DORI-AMM.md).
+The CAN regression test belongs to this package and is enabled by `BUILD_TESTING`.
 The common drive controller and hardware fault handling remain in the command
 path. Do not apply the upstream servo-mode setup below to this MIT profile.
 

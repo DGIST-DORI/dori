@@ -1,3 +1,2 @@
-# Base robot runtime. Install microphone models with scripts/prepare_voice.sh.
-# Optional vision dependencies: scripts/install_dependencies.sh --vision.
+# Base runtime; voice models and optional vision setup: docs/user/DORI-AMM.md (20-20).
 -r requirements-runtime.txt

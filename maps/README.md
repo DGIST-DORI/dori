@@ -2,8 +2,10 @@
 
 `live_navigation_20261023_1938.yaml` and its PGM are the saved map used by the
 current robot. This map is site-specific; it is not a generic campus map.
-Run `scripts/start_mapping.sh`, save a new map with `scripts/save_map.sh`, then
-select its YAML with `scripts/start_autonomy.sh --map` when the environment changes.
+Follow [AMM 50-10](../docs/user/DORI-AMM.md) for the separate hardware, LiDAR,
+odometry and Cartographer launches. Save with `ros2 run nav2_map_server
+map_saver_cli` using the documented timeout/durability settings. Select the new
+YAML via `ros2 launch dori_bringup real_robot.launch.py map:=/absolute/site.yaml`.
 
 `web_goals.example.json` contains the saved destinations for this exact map.
 To use them as the initial local destination store, before starting the web UI:

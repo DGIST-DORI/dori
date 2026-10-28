@@ -1,72 +1,73 @@
-# DORI package names and ownership
+# DORI package ownership — R4
 
-**Status:** canonical after the 2026-10-27 namespace migration (AMM R3).
-The workspace contains **24 ROS packages**. All nine former `robot_*` packages
-have been renamed or merged into existing `dori_*` packages. Hardware calibration,
-functional executable names and operational topic paths remain unchanged.
+Canonical after the 2026-10-28 package consolidation. The workspace contains
+**21 unique ROS packages**. Hardware calibration, runtime node/executable names,
+topics, and `dori_msgs` messages/actions are unchanged by this consolidation.
 
-## Migration map
+## Consolidation map
 
-| Previous package | Current package | Responsibility |
-|---|---|---|
-| `robot_bringup` | `dori_hardware` | Physical launch, CAN/servo/IMU configuration and controller setup |
-| `robot_drive` | `dori_drive` | Wheel control, normalized command scaling, watchdogs and diagnostic tools |
-| `robot_error` | `dori_diagnostics` | Hardware/system error handling |
-| `robot_input` | `dori_input` | Joystick, keyboard and explicitly selected virtual input tools |
-| `robot_supervisor` | `dori_supervisor` | Manual/AUTO authority, emergency stop and transform gating |
-| `robot_transform` | `dori_transform` | Physical transformation, stabilization and gimbal control |
-| `robot_msgs` | `dori_msgs` | Five physical-control messages alongside four HRI/navigation actions |
-| `robot_mapping` | `dori_mapping` | Metric LiDAR odometry, extrinsics and Cartographer configuration |
-| `robot_navigation` | `dori_navigation` | Nav2 plugin/configuration, TTA bridge, map viewer and public action adapters |
+| Previous package/component | Current owner |
+|---|---|
+| `dori_drive`, `dori_input` | `dori_control` |
+| `dori_transform` transform manager/controller, fake joint state, transform parameters | `dori_control` |
+| `dori_transform` DXL bridge/state publisher and DXL parameters | `dori_hardware` |
+| `imu_serial` Python nodes | `dori_hardware` |
+| `dori_error` | `dori_diagnostics` |
+| `cubemars_hardware` | Same ROS identity; source under `third_party` |
 
-`dori_hardware` now directly owns `system_real.launch.py`,
-`system_real_with_imu.launch.py` and their configuration. Keeping these below
-`dori_bringup` avoids a `bringup -> hardware -> bringup` package dependency cycle.
-The old mapping wrapper was replaced with the actual odometry launch to prevent
-self-inclusion after the merge.
+`dori_control` installs 10 native executables, its headers under
+`include/dori_control`, and drive/kinematics/odometry/transform configuration.
+`dori_hardware` is an `ament_cmake` + `ament_cmake_python` package. It installs two
+DXL executables and four Python entry points: `imu_node`, `body_pitch_node`,
+`body_stabilizer_node`, `servo3_pitch_follower_node`. Python imports use
+`dori_hardware.<module>`; there is no separate `imu_serial` package registration.
 
-`dori_navigation` is an `ament_cmake` package using `ament_cmake_python`. It
-installs the native planner, the `dori_navigation` and `dori_web` Python modules,
-and the `nav2_adapter`, `named_goal_adapter`, and `web_viewer.py` executables.
-There is no second setup.py/resource identity for that package.
+Physical system launch stays in `dori_hardware`. It depends on `dori_control`,
+`dori_supervisor`, `dori_diagnostics` and device drivers. `dori_bringup` composes
+that system with navigation/HRI/web. Lower packages do not depend on bringup.
+`dori_navigation` reads kinematics from `dori_control`.
 
-## Remaining package boundaries
+## Package inventory
 
 | Package | Responsibility |
 |---|---|
-| `dori_bringup` | Top-level launch composition, HRI, optional perception and dashboard |
-| `dori_bt` | BehaviorTree.CPP v3 session coordinator and ROS action clients |
-| `dori_core` | Shared Python application contracts |
-| `dori_dashboard` | Dashboard API, ROS/WebSocket composition and installed web assets |
+| `dori_bringup` | Top-level launch composition |
+| `dori_control` | Drive, input and transformation control |
+| `dori_hardware` | Physical launch, DXL bridges, IMU and body/pitch processing |
+| `dori_supervisor` | Manual/AUTO authority, stop and transform gating |
+| `dori_diagnostics` | Hardware/system error logging |
+| `dori_mapping` | LiDAR odometry, extrinsics and Cartographer |
+| `dori_navigation` | Nav2 plugin/configuration, TTA bridge, public actions and map web UI |
+| `dori_msgs` | Five control messages and four actions |
+| `dori_bt` | HRI BehaviorTree.CPP v3 coordinator |
 | `dori_hri` | Wake word, STT, TTS and emotion I/O |
-| `dori_llm` | Intent processing, knowledge and optional external LLM/RAG |
+| `dori_llm` | Intent, knowledge and optional LLM/RAG |
+| `dori_core` | Shared application contracts |
+| `dori_dashboard` | HTTP API, ROS/WebSocket composition and installed dashboard |
 | `dori_observability` | Runtime metrics |
-| `dori_perception` | Python person/gesture/expression/landmark processing |
-| `dori_perception_camera` | Native camera adapter |
+| `dori_perception` | Person, gesture, expression and landmark processing |
+| `dori_perception_camera` | Optional native RealSense camera adapter |
+| `cubemars_hardware` | MIT CAN hardware plugin and CAN fault regression test |
+| `sllidar_ros2` | LiDAR device driver |
+| `dynamixel_sdk` | Dynamixel SDK |
+| `dynamixel_sdk_custom_interfaces` | Dynamixel interfaces |
+| `dynamixel_sdk_examples` | Physical servo driver |
 
-Device/vendor packages retain their established names: `cubemars_hardware`,
-`imu_serial`, `sllidar_ros2`, `dynamixel_sdk`, `dynamixel_sdk_custom_interfaces`,
-`dynamixel_sdk_examples`. ROS/Nav2 contract identifiers `robot_state_publisher`,
-`robot_description`, `robot_base_frame`, `robot_radius`, `robot_model_type` are
-external API names and must not be branded or renamed.
+## Upgrade contract and validation
 
-## Upgrade contract
+Update external launch package lookups, C++ include/namespace references and IMU
+Python imports. Removed package names have no compatibility aliases. Existing
+`dori_msgs` clients retain their DDS type identity. Clients still on the older
+`robot_msgs` identity must follow the earlier message migration and rebuild.
 
-- C++ headers/namespaces and Python imports now use the current package names.
-  For example, `dori_msgs/msg/MitCommand` replaces the former motor message type.
-  Fields are unchanged, but the DDS type identity changes; all clients using
-  these custom messages must be rebuilt and restarted together.
-- `/auto/cmd_vel`, `/drive/cmd_vel`, `/bldc_mit_speed_cmd`, `/dori/nav/*`, node
-  names and drive calibration values remain stable.
-- Helpers are `scripts/dori_stack.py`, `scripts/run_dori_control.sh`,
-  `dori_bringup/dori_dev.launch.py`; the repository environment variable is
-  `DORI_WS` and the mode argument of `robot.launch.py` is `dori_mode`.
-- No old ROS package alias or old generated interface is installed. Historical
-  evidence/legacy documentation intentionally retains the names it actually tested.
-- Stop the affected stack, run `scripts/build.sh --clean`, source
-  `scripts/env.sh` in a fresh shell, then follow [AMM 20-15](../user/DORI-AMM.md).
-  The clean build archives old build/install/log artifacts under `.state`.
+Standard ROS/Nav2 identifiers such as `robot_state_publisher`,
+`robot_description`, `robot_base_frame`, `robot_radius` and `robot_model_type`
+remain unchanged. `/auto/cmd_vel` and `/drive/cmd_vel` remain normalized joystick
+inputs; `/nav/cmd_vel` remains SI velocity input to the TTA bridge.
 
-Acceptance checks cover the source/install package inventory, acyclic manifest
-dependencies, native message serialization, merged navigation assets, launch
-arguments and actual ROS drive/HRI/Nav2/web/mapping flows.
+Root scripts/preflight remain deleted. Launch with `ros2 launch`, save maps with
+`nav2_map_server map_saver_cli`, and use documented ROS/Web commands to stop.
+Follow [AMM 20-15](../user/DORI-AMM.md) to archive old build/install/log artifacts
+and create a clean overlay. [P0/P2 validation](refactor-validation.md) covers the
+21-package graph, installed interfaces/executables/assets and launch resolution.
+The existing full runtime regression suite still requires P1 migration work.
