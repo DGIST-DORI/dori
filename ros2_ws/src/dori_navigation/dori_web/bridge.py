@@ -12,7 +12,6 @@ import os
 from pathlib import Path as FilePath
 import numpy as np
 from PIL import Image
-import rclpy
 from rclpy.node import Node
 from rclpy.time import Time
 from rclpy.qos import QoSProfile, DurabilityPolicy, qos_profile_sensor_data
