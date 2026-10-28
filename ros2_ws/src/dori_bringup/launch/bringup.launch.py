@@ -13,7 +13,7 @@ def setup(context):
     def include(filename, params):
         return IncludeLaunchDescription(PythonLaunchDescriptionSource(str(share/filename)), launch_arguments=params.items())
     if value('dori_mode') == 'real':
-        return [include('real_robot.launch.py', {'map':value('real_map'),
+        return [include('hardware.launch.py', {'map':value('real_map'),
             'named_goals_file':value('real_named_goals_file'), 'use_joystick':value('real_use_joystick'),
             **{k:value(k) for k in ('namespace','enable_stt','enable_dashboard','enable_perception',
                                    'tts_playback_mode','whisper_model','require_user_tracking')}})]

@@ -10,7 +10,7 @@ right CAN ID 1 / sign -1. The sign is applied to both commands and feedback.
 The state interfaces include `feedback_age`, which measures the age of actual
 CAN feedback rather than the publication time of a joint-state message.
 
-Prepare devices and use `ros2 launch dori_bringup real_robot.launch.py` as
+Prepare devices and use `ros2 launch dori_bringup hardware.launch.py` as
 described in [AMM R4](../../../../docs/user/DORI-AMM.md).
 The CAN regression test belongs to this package and is enabled by `BUILD_TESTING`.
 The common drive controller and hardware fault handling remain in the command

@@ -32,4 +32,4 @@ if [[ ! -e "$goals_file" ]]; then
     cp "$DORI_WS/maps/web_goals.example.json" "$goals_file"
 fi
 "$DORI_WS/scripts/run_dori_control.sh" --no-joystick --prepare-only
-exec ros2 launch dori_bringup real_robot.launch.py map:="$map_file" named_goals_file:="$goals_file" whisper_model:="$DORI_WS/.state/voice/whisper-small" "${launch_args[@]}"
+exec ros2 launch dori_bringup hardware.launch.py map:="$map_file" named_goals_file:="$goals_file" whisper_model:="$DORI_WS/.state/voice/whisper-small" "${launch_args[@]}"

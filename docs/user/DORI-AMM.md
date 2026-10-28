@@ -294,7 +294,7 @@ TF는 `map → odom → base_link → laser`를 사용한다. `/odom`과 odom TF
 ```bash
 # 예제 지도를 사용할 때만 그 지도에 맞는 목적지 예제를 복사한다.
 cp -n maps/web_goals.example.json maps/web_goals.json
-ros2 launch dori_bringup real_robot.launch.py \
+ros2 launch dori_bringup hardware.launch.py \
   map:="$DORI_ROOT/maps/live_navigation_20261023_1938.yaml" \
   named_goals_file:="$DORI_ROOT/maps/web_goals.json" \
   whisper_model:="$DORI_ROOT/.state/voice/whisper-small"

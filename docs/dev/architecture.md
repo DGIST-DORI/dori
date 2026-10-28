@@ -78,7 +78,7 @@ ros2_ws/src/
 ├── dori_navigation/        # Navigation execution node
 ├── dori_dashboard/         # ROS ↔ web dashboard bridge
 └── dori_bringup/           # Launch files
-    ├── robot.launch.py           # Full robot (top-level)
+    ├── bringup.launch.py           # Full robot (top-level)
     ├── perception.launch.py      # Perception only
     ├── interaction.launch.py     # HRI manager/state machine only
     └── voice.launch.py # Voice pipeline only

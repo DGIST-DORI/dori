@@ -11,5 +11,5 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('enable_dashboard', default_value='true'),
         IncludeLaunchDescription(PythonLaunchDescriptionSource(str(
-            Path(get_package_share_directory('dori_bringup'))/'launch/robot.launch.py')),
+            Path(get_package_share_directory('dori_bringup'))/'launch/bringup.launch.py')),
             launch_arguments={'enable_dashboard':LaunchConfiguration('enable_dashboard')}.items())])

@@ -182,7 +182,7 @@ def test_installed_launch_paths(no_process_launch, package, filename, options):
 
 
 def test_full_robot_resolves_and_excludes_inherited_virtual_inputs(no_process_launch):
-    nodes = inspect_launch('dori_bringup', 'real_robot.launch.py', {
+    nodes = inspect_launch('dori_bringup', 'hardware.launch.py', {
         'map': str(ROOT/'maps/live_navigation_20261023_1938.yaml'),
         'use_input_nodes': 'true',
     })

@@ -20,7 +20,7 @@ web build. For package migrations, follow the clean-overlay procedure in AMM 20-
 ## Launch
  
 The development launch below starts desktop HRI, not physical navigation.
-For hardware + Nav2 + map viewer + HRI, use `dori_bringup real_robot.launch.py`
+For hardware + Nav2 + map viewer + HRI, use `dori_bringup hardware.launch.py`
 with the device preparation and arguments in AMM 40-10.
 
 Desktop dashboard options:

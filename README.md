@@ -131,7 +131,7 @@ source install/setup.bash
 ### Full Robot (without Dashboard)
 
 ```bash
-ros2 launch dori_bringup robot.launch.py
+ros2 launch dori_bringup bringup.launch.py
 ```
 
 or
@@ -147,13 +147,13 @@ ros2 launch dori_bringup robot_dev.launch.py enable_dashboard:=false
 
 ```bash
 # Basic topic (same as before)
-ros2 launch dori_bringup robot.launch.py namespace:=/dori
+ros2 launch dori_bringup bringup.launch.py namespace:=/dori
 
 # robot1
-ros2 launch dori_bringup robot.launch.py namespace:=/dori1
+ros2 launch dori_bringup bringup.launch.py namespace:=/dori1
 
 # robot2
-ros2 launch dori_bringup robot.launch.py namespace:=/dori2
+ros2 launch dori_bringup bringup.launch.py namespace:=/dori2
 ```
 
 The default topic value is declared with `declare_parameter("topics.xxx", "...")` of each node, and is changed at once by injecting a common prefix at launch.
@@ -161,7 +161,7 @@ The default topic value is declared with `declare_parameter("topics.xxx", "...")
 ### Full Robot (with Dashboard)
  
 Launches the full robot stack via `robot_dev.launch.py`, together with the web dashboard (rosbridge + HTTP server + knowledge API).
-`robot.launch.py` is not responsible for dashboard orchestration in the current setup.
+`bringup.launch.py` is not responsible for dashboard orchestration in the current setup.
 The dashboard frontend must be built before the first run.
  
 ```bash
