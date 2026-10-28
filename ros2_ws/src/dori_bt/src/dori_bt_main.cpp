@@ -94,7 +94,10 @@ public:
       set_mode(mode); return BT::NodeStatus::SUCCESS;
     },{BT::InputPort<std::string>("mode")});
     factory.registerSimpleCondition("IsGuide",[this](BT::TreeNode&) {
-      std::string intent, dest; bb_->get("intent",intent); bb_->get("destination",dest);
+      std::string intent, dest;
+      if (!(bb_->get("intent",intent) && bb_->get("destination",dest))) {
+        return BT::NodeStatus::FAILURE;
+      }
       return intent == "navigation" && !dest.empty() ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
     });
     factory.registerSimpleAction("PrepareGuide",[this](BT::TreeNode&) {
@@ -145,7 +148,10 @@ public:
       try {
         auto j=Json::parse(m->data); auto command=j.value("command",std::string{});
         if(command=="REPEAT_GUIDANCE" && (mode_=="IDLE" || mode_=="LISTENING" || mode_=="GUIDING")) {
-          std::string answer; bb_->get("answer",answer);
+          std::string answer;
+          if (!bb_->get("answer",answer)) {
+            return BT::NodeStatus::FAILURE;
+          }
           say(answer.empty() ? "어떤 내용을 다시 설명해드릴까요?" : answer);
         } else if(command=="GUIDANCE_COMPLETE" && (mode_=="IDLE" || mode_=="LISTENING")) {
           say("안내가 도움이 되셨다니 다행입니다!"); follow(false); set_mode("IDLE");
@@ -234,7 +240,7 @@ private:
     }
     if(pending_.empty() && (mode_=="IDLE" || mode_=="LISTENING")) return;
     try {
-      auto result=tree_.tickRoot();
+      auto result=tree_.tickOnce();
       if(result==BT::NodeStatus::FAILURE) { interrupt("ERROR",false); say("요청을 완료하지 못했습니다. 상태를 확인해주세요."); }
     } catch(const std::exception &e) { RCLCPP_ERROR(get_logger(),"BT failure: %s",e.what()); interrupt("ERROR",false); }
   }
