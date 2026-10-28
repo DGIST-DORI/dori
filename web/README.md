@@ -18,35 +18,35 @@ The ROS workspace is `ros2_ws`; the installed dashboard must contain this fresh
 web build. For package migrations, follow the clean-overlay procedure in AMM 20-15.
 
 ## Launch
- 
+
 The development launch below starts desktop HRI, not physical navigation.
 For hardware + Nav2 + map viewer + HRI, use `dori_bringup hardware.launch.py`
 with the device preparation and arguments in AMM 40-10.
 
 Desktop dashboard options:
 
-- Desktop HRI + dashboard (default): `ros2 launch dori_bringup dori_dev.launch.py`
-  - Equivalent explicit form: `ros2 launch dori_bringup dori_dev.launch.py enable_dashboard:=true`
-- Desktop HRI without dashboard: `ros2 launch dori_bringup dori_dev.launch.py enable_dashboard:=false`
+- Desktop HRI + dashboard (default): `ros2 launch dori_bringup bringup_dev.launch.py`
+  - Equivalent explicit form: `ros2 launch dori_bringup bringup_dev.launch.py enable_dashboard:=true`
+- Desktop HRI without dashboard: `ros2 launch dori_bringup bringup_dev.launch.py enable_dashboard:=false`
 - Dashboard only (standalone): `ros2 launch dori_dashboard dashboard.launch.py`
- 
+
 ```bash
 # Desktop HRI + dashboard (default)
-ros2 launch dori_bringup dori_dev.launch.py
+ros2 launch dori_bringup bringup_dev.launch.py
 
 # Desktop HRI + dashboard (explicit)
-ros2 launch dori_bringup dori_dev.launch.py enable_dashboard:=true
+ros2 launch dori_bringup bringup_dev.launch.py enable_dashboard:=true
 
 # Desktop HRI without dashboard
-ros2 launch dori_bringup dori_dev.launch.py enable_dashboard:=false
+ros2 launch dori_bringup bringup_dev.launch.py enable_dashboard:=false
 ```
- 
+
 If you need to run the dashboard standalone (without the desktop HRI stack):
- 
+
 ```bash
 ros2 launch dori_dashboard dashboard.launch.py
 ```
- 
+
 ## Access
 
 - Dashboard: `http://[Robot IP]:3000` (`knowledge_api.py` serves port 3000)
@@ -137,19 +137,18 @@ System panels include `Event Log` and `Topic Publisher`, located at
 
 ### 최소 시나리오 (분리)
 
-| 시나리오 | 클라이언트 장치 | Speaker Output | 기대 결과(소리 출력 장치) |
-| --- | --- | --- | --- |
-| A | PC 브라우저 | `browser_tts` | **해당 PC의 스피커**에서 소리가 나야 한다. |
-| B | 모바일 브라우저 | `browser_tts` | **해당 모바일 기기 스피커**에서 소리가 나야 한다. |
-| C | 모바일 브라우저 | `ros_audio` | **ROS 오디오 출력이 연결된 외부/로봇 스피커**에서 소리가 나야 한다 (모바일 스피커 아님). |
+| 시나리오 | 클라이언트 장치 | Speaker Output | 기대 결과(소리 출력 장치)                                                                |
+| -------- | --------------- | -------------- | ---------------------------------------------------------------------------------------- |
+| A        | PC 브라우저     | `browser_tts`  | **해당 PC의 스피커**에서 소리가 나야 한다.                                               |
+| B        | 모바일 브라우저 | `browser_tts`  | **해당 모바일 기기 스피커**에서 소리가 나야 한다.                                        |
+| C        | 모바일 브라우저 | `ros_audio`    | **ROS 오디오 출력이 연결된 외부/로봇 스피커**에서 소리가 나야 한다 (모바일 스피커 아님). |
 
 ### 실패 시 점검 항목
 
-| 점검 항목 | 증상 예시 | 확인 방법 |
-| --- | --- | --- |
-| HTTPS | 모바일에서 재생이 시작되지 않음 | 원격 접속 URL이 HTTPS인지 확인(모바일 정책상 필요 가능). |
-| User gesture | 재생 요청은 보냈지만 음성이 무음 | 재생 버튼 탭/클릭 등 사용자 제스처 이후 재시도. |
-| AudioContext resume | 브라우저 콘솔에 suspended 상태 | 개발자도구에서 `AudioContext` 상태 확인 후 resume 트리거. |
-| WS 연결 | 패널 값/이벤트가 갱신되지 않음 | Settings > Connection 상태 및 `ws://[Robot IP]:9090` 연결 상태 확인. |
-| 토픽 수신 | STT/Vision/TTS 경로가 동작하지 않음 | `stt/audio_input`, `perception/vision/image/compressed` 등 토픽 수신 여부를 `ros2 topic echo`로 확인. |
-
+| 점검 항목           | 증상 예시                           | 확인 방법                                                                                             |
+| ------------------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| HTTPS               | 모바일에서 재생이 시작되지 않음     | 원격 접속 URL이 HTTPS인지 확인(모바일 정책상 필요 가능).                                              |
+| User gesture        | 재생 요청은 보냈지만 음성이 무음    | 재생 버튼 탭/클릭 등 사용자 제스처 이후 재시도.                                                       |
+| AudioContext resume | 브라우저 콘솔에 suspended 상태      | 개발자도구에서 `AudioContext` 상태 확인 후 resume 트리거.                                             |
+| WS 연결             | 패널 값/이벤트가 갱신되지 않음      | Settings > Connection 상태 및 `ws://[Robot IP]:9090` 연결 상태 확인.                                  |
+| 토픽 수신           | STT/Vision/TTS 경로가 동작하지 않음 | `stt/audio_input`, `perception/vision/image/compressed` 등 토픽 수신 여부를 `ros2 topic echo`로 확인. |
