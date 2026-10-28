@@ -28,5 +28,7 @@ __pycache__
 *.db
 
 /scripts/
-
 **/evidence/
+
+src/third_party/*
+!src/third_party/cubemars_hardware/
