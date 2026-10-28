@@ -118,6 +118,8 @@ Get your Porcupine key for free at [Picovoice Console](https://console.picovoice
 ```bash
 source /opt/ros/humble/setup.bash
 cd ros2_ws
+vcs import src < src/third_party.repos
+rosdep install --from-paths src --ignore-src -y -r
 colcon build --symlink-install
 source install/setup.bash
 ```
