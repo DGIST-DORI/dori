@@ -16,7 +16,7 @@
   <depend>std_msgs</depend>
 
   <!-- BehaviorTree.CPP v3 (ROS Humble) -->
-  <depend>behaviortree_cpp_v3</depend>
+  <depend>behaviortree_cpp</depend>
 
   <!-- Dori Custom Messages (LLMQuery, Speak 등) -->
   <depend>dori_msgs</depend>

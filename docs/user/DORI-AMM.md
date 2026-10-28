@@ -87,7 +87,7 @@ sudo apt-get install -y python3.10-venv python3-pip python3-rosdep \
   python3-colcon-common-extensions python3-serial python3-numpy python3-scipy \
   python3-pil libportaudio2 portaudio19-dev ffmpeg mpg123 can-utils \
   nlohmann-json3-dev ros-humble-navigation2 ros-humble-nav2-bringup \
-  ros-humble-cartographer-ros ros-humble-rosbridge-server ros-humble-behaviortree-cpp-v3
+  ros-humble-cartographer-ros ros-humble-rosbridge-server
 source /opt/ros/humble/setup.bash
 # rosdep를 처음 설정하는 장치에서만 수행
 if [ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]; then sudo rosdep init; fi
