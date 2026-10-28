@@ -36,53 +36,66 @@ from std_msgs.msg import String
 # ── Default state → emotion mapping ─────────────────────────────────────────
 # Extend this dict as the state machine grows
 STATE_TO_EMOTION: dict[str, str] = {
-    'IDLE':       'CALM',
-    'LISTENING':  'ATTENTIVE',
-    'RESPONDING': 'THINKING',
-    'NAVIGATING': 'HAPPY',
-    'INTERACTION': 'THINKING',
-    'GUIDING': 'HAPPY',
-    'ARRIVED': 'HAPPY',
-    'USER_LOST_CONFIRM': 'CURIOUS',
-    'ACCESS_HELP': 'CURIOUS',
-    'WAIT_MIC_RETURN': 'ATTENTIVE',
-    'CANCELED': 'CALM',
-    'ERROR': 'SURPRISED',
+    "IDLE": "CALM",
+    "LISTENING": "ATTENTIVE",
+    "RESPONDING": "THINKING",
+    "NAVIGATING": "HAPPY",
+    "INTERACTION": "THINKING",
+    "GUIDING": "HAPPY",
+    "ARRIVED": "HAPPY",
+    "USER_LOST_CONFIRM": "CURIOUS",
+    "ACCESS_HELP": "CURIOUS",
+    "WAIT_MIC_RETURN": "ATTENTIVE",
+    "CANCELED": "CALM",
+    "ERROR": "SURPRISED",
 }
 
-DEFAULT_EMOTION = 'CALM'
+DEFAULT_EMOTION = "CALM"
 
 # Whitelist of valid emotion values (extend when adding new expressions)
 EMOTION_WHITELIST = {
-    'CALM', 'ATTENTIVE', 'THINKING', 'HAPPY',
+    "CALM",
+    "ATTENTIVE",
+    "THINKING",
+    "HAPPY",
     # Future:
-    'EXCITED', 'CURIOUS', 'SURPRISED', 'CONFUSED', 'SAD', 'PROUD', 'WORRIED',
-    'SHY', 'RELIEVED', 'SLEEPY',
+    "EXCITED",
+    "CURIOUS",
+    "SURPRISED",
+    "CONFUSED",
+    "SAD",
+    "PROUD",
+    "WORRIED",
+    "SHY",
+    "RELIEVED",
+    "SLEEPY",
 }
 
 
 class EmotionPublisherNode(Node):
     def __init__(self):
-        super().__init__('emotion_publisher_node')
+        super().__init__("emotion_publisher_node")
 
-        self.declare_parameter('topics.manager_state_sub', 'hri/manager_state')
-        self.declare_parameter('topics.emotion_override_sub', 'hri/emotion_override')
-        self.declare_parameter('topics.emotion_pub', 'hri/emotion')
+        self.declare_parameter("topics.manager_state_sub", "hri/manager_state")
+        self.declare_parameter("topics.emotion_override_sub", "hri/emotion_override")
+        self.declare_parameter("topics.emotion_pub", "hri/emotion")
 
         # State
-        self._hri_state: str = 'IDLE'
+        self._hri_state: str = "IDLE"
         self._override_emotion: str | None = None
         self._override_until: float = 0.0
 
-        manager_state_topic = self.get_parameter('topics.manager_state_sub').value
-        emotion_override_topic = self.get_parameter('topics.emotion_override_sub').value
-        emotion_topic = self.get_parameter('topics.emotion_pub').value
+        manager_state_topic = self.get_parameter("topics.manager_state_sub").value
+        emotion_override_topic = self.get_parameter("topics.emotion_override_sub").value
+        emotion_topic = self.get_parameter("topics.emotion_pub").value
 
         # Subscribers
         self.create_subscription(
-            String, manager_state_topic, self._on_manager_state, 10)
+            String, manager_state_topic, self._on_manager_state, 10
+        )
         self.create_subscription(
-            String, emotion_override_topic, self._on_emotion_override, 10)
+            String, emotion_override_topic, self._on_emotion_override, 10
+        )
 
         # Publisher
         self._emotion_pub = self.create_publisher(String, emotion_topic, 10)
@@ -90,15 +103,15 @@ class EmotionPublisherNode(Node):
         # Publish at 2 Hz (face animation polling rate)
         self.create_timer(0.5, self._publish_emotion)
 
-        self.get_logger().info('Emotion Publisher Node started')
+        self.get_logger().info("Emotion Publisher Node started")
 
     def _on_manager_state(self, msg: String):
         """Update internal HRI state from manager_state topic."""
         try:
             parsed = json.loads(msg.data)
-            self._hri_state = parsed.get('state', 'IDLE')
+            self._hri_state = parsed.get("state", "IDLE")
         except (json.JSONDecodeError, AttributeError):
-            self._hri_state = 'IDLE'
+            self._hri_state = "IDLE"
 
     def _on_emotion_override(self, msg: String):
         """
@@ -108,23 +121,25 @@ class EmotionPublisherNode(Node):
         """
         try:
             parsed = json.loads(msg.data)
-            emotion = parsed.get('emotion', '').upper()
+            emotion = parsed.get("emotion", "").upper()
             if emotion not in EMOTION_WHITELIST:
                 self.get_logger().warn(
                     f'Unknown emotion override: "{emotion}" — ignored. '
-                    f'Valid: {sorted(EMOTION_WHITELIST)}'
+                    f"Valid: {sorted(EMOTION_WHITELIST)}"
                 )
                 return
 
-            duration = float(parsed.get('duration_sec', 0.0))
+            duration = float(parsed.get("duration_sec", 0.0))
             self._override_emotion = emotion
-            self._override_until = time.time() + duration if duration > 0 else float('inf')
+            self._override_until = (
+                time.time() + duration if duration > 0 else float("inf")
+            )
             self.get_logger().info(
-                f'Emotion override: {emotion} '
+                f"Emotion override: {emotion} "
                 f'({"permanent" if duration <= 0 else f"{duration:.1f}s"})'
             )
         except (json.JSONDecodeError, ValueError, AttributeError) as e:
-            self.get_logger().error(f'Failed to parse emotion_override: {e}')
+            self.get_logger().error(f"Failed to parse emotion_override: {e}")
 
     def _resolve_emotion(self) -> tuple[str, str]:
         """
@@ -135,29 +150,32 @@ class EmotionPublisherNode(Node):
         now = time.time()
 
         if self._override_emotion and now < self._override_until:
-            return self._override_emotion, 'override'
+            return self._override_emotion, "override"
 
         # Override expired — clear it
         if self._override_emotion:
             self.get_logger().info(
                 f'Emotion override "{self._override_emotion}" expired → '
-                f'returning to state-driven emotion'
+                f"returning to state-driven emotion"
             )
             self._override_emotion = None
             self._override_until = 0.0
 
         emotion = STATE_TO_EMOTION.get(self._hri_state, DEFAULT_EMOTION)
-        return emotion, 'state'
+        return emotion, "state"
 
     def _publish_emotion(self):
         emotion, source = self._resolve_emotion()
         msg = String()
-        msg.data = json.dumps({
-            'emotion':   emotion,
-            'source':    source,
-            'hri_state': self._hri_state,
-            'timestamp': time.time(),
-        }, ensure_ascii=False)
+        msg.data = json.dumps(
+            {
+                "emotion": emotion,
+                "source": source,
+                "hri_state": self._hri_state,
+                "timestamp": time.time(),
+            },
+            ensure_ascii=False,
+        )
         self._emotion_pub.publish(msg)
 
 
@@ -173,5 +191,5 @@ def main(args=None):
         rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -15,9 +15,9 @@ from pathlib import Path
 
 def is_repo_root(parent: Path) -> bool:
     """Return True when parent matches repository-root markers."""
-    has_readme = (parent / 'README.md').exists()
-    has_ros2_src = (parent / 'ros2_ws' / 'src').is_dir()
-    has_git = (parent / '.git').exists()
+    has_readme = (parent / "README.md").exists()
+    has_ros2_src = (parent / "ros2_ws" / "src").is_dir()
+    has_git = (parent / ".git").exists()
     return has_readme and (has_ros2_src or has_git)
 
 
@@ -51,6 +51,7 @@ def get_asset(relative_to_share: str, pkg_name: str) -> Path:
     # Priority 1: ROS2 share directory (production)
     try:
         from ament_index_python.packages import get_package_share_directory
+
         share_path = Path(get_package_share_directory(pkg_name)) / relative_to_share
         if share_path.exists():
             return share_path
@@ -63,6 +64,7 @@ def get_asset(relative_to_share: str, pkg_name: str) -> Path:
 
 # ── Convenience helpers ────────────────────────────────────────────────────────
 
+
 def get_knowledge_file() -> Path:
     """
     Path to campus_knowledge.json.
@@ -70,11 +72,11 @@ def get_knowledge_file() -> Path:
     Dev:   data/campus/indexed/campus_knowledge.json
     """
     # Try share first
-    path = get_asset('config/campus_knowledge.json', 'dori_llm')
+    path = get_asset("config/campus_knowledge.json", "dori_llm")
     if path.exists():
         return path
     # Dev fallback: data/campus/indexed/
-    return find_repo_root() / 'data' / 'campus' / 'indexed' / 'campus_knowledge.json'
+    return find_repo_root() / "data" / "campus" / "indexed" / "campus_knowledge.json"
 
 
 def get_rag_index_dir() -> Path:
@@ -82,6 +84,4 @@ def get_rag_index_dir() -> Path:
     Directory containing FAISS index (index.faiss, metadata.json, file_hashes.json).
     Dev:  data/campus/indexed/
     """
-    return find_repo_root() / 'data' / 'campus' / 'indexed'
-
-
+    return find_repo_root() / "data" / "campus" / "indexed"

@@ -24,18 +24,14 @@ def generate_launch_description():
 
     dori_system = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(
-                share,
-                "launch",
-                "system_real.launch.py"
-            )
+            os.path.join(share, "launch", "system_real.launch.py")
         ),
         launch_arguments={
             "use_joystick": use_joystick,
             "use_wheel_odometry": LaunchConfiguration("use_wheel_odometry"),
             "odom_publish_tf": LaunchConfiguration("odom_publish_tf"),
             "odom_scale": LaunchConfiguration("odom_scale"),
-        }.items()
+        }.items(),
     )
 
     # ============================================================
@@ -43,10 +39,7 @@ def generate_launch_description():
     # ============================================================
 
     imu_node = Node(
-        package="dori_hardware",
-        executable="imu_node",
-        name="imu_node",
-        output="screen"
+        package="dori_hardware", executable="imu_node", name="imu_node", output="screen"
     )
 
     # ============================================================
@@ -64,10 +57,12 @@ def generate_launch_description():
         executable="body_pitch_node",
         name="body_pitch_node",
         output="screen",
-        parameters=[{
-            "alpha": 0.98,
-            "gyro_deadband": 0.002,
-        }]
+        parameters=[
+            {
+                "alpha": 0.98,
+                "gyro_deadband": 0.002,
+            }
+        ],
     )
 
     # ============================================================
@@ -86,43 +81,35 @@ def generate_launch_description():
         executable="body_stabilizer_node",
         name="body_stabilizer_node",
         output="screen",
-        parameters=[{
-            "target_pitch_deg": 0.0,
-
-            # ----------------------------------------------------
-            # PD gains
-            # ----------------------------------------------------
-
-            "kp": 0.0,
-            "kd": 0.0,
-
-            # ----------------------------------------------------
-            # Torque limit
-            # ----------------------------------------------------
-
-            "max_torque": 0.0,
-
-            # ----------------------------------------------------
-            # P deadband
-            #
-            # 기존 5 deg는 너무 커서
-            # 작은 기울기에서 P가 꺼지는 문제가 있었음.
-            # ----------------------------------------------------
-
-            "angle_deadband_deg": 1.0,
-
-            # ----------------------------------------------------
-            # Controller frequency
-            # ----------------------------------------------------
-
-            "control_frequency_hz": 100.0,
-
-            # ----------------------------------------------------
-            # IMU timeout
-            # ----------------------------------------------------
-
-            "sensor_timeout_sec": 0.10,
-        }]
+        parameters=[
+            {
+                "target_pitch_deg": 0.0,
+                # ----------------------------------------------------
+                # PD gains
+                # ----------------------------------------------------
+                "kp": 0.0,
+                "kd": 0.0,
+                # ----------------------------------------------------
+                # Torque limit
+                # ----------------------------------------------------
+                "max_torque": 0.0,
+                # ----------------------------------------------------
+                # P deadband
+                #
+                # 기존 5 deg는 너무 커서
+                # 작은 기울기에서 P가 꺼지는 문제가 있었음.
+                # ----------------------------------------------------
+                "angle_deadband_deg": 1.0,
+                # ----------------------------------------------------
+                # Controller frequency
+                # ----------------------------------------------------
+                "control_frequency_hz": 100.0,
+                # ----------------------------------------------------
+                # IMU timeout
+                # ----------------------------------------------------
+                "sensor_timeout_sec": 0.10,
+            }
+        ],
     )
 
     # ============================================================
@@ -145,86 +132,68 @@ def generate_launch_description():
         executable="servo3_pitch_follower_node",
         name="servo3_pitch_follower_node",
         output="screen",
-        parameters=[{
-
-            # ----------------------------------------------------
-            # Dynamixel
-            # ----------------------------------------------------
-
-            "logical_motor_id": 5,
-
-            # ----------------------------------------------------
-            # Servo center / safety range
-            # ----------------------------------------------------
-
-            "center_deg": 180.0,
-
-            "min_deg": 135.0,
-            "max_deg": 225.0,
-
-            # ----------------------------------------------------
-            # Direction
-            # ----------------------------------------------------
-
-            "direction": 1.0,
-
-            # ----------------------------------------------------
-            # Pitch deadband
-            # ----------------------------------------------------
-
-            "pitch_deadband_deg": 0.5,
-
-            # ----------------------------------------------------
-            # Minimum command change
-            # ----------------------------------------------------
-
-            "command_threshold_deg": 0.2,
-
-            # ----------------------------------------------------
-            # DXL command frequency
-            # ----------------------------------------------------
-
-            "command_rate_hz": 30.0,
-
-            # ----------------------------------------------------
-            # Pitch-rate feedforward
-            #
-            # 현재 네가 튜닝해서 안정적으로 쓴 값 유지
-            # 0.08 이상에서 진동이 있었다면
-            # 실제 최종값은 안정된 값으로 조정하면 됨.
-            # ----------------------------------------------------
-
-            "pitch_rate_ff_gain": 0.05,
-
-            # ----------------------------------------------------
-            # Pitch-rate safety clamp
-            # ----------------------------------------------------
-
-            "pitch_rate_limit_deg_s": 180.0,
-        }]
+        parameters=[
+            {
+                # ----------------------------------------------------
+                # Dynamixel
+                # ----------------------------------------------------
+                "logical_motor_id": 5,
+                # ----------------------------------------------------
+                # Servo center / safety range
+                # ----------------------------------------------------
+                "center_deg": 180.0,
+                "min_deg": 135.0,
+                "max_deg": 225.0,
+                # ----------------------------------------------------
+                # Direction
+                # ----------------------------------------------------
+                "direction": 1.0,
+                # ----------------------------------------------------
+                # Pitch deadband
+                # ----------------------------------------------------
+                "pitch_deadband_deg": 0.5,
+                # ----------------------------------------------------
+                # Minimum command change
+                # ----------------------------------------------------
+                "command_threshold_deg": 0.2,
+                # ----------------------------------------------------
+                # DXL command frequency
+                # ----------------------------------------------------
+                "command_rate_hz": 30.0,
+                # ----------------------------------------------------
+                # Pitch-rate feedforward
+                #
+                # 현재 네가 튜닝해서 안정적으로 쓴 값 유지
+                # 0.08 이상에서 진동이 있었다면
+                # 실제 최종값은 안정된 값으로 조정하면 됨.
+                # ----------------------------------------------------
+                "pitch_rate_ff_gain": 0.05,
+                # ----------------------------------------------------
+                # Pitch-rate safety clamp
+                # ----------------------------------------------------
+                "pitch_rate_limit_deg_s": 180.0,
+            }
+        ],
     )
 
     # ============================================================
     # Launch
     # ============================================================
 
-    return LaunchDescription([
-
-        DeclareLaunchArgument("use_wheel_odometry", default_value="false"),
-        DeclareLaunchArgument("odom_publish_tf", default_value="false"),
-        DeclareLaunchArgument("odom_scale", default_value="1.0"),
-
-        DeclareLaunchArgument(
-            "use_joystick",
-            default_value="true",
-            description="Enable joystick control"
-        ),
-
-        dori_system,
-
-        imu_node,
-        body_pitch_node,
-        body_stabilizer_node,
-
-        servo3_pitch_follower_node,
-    ])
+    return LaunchDescription(
+        [
+            DeclareLaunchArgument("use_wheel_odometry", default_value="false"),
+            DeclareLaunchArgument("odom_publish_tf", default_value="false"),
+            DeclareLaunchArgument("odom_scale", default_value="1.0"),
+            DeclareLaunchArgument(
+                "use_joystick",
+                default_value="true",
+                description="Enable joystick control",
+            ),
+            dori_system,
+            imu_node,
+            body_pitch_node,
+            body_stabilizer_node,
+            servo3_pitch_follower_node,
+        ]
+    )

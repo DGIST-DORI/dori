@@ -12,32 +12,20 @@ from std_msgs.msg import Float64
 class BodyPitchNode(Node):
 
     def __init__(self):
-        super().__init__('body_pitch_node')
+        super().__init__("body_pitch_node")
 
         # ============================================================
         # Parameters
         # ============================================================
 
-        self.declare_parameter(
-            'alpha',
-            0.98
-        )
+        self.declare_parameter("alpha", 0.98)
 
-        self.declare_parameter(
-            'gyro_deadband',
-            0.002
-        )
+        self.declare_parameter("gyro_deadband", 0.002)
 
-        self.alpha = (
-            self.get_parameter('alpha')
-            .get_parameter_value()
-            .double_value
-        )
+        self.alpha = self.get_parameter("alpha").get_parameter_value().double_value
 
         self.gyro_deadband = (
-            self.get_parameter('gyro_deadband')
-            .get_parameter_value()
-            .double_value
+            self.get_parameter("gyro_deadband").get_parameter_value().double_value
         )
 
         # ============================================================
@@ -45,38 +33,21 @@ class BodyPitchNode(Node):
         # ============================================================
 
         self.imu_sub = self.create_subscription(
-            Imu,
-            '/imu/data_raw',
-            self.imu_callback,
-            10
+            Imu, "/imu/data_raw", self.imu_callback, 10
         )
 
         # ============================================================
         # Publishers
         # ============================================================
 
-        self.pitch_rad_pub = self.create_publisher(
-            Float64,
-            '/body/pitch',
-            10
-        )
+        self.pitch_rad_pub = self.create_publisher(Float64, "/body/pitch", 10)
 
-        self.pitch_deg_pub = self.create_publisher(
-            Float64,
-            '/body/pitch_deg',
-            10
-        )
+        self.pitch_deg_pub = self.create_publisher(Float64, "/body/pitch_deg", 10)
 
-        self.pitch_rate_pub = self.create_publisher(
-            Float64,
-            '/body/pitch_rate',
-            10
-        )
+        self.pitch_rate_pub = self.create_publisher(Float64, "/body/pitch_rate", 10)
 
         self.acc_pitch_deg_pub = self.create_publisher(
-            Float64,
-            '/body/acc_pitch_deg',
-            10
+            Float64, "/body/acc_pitch_deg", 10
         )
 
         # ============================================================
@@ -87,9 +58,7 @@ class BodyPitchNode(Node):
         # ============================================================
 
         self.gyro_pitch_deg_pub = self.create_publisher(
-            Float64,
-            '/body/gyro_pitch_deg',
-            10
+            Float64, "/body/gyro_pitch_deg", 10
         )
 
         # ============================================================
@@ -105,13 +74,9 @@ class BodyPitchNode(Node):
 
         self.last_time = None
 
-        self.get_logger().info(
-            'Body pitch estimator started'
-        )
+        self.get_logger().info("Body pitch estimator started")
 
-        self.get_logger().info(
-            f'Complementary filter alpha = {self.alpha}'
-        )
+        self.get_logger().info(f"Complementary filter alpha = {self.alpha}")
 
     # ================================================================
     # IMU callback
@@ -123,11 +88,7 @@ class BodyPitchNode(Node):
         # Timestamp
         # ============================================================
 
-        current_time = (
-            msg.header.stamp.sec
-            +
-            msg.header.stamp.nanosec * 1e-9
-        )
+        current_time = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
 
         # ============================================================
         # IMU data
@@ -142,10 +103,7 @@ class BodyPitchNode(Node):
         # Accelerometer pitch
         # ============================================================
 
-        acc_pitch = math.atan2(
-            ay,
-            -az
-        )
+        acc_pitch = math.atan2(ay, -az)
 
         # ============================================================
         # Initialization
@@ -167,11 +125,7 @@ class BodyPitchNode(Node):
         # dt
         # ============================================================
 
-        dt = (
-            current_time
-            -
-            self.last_time
-        )
+        dt = current_time - self.last_time
 
         self.last_time = current_time
 
@@ -193,35 +147,19 @@ class BodyPitchNode(Node):
         # 디버깅용
         # ============================================================
 
-        self.gyro_only_pitch += (
-            gyro_rate
-            *
-            dt
-        )
+        self.gyro_only_pitch += gyro_rate * dt
 
         # ============================================================
         # Gyro prediction for complementary filter
         # ============================================================
 
-        gyro_pitch = (
-            self.pitch
-            +
-            gyro_rate * dt
-        )
+        gyro_pitch = self.pitch + gyro_rate * dt
 
         # ============================================================
         # Complementary filter
         # ============================================================
 
-        self.pitch = (
-            self.alpha
-            *
-            gyro_pitch
-            +
-            (1.0 - self.alpha)
-            *
-            acc_pitch
-        )
+        self.pitch = self.alpha * gyro_pitch + (1.0 - self.alpha) * acc_pitch
 
         # ============================================================
         # Publish filtered pitch [rad]
@@ -229,13 +167,9 @@ class BodyPitchNode(Node):
 
         pitch_msg = Float64()
 
-        pitch_msg.data = (
-            self.pitch
-        )
+        pitch_msg.data = self.pitch
 
-        self.pitch_rad_pub.publish(
-            pitch_msg
-        )
+        self.pitch_rad_pub.publish(pitch_msg)
 
         # ============================================================
         # Publish filtered pitch [deg]
@@ -243,15 +177,9 @@ class BodyPitchNode(Node):
 
         pitch_deg_msg = Float64()
 
-        pitch_deg_msg.data = (
-            math.degrees(
-                self.pitch
-            )
-        )
+        pitch_deg_msg.data = math.degrees(self.pitch)
 
-        self.pitch_deg_pub.publish(
-            pitch_deg_msg
-        )
+        self.pitch_deg_pub.publish(pitch_deg_msg)
 
         # ============================================================
         # Publish gyro rate [rad/s]
@@ -261,9 +189,7 @@ class BodyPitchNode(Node):
 
         rate_msg.data = gyro_rate
 
-        self.pitch_rate_pub.publish(
-            rate_msg
-        )
+        self.pitch_rate_pub.publish(rate_msg)
 
         # ============================================================
         # Publish accelerometer pitch [deg]
@@ -271,15 +197,9 @@ class BodyPitchNode(Node):
 
         acc_msg = Float64()
 
-        acc_msg.data = (
-            math.degrees(
-                acc_pitch
-            )
-        )
+        acc_msg.data = math.degrees(acc_pitch)
 
-        self.acc_pitch_deg_pub.publish(
-            acc_msg
-        )
+        self.acc_pitch_deg_pub.publish(acc_msg)
 
         # ============================================================
         # Publish gyro-only pitch [deg]
@@ -287,15 +207,9 @@ class BodyPitchNode(Node):
 
         gyro_pitch_msg = Float64()
 
-        gyro_pitch_msg.data = (
-            math.degrees(
-                self.gyro_only_pitch
-            )
-        )
+        gyro_pitch_msg.data = math.degrees(self.gyro_only_pitch)
 
-        self.gyro_pitch_deg_pub.publish(
-            gyro_pitch_msg
-        )
+        self.gyro_pitch_deg_pub.publish(gyro_pitch_msg)
 
 
 def main(args=None):
@@ -315,5 +229,5 @@ def main(args=None):
         rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

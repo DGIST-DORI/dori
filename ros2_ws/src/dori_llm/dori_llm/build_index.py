@@ -39,17 +39,20 @@ import numpy as np
 
 # Configuration
 
-EMBED_MODEL   = "paraphrase-multilingual-MiniLM-L12-v2"  # 120 MB, KO/EN bilingual
-CHUNK_SIZE    = 300    # characters per chunk (shorter = more precise retrieval)
-CHUNK_OVERLAP = 60     # overlap to avoid cutting mid-sentence
-INDEX_FILE    = "index.faiss"
-META_FILE     = "metadata.json"   # chunk text + source info
-HASH_FILE     = "file_hashes.json"  # for incremental updates
+EMBED_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"  # 120 MB, KO/EN bilingual
+CHUNK_SIZE = 300  # characters per chunk (shorter = more precise retrieval)
+CHUNK_OVERLAP = 60  # overlap to avoid cutting mid-sentence
+INDEX_FILE = "index.faiss"
+META_FILE = "metadata.json"  # chunk text + source info
+HASH_FILE = "file_hashes.json"  # for incremental updates
 
 
 # Chunking
 
-def chunk_text(text: str, size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> list[str]:
+
+def chunk_text(
+    text: str, size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP
+) -> list[str]:
     """
     Split text into overlapping character-level chunks.
     Tries to break at newlines first to avoid mid-sentence splits.
@@ -66,7 +69,7 @@ def chunk_text(text: str, size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) 
 
         # Try to break at a newline within the last 60 chars of the window
         if end < len(text):
-            break_pos = text.rfind('\n', start + size - 60, end)
+            break_pos = text.rfind("\n", start + size - 60, end)
             if break_pos > start:
                 end = break_pos + 1
 
@@ -94,11 +97,15 @@ def load_documents(docs_dir: Path) -> list[dict]:
         try:
             text = path.read_text(encoding="utf-8").strip()
             if text:
-                docs.append({
-                    "source": str(path),  # user-visible path
-                    "source_key": path.relative_to(docs_dir).as_posix(),  # canonical internal key
-                    "text": text,
-                })
+                docs.append(
+                    {
+                        "source": str(path),  # user-visible path
+                        "source_key": path.relative_to(
+                            docs_dir
+                        ).as_posix(),  # canonical internal key
+                        "text": text,
+                    }
+                )
         except Exception as e:
             print(f"  [WARN] Could not read {path}: {e}")
     return docs
@@ -111,19 +118,20 @@ def file_hash(path: str) -> str:
 
 # Index builder
 
+
 class IndexBuilder:
     def __init__(self, output_dir: Path):
         self.output_dir = output_dir
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         self.index_path = output_dir / INDEX_FILE
-        self.meta_path  = output_dir / META_FILE
-        self.hash_path  = output_dir / HASH_FILE
+        self.meta_path = output_dir / META_FILE
+        self.hash_path = output_dir / HASH_FILE
 
-        self._model  = None   # lazy load
-        self._index  = None
-        self._meta   = []     # list of {source, chunk_id, text}
-        self._hashes = {}     # {filepath: md5}
+        self._model = None  # lazy load
+        self._index = None
+        self._meta = []  # list of {source, chunk_id, text}
+        self._hashes = {}  # {filepath: md5}
 
     # Model (lazy)
 
@@ -132,6 +140,7 @@ class IndexBuilder:
             print(f"Loading embedding model: {EMBED_MODEL} ...")
             t0 = time.time()
             from sentence_transformers import SentenceTransformer
+
             self._model = SentenceTransformer(EMBED_MODEL)
             print(f"  Model loaded in {time.time()-t0:.1f}s")
         return self._model
@@ -144,7 +153,7 @@ class IndexBuilder:
             texts,
             batch_size=batch_size,
             show_progress_bar=len(texts) > 50,
-            normalize_embeddings=True,   # cosine similarity via dot product
+            normalize_embeddings=True,  # cosine similarity via dot product
             convert_to_numpy=True,
         ).astype("float32")
 
@@ -152,12 +161,15 @@ class IndexBuilder:
 
     def _load_existing(self):
         import faiss
+
         try:
             if self.index_path.exists() and self.meta_path.exists():
-                self._index  = faiss.read_index(str(self.index_path))
-                self._meta   = json.loads(self.meta_path.read_text())
-                print(f"  Loaded existing index: {self._index.ntotal} vectors, "
-                      f"{len(self._meta)} chunks")
+                self._index = faiss.read_index(str(self.index_path))
+                self._meta = json.loads(self.meta_path.read_text())
+                print(
+                    f"  Loaded existing index: {self._index.ntotal} vectors, "
+                    f"{len(self._meta)} chunks"
+                )
             if self.hash_path.exists():
                 self._hashes = json.loads(self.hash_path.read_text())
         except Exception as e:
@@ -252,7 +264,7 @@ class IndexBuilder:
         for doc in docs:
             h = file_hash(doc["source"])
             if incremental and self._hashes.get(doc["source_key"]) == h:
-                continue   # unchanged
+                continue  # unchanged
             to_index.append((doc, h))
 
         if not to_index and incremental:
@@ -274,8 +286,11 @@ class IndexBuilder:
         # If incremental, remove old chunks for files being re-indexed
         if incremental and self._meta:
             stale_sources = {doc["source_key"] for doc, _ in to_index}
-            keep_idx = [i for i, m in enumerate(self._meta)
-                        if self._meta_source_key(m, docs_dir) not in stale_sources]
+            keep_idx = [
+                i
+                for i, m in enumerate(self._meta)
+                if self._meta_source_key(m, docs_dir) not in stale_sources
+            ]
             if keep_idx:
                 # Rebuild a fresh index from kept vectors
                 dim = self._index.d
@@ -286,25 +301,27 @@ class IndexBuilder:
                 if keep_idx:
                     new_index.add(old_vecs)
                 self._index = new_index
-                self._meta  = [self._meta[i] for i in keep_idx]
+                self._meta = [self._meta[i] for i in keep_idx]
             else:
                 dim = self._embed(["test"], batch_size=1).shape[1]
                 self._index = faiss.IndexFlatIP(dim)
-                self._meta  = []
+                self._meta = []
 
         # Chunk new/changed files
-        all_chunks  = []
+        all_chunks = []
         chunk_metas = []
         for doc, h in to_index:
             chunks = chunk_text(doc["text"])
             for i, chunk in enumerate(chunks):
                 all_chunks.append(chunk)
-                chunk_metas.append({
-                    "source":   doc["source"],
-                    "source_key": doc["source_key"],
-                    "chunk_id": i,
-                    "text":     chunk,
-                })
+                chunk_metas.append(
+                    {
+                        "source": doc["source"],
+                        "source_key": doc["source_key"],
+                        "chunk_id": i,
+                        "text": chunk,
+                    }
+                )
             self._hashes[doc["source_key"]] = h
             print(f"  Chunked {Path(doc['source']).name}: {len(chunks)} chunks")
 
@@ -313,10 +330,14 @@ class IndexBuilder:
             return False
 
         # Embed in chunks to reduce peak memory
-        print(f"  Embedding {len(all_chunks)} chunks (encoder batch={batch_size}, stream batch={chunk_batch_size}) ...")
+        print(
+            f"  Embedding {len(all_chunks)} chunks (encoder batch={batch_size}, stream batch={chunk_batch_size}) ..."
+        )
         t0 = time.time()
         total_batches = math.ceil(len(all_chunks) / chunk_batch_size)
-        for batch_idx, start in enumerate(range(0, len(all_chunks), chunk_batch_size), start=1):
+        for batch_idx, start in enumerate(
+            range(0, len(all_chunks), chunk_batch_size), start=1
+        ):
             end = min(start + chunk_batch_size, len(all_chunks))
             chunk_batch = all_chunks[start:end]
             meta_batch = chunk_metas[start:end]
@@ -324,12 +345,16 @@ class IndexBuilder:
             try:
                 vecs = self._embed(chunk_batch, batch_size=batch_size)
             except Exception as e:
-                print(f"[ERROR] Embedding failed for batch {batch_idx}/{total_batches}: {e}")
+                print(
+                    f"[ERROR] Embedding failed for batch {batch_idx}/{total_batches}: {e}"
+                )
                 return False
 
             if self._index is None:
                 dim = vecs.shape[1]
-                self._index = faiss.IndexFlatIP(dim)  # inner product = cosine (normalized)
+                self._index = faiss.IndexFlatIP(
+                    dim
+                )  # inner product = cosine (normalized)
 
             self._index.add(vecs)
             self._meta.extend(meta_batch)
@@ -345,9 +370,11 @@ class IndexBuilder:
         try:
             faiss.write_index(self._index, str(self.index_path))
             self.meta_path.write_text(
-                json.dumps(self._meta, ensure_ascii=False, indent=2), encoding="utf-8")
+                json.dumps(self._meta, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
             self.hash_path.write_text(
-                json.dumps(self._hashes, ensure_ascii=False, indent=2), encoding="utf-8")
+                json.dumps(self._hashes, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
         except Exception as e:
             print(f"[ERROR] Failed to save index/metadata: {e}")
             return False
@@ -360,6 +387,7 @@ class IndexBuilder:
 
 
 # Retriever (used by llm_node.py)
+
 
 class Retriever:
     """
@@ -379,7 +407,7 @@ class Retriever:
 
         index_dir = Path(index_dir)
         self._index = faiss.read_index(str(index_dir / INDEX_FILE))
-        self._meta  = json.loads((index_dir / META_FILE).read_text())
+        self._meta = json.loads((index_dir / META_FILE).read_text())
         self._model = SentenceTransformer(EMBED_MODEL)
         print(f"[Retriever] Loaded index: {self._index.ntotal} vectors")
 
@@ -396,34 +424,52 @@ class Retriever:
 
         results = []
         for score, idx in zip(scores[0], indices[0]):
-            if idx < 0:   # FAISS returns -1 for empty slots
+            if idx < 0:  # FAISS returns -1 for empty slots
                 continue
             meta = self._meta[idx]
-            results.append({
-                "score":    float(score),
-                "source":   meta["source"],
-                "chunk_id": meta["chunk_id"],
-                "text":     meta["text"],
-            })
+            results.append(
+                {
+                    "score": float(score),
+                    "source": meta["source"],
+                    "chunk_id": meta["chunk_id"],
+                    "text": meta["text"],
+                }
+            )
         return results
 
 
 # CLI
 
+
 def main():
     parser = argparse.ArgumentParser(description="DORI RAG Index Builder")
-    parser.add_argument("--docs",        required=True, #TODO: default="./data/campus/processed",
-                        help="Directory containing .txt document files")
-    parser.add_argument("--output",      default="./data/campus/indexed",
-                        help="Directory to save FAISS index + metadata")
-    parser.add_argument("--incremental", action="store_true",
-                        help="Only re-embed changed/new files (faster updates)")
-    parser.add_argument("--batch-size", type=int,
-                        default=int(os.getenv("DORI_EMBED_BATCH_SIZE", "16")),
-                        help="Embedding model batch size (env: DORI_EMBED_BATCH_SIZE, default: 16)")
-    parser.add_argument("--chunk-batch-size", type=int,
-                        default=int(os.getenv("DORI_CHUNK_BATCH_SIZE", "512")),
-                        help="Chunks per streaming embed/add pass (env: DORI_CHUNK_BATCH_SIZE, default: 512)")
+    parser.add_argument(
+        "--docs",
+        required=True,  # TODO: default="./data/campus/processed",
+        help="Directory containing .txt document files",
+    )
+    parser.add_argument(
+        "--output",
+        default="./data/campus/indexed",
+        help="Directory to save FAISS index + metadata",
+    )
+    parser.add_argument(
+        "--incremental",
+        action="store_true",
+        help="Only re-embed changed/new files (faster updates)",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=int(os.getenv("DORI_EMBED_BATCH_SIZE", "16")),
+        help="Embedding model batch size (env: DORI_EMBED_BATCH_SIZE, default: 16)",
+    )
+    parser.add_argument(
+        "--chunk-batch-size",
+        type=int,
+        default=int(os.getenv("DORI_CHUNK_BATCH_SIZE", "512")),
+        help="Chunks per streaming embed/add pass (env: DORI_CHUNK_BATCH_SIZE, default: 512)",
+    )
     args = parser.parse_args()
 
     if args.batch_size <= 0:

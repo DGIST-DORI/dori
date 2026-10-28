@@ -16,84 +16,51 @@ class ImuSerialNode(Node):
 
     def __init__(self):
 
-        super().__init__('imu_serial_node')
+        super().__init__("imu_serial_node")
 
         # ============================================================
         # Parameters
         # ============================================================
 
         self.declare_parameter(
-            'port',
-            '/dev/serial/by-id/usb-Arduino_Nano_33_BLE_B9CD51D670B512DB-if00'
+            "port", "/dev/serial/by-id/usb-Arduino_Nano_33_BLE_B9CD51D670B512DB-if00"
         )
 
-        self.declare_parameter(
-            'baudrate',
-            230400
-        )
+        self.declare_parameter("baudrate", 230400)
 
-        self.declare_parameter(
-            'frame_id',
-            'imu_link'
-        )
+        self.declare_parameter("frame_id", "imu_link")
 
-        self.port = (
-            self.get_parameter('port')
-            .get_parameter_value()
-            .string_value
-        )
+        self.port = self.get_parameter("port").get_parameter_value().string_value
 
         self.baudrate = (
-            self.get_parameter('baudrate')
-            .get_parameter_value()
-            .integer_value
+            self.get_parameter("baudrate").get_parameter_value().integer_value
         )
 
         self.frame_id = (
-            self.get_parameter('frame_id')
-            .get_parameter_value()
-            .string_value
+            self.get_parameter("frame_id").get_parameter_value().string_value
         )
 
         # ============================================================
         # Publishers
         # ============================================================
 
-        self.imu_pub = self.create_publisher(
-            Imu,
-            '/imu/data_raw',
-            10
-        )
+        self.imu_pub = self.create_publisher(Imu, "/imu/data_raw", 10)
 
-        self.mag_pub = self.create_publisher(
-            MagneticField,
-            '/imu/mag',
-            10
-        )
+        self.mag_pub = self.create_publisher(MagneticField, "/imu/mag", 10)
 
         # ============================================================
         # Serial
         # ============================================================
 
-        self.ser = serial.Serial(
-            port=self.port,
-            baudrate=self.baudrate,
-            timeout=0.1
-        )
+        self.ser = serial.Serial(port=self.port, baudrate=self.baudrate, timeout=0.1)
 
         self.ser.reset_input_buffer()
 
-        self.get_logger().info(
-            f'Opened serial port: {self.port}'
-        )
+        self.get_logger().info(f"Opened serial port: {self.port}")
 
-        self.get_logger().info(
-            'Publishing /imu/data_raw'
-        )
+        self.get_logger().info("Publishing /imu/data_raw")
 
-        self.get_logger().info(
-            'Publishing /imu/mag'
-        )
+        self.get_logger().info("Publishing /imu/mag")
 
         # ============================================================
         # Serial thread
@@ -101,13 +68,9 @@ class ImuSerialNode(Node):
 
         self.running = True
 
-        self.serial_thread = threading.Thread(
-            target=self.serial_loop,
-            daemon=True
-        )
+        self.serial_thread = threading.Thread(target=self.serial_loop, daemon=True)
 
         self.serial_thread.start()
-
 
     # ================================================================
     # Serial loop
@@ -128,19 +91,16 @@ class ImuSerialNode(Node):
             if not raw_line:
                 continue
 
-            line = raw_line.decode(
-                'utf-8',
-                errors='ignore'
-            ).strip()
+            line = raw_line.decode("utf-8", errors="ignore").strip()
 
             if not line:
                 continue
 
             # Arduino debug lines
-            if line.startswith('#'):
+            if line.startswith("#"):
                 continue
 
-            values = line.split(',')
+            values = line.split(",")
 
             # 9-axis CSV
             if len(values) != 9:
@@ -165,33 +125,15 @@ class ImuSerialNode(Node):
                 continue
 
             self.publish_data(
-                ax_g,
-                ay_g,
-                az_g,
-                gx_dps,
-                gy_dps,
-                gz_dps,
-                mx_uT,
-                my_uT,
-                mz_uT
+                ax_g, ay_g, az_g, gx_dps, gy_dps, gz_dps, mx_uT, my_uT, mz_uT
             )
-
 
     # ================================================================
     # Publish
     # ================================================================
 
     def publish_data(
-        self,
-        ax_g,
-        ay_g,
-        az_g,
-        gx_dps,
-        gy_dps,
-        gz_dps,
-        mx_uT,
-        my_uT,
-        mz_uT
+        self, ax_g, ay_g, az_g, gx_dps, gy_dps, gz_dps, mx_uT, my_uT, mz_uT
     ):
 
         now = self.get_clock().now().to_msg()
@@ -225,9 +167,7 @@ class ImuSerialNode(Node):
 
         imu_msg.orientation_covariance[0] = -1.0
 
-        self.imu_pub.publish(
-            imu_msg
-        )
+        self.imu_pub.publish(imu_msg)
 
         # ============================================================
         # Magnetometer
@@ -246,10 +186,7 @@ class ImuSerialNode(Node):
         mag_msg.magnetic_field.y = my_uT * 1e-6
         mag_msg.magnetic_field.z = mz_uT * 1e-6
 
-        self.mag_pub.publish(
-            mag_msg
-        )
-
+        self.mag_pub.publish(mag_msg)
 
     # ================================================================
     # Shutdown
@@ -261,11 +198,11 @@ class ImuSerialNode(Node):
 
         # The read has a 0.1 s timeout. Wait for it to finish before
         # closing the descriptor; closing during readline races with os.read.
-        if hasattr(self, 'serial_thread'):
+        if hasattr(self, "serial_thread"):
             if self.serial_thread.is_alive():
                 self.serial_thread.join()
 
-        if hasattr(self, 'ser'):
+        if hasattr(self, "ser"):
             if self.ser.is_open:
                 self.ser.close()
 
@@ -293,6 +230,6 @@ def main(args=None):
         rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     main()

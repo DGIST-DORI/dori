@@ -13,63 +13,39 @@ class Servo3PitchFollowerNode(Node):
 
     def __init__(self):
 
-        super().__init__('servo3_pitch_follower_node')
+        super().__init__("servo3_pitch_follower_node")
 
         # ============================================================
         # Parameters
         # ============================================================
 
         # logical motor 5 -> physical DXL ID 3
-        self.declare_parameter(
-            'logical_motor_id',
-            5
-        )
+        self.declare_parameter("logical_motor_id", 5)
 
         # 몸체가 수평일 때 서보 중심 위치
-        self.declare_parameter(
-            'center_deg',
-            180.0
-        )
+        self.declare_parameter("center_deg", 180.0)
 
         # Servo safety range
-        self.declare_parameter(
-            'min_deg',
-            135.0
-        )
+        self.declare_parameter("min_deg", 135.0)
 
-        self.declare_parameter(
-            'max_deg',
-            225.0
-        )
+        self.declare_parameter("max_deg", 225.0)
 
         # +1:
         # body pitch +10 deg -> servo +10 deg
         #
         # -1:
         # body pitch +10 deg -> servo -10 deg
-        self.declare_parameter(
-            'direction',
-            1.0
-        )
+        self.declare_parameter("direction", 1.0)
 
         # 작은 pitch noise 무시
-        self.declare_parameter(
-            'pitch_deadband_deg',
-            0.5
-        )
+        self.declare_parameter("pitch_deadband_deg", 0.5)
 
         # 마지막으로 실제 DXL에 보낸 명령과
         # 이 값보다 적게 차이나면 새 명령 생략
-        self.declare_parameter(
-            'command_threshold_deg',
-            0.2
-        )
+        self.declare_parameter("command_threshold_deg", 0.2)
 
         # 실제 Dynamixel 명령 전송 주기
-        self.declare_parameter(
-            'command_rate_hz',
-            30.0
-        )
+        self.declare_parameter("command_rate_hz", 30.0)
 
         # ============================================================
         # Pitch-rate feedforward gain
@@ -80,10 +56,7 @@ class Servo3PitchFollowerNode(Node):
         # = gain [s] * pitch_rate [deg/s]
         # ============================================================
 
-        self.declare_parameter(
-            'pitch_rate_ff_gain',
-            0.05
-        )
+        self.declare_parameter("pitch_rate_ff_gain", 0.05)
 
         # ============================================================
         # Pitch-rate limit
@@ -91,71 +64,48 @@ class Servo3PitchFollowerNode(Node):
         # gyro spike 등으로 FF가 너무 커지는 것 방지
         # ============================================================
 
-        self.declare_parameter(
-            'pitch_rate_limit_deg_s',
-            180.0
-        )
+        self.declare_parameter("pitch_rate_limit_deg_s", 180.0)
 
         # ============================================================
         # Get parameters
         # ============================================================
 
         self.logical_motor_id = (
-            self.get_parameter('logical_motor_id')
-            .get_parameter_value()
-            .integer_value
+            self.get_parameter("logical_motor_id").get_parameter_value().integer_value
         )
 
         self.center_deg = (
-            self.get_parameter('center_deg')
-            .get_parameter_value()
-            .double_value
+            self.get_parameter("center_deg").get_parameter_value().double_value
         )
 
-        self.min_deg = (
-            self.get_parameter('min_deg')
-            .get_parameter_value()
-            .double_value
-        )
+        self.min_deg = self.get_parameter("min_deg").get_parameter_value().double_value
 
-        self.max_deg = (
-            self.get_parameter('max_deg')
-            .get_parameter_value()
-            .double_value
-        )
+        self.max_deg = self.get_parameter("max_deg").get_parameter_value().double_value
 
         self.direction = (
-            self.get_parameter('direction')
-            .get_parameter_value()
-            .double_value
+            self.get_parameter("direction").get_parameter_value().double_value
         )
 
         self.pitch_deadband_deg = (
-            self.get_parameter('pitch_deadband_deg')
-            .get_parameter_value()
-            .double_value
+            self.get_parameter("pitch_deadband_deg").get_parameter_value().double_value
         )
 
         self.command_threshold_deg = (
-            self.get_parameter('command_threshold_deg')
+            self.get_parameter("command_threshold_deg")
             .get_parameter_value()
             .double_value
         )
 
         self.command_rate_hz = (
-            self.get_parameter('command_rate_hz')
-            .get_parameter_value()
-            .double_value
+            self.get_parameter("command_rate_hz").get_parameter_value().double_value
         )
 
         self.pitch_rate_ff_gain = (
-            self.get_parameter('pitch_rate_ff_gain')
-            .get_parameter_value()
-            .double_value
+            self.get_parameter("pitch_rate_ff_gain").get_parameter_value().double_value
         )
 
         self.pitch_rate_limit_deg_s = (
-            self.get_parameter('pitch_rate_limit_deg_s')
+            self.get_parameter("pitch_rate_limit_deg_s")
             .get_parameter_value()
             .double_value
         )
@@ -163,8 +113,7 @@ class Servo3PitchFollowerNode(Node):
         if self.command_rate_hz <= 0.0:
 
             self.get_logger().warn(
-                'command_rate_hz must be > 0. '
-                'Using 30.0 Hz instead.'
+                "command_rate_hz must be > 0. " "Using 30.0 Hz instead."
             )
 
             self.command_rate_hz = 30.0
@@ -198,10 +147,7 @@ class Servo3PitchFollowerNode(Node):
         # ============================================================
 
         self.pitch_sub = self.create_subscription(
-            Float64,
-            '/body/pitch_deg',
-            self.pitch_callback,
-            20
+            Float64, "/body/pitch_deg", self.pitch_callback, 20
         )
 
         # ============================================================
@@ -212,10 +158,7 @@ class Servo3PitchFollowerNode(Node):
         # ============================================================
 
         self.pitch_rate_sub = self.create_subscription(
-            Float64,
-            '/body/pitch_rate',
-            self.pitch_rate_callback,
-            20
+            Float64, "/body/pitch_rate", self.pitch_rate_callback, 20
         )
 
         # ============================================================
@@ -226,9 +169,7 @@ class Servo3PitchFollowerNode(Node):
         # ============================================================
 
         self.dxl_cmd_pub = self.create_publisher(
-            Float64MultiArray,
-            '/dxl_position_cmd',
-            20
+            Float64MultiArray, "/dxl_position_cmd", 20
         )
 
         # ============================================================
@@ -244,9 +185,7 @@ class Servo3PitchFollowerNode(Node):
         # ------------------------------------------------------------
 
         self.base_target_deg_pub = self.create_publisher(
-            Float64,
-            '/servo3/base_target_deg',
-            20
+            Float64, "/servo3/base_target_deg", 20
         )
 
         # ------------------------------------------------------------
@@ -255,20 +194,14 @@ class Servo3PitchFollowerNode(Node):
         # base_target + pitch-rate FF
         # ------------------------------------------------------------
 
-        self.target_deg_pub = self.create_publisher(
-            Float64,
-            '/servo3/target_deg',
-            20
-        )
+        self.target_deg_pub = self.create_publisher(Float64, "/servo3/target_deg", 20)
 
         # ------------------------------------------------------------
         # FF가 몇 도 추가되었는지
         # ------------------------------------------------------------
 
         self.ff_deg_pub = self.create_publisher(
-            Float64,
-            '/servo3/pitch_rate_ff_deg',
-            20
+            Float64, "/servo3/pitch_rate_ff_deg", 20
         )
 
         # ------------------------------------------------------------
@@ -276,9 +209,7 @@ class Servo3PitchFollowerNode(Node):
         # ------------------------------------------------------------
 
         self.pitch_rate_deg_s_pub = self.create_publisher(
-            Float64,
-            '/servo3/pitch_rate_deg_s',
-            20
+            Float64, "/servo3/pitch_rate_deg_s", 20
         )
 
         # ============================================================
@@ -289,58 +220,41 @@ class Servo3PitchFollowerNode(Node):
         # ============================================================
 
         self.command_timer = self.create_timer(
-            1.0 / self.command_rate_hz,
-            self.command_timer_callback
+            1.0 / self.command_rate_hz, self.command_timer_callback
         )
 
         # ============================================================
         # Startup logs
         # ============================================================
 
+        self.get_logger().info("Servo 3 pitch follower started")
+
+        self.get_logger().info(f"Logical motor ID = {self.logical_motor_id}")
+
+        self.get_logger().info(f"Center = {self.center_deg:.1f} deg")
+
         self.get_logger().info(
-            'Servo 3 pitch follower started'
+            f"Safety range = " f"{self.min_deg:.1f} ~ {self.max_deg:.1f} deg"
+        )
+
+        self.get_logger().info(f"Direction = {self.direction:+.1f}")
+
+        self.get_logger().info(
+            f"Pitch deadband = " f"{self.pitch_deadband_deg:.2f} deg"
         )
 
         self.get_logger().info(
-            f'Logical motor ID = {self.logical_motor_id}'
+            f"Command threshold = " f"{self.command_threshold_deg:.2f} deg"
+        )
+
+        self.get_logger().info(f"Command rate = " f"{self.command_rate_hz:.1f} Hz")
+
+        self.get_logger().info(
+            f"Pitch-rate FF gain = " f"{self.pitch_rate_ff_gain:.3f} s"
         )
 
         self.get_logger().info(
-            f'Center = {self.center_deg:.1f} deg'
-        )
-
-        self.get_logger().info(
-            f'Safety range = '
-            f'{self.min_deg:.1f} ~ {self.max_deg:.1f} deg'
-        )
-
-        self.get_logger().info(
-            f'Direction = {self.direction:+.1f}'
-        )
-
-        self.get_logger().info(
-            f'Pitch deadband = '
-            f'{self.pitch_deadband_deg:.2f} deg'
-        )
-
-        self.get_logger().info(
-            f'Command threshold = '
-            f'{self.command_threshold_deg:.2f} deg'
-        )
-
-        self.get_logger().info(
-            f'Command rate = '
-            f'{self.command_rate_hz:.1f} Hz'
-        )
-
-        self.get_logger().info(
-            f'Pitch-rate FF gain = '
-            f'{self.pitch_rate_ff_gain:.3f} s'
-        )
-
-        self.get_logger().info(
-            f'Pitch-rate limit = '
-            f'{self.pitch_rate_limit_deg_s:.1f} deg/s'
+            f"Pitch-rate limit = " f"{self.pitch_rate_limit_deg_s:.1f} deg/s"
         )
 
     # ================================================================
@@ -374,9 +288,7 @@ class Servo3PitchFollowerNode(Node):
     def pitch_rate_callback(self, msg):
 
         # rad/s -> deg/s
-        pitch_rate_deg_s = math.degrees(
-            msg.data
-        )
+        pitch_rate_deg_s = math.degrees(msg.data)
 
         # ============================================================
         # Clamp
@@ -384,10 +296,7 @@ class Servo3PitchFollowerNode(Node):
 
         pitch_rate_deg_s = max(
             -self.pitch_rate_limit_deg_s,
-            min(
-                self.pitch_rate_limit_deg_s,
-                pitch_rate_deg_s
-            )
+            min(self.pitch_rate_limit_deg_s, pitch_rate_deg_s),
         )
 
         self.latest_pitch_rate_deg_s = pitch_rate_deg_s
@@ -402,9 +311,7 @@ class Servo3PitchFollowerNode(Node):
 
         rate_msg.data = pitch_rate_deg_s
 
-        self.pitch_rate_deg_s_pub.publish(
-            rate_msg
-        )
+        self.pitch_rate_deg_s_pub.publish(rate_msg)
 
         self.update_target()
 
@@ -427,29 +334,15 @@ class Servo3PitchFollowerNode(Node):
         # center + direction * pitch
         # ============================================================
 
-        base_target_deg = (
-            self.center_deg
-            +
-            self.direction
-            *
-            self.latest_pitch_deg
-        )
+        base_target_deg = self.center_deg + self.direction * self.latest_pitch_deg
 
         # ============================================================
         # Base target safety clamp
         # ============================================================
 
-        base_target_deg = max(
-            self.min_deg,
-            min(
-                self.max_deg,
-                base_target_deg
-            )
-        )
+        base_target_deg = max(self.min_deg, min(self.max_deg, base_target_deg))
 
-        self.latest_base_target_deg = (
-            base_target_deg
-        )
+        self.latest_base_target_deg = base_target_deg
 
         # ============================================================
         # Publish base target
@@ -459,9 +352,7 @@ class Servo3PitchFollowerNode(Node):
 
         base_msg.data = base_target_deg
 
-        self.base_target_deg_pub.publish(
-            base_msg
-        )
+        self.base_target_deg_pub.publish(base_msg)
 
         # ============================================================
         # 2. Pitch rate
@@ -469,9 +360,7 @@ class Servo3PitchFollowerNode(Node):
 
         if self.has_pitch_rate:
 
-            pitch_rate_deg_s = (
-                self.latest_pitch_rate_deg_s
-            )
+            pitch_rate_deg_s = self.latest_pitch_rate_deg_s
 
         else:
 
@@ -484,19 +373,11 @@ class Servo3PitchFollowerNode(Node):
         # = [deg]
         # ============================================================
 
-        ff_deg = (
-            self.pitch_rate_ff_gain
-            *
-            pitch_rate_deg_s
-        )
+        ff_deg = self.pitch_rate_ff_gain * pitch_rate_deg_s
 
         # direction까지 포함한
         # 실제 servo 방향 기준 FF
-        servo_ff_deg = (
-            self.direction
-            *
-            ff_deg
-        )
+        servo_ff_deg = self.direction * ff_deg
 
         # ============================================================
         # 4. Final command
@@ -508,23 +389,13 @@ class Servo3PitchFollowerNode(Node):
         # base_target 자체에 이미 direction이 적용되어 있음.
         # ============================================================
 
-        target_deg = (
-            base_target_deg
-            +
-            servo_ff_deg
-        )
+        target_deg = base_target_deg + servo_ff_deg
 
         # ============================================================
         # Final safety clamp
         # ============================================================
 
-        target_deg = max(
-            self.min_deg,
-            min(
-                self.max_deg,
-                target_deg
-            )
-        )
+        target_deg = max(self.min_deg, min(self.max_deg, target_deg))
 
         self.latest_target_deg = target_deg
 
@@ -536,9 +407,7 @@ class Servo3PitchFollowerNode(Node):
 
         target_msg.data = target_deg
 
-        self.target_deg_pub.publish(
-            target_msg
-        )
+        self.target_deg_pub.publish(target_msg)
 
         # ============================================================
         # Debug: FF contribution
@@ -548,9 +417,7 @@ class Servo3PitchFollowerNode(Node):
 
         ff_msg.data = servo_ff_deg
 
-        self.ff_deg_pub.publish(
-            ff_msg
-        )
+        self.ff_deg_pub.publish(ff_msg)
 
     # ================================================================
     # Dynamixel command timer
@@ -570,11 +437,7 @@ class Servo3PitchFollowerNode(Node):
 
         if self.last_sent_target_deg is not None:
 
-            delta_deg = abs(
-                target_deg
-                -
-                self.last_sent_target_deg
-            )
+            delta_deg = abs(target_deg - self.last_sent_target_deg)
 
             if delta_deg < self.command_threshold_deg:
 
@@ -589,14 +452,9 @@ class Servo3PitchFollowerNode(Node):
 
         cmd = Float64MultiArray()
 
-        cmd.data = [
-            float(self.logical_motor_id),
-            float(target_deg)
-        ]
+        cmd.data = [float(self.logical_motor_id), float(target_deg)]
 
-        self.dxl_cmd_pub.publish(
-            cmd
-        )
+        self.dxl_cmd_pub.publish(cmd)
 
         self.last_sent_target_deg = target_deg
 
@@ -622,6 +480,6 @@ def main(args=None):
         rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     main()

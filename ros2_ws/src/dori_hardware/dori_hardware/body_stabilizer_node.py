@@ -10,92 +10,57 @@ from std_msgs.msg import Float64
 class BodyStabilizerNode(Node):
 
     def __init__(self):
-        super().__init__('body_stabilizer_node')
+        super().__init__("body_stabilizer_node")
 
         # ======================================================
         # Parameters
         # ======================================================
 
-        self.declare_parameter(
-            'target_pitch_deg',
-            0.0
-        )
+        self.declare_parameter("target_pitch_deg", 0.0)
 
-        self.declare_parameter(
-            'kp',
-            5.0
-        )
+        self.declare_parameter("kp", 5.0)
 
-        self.declare_parameter(
-            'kd',
-            1.0
-        )
+        self.declare_parameter("kd", 1.0)
 
-        self.declare_parameter(
-            'max_torque',
-            13.0
-        )
+        self.declare_parameter("max_torque", 13.0)
 
         # 기존 5~10 deg는 너무 큼
-        self.declare_parameter(
-            'angle_deadband_deg',
-            1.0
-        )
+        self.declare_parameter("angle_deadband_deg", 1.0)
 
         # PD 계산 주기
-        self.declare_parameter(
-            'control_frequency_hz',
-            100.0
-        )
+        self.declare_parameter("control_frequency_hz", 100.0)
 
         # 센서 timeout
-        self.declare_parameter(
-            'sensor_timeout_sec',
-            0.10
-        )
+        self.declare_parameter("sensor_timeout_sec", 0.10)
 
         # ======================================================
         # Read parameters
         # ======================================================
 
-        self.target_pitch_deg = float(
-            self.get_parameter('target_pitch_deg').value
+        self.target_pitch_deg = float(self.get_parameter("target_pitch_deg").value)
+
+        self.kp = float(self.get_parameter("kp").value)
+
+        self.kd = float(self.get_parameter("kd").value)
+
+        self.max_torque = abs(float(self.get_parameter("max_torque").value))
+
+        self.angle_deadband_deg = abs(
+            float(self.get_parameter("angle_deadband_deg").value)
         )
-
-        self.kp = float(
-            self.get_parameter('kp').value
-        )
-
-        self.kd = float(
-            self.get_parameter('kd').value
-        )
-
-        self.max_torque = abs(float(
-            self.get_parameter('max_torque').value
-        ))
-
-        self.angle_deadband_deg = abs(float(
-            self.get_parameter('angle_deadband_deg').value
-        ))
 
         self.control_frequency_hz = float(
-            self.get_parameter('control_frequency_hz').value
+            self.get_parameter("control_frequency_hz").value
         )
 
-        self.sensor_timeout_sec = float(
-            self.get_parameter('sensor_timeout_sec').value
-        )
+        self.sensor_timeout_sec = float(self.get_parameter("sensor_timeout_sec").value)
 
         if self.control_frequency_hz <= 0.0:
             self.control_frequency_hz = 100.0
 
-        self.target_pitch = math.radians(
-            self.target_pitch_deg
-        )
+        self.target_pitch = math.radians(self.target_pitch_deg)
 
-        self.angle_deadband = math.radians(
-            self.angle_deadband_deg
-        )
+        self.angle_deadband = math.radians(self.angle_deadband_deg)
 
         # ======================================================
         # State
@@ -121,17 +86,11 @@ class BodyStabilizerNode(Node):
         # ======================================================
 
         self.pitch_sub = self.create_subscription(
-            Float64,
-            '/body/pitch',
-            self.pitch_callback,
-            20
+            Float64, "/body/pitch", self.pitch_callback, 20
         )
 
         self.pitch_rate_sub = self.create_subscription(
-            Float64,
-            '/body/pitch_rate',
-            self.pitch_rate_callback,
-            20
+            Float64, "/body/pitch_rate", self.pitch_rate_callback, 20
         )
 
         # ======================================================
@@ -139,9 +98,7 @@ class BodyStabilizerNode(Node):
         # ======================================================
 
         self.torque_pub = self.create_publisher(
-            Float64,
-            '/body/stabilization_torque',
-            20
+            Float64, "/body/stabilization_torque", 20
         )
 
         # ======================================================
@@ -149,46 +106,31 @@ class BodyStabilizerNode(Node):
         # ======================================================
 
         self.angle_error_pub = self.create_publisher(
-            Float64,
-            '/body/debug/angle_error',
-            20
+            Float64, "/body/debug/angle_error", 20
         )
 
-        self.p_torque_pub = self.create_publisher(
-            Float64,
-            '/body/debug/p_torque',
-            20
-        )
+        self.p_torque_pub = self.create_publisher(Float64, "/body/debug/p_torque", 20)
 
-        self.d_torque_pub = self.create_publisher(
-            Float64,
-            '/body/debug/d_torque',
-            20
-        )
+        self.d_torque_pub = self.create_publisher(Float64, "/body/debug/d_torque", 20)
 
-        self.pd_torque_pub = self.create_publisher(
-            Float64,
-            '/body/debug/pd_torque',
-            20
-        )
+        self.pd_torque_pub = self.create_publisher(Float64, "/body/debug/pd_torque", 20)
 
         # ======================================================
         # 100 Hz control timer
         # ======================================================
 
         self.control_timer = self.create_timer(
-            1.0 / self.control_frequency_hz,
-            self.control_callback
+            1.0 / self.control_frequency_hz, self.control_callback
         )
 
         self.get_logger().info(
-            'Body attitude PD stabilizer started: '
-            f'target={self.target_pitch_deg:.2f} deg, '
-            f'Kp={self.kp:.3f}, '
-            f'Kd={self.kd:.3f}, '
-            f'max_torque={self.max_torque:.3f}, '
-            f'deadband={self.angle_deadband_deg:.2f} deg, '
-            f'frequency={self.control_frequency_hz:.1f} Hz'
+            "Body attitude PD stabilizer started: "
+            f"target={self.target_pitch_deg:.2f} deg, "
+            f"Kp={self.kp:.3f}, "
+            f"Kd={self.kd:.3f}, "
+            f"max_torque={self.max_torque:.3f}, "
+            f"deadband={self.angle_deadband_deg:.2f} deg, "
+            f"frequency={self.control_frequency_hz:.1f} Hz"
         )
 
     # ==========================================================
@@ -196,10 +138,7 @@ class BodyStabilizerNode(Node):
     # ==========================================================
 
     def clamp(self, value, minimum, maximum):
-        return max(
-            minimum,
-            min(value, maximum)
-        )
+        return max(minimum, min(value, maximum))
 
     # ==========================================================
     # Callbacks
@@ -227,21 +166,14 @@ class BodyStabilizerNode(Node):
 
     def control_callback(self):
 
-        if not (
-            self.pitch_received
-            and self.pitch_rate_received
-        ):
+        if not (self.pitch_received and self.pitch_rate_received):
             return
 
         now = self.get_clock().now()
 
-        pitch_age = (
-            now - self.last_pitch_time
-        ).nanoseconds * 1e-9
+        pitch_age = (now - self.last_pitch_time).nanoseconds * 1e-9
 
-        rate_age = (
-            now - self.last_pitch_rate_time
-        ).nanoseconds * 1e-9
+        rate_age = (now - self.last_pitch_rate_time).nanoseconds * 1e-9
 
         # ======================================================
         # Sensor timeout
@@ -249,11 +181,7 @@ class BodyStabilizerNode(Node):
         # IMU 데이터가 오래되면 stabilization torque를 0으로
         # ======================================================
 
-        if (
-            pitch_age > self.sensor_timeout_sec
-            or
-            rate_age > self.sensor_timeout_sec
-        ):
+        if pitch_age > self.sensor_timeout_sec or rate_age > self.sensor_timeout_sec:
             self.publish_zero_torque()
             return
 
@@ -261,11 +189,7 @@ class BodyStabilizerNode(Node):
         # Pitch error
         # ======================================================
 
-        angle_error = (
-            self.target_pitch
-            -
-            self.pitch
-        )
+        angle_error = self.target_pitch - self.pitch
 
         self.angle_error = angle_error
 
@@ -284,11 +208,7 @@ class BodyStabilizerNode(Node):
         # P term
         # ======================================================
 
-        p_torque = (
-            self.kp
-            *
-            proportional_error
-        )
+        p_torque = self.kp * proportional_error
 
         # ======================================================
         # D term
@@ -298,27 +218,15 @@ class BodyStabilizerNode(Node):
         # -Kd * pitch_rate가 damping 방향
         # ======================================================
 
-        d_torque = (
-            -self.kd
-            *
-            self.pitch_rate
-        )
+        d_torque = -self.kd * self.pitch_rate
 
         # ======================================================
         # PD
         # ======================================================
 
-        raw_torque = (
-            p_torque
-            +
-            d_torque
-        )
+        raw_torque = p_torque + d_torque
 
-        torque = self.clamp(
-            raw_torque,
-            -self.max_torque,
-            self.max_torque
-        )
+        torque = self.clamp(raw_torque, -self.max_torque, self.max_torque)
 
         self.p_torque = p_torque
         self.d_torque = d_torque
@@ -377,5 +285,5 @@ def main(args=None):
         rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
