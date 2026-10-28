@@ -1,21 +1,19 @@
 <?xml version="1.0"?>
 <package format="3">
-  <name>dori_transform</name>
+  <name>dori_diagnostics</name>
   <version>0.0.0</version>
-  <description>dori_transform package</description>
+  <description>Error manager for dori robot</description>
   <maintainer email="who@todo.todo">who</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
-  <exec_depend>rclpy</exec_depend>
-  <exec_depend>control_msgs</exec_depend>
   <depend>std_msgs</depend>
-  <depend>geometry_msgs</depend>
-  <depend>sensor_msgs</depend>
   <depend>dori_msgs</depend>
-  <depend>dynamixel_sdk_custom_interfaces</depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

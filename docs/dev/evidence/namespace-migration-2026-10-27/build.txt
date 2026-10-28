@@ -516,7 +516,7 @@ In file included from /home/data1/workspace/dori/robot/ros2_ws/src/third_party/s
       |                    ^
 ---
 Finished <<< sllidar_ros2 [5.76s]
-Starting >>> dori_error
+Starting >>> dori_diagnostics
 --- stderr: dori_drive
 CMake Warning:
   Manually-specified variables were not used by the project:
@@ -527,7 +527,7 @@ CMake Warning:
 ---
 Finished <<< dori_drive [17.7s]
 Starting >>> dori_supervisor
---- stderr: dori_error
+--- stderr: dori_diagnostics
 CMake Warning:
   Manually-specified variables were not used by the project:
 
@@ -535,7 +535,7 @@ CMake Warning:
 
 
 ---
-Finished <<< dori_error [5.76s]
+Finished <<< dori_diagnostics [5.76s]
 Starting >>> dori_transform
 --- stderr: dori_supervisor
 CMake Warning:
@@ -635,4 +635,4 @@ CMake Warning:
 Finished <<< dori_bringup [0.75s]
 
 Summary: 24 packages finished [59.4s]
-  15 packages had stderr output: cubemars_hardware dori_bringup dori_bt dori_drive dori_error dori_hardware dori_input dori_mapping dori_navigation dori_perception_camera dori_supervisor dori_transform dynamixel_sdk dynamixel_sdk_examples sllidar_ros2
+  15 packages had stderr output: cubemars_hardware dori_bringup dori_bt dori_drive dori_diagnostics dori_hardware dori_input dori_mapping dori_navigation dori_perception_camera dori_supervisor dori_transform dynamixel_sdk dynamixel_sdk_examples sllidar_ros2
