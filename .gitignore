@@ -30,5 +30,5 @@ __pycache__
 /scripts/
 **/evidence/
 
-src/third_party/*
-!src/third_party/cubemars_hardware/
+ros2_ws/src/third_party/*
+!ros2_ws/src/third_party/cubemars_hardware/
