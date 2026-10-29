@@ -1054,6 +1054,14 @@ def _execute_control_action(action: str, params: dict) -> dict:
         ]
     elif action == "set_mode":
         mode = params["mode"]
+        mode_payloads = {
+            "manual": '{data: "manual"}',
+            "auto": '{data: "auto"}',
+            "safe": '{data: "safe"}',
+        }
+        payload = mode_payloads.get(mode)
+        if payload is None:
+            raise HTTPException(400, "Unsupported mode")
         cmd = [
             ros2_exec,
             "topic",
@@ -1061,7 +1069,7 @@ def _execute_control_action(action: str, params: dict) -> dict:
             "--once",
             "/dori/control/mode",
             "std_msgs/msg/String",
-            f'{{data: "{mode}"}}',
+            payload,
         ]
     else:
         raise HTTPException(400, f"Unsupported action: {action}")
