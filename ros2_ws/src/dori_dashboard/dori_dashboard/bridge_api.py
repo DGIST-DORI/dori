@@ -234,6 +234,36 @@ async def delete_session(dori_session: Optional[str] = Cookie(None)):
     return {"status": "ok"}
 
 
+# ─── Internal IPC Endpoints (Called by backend_api.py) ─────────────────────
+
+
+@app_public.get("/internal/session")
+async def get_internal_session(request: Request):
+    """현재 세션 상태를 반환 (내부 호출용)"""
+    # 보안 강화를 위해 로컬호스트 요청만 허용
+    if request.client and request.client.host != "127.0.0.1":
+        raise HTTPException(status_code=403, detail="Localhost only")
+
+    return {
+        "state": session_manager.state.value,
+        "expires_at": session_manager.session_expires_at,
+        "has_active_ws": session_manager.active_ws is not None,
+    }
+
+
+@app_public.delete("/internal/session")
+async def delete_internal_session(request: Request):
+    """관리자 권한으로 현재 세션을 강제 종료 (내부 호출용)"""
+    if request.client and request.client.host != "127.0.0.1":
+        raise HTTPException(status_code=403, detail="Localhost only")
+
+    if session_manager.state != SessionState.IDLE:
+        await session_manager.end_session()
+        return {"status": "terminated", "message": "Session forcefully ended by admin"}
+
+    return {"status": "already_idle", "message": "No active session to terminate"}
+
+
 @app_public.websocket("/ws/user")
 async def websocket_user(websocket: WebSocket):
     # 1. Origin 검증 (Cross-site WS Hijacking 방지)

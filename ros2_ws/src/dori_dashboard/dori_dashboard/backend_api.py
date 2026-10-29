@@ -1176,6 +1176,44 @@ async def admin_publish(
     }
 
 
+# ── /api/admin/sessions (Bridge API 연동) ───────────────────────────────────
+
+BRIDGE_API_URL = "http://127.0.0.1:3100"
+
+
+@app.get("/api/admin/sessions")
+async def admin_get_sessions(_: AuthPrincipal = Depends(require_permission("admin"))):
+    """Get current user session status from bridge_api."""
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            # 브릿지의 로컬 엔드포인트 호출
+            resp = await client.get(f"{BRIDGE_API_URL}/internal/session")
+        return Response(
+            content=resp.content,
+            status_code=resp.status_code,
+            media_type="application/json",
+        )
+    except httpx.RequestError as e:
+        logger.error(f"Failed to reach bridge_api: {e}")
+        raise HTTPException(503, "Bridge API is unreachable")
+
+
+@app.delete("/api/admin/sessions")
+async def admin_delete_session(_: AuthPrincipal = Depends(require_permission("admin"))):
+    """Force terminate current user session in bridge_api."""
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            resp = await client.delete(f"{BRIDGE_API_URL}/internal/session")
+        return Response(
+            content=resp.content,
+            status_code=resp.status_code,
+            media_type="application/json",
+        )
+    except httpx.RequestError as e:
+        logger.error(f"Failed to reach bridge_api: {e}")
+        raise HTTPException(503, "Bridge API is unreachable")
+
+
 # ── /api/tunnel-url ───────────────────────────────────────────────────────────
 # 터널 WS URL을 반환. 프론트엔드가 외부 접속 시 폴링해서 WS URL 기본값 자동 설정.
 #
@@ -1281,8 +1319,10 @@ _deploy_lock = threading.Lock()
 def _verify_github_signature(body: bytes, sig_header: str | None) -> bool:
     """Verify X-Hub-Signature-256 against DORI_WEBHOOK_SECRET."""
     if not _WEBHOOK_SECRET:
-        return True  # Dev mode: skip verification
+        logger.error("Webhook secret is not configured. Rejecting request.")
+        return False  # (True)Dev mode: skip verification
     if not sig_header or not sig_header.startswith("sha256="):
+        logger.error("Invalid signature header. It must start with 'sha256='.")
         return False
     expected = "sha256=" + hmac.new(_WEBHOOK_SECRET, body, hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, sig_header)
