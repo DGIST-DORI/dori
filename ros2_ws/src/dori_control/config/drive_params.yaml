@@ -1,0 +1,41 @@
+drive_controller_node:
+  ros__parameters:
+    require_hardware_feedback: true
+    command_timeout_sec: 0.3
+    wheel_radius: 0.234
+    wheel_separation: 0.184
+    max_linear_velocity: 1.72
+    max_angular_velocity: 7.0
+    linear_accel_limit: 0.5
+    linear_decel_limit: 0.3
+    angular_accel_limit: 1.0
+    angular_decel_limit: 1.0
+    feedforward_enabled: false
+    feedforward_gain: 4.0
+    feedforward_torque_limit: 6.0
+    feedforward_accel_deadband: 0.02
+    final_torque_limit: 15.0
+    default_drive_profile: "normal"
+    drive_normal_vel_kd: 1.5
+    drive_normal_tau_ff: 0.0
+    drive_slope_vel_kd: 2.0
+    drive_slope_tau_ff: 0.2
+    drive_obstacle_vel_kd: 2.5
+    drive_obstacle_tau_ff: 0.3
+    stabilization_torque_limit: 13.0
+    stabilization_timeout_sec: 0.10
+    left_joint_name: "left_wheel_joint"
+    right_joint_name: "right_wheel_joint"
+    joint_state_timeout_sec: 0.20
+    control_frequency_hz: 100.0
+    # Optional wheel torque experiment. Normal drive uses firmware MIT velocity
+    # feedback; AUTO effort compensation is owned by the body-motion interpreter.
+    wheel_servo.enabled: false
+    wheel_servo.kp: 2.0
+    wheel_servo.ki: 5.0
+    wheel_servo.friction: 2.0
+    wheel_servo.friction_speed: 0.03
+    wheel_servo.torque_limit: 5.0
+    wheel_servo.integral_limit: 3.0
+    wheel_servo.filter_time: 0.06
+    wheel_servo.zero_speed: 0.005

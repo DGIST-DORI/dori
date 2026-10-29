@@ -36,31 +36,70 @@ from bs4 import BeautifulSoup
 # Format: (url, category, doc_id, description_ko, description_en)
 URL_REGISTRY = [
     # 소개
-    ("https://www.dgist.ac.kr/kor/sub01_02_04.do", "intro",    "dgist_history",     "학교 연혁",   "DGIST History"),
-    ("https://www.dgist.ac.kr/kor/sub01_03_01.do", "intro",    "dgist_directions",  "찾아오시는 길","Directions to DGIST"),
+    (
+        "https://www.dgist.ac.kr/kor/sub01_02_04.do",
+        "intro",
+        "dgist_history",
+        "학교 연혁",
+        "DGIST History",
+    ),
+    (
+        "https://www.dgist.ac.kr/kor/sub01_03_01.do",
+        "intro",
+        "dgist_directions",
+        "찾아오시는 길",
+        "Directions to DGIST",
+    ),
     # 학부시설 안내
-    ("https://www.dgist.ac.kr/college/sub04_01_01.do", "facility", "facility_edu",      "교육시설",    "Educational Facilities"),
-    ("https://www.dgist.ac.kr/college/sub04_01_02.do", "facility", "facility_research",  "연구시설",    "Research Facilities"),
-    ("https://www.dgist.ac.kr/college/sub04_01_03.do", "facility", "facility_welfare",   "복지시설",    "Welfare Facilities"),
+    (
+        "https://www.dgist.ac.kr/college/sub04_01_01.do",
+        "facility",
+        "facility_edu",
+        "교육시설",
+        "Educational Facilities",
+    ),
+    (
+        "https://www.dgist.ac.kr/college/sub04_01_02.do",
+        "facility",
+        "facility_research",
+        "연구시설",
+        "Research Facilities",
+    ),
+    (
+        "https://www.dgist.ac.kr/college/sub04_01_03.do",
+        "facility",
+        "facility_welfare",
+        "복지시설",
+        "Welfare Facilities",
+    ),
 ]
 
 # Crawl config
 HEADERS = {
     "User-Agent": (
-        "Mozilla/5.0 (compatible; DORI-CampusBot/1.0; "
-        "+https://www.dgist.ac.kr)"
+        "Mozilla/5.0 (compatible; DORI-CampusBot/1.0; " "+https://www.dgist.ac.kr)"
     ),
     "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
 }
-REQUEST_DELAY = 1.5   # seconds between requests (be polite)
+REQUEST_DELAY = 1.5  # seconds between requests (be polite)
 REQUEST_TIMEOUT = 15
 MAX_RETRIES = 3
 BACKOFF_BASE = 0.5
 
 # Tags whose content we always discard
 STRIP_TAGS = [
-    "script", "style", "noscript", "iframe", "header", "footer",
-    "nav", "aside", "form", "button", "meta", "link",
+    "script",
+    "style",
+    "noscript",
+    "iframe",
+    "header",
+    "footer",
+    "nav",
+    "aside",
+    "form",
+    "button",
+    "meta",
+    "link",
 ]
 
 # CSS selectors for common DGIST page content containers (try in order)
@@ -79,6 +118,7 @@ SAFE_DOC_ID_RE = re.compile(r"^[a-z0-9_-]+$")
 
 
 # Crawler
+
 
 def _slugify(value: str) -> str:
     """Convert arbitrary text to a filesystem-safe slug."""
@@ -122,19 +162,22 @@ def ensure_safe_doc_id(doc_id: str) -> str:
         raise ValueError(f"Unsafe doc_id: {doc_id!r}")
     return safe_id
 
+
 def sanitize_error_message(err: Exception | str, max_len: int = 400) -> str:
     """Sanitize exception text for reports (best-effort secret redaction)."""
     msg = str(err).strip()
-    msg = re.sub(r"(?i)(api[_-]?key|token|secret|password)\s*[=:]\s*\S+",
-                 r"\1=[REDACTED]", msg)
+    msg = re.sub(
+        r"(?i)(api[_-]?key|token|secret|password)\s*[=:]\s*\S+", r"\1=[REDACTED]", msg
+    )
     msg = re.sub(r"(?i)bearer\s+[a-z0-9\-_\.=]+", "Bearer [REDACTED]", msg)
     if len(msg) > max_len:
         msg = msg[:max_len] + "...(truncated)"
     return msg
 
 
-def fetch_page(url: str, session: requests.Session, timeout: float,
-               retries: int) -> tuple[str | None, str | None]:
+def fetch_page(
+    url: str, session: requests.Session, timeout: float, retries: int
+) -> tuple[str | None, str | None]:
     """Fetch a URL and return (raw HTML, error_message)."""
     attempts = max(1, retries)
     last_error = None
@@ -213,8 +256,9 @@ def extract_text(html: str, url: str) -> str:
     return raw.strip()
 
 
-def crawl_url(url: str, doc_id: str, session: requests.Session,
-              timeout: float, retries: int) -> tuple[dict | None, dict]:
+def crawl_url(
+    url: str, doc_id: str, session: requests.Session, timeout: float, retries: int
+) -> tuple[dict | None, dict]:
     """Crawl one URL and return (raw_result_or_none, url_status)."""
     status = {
         "fetch": "failed",
@@ -225,7 +269,9 @@ def crawl_url(url: str, doc_id: str, session: requests.Session,
     }
     error = None
     print(f"  Fetching: {url}")
-    html, fetch_error = fetch_page(url, session=session, timeout=timeout, retries=retries)
+    html, fetch_error = fetch_page(
+        url, session=session, timeout=timeout, retries=retries
+    )
     if not html:
         if fetch_error:
             error = {"stage": "fetch", "message": fetch_error}
@@ -247,12 +293,15 @@ def crawl_url(url: str, doc_id: str, session: requests.Session,
     status["extract"] = "success"
     status["overall"] = "success"
 
-    return ({
-        "url":        url,
-        "doc_id":     doc_id,
-        "raw_text":   text,
-        "fetched_at": datetime.now().isoformat(),
-    }, {"status": status, "error": error})
+    return (
+        {
+            "url": url,
+            "doc_id": doc_id,
+            "raw_text": text,
+            "fetched_at": datetime.now().isoformat(),
+        },
+        {"status": status, "error": error},
+    )
 
 
 # LLM refinement
@@ -282,8 +331,9 @@ Rules:
 - Return ONLY the JSON object."""
 
 
-def refine_with_llm(raw_text: str, description_ko: str, description_en: str,
-                    url: str) -> tuple[dict | None, str | None]:
+def refine_with_llm(
+    raw_text: str, description_ko: str, description_en: str, url: str
+) -> tuple[dict | None, str | None]:
     """Call Gemini AI to refine raw crawled text into structured data."""
     try:
         from google import genai
@@ -303,18 +353,15 @@ def refine_with_llm(raw_text: str, description_ko: str, description_en: str,
 
         prompt = f"{REFINE_SYSTEM}\n\n{user_prompt}"
 
-        resp = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt
-        )
-        
+        resp = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+
         content = resp.text.strip()
 
         # Strip accidental markdown fences
         content = re.sub(r"^```json\s*", "", content)
         content = re.sub(r"\s*```$", "", content)
         return json.loads(content), None
-    
+
     except json.JSONDecodeError as e:
         print(f"  [WARN] LLM returned invalid JSON: {e}")
         return None, sanitize_error_message(e)
@@ -324,6 +371,7 @@ def refine_with_llm(raw_text: str, description_ko: str, description_en: str,
 
 
 # Output writers
+
 
 def save_raw(raw: dict, out_dir: Path):
     """Save raw crawled text for review or re-processing."""
@@ -340,24 +388,30 @@ def save_raw(raw: dict, out_dir: Path):
     return str(path)
 
 
-def save_refined(refined: dict, raw: dict, category: str,
-                 description_ko: str, description_en: str, out_dir: Path):
+def save_refined(
+    refined: dict,
+    raw: dict,
+    category: str,
+    description_ko: str,
+    description_en: str,
+    out_dir: Path,
+):
     """Save LLM-refined data as JSON + txt."""
     doc_id = ensure_safe_doc_id(raw["doc_id"])
 
     # JSON (structured metadata + key facts)
     json_payload = {
-        "doc_id":        doc_id,
-        "category":      category,
-        "url":           raw["url"],
-        "fetched_at":    raw["fetched_at"],
+        "doc_id": doc_id,
+        "category": category,
+        "url": raw["url"],
+        "fetched_at": raw["fetched_at"],
         "description_ko": description_ko,
         "description_en": description_en,
-        "title_ko":      refined.get("title_ko", ""),
-        "title_en":      refined.get("title_en", ""),
-        "summary_ko":    refined.get("summary_ko", ""),
-        "summary_en":    refined.get("summary_en", ""),
-        "key_facts":     refined.get("key_facts", []),
+        "title_ko": refined.get("title_ko", ""),
+        "title_en": refined.get("title_en", ""),
+        "summary_ko": refined.get("summary_ko", ""),
+        "summary_en": refined.get("summary_en", ""),
+        "key_facts": refined.get("key_facts", []),
     }
 
     json_dir = out_dir / "indexed"
@@ -383,8 +437,9 @@ def save_refined(refined: dict, raw: dict, category: str,
     return str(json_path), str(txt_path)
 
 
-def save_fallback_txt(raw: dict, category: str,
-                      description_ko: str, description_en: str, out_dir: Path):
+def save_fallback_txt(
+    raw: dict, category: str, description_ko: str, description_en: str, out_dir: Path
+):
     """Save raw text as txt when LLM refinement fails/skipped."""
     doc_id = ensure_safe_doc_id(raw["doc_id"])
     txt_dir = out_dir / "processed" / category
@@ -411,6 +466,7 @@ def save_run_report(report: dict, out_dir: Path, finished_at: datetime) -> str:
 
 
 # URL list loader
+
 
 def load_extra_urls(path: str) -> list[tuple]:
     """
@@ -445,20 +501,34 @@ def load_extra_urls(path: str) -> list[tuple]:
 
 # Main
 
+
 def main():
     parser = argparse.ArgumentParser(description="DORI Campus Knowledge Crawler")
-    parser.add_argument("--output", default="./data/campus",
-                        help="Output root directory")
-    parser.add_argument("--no-llm", action="store_true",
-                        help="Skip LLM refinement, save raw text only")
-    parser.add_argument("--urls", default=None,
-                        help="Path to extra URL list file")
-    parser.add_argument("--delay", type=float, default=REQUEST_DELAY,
-                        help=f"Delay between requests in seconds (default {REQUEST_DELAY})")
-    parser.add_argument("--retries", type=int, default=MAX_RETRIES,
-                        help=f"Max fetch attempts for timeout/connection/429/5xx (default {MAX_RETRIES})")
-    parser.add_argument("--timeout", type=float, default=REQUEST_TIMEOUT,
-                        help=f"Request timeout in seconds (default {REQUEST_TIMEOUT})")
+    parser.add_argument(
+        "--output", default="./data/campus", help="Output root directory"
+    )
+    parser.add_argument(
+        "--no-llm", action="store_true", help="Skip LLM refinement, save raw text only"
+    )
+    parser.add_argument("--urls", default=None, help="Path to extra URL list file")
+    parser.add_argument(
+        "--delay",
+        type=float,
+        default=REQUEST_DELAY,
+        help=f"Delay between requests in seconds (default {REQUEST_DELAY})",
+    )
+    parser.add_argument(
+        "--retries",
+        type=int,
+        default=MAX_RETRIES,
+        help=f"Max fetch attempts for timeout/connection/429/5xx (default {MAX_RETRIES})",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=REQUEST_TIMEOUT,
+        help=f"Request timeout in seconds (default {REQUEST_TIMEOUT})",
+    )
     args = parser.parse_args()
 
     session = requests.Session()
@@ -537,7 +607,9 @@ def main():
             refined, llm_error = refine_with_llm(raw["raw_text"], desc_ko, desc_en, url)
             if refined:
                 entry["status"]["llm"] = "success"
-                json_path, txt_path = save_refined(refined, raw, category, desc_ko, desc_en, out_dir)
+                json_path, txt_path = save_refined(
+                    refined, raw, category, desc_ko, desc_en, out_dir
+                )
                 entry["outputs"]["indexed_json"] = json_path
                 entry["outputs"]["processed_txt"] = txt_path
             else:
@@ -556,8 +628,10 @@ def main():
                 raw, category, desc_ko, desc_en, out_dir
             )
 
-        if (entry["status"]["extract"] == "success" and
-                entry["outputs"]["processed_txt"]):
+        if (
+            entry["status"]["extract"] == "success"
+            and entry["outputs"]["processed_txt"]
+        ):
             entry["status"]["overall"] = "success"
             run_report["summary"]["success_count"] += 1
         else:

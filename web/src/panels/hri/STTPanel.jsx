@@ -3,6 +3,7 @@ import { Mic, MicOff } from 'lucide-react';
 import { LOG_TAGS, useStore } from '../../core/store';
 import { publishROS } from '../../core/ros';
 import { useI18n } from '../../core/i18n';
+import { resolveProfileTopics } from '../../core/topicProfiles';
 import './STTPanel.css';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -40,12 +41,16 @@ function STTPanel() {
   const connected  = useStore(s => s.connected);
   const isDemoMode = useStore(s => s.isDemoMode);
   const addLog     = useStore(s => s.addLog);
+  const executionProfile = useStore(s => s.executionProfile);
+  const useClientMic = useStore(s => s.useClientMic);
   const canPublish = connected || isDemoMode;
 
   const [text,          setText]          = useState('');
   const [lang,          setLang]          = useState('auto');
   const [conf,          setConf]          = useState('0.95');
   const [lastResult,    setLastResult]    = useState(null);
+  const profileTopics = resolveProfileTopics(executionProfile);
+  const [micTopicOverride, setMicTopicOverride] = useState('');
 
   // Mic state
   const [micAvail,      setMicAvail]      = useState(false);
@@ -111,26 +116,66 @@ function STTPanel() {
     setMicStatus('processing');
   }
 
-  // After recording stops: build a fake STT result from audio blob
-  // (Actual transcription happens on Jetson. Here we publish a placeholder
-  //  that tells the team mic input worked, with audio length info.)
-  function handleMicStop() {
-    const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+  // After recording stops: encode as WAV PCM16 (16k mono) and publish to STT input topic.
+  async function handleMicStop() {
+    const blob = new Blob(chunksRef.current, { type: 'audio/webm;codecs=opus' });
     const durationEstSec = (chunksRef.current.length * 200) / 1000;
-
-    // Convert to base64 and publish as a custom diagnostic topic
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const b64 = reader.result.split(',')[1];
-      // Publish audio blob to a debug topic (ros-side can optionally pipe to Whisper)
-      pub('/dori/debug/audio_blob', 'std_msgs/msg/String', {
-        data: JSON.stringify({ audio_b64: b64, mime: 'audio/webm', duration_est_sec: durationEstSec }),
+    try {
+      const wavB64 = await toWavBase64(blob);
+      const micTopic = micTopicOverride.trim() || profileTopics.sttInputTopic;
+      pub(micTopic, 'std_msgs/msg/String', {
+        data: JSON.stringify({
+          audio_b64: wavB64, format: 'wav_pcm16', sample_rate: SAMPLE_RATE, channels: 1, duration_est_sec: durationEstSec,
+        }),
       });
-      addLog(LOG_TAGS.STT, `[mic] audio captured ~${durationEstSec.toFixed(1)}s — published to /dori/debug/audio_blob`);
+      addLog(LOG_TAGS.STT, `[mic] audio captured ~${durationEstSec.toFixed(1)}s — published to ${micTopic} (wav_pcm16)`);
+    } catch (e) {
+      setMicError(`오디오 변환 실패: ${e.message}`);
+    } finally {
       setMicStatus('idle');
-    };
-    reader.readAsDataURL(blob);
+    }
     chunksRef.current = [];
+  }
+
+  async function toWavBase64(blob) {
+    const arrayBuffer = await blob.arrayBuffer();
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    const audioCtx = new AudioCtx({ sampleRate: SAMPLE_RATE });
+    const decoded = await audioCtx.decodeAudioData(arrayBuffer);
+    const mono = decoded.numberOfChannels > 1 ? mixDownToMono(decoded) : decoded.getChannelData(0);
+    const pcm16 = floatTo16BitPCM(mono);
+    const wavBytes = buildWavBytes(pcm16, SAMPLE_RATE, 1);
+    await audioCtx.close();
+    return btoa(String.fromCharCode(...wavBytes));
+  }
+
+  function mixDownToMono(audioBuffer) {
+    const out = new Float32Array(audioBuffer.length);
+    for (let ch = 0; ch < audioBuffer.numberOfChannels; ch += 1) {
+      const data = audioBuffer.getChannelData(ch);
+      for (let i = 0; i < data.length; i += 1) out[i] += data[i] / audioBuffer.numberOfChannels;
+    }
+    return out;
+  }
+  function floatTo16BitPCM(input) {
+    const out = new Int16Array(input.length);
+    for (let i = 0; i < input.length; i += 1) {
+      const s = Math.max(-1, Math.min(1, input[i]));
+      out[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    }
+    return out;
+  }
+  function buildWavBytes(pcm16, sampleRate, channels) {
+    const buffer = new ArrayBuffer(44 + pcm16.length * 2);
+    const view = new DataView(buffer);
+    const writeStr = (offset, str) => { for (let i = 0; i < str.length; i += 1) view.setUint8(offset + i, str.charCodeAt(i)); };
+    writeStr(0, 'RIFF'); view.setUint32(4, 36 + pcm16.length * 2, true); writeStr(8, 'WAVE');
+    writeStr(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+    view.setUint16(22, channels, true); view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * channels * 2, true); view.setUint16(32, channels * 2, true); view.setUint16(34, 16, true);
+    writeStr(36, 'data'); view.setUint32(40, pcm16.length * 2, true);
+    let off = 44; for (let i = 0; i < pcm16.length; i += 1, off += 2) view.setInt16(off, pcm16[i], true);
+    return new Uint8Array(buffer);
   }
 
   return (
@@ -174,7 +219,13 @@ function STTPanel() {
         </div>
       )}
 
-      <SectionLabel>Microphone → /dori/debug/audio_blob</SectionLabel>
+      <SectionLabel>Microphone → STT Input Topic ({profileTopics.sttInputTopic})</SectionLabel>
+      <div className="row row-wrap">
+        <div className="field" style={{ minWidth: 280 }}>
+          <label className="field-label">Advanced: Mic Publish Topic Override</label>
+          <input className="input" value={micTopicOverride} onChange={e => setMicTopicOverride(e.target.value)} placeholder={profileTopics.sttInputTopic} />
+        </div>
+      </div>
 
       <div className="row">
         <Badge ok={micAvail} label={micAvail ? 'Mic available' : 'Mic unavailable'} />
@@ -187,7 +238,7 @@ function STTPanel() {
         {!micActive ? (
           <button
             className="btn btn-sm btn-ok btn-icon"
-            disabled={!micAvail || !canPublish}
+            disabled={!micAvail || !canPublish || !useClientMic}
             onClick={handleMicStart}
           >
             <Mic size={12} /> Start Recording

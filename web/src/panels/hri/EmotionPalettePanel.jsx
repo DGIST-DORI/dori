@@ -1,5 +1,5 @@
 import { useStore } from '../../core/store';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Zap, Radio, RefreshCw, Circle } from 'lucide-react';
 import './EmotionPalettePanel.css';
 
@@ -24,10 +24,6 @@ function EmotionPalettePanel() {
 
   const [statusOpen, setStatusOpen] = useState(emotionSource === 'override');
   const [search,     setSearch]     = useState('');
-
-  useEffect(() => {
-    if (emotionSource === 'override') setStatusOpen(true);
-  }, [emotionSource]);
 
   const filteredEmotions = Object.entries(EMOTION_CONFIG).filter(([key, cfg]) =>
     !search.trim() ||
@@ -63,7 +59,7 @@ function EmotionPalettePanel() {
             <button
               key={key}
               className={`face-palette-btn ${emotion === key ? 'active' : ''}`}
-              onClick={() => useStore.getState().setEmotionOverride(key)}
+              onClick={() => { useStore.getState().setEmotionOverride(key); setStatusOpen(true); }}
             >
               <span className="face-palette-dot" />
               <span className="face-palette-name">{cfg.label}</span>

@@ -3,10 +3,10 @@
 [[action-dori-nav-navigate_to]]
 === /nav/navigate_to
 
-*Type (action)*:: `navigation_interfaces/action/Navigate`
+*Type (action)*:: `dori_msgs/action/Navigate`
 *Servers*:: navigator_node
-*Clients*:: llm_node (or other HRI/LLM orchestration clients)
-*Flow*:: llm_node → /nav/navigate_to (goal/cancel) → navigator_node → feedback/result to llm_node
+*Clients*:: dori_tree_executor (or other navigation orchestration clients)
+*Flow*:: dori_tree_executor → /nav/navigate_to (goal/cancel) → navigator_node → feedback/result to dori_tree_executor
 
 .Goal
 [cols="1,1,1,3",options="header"]
@@ -30,4 +30,68 @@
 | Field | Type | Unit | Description
 | code | int32 | - | `SUCCESS`, `CANCELED`, `PLANNING_FAILED`, or `INVALID_STATE`.
 | message | string | - | Result detail message.
+|===
+
+
+[[action-dori-llm-query]]
+=== /llm/query
+
+*Type (action)*:: `dori_msgs/action/LLMQuery`
+*Servers*:: llm_node
+*Clients*:: dori_tree_executor (`WaitForIntentNode`)
+*Flow*:: dori_tree_executor → /llm/query (goal/cancel) → llm_node → feedback/result to dori_tree_executor
+
+.Goal
+[cols="1,1,1,3",options="header"]
+|===
+| Field | Type | Unit | Description
+| text | string | - | User transcription text from STT or prompt.
+| location_context | string | - | Current robot location context or landmark metadata.
+|===
+
+.Feedback
+[cols="1,1,1,3",options="header"]
+|===
+| Field | Type | Unit | Description
+| status | string | - | Current processing step (e.g., classifying, retrieving, generating).
+|===
+
+.Result
+[cols="1,1,1,3",options="header"]
+|===
+| Field | Type | Unit | Description
+| intent | string | - | Recognized intent enum/name (`QA`, `GUIDE`, `CHAT`, etc.).
+| response_text | string | - | Generated natural-language answer text.
+| target_location | string | - | Destination name or coordinates extracted for navigation.
+|===
+
+
+[[action-dori-tts-speak]]
+=== /tts/speak
+
+*Type (action)*:: `dori_msgs/action/Speak`
+*Servers*:: tts_node
+*Clients*:: dori_tree_executor (`SpeakNode`)
+*Flow*:: dori_tree_executor → /tts/speak (goal/cancel) → tts_node → feedback/result to dori_tree_executor
+
+.Goal
+[cols="1,1,1,3",options="header"]
+|===
+| Field | Type | Unit | Description
+| text | string | - | Text utterance to synthesize and speak.
+|===
+
+.Feedback
+[cols="1,1,1,3",options="header"]
+|===
+| Field | Type | Unit | Description
+| status | string | - | Current speech synthesis or playback state.
+|===
+
+.Result
+[cols="1,1,1,3",options="header"]
+|===
+| Field | Type | Unit | Description
+| success | bool | - | Whether speech playback completed successfully.
+| message | string | - | Diagnostic or error details.
 |===

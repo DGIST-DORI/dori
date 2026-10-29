@@ -57,24 +57,101 @@ Last updated: March 10, 2026.
 
 ### Software Packages
 
+The package tree below reflects the current source layout. Package ownership and
+boundaries are defined in [`package-ownership.md`](package-ownership.md).
+
 ```
 ros2_ws/src/
-├── perception_pkg/       # Perception: camera, person detection, gesture, expression, landmark
-├── interaction_pkg/      # Interaction coordinator (HRI manager state machine)
-├── hri_pkg/              # HRI nodes
-├── stt_pkg/              # Wake word (Porcupine) + transcription (Whisper)
-├── llm_pkg/              # Intent classification + RAG + LLM response
-├── tts_pkg/              # Text-to-speech playback
-├── navigation_pkg/       # Navigation execution node
-├── dashboard_pkg/        # ROS ↔ web dashboard bridge
-└── bringup/              # Launch files
-    ├── robot.launch.py           # Full robot (top-level)
+├── dori_msgs/              # ROS 2 custom message and action definitions
+├── dori_perception/        # Perception Python vision nodes, config, and models
+├── dori_perception_camera/ # Perception C++ RealSense camera adapter
+├── dori_hri/      # Interaction coordinator (HRI manager state machine) + STT + TTS
+├── dori_core/
+├── dori_llm/              # Intent classification + RAG + LLM response
+├── dori_navigation/       # Navigation execution node
+├── dori_dashboard/        # ROS ↔ web dashboard bridge
+└── dori_bringup/              # Launch files
+├── dori_hri/               # Voice I/O (STT, TTS, emotion publishing)
+├── dori_bt/                # BehaviorTree.CPP v4 robot decision orchestration
+├── dori_core/              # Shared utilities and SQLite DB management
+├── dori_llm/               # Intent classification + RAG + LLM Query Action Server
+├── dori_navigation/        # Navigation execution node
+├── dori_dashboard/         # ROS ↔ web dashboard bridge
+└── dori_bringup/           # Launch files
+    ├── bringup.launch.py           # Full robot (top-level)
     ├── perception.launch.py      # Perception only
     ├── interaction.launch.py     # HRI manager/state machine only
     └── voice.launch.py # Voice pipeline only
+    ├── interaction.launch.py     # BehaviorTree (dori_bt) orchestration only
+    └── voice.launch.py           # Voice pipeline only
 ```
 
 ### ROS2 Topic List (Actual Nodes)
+
+#### Topic List source of truth
+
+- Source file: `config/ros2_topics.yaml`.
+- This section is generated/synchronized from the YAML file via `python3 tools/topic/topic_lint.py --sync-architecture`.
+- CI runs `python3 tools/topic/topic_lint.py --check` and emits warnings if drift is detected.
+
+<!-- TOPIC:START -->
+#### In-scope application topics
+
+| Topic | Msg type | Publisher(s) | Subscriber(s) | Description |
+|---|---|---|---|---|
+| `/dori/odom` | `nav_msgs/msg/Odometry` | Base controller / localization stack | navigator_node | Robot odometry pose/velocity input. |
+| `/dori/scan` | `sensor_msgs/msg/LaserScan` | LiDAR driver | navigator_node | Laser range scan for obstacle detection/avoidance. |
+| `/dori/cmd_vel` | `geometry_msgs/msg/Twist` | navigator_node | Base controller / motor interface | Velocity command output to robot base. |
+
+#### Out of documentation scope (base platform topics)
+
+| Topic | Msg type | Publisher(s) | Subscriber(s) | Description |
+|---|---|---|---|---|
+| `camera/front/color/image_raw` | `sensor_msgs/msg/Image` | depth_camera_node | person_detection_node, gesture_recognition_node, facial_expression_node, landmark_detection_node | RGB camera stream used by all perception pipelines. |
+| `camera/front/depth/image_raw` | `sensor_msgs/msg/Image` | depth_camera_node | person_detection_node, landmark_detection_node | Raw depth frame for distance estimation and landmark range filtering. |
+| `camera/front/depth/image_colormap` | `sensor_msgs/msg/Image` | depth_camera_node | - | Colorized depth visualization stream. |
+| `camera/front/color/camera_info` | `sensor_msgs/msg/CameraInfo` | depth_camera_node | landmark_detection_node | RGB intrinsics for pixel-to-direction / localization math. |
+| `camera/front/depth/camera_info` | `sensor_msgs/msg/CameraInfo` | depth_camera_node | - | Depth intrinsics metadata stream. |
+| `camera/front/depth/scale` | `std_msgs/msg/Float32` | - | person_detection_node | Optional depth meter-per-unit scale expected by person detection. |
+| `camera/rear/color/image_raw` | `sensor_msgs/msg/Image` | depth_camera_node | - | Rear RGB camera stream. |
+| `camera/rear/depth/image_raw` | `sensor_msgs/msg/Image` | depth_camera_node | - | Rear raw depth frame. |
+| `camera/rear/depth/image_colormap` | `sensor_msgs/msg/Image` | depth_camera_node | - | Rear colorized depth visualization stream. |
+| `camera/rear/color/camera_info` | `sensor_msgs/msg/CameraInfo` | depth_camera_node | - | Rear RGB intrinsics metadata stream. |
+| `camera/rear/depth/camera_info` | `sensor_msgs/msg/CameraInfo` | depth_camera_node | - | Rear depth intrinsics metadata stream. |
+| `camera/rear/depth/scale` | `std_msgs/msg/Float32` | - | - | Optional rear depth meter-per-unit scale. |
+| `hri/persons` | `std_msgs/msg/String` | person_detection_node | - | JSON list of detected persons/tracks. |
+| `hri/interaction_trigger` | `std_msgs/msg/Bool` | person_detection_node | gesture_recognition_node, facial_expression_node | Enables gesture/expression inference only during interaction. |
+| `hri/tracking_state` | `std_msgs/msg/String` | person_detection_node | dori_tree_executor | JSON tracking state (`idle/tracking/lost`) for session/nav control. |
+| `follow/target_offset` | `geometry_msgs/msg/Point` | person_detection_node | - | Relative target offset for follow-control consumers. |
+| `hri/annotated_image` | `sensor_msgs/msg/Image` | person_detection_node | - | Person detection debug overlay image. |
+| `hri/gesture` | `std_msgs/msg/String` | gesture_recognition_node | - | Gesture detection JSON payload. |
+| `hri/gesture_command` | `std_msgs/msg/String` | gesture_recognition_node | - | Mapped high-level gesture command (`STOP`, `CALL`, etc.). |
+| `stt/wake_word_detected` | `std_msgs/msg/Bool` | gesture_recognition_node (WAVE trigger), external STT node | - | Wake event that starts HRI listening flow. |
+| `hri/annotated_gesture` | `sensor_msgs/msg/Image` | gesture_recognition_node | - | Gesture visualization/debug image. |
+| `hri/expression` | `std_msgs/msg/String` | facial_expression_node | - | Expression inference JSON payload. |
+| `hri/expression_command` | `std_msgs/msg/String` | facial_expression_node | - | HRI action hint from expression state. |
+| `hri/annotated_expression` | `sensor_msgs/msg/Image` | facial_expression_node | - | Facial expression visualization/debug image. |
+| `landmark/detections` | `std_msgs/msg/String` | landmark_detection_node | - | Raw landmark/candidate detections as JSON. |
+| `landmark/localization` | `std_msgs/msg/String` | landmark_detection_node | - | Landmark-based localization estimate JSON. |
+| `landmark/context` | `std_msgs/msg/String` | landmark_detection_node | - | Current location/context text used in LLM query payload. |
+| `hri/annotated_landmark` | `sensor_msgs/msg/Image` | landmark_detection_node | - | Landmark detection visualization/debug image. |
+| `stt/audio_input` | `std_msgs/msg/String` | dashboard STTPanel mic publisher | stt_node | E2E STT input payload JSON: {audio_b64, format:'wav_pcm16', sample_rate:16000, channels:1}. |
+| `stt/result` | `std_msgs/msg/String` | stt_node | dori_tree_executor | STT output JSON/text from recognizer. E2E path: STTPanel mic -> stt/audio_input -> stt_node(Whisper) -> stt/result -> dori_tree_executor. |
+| `tts/done` | `std_msgs/msg/Bool` | tts_node | - | Playback completion event for HRI state transitions. |
+| `hri/manager_state` | `std_msgs/msg/String` | dori_tree_executor | emotion_publisher_node | Current robot mode/state published by BehaviorTree executor (`IDLE`, `GUIDING`, etc.). |
+| `tts/text` | `std_msgs/msg/String` | dashboard TTSInjectPanel, debug clients | tts_node | Direct TTS text input topic for manual testing and UI trigger. |
+| `tts/speaking` | `std_msgs/msg/Bool` | tts_node | - | True while TTS is actively speaking (used for mic mute by external STT). |
+| `nav/global_path` | `nav_msgs/msg/Path` | navigator_node | - | Planned global path visualization/output. |
+| `nav/local_path` | `nav_msgs/msg/Path` | navigator_node | - | Local path / short-horizon trajectory visualization. |
+| `nav/status` | `std_msgs/msg/String` | navigator_node | - | Human-readable navigation status updates. |
+| `nav/cancel` | `std_msgs/msg/Bool` | external/nav client node | navigator_node | Cancel signal for current navigation task. |
+| `system/metrics` | `std_msgs/msg/String` | system_monitor_node | - | Periodic system metrics JSON (CPU/RAM/Disk/GPU). |
+| `/map` | `nav_msgs/msg/OccupancyGrid` | SLAM / map server | navigator_node | Occupancy map used for global path planning. |
+| `dori/stt/audio_input` | `std_msgs/msg/String` | dashboard_frontend | - | Dashboard/client microphone STT input (robot+sim profile canonical). |
+| `dori/perception/vision/image/compressed` | `sensor_msgs/msg/CompressedImage` | dashboard_frontend | - | Dashboard/client camera compressed image input (robot+sim profile canonical). |
+| `dori/audio/output` | `audio_common_msgs/msg/AudioData` | dashboard_frontend | - | ROS audio output stream for dashboard ros_audio playback mode. |
+<!-- TOPIC:END -->
+
 
 The detailed API reference for ROS2 topics is managed as a single source at [`topics.adoc`](docs/dev/topics.adoc).
 
@@ -82,30 +159,112 @@ The detailed API reference for ROS2 topics is managed as a single source at [`to
 - Sync/check tool: `python3 tools/topic/topic_lint.py --sync-architecture`, `python3 tools/topic/topic_lint.py --check`
 - Detailed documentation: [`docs/dev/topics.adoc`](docs/dev/topics.adoc)
 
-#### Camera topic naming policy (Python/C++ depth camera parity)
+#### Global ROS topic naming policy (all packages)
 
-- Canonical rule: depth camera nodes must publish to **relative topics** (e.g. `color/image_raw`, `depth/image_raw`) inside node code.
-- Launch files own final routing by injecting `/dori` namespace/remapping to app-level canonical topics (e.g. `/dori/camera/color/image_raw`).
-- Do not hardcode absolute `/dori/...` camera publish topics inside node implementations.
-- This rule applies equally to:
-  - `perception_pkg/perception_pkg/depth_camera_node.py` (Python)
-  - `perception_camera_cpp/src/depth_camera_node.cpp` (C++)
+- Canonical rule: **all nodes and dashboard publishers/subscribers** must use relative topics in code (e.g. `stt/audio_input`, `perception/vision/image/compressed`, `tts/text`).
+- Launch files own final routing by namespace/remapping (e.g. `namespace:=/dori` → runtime topic `/dori/stt/audio_input`).
+- Do not hardcode absolute `/dori/...` topics in node implementation or frontend code.
+- This rule is global (voice, perception, navigation, dashboard) and not camera-only.
 
 
 ---
 
-## HRI State Machine
+## HRI Behavior Tree Architecture
 
+기존의 단순 상태 머신(`hri_manager_node.py`)에서 **BehaviorTree.CPP v4** 기반의 오케스트레이션 노드(`dori_tree_executor`, 패키지: `dori_bt`)로 전환되었습니다. 
+로봇의 HRI 및 가이딩 흐름은 XML 트리 정의(`dori_tree.xml`)에 의해 제어되며, 비동기 ROS 2 Action 인터페이스(`Speak`, `LLMQuery`, `Navigate`)를 통해 하위 노드들과 상호작용합니다.
+
+```mermaid
+flowchart TD
+    subgraph dori_bt ["dori_bt (dori_tree_executor)"]
+        Tree[BehaviorTree Engine]
+        Blackboard[(Blackboard)]
+    end
+
+    subgraph Perception ["dori_perception"]
+        Tracking[person_detection_node]
+    end
+
+    subgraph Voice ["dori_hri & dori_llm"]
+        STT[stt_node]
+        LLM[llm_node]
+        TTS[tts_node]
+    end
+
+    subgraph Nav ["dori_navigation"]
+        Navigator[navigator_node]
+    end
+
+    Tracking -->|hri/tracking_state| Tree
+    STT -->|stt/result| Tree
+    Tree -->|Action: /llm/query| LLM
+    LLM -->|intent, response, destination| Tree
+    Tree -->|Action: /tts/speak| TTS
+    Tree -->|Action: /nav/navigate_to| Navigator
+    Tree -->|hri/manager_state| Emotion[emotion_publisher_node]
 ```
-         wake word / WAVE gesture
-IDLE ──────────────────────────────► LISTENING
-  ▲                                      │
-  │                                 STT result
-  │ idle timeout (10 s)                  │
-  │                                      ▼
-  │                                 RESPONDING ──► LLM query
-  │                                      │
-  │                               TTS done / nav intent
-  │                                      │
-  └────────────── target lost ◄─── NAVIGATING
-```
+
+### 트리 제어 우선순위 (RootPrioritySelector)
+1. **GuideSupervisionPriority (가이딩 감시 및 안전):** 안내 중(`GUIDING`) 사용자 시야 이탈(`IsUserVisible` 실패 시 복구 시도 또는 중단) 및 통로 차단 처리.
+2. **MicInteractionPriority (상호작용 및 인텐트 처리):** 마이크 분리 또는 호출 이벤트 발생 시 `WaitForWakeWord` → `WaitForIntent` (LLMQuery Action) 호출 후 분기:
+   - **QA Branch:** 질의응답 답변 음성 출력 (`Speak` Action) 후 세션 정리 및 복귀.
+   - **Guide Branch:** 목적지 이동 (`Navigate` Action) 실행 및 이동 중 사용자 거리 기반 속도 적응 루프 실행.
+   - **Chat Branch:** 일상 대화 응답 및 복귀.
+3. **IdleWatch:** 대기 상태 관리 및 주기적 상태 모니터링.
+
+## Dashboard Execution Profile (Robot/Sim)
+
+- Settings > Connection 에서 `Execution Profile` 을 `Robot|Sim` 으로 전환한다.
+- Sim 프로파일은 데모(mock) 모드와 다르며, **실제 ROS 그래프를 타는 테스트 모드**다.
+- 기본 토픽은 프로파일 기반 자동 매핑을 사용한다.
+  - STT 입력: `stt/audio_input`
+  - Vision 입력: `perception/vision/image/compressed`
+  - TTS 텍스트: `tts/text`
+  - ROS 오디오 출력(옵션): `audio/output`
+- 모바일 브라우저 오디오 제약: HTTPS + 사용자 제스처 필요.
+
+
+
+## Remote device test guide (phone/laptop)
+
+### 출력 검증 절차 (공통)
+
+1. 원격 장치(PC/모바일 브라우저)에서 대시보드 접속: `http://[Robot IP]:3000`.
+2. Settings > Connection 에서 WS 연결: `ws://[Robot IP]:9090`.
+3. `Execution Profile=Sim` 설정 후 Client Mic/Cam 활성화.
+4. STT Panel에서 mic 녹음 전송 후 `stt/audio_input`(런타임 `/dori/stt/audio_input`) 수신 확인.
+5. Vision Panel에서 프레임 publish 후 `perception/vision/image/compressed`(런타임 `/dori/perception/vision/image/compressed`) 수신 확인.
+6. Speaker Output 모드를 시나리오에 맞게 선택하고 TTS 재생을 트리거한다.
+7. 아래 시나리오별 기대 장치에서 실제 음성이 출력되는지 확인한다.
+
+### 최소 시나리오 (분리)
+
+| 시나리오 | 클라이언트 장치 | Speaker Output | 기대 결과(소리 출력 장치) |
+| --- | --- | --- | --- |
+| A | PC 브라우저 | `browser_tts` | **해당 PC의 스피커**에서 소리가 나야 한다. |
+| B | 모바일 브라우저 | `browser_tts` | **해당 모바일 기기 스피커**에서 소리가 나야 한다. |
+| C | 모바일 브라우저 | `ros_audio` | **ROS 오디오 출력이 연결된 외부/로봇 스피커**에서 소리가 나야 한다 (모바일 스피커 아님). |
+
+### 실패 시 점검 항목
+
+| 점검 항목 | 증상 예시 | 확인 방법 |
+| --- | --- | --- |
+| HTTPS | 모바일에서 재생이 시작되지 않음 | 원격 접속 URL이 HTTPS인지 확인(모바일 정책상 필요 가능). |
+| User gesture | 재생 요청은 보냈지만 음성이 무음 | 재생 버튼 탭/클릭 등 사용자 제스처 이후 재시도. |
+| AudioContext resume | 브라우저 콘솔에 suspended 상태 | 개발자도구에서 `AudioContext` 상태 확인 후 resume 트리거. |
+| WS 연결 | 패널 값/이벤트가 갱신되지 않음 | Settings > Connection 상태 및 `ws://[Robot IP]:9090` 연결 상태 확인. |
+| 토픽 수신 | STT/Vision/TTS 경로가 동작하지 않음 | `stt/audio_input`, `perception/vision/image/compressed` 등 토픽 수신 여부를 `ros2 topic echo`로 확인. |
+
+
+## Speaker Output × ROS TTS playback_mode 조합
+
+원격 대시보드 테스트에서는 `playback_mode=publish_only` 를 권장한다 (예: `DORI_TTS_PLAYBACK_MODE=publish_only`).
+
+| Speaker Output (Dashboard) | ROS `playback_mode` | 기대 동작 |
+| --- | --- | --- |
+| `browser_tts` | `publish_only` | VM 로컬 재생(`sd.play`, `mpg123`, `ffplay`)은 비활성화되고, `tts/audio_event` 기반으로 대시보드가 재생한다. |
+| `browser_tts` | `local_and_publish` | VM 로컬 재생 + `tts/audio_event` 동시 발행(이중 출력 가능). |
+| `browser_tts` | `local_only` | VM 로컬만 재생되어 원격 브라우저에서는 소리가 나지 않을 수 있다. |
+| `ros_audio` | `publish_only` | VM 로컬 재생 없이 오디오 이벤트만 발행한다(브리지 노드가 있으면 원격/외부 스피커 재생). |
+| `ros_audio` | `local_and_publish` | VM 로컬 재생과 ROS 오디오 경로를 모두 사용한다. |
+| `ros_audio` | `local_only` | VM 로컬 재생만 수행하고 오디오 이벤트는 운용 경로에 활용되지 않는다. |

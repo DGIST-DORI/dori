@@ -1,0 +1,117 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+Visualization Manager:
+  Class: ""
+  Global Options:
+    Fixed Frame: map
+    Frame Rate: 15
+  Displays:
+    - Class: rviz_default_plugins/Map
+      Name: Map
+      Enabled: true
+      Alpha: 0.8
+      Topic:
+        Value: /map
+        Depth: 1
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+    - Class: rviz_default_plugins/LaserScan
+      Name: LaserScan
+      Enabled: true
+      Size (m): 0.03
+      Topic:
+        Value: /scan
+        Depth: 5
+        Reliability Policy: Best Effort
+        Durability Policy: Volatile
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: true
+    - Class: nav2_rviz_plugins/ParticleCloud
+      Name: AMCL Pose Candidates
+      Enabled: true
+      Alpha: 1
+      Color: 0; 180; 0
+      Shape: Arrow (Flat)
+      Min Arrow Length: 0.02
+      Max Arrow Length: 0.3
+      Topic:
+        Value: /particle_cloud
+        Depth: 5
+        Reliability Policy: Best Effort
+        Durability Policy: Volatile
+    - Class: rviz_default_plugins/Path
+      Name: Plan
+      Enabled: true
+      Topic:
+        Value: /plan
+        Depth: 5
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
+    - Class: rviz_default_plugins/Map
+      Name: Global Costmap
+      Enabled: true
+      Alpha: 0.35
+      Color Scheme: costmap
+      Draw Behind: false
+      Topic:
+        Value: /global_costmap/costmap
+        Depth: 1
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+    - Class: rviz_default_plugins/Map
+      Name: Local Costmap
+      Enabled: true
+      Alpha: 0.5
+      Color Scheme: costmap
+      Draw Behind: false
+      Topic:
+        Value: /local_costmap/costmap
+        Depth: 1
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+    - Class: rviz_default_plugins/Polygon
+      Name: Robot Footprint
+      Enabled: true
+      Color: 25; 255; 0
+      Topic:
+        Value: /local_costmap/published_footprint
+        Depth: 5
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Accepted Goal
+      Enabled: true
+      Topic:
+        Value: /named_goal_marker
+        Depth: 1
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/SetInitialPose
+      Topic:
+        Value: /initialpose
+        Depth: 5
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
+      Covariance x: 0.25
+      Covariance y: 0.25
+      Covariance yaw: 0.06853891909122467
+    - Class: rviz_default_plugins/SetGoal
+      Topic:
+        Value: /goal_pose
+        Depth: 5
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
+  Views:
+    Current:
+      Class: rviz_default_plugins/TopDownOrtho
+      Scale: 40
+      Target Frame: <Fixed Frame>
+Window Geometry:
+  Width: 1280
+  Height: 800

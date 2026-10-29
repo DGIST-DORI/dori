@@ -1,0 +1,12 @@
+# A registered name or ID on the currently loaded map. No coordinates from LLMs.
+string destination
+---
+int32 code
+string message
+int32 SUCCESS=0
+int32 CANCELED=1
+int32 PLANNING_FAILED=2
+int32 INVALID_STATE=3
+---
+float32 distance_remaining
+string state

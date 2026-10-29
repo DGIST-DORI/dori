@@ -1,0 +1,111 @@
+name: Refactor P0-P2
+
+on:
+  pull_request:
+  push:
+    branches: [main, feature/control-and-navigation]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: refactor-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  humble-packaging:
+    runs-on: ubuntu-22.04
+    container: ros:humble-ros-base-jammy
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      PYTHONNOUSERSITE: '1'
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+      ROS_LOCALHOST_ONLY: '1'
+      ROS_DOMAIN_ID: '93'
+      OPENBLAS_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: Install Humble and Python dependencies
+        run: |
+          apt-get update
+          apt-get install -y git build-essential python3.10-venv python3-pip python3-rosdep \
+            python3-colcon-common-extensions python3-vcstool libportaudio2 nlohmann-json3-dev \
+            ros-humble-navigation2 ros-humble-nav2-bringup ros-humble-cartographer-ros \
+            ros-humble-rosbridge-server
+          source /opt/ros/humble/setup.bash
+          if [ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]; then rosdep init; fi
+          rosdep update --rosdistro humble
+          vcs import ros2_ws/src < ros2_ws/src/third_party.repos
+          rosdep install --from-paths ros2_ws/src --ignore-src --rosdistro humble -y
+          /usr/bin/python3 -m venv --system-site-packages .venv
+          .venv/bin/python -m pip install -r requirements-runtime.txt
+      - name: Lint and build installed dashboard assets
+        run: |
+          mkdir -p log/refactor-p0p2
+          cd web
+          npm ci --no-audit --no-fund 2>&1 | tee ../log/refactor-p0p2/npm-ci.log
+          npm run lint 2>&1 | tee ../log/refactor-p0p2/web-lint.log
+          npm run build 2>&1 | tee ../log/refactor-p0p2/web-build.log
+      - name: Clean build with C++ tests enabled
+        id: build
+        run: |
+          test ! -e ros2_ws/build
+          test ! -e ros2_ws/install
+          source /opt/ros/humble/setup.bash
+          source .venv/bin/activate
+          cd ros2_ws
+          python -m colcon build --symlink-install --parallel-workers 2 --cmake-args \
+            -DBUILD_TESTING=ON -DPython3_EXECUTABLE="$VIRTUAL_ENV/bin/python" \
+            -DPYTHON_EXECUTABLE="$VIRTUAL_ENV/bin/python" \
+            2>&1 | tee ../log/refactor-p0p2/build.log
+      - name: Installed package and non-actuating launch checks
+        run: |
+          source /opt/ros/humble/setup.bash
+          source .venv/bin/activate
+          source ros2_ws/install/local_setup.bash
+          export PYTHONPATH="$VIRTUAL_ENV/lib/python3.10/site-packages:${PYTHONPATH:-}"
+          python -m pytest tests/refactor -q --junitxml=log/refactor-p0p2/packages.xml \
+            2>&1 | tee log/refactor-p0p2/packages.log
+      - name: Wheel control and CAN fault tests
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          source /opt/ros/humble/setup.bash
+          source ros2_ws/install/local_setup.bash
+          ctest --test-dir ros2_ws/build/dori_control --output-on-failure \
+            2>&1 | tee log/refactor-p0p2/control.log
+          ctest --test-dir ros2_ws/build/cubemars_hardware --output-on-failure \
+            2>&1 | tee log/refactor-p0p2/can.log
+      - name: Record validation scope
+        if: always()
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'SUMMARY'
+          P0/P2 only: clean 21-package build, installed package/launch checks,
+          CAN/wheel-control C++ tests, documentation links and web lint/build.
+          ROS nodes and physical actuators are not launched by these checks.
+
+          P1 is pending: the legacy HRI/Nav2/mapping/browser regression suites
+          still reference removed helpers/packages and are not collected here.
+          This job does not certify full runtime integration or physical operation.
+          SUMMARY
+      - name: Upload validation logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: refactor-p0p2-${{ github.sha }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            log/refactor-p0p2/
+            ros2_ws/log/
+            ros2_ws/build/dori_control/Testing/
+            ros2_ws/build/dori_control/test_results/
+            ros2_ws/build/cubemars_hardware/Testing/

@@ -3,20 +3,12 @@ import { LOG_TAGS, useStore } from '../../core/store';
 import { publishROS } from '../../core/ros';
 import './TopicPublisherPanel.css';
 
-const DANGEROUS_TOPICS = new Set([
-  '/cmd_vel',
-  '/cmd_vel_mux/input/teleop',
-  '/dori/nav/command',
-]);
-
 const ALLOWED_TOPICS = [
-  '/dori/nav/command',
+  '/dori/tts/text',
+  '/dori/stt/result',
   '/dori/hri/interaction_trigger',
   '/dori/hri/gesture_command',
   '/dori/hri/expression_command',
-  '/dori/tts/text',
-  '/dori/llm/query',
-  '/cmd_vel',
 ];
 
 export default function TopicPublisherPanel() {
@@ -28,12 +20,11 @@ export default function TopicPublisherPanel() {
   const addLog = useStore((s) => s.addLog);
   const setPublishState = useStore((s) => s.setPublishState);
 
-  const [topic, setTopic] = useState('/dori/nav/command');
+  const [topic, setTopic] = useState('/dori/tts/text');
   const [msgType, setMsgType] = useState('std_msgs/msg/String');
   const [jsonPayload, setJsonPayload] = useState('{"data":"hello"}');
   const [mode, setMode] = useState('once');
   const [rateHz, setRateHz] = useState('1');
-  const [confirmOpen, setConfirmOpen] = useState(false);
   const intervalRef = useRef(null);
 
   const canPublish = connected || isDemoMode;
@@ -115,10 +106,6 @@ export default function TopicPublisherPanel() {
 
   const handlePublishClick = () => {
     if (!canPublish) return;
-    if (DANGEROUS_TOPICS.has(topic) && !confirmOpen) {
-      setConfirmOpen(true);
-      return;
-    }
     if (mode === 'once') {
       stopPeriodic();
       publishOnce();
@@ -171,31 +158,7 @@ export default function TopicPublisherPanel() {
             {!canPublish ? 'ROS not connected' : publishError ? `Error: ${publishError}` : lastPublishAt ? `Last publish: ${new Date(lastPublishAt).toLocaleTimeString()}` : 'Ready'}
           </span>
         </div>
-        {confirmOpen && (
-          <div className="tp-confirm-backdrop" onClick={() => setConfirmOpen(false)}>
-            <div className="tp-confirm" onClick={(e) => e.stopPropagation()}>
-              <h4>Safety Confirmation</h4>
-              <p>
-                You are about to publish to <b>{topic}</b>. This may move the robot.
-                Ensure E-stop and clear surroundings.
-              </p>
-              <div className="tp-confirm-actions">
-                <button onClick={() => setConfirmOpen(false)}>Cancel</button>
-                <button
-                  className="danger"
-                  onClick={() => {
-                    setConfirmOpen(false);
-                    if (mode === 'once') { stopPeriodic(); publishOnce(); }
-                    else if (isPublishing) stopPeriodic();
-                    else startPeriodic();
-                  }}
-                >
-                  Confirm Publish
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+
       </div>
     </div>
   );

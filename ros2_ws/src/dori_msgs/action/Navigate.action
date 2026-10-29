@@ -1,0 +1,19 @@
+# Goal
+geometry_msgs/PoseStamped destination
+# Use the calibrated relative-move arrival tolerance.
+bool precise
+---
+# Result
+int32 code
+string message
+
+int32 SUCCESS=0
+int32 CANCELED=1
+int32 PLANNING_FAILED=2
+int32 INVALID_STATE=3
+---
+# Feedback
+geometry_msgs/PoseStamped current_pose
+float32 distance_remaining
+string state
+string status_message

@@ -1,0 +1,5 @@
+#!/usr/bin/python3
+from dori_hardware.body_stabilizer_node import main
+
+if __name__ == "__main__":
+    main()

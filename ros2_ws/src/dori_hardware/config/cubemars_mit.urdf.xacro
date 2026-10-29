@@ -1,0 +1,100 @@
+<?xml version="1.0"?>
+<robot name="cubemars_mit" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <link name="base_link"/>
+  <link name="left_wheel_link"/>
+  <link name="right_wheel_link"/>
+
+  <joint name="left_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="left_wheel_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+
+  <joint name="right_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="right_wheel_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 0 -1"/>
+  </joint>
+
+  <ros2_control name="CubeMarsSystem" type="system">
+    <hardware>
+      <plugin>cubemars_hardware/CubeMarsSystemHardware</plugin>
+      <param name="can_interface">can1</param>
+      <param name="protocol_mode">mit</param>
+    </hardware>
+
+    <joint name="left_wheel_joint">
+      <param name="can_id">2</param>
+      <param name="kt">0.1</param>
+      <param name="pole_pairs">14</param>
+      <param name="gear_ratio">10</param>
+      <!-- Physical left wheel is CAN 2; this sign transforms both command and feedback. -->
+      <param name="direction_sign">1</param>
+      <param name="enc_off">0.0</param>
+
+      <param name="mit_p_min">-12.566370614359172</param>
+      <param name="mit_p_max">12.566370614359172</param>
+      <param name="mit_v_min">-30.0</param>
+      <param name="mit_v_max">30.0</param>
+      <param name="mit_t_min">-18.0</param>
+      <param name="mit_t_max">18.0</param>
+      <param name="mit_kp_min">0.0</param>
+      <param name="mit_kp_max">500.0</param>
+      <param name="mit_kd_min">0.0</param>
+      <param name="mit_kd_max">5.0</param>
+
+      <param name="mit_pos_kp">30.0</param>
+      <param name="mit_pos_kd">1.0</param>
+      <param name="mit_vel_kd">3.0</param>
+
+      <command_interface name="velocity"/>
+      <command_interface name="position"/>
+      <command_interface name="effort"/>
+
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+      <state_interface name="temperature"/>
+      <state_interface name="feedback_age"/>
+    </joint>
+
+    <joint name="right_wheel_joint">
+      <param name="can_id">1</param>
+      <param name="kt">0.1</param>
+      <param name="pole_pairs">14</param>
+      <param name="gear_ratio">10</param>
+      <!-- Physical right wheel is CAN 1; keep its calibrated forward polarity. -->
+      <param name="direction_sign">-1</param>
+      <param name="enc_off">0.0</param>
+
+      <param name="mit_p_min">-12.566370614359172</param>
+      <param name="mit_p_max">12.566370614359172</param>
+      <param name="mit_v_min">-30.0</param>
+      <param name="mit_v_max">30.0</param>
+      <param name="mit_t_min">-18.0</param>
+      <param name="mit_t_max">18.0</param>
+      <param name="mit_kp_min">0.0</param>
+      <param name="mit_kp_max">500.0</param>
+      <param name="mit_kd_min">0.0</param>
+      <param name="mit_kd_max">5.0</param>
+
+      <param name="mit_pos_kp">30.0</param>
+      <param name="mit_pos_kd">1.0</param>
+      <param name="mit_vel_kd">3.0</param>
+
+      <command_interface name="velocity"/>
+      <command_interface name="position"/>
+      <command_interface name="effort"/>
+
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+      <state_interface name="temperature"/>
+      <state_interface name="feedback_age"/>
+    </joint>
+  </ros2_control>
+
+</robot>

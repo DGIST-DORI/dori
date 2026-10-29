@@ -22,7 +22,7 @@ This guide explains the minimum workflow for code, docs, and issue contributions
 
 ```text
 .
-├─ ros2_ws/src/            # ROS2 packages (bringup, perception, stt, tts, navigation, ...)
+├─ ros2_ws/src/            # ROS2 packages (dori_bringup, perception, stt, tts, navigation, ...)
 ├─ web/                    # Dashboard frontend (Vite/React)
 ├─ docs/
 │  ├─ user/                # User docs (manual, config)

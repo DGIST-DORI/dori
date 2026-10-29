@@ -43,9 +43,9 @@ This document is the SSOT for ROS2 service details in the current workspace.
 === /hri/set_follow_mode
 
 *Type (srv)*:: `std_srvs/srv/SetBool`
-*Clients*:: <<nodes.adoc#node-hri-manager-node,hri_manager_node>>
+*Clients*:: <<nodes.adoc#node-dori-tree-executor,dori_tree_executor>>
 *Servers*:: <<nodes.adoc#node-person-detection-node,person_detection_node>>
-*Flow*:: <<nodes.adoc#node-hri-manager-node,hri_manager_node>> → /hri/set_follow_mode (SetBool) → <<nodes.adoc#node-person-detection-node,person_detection_node>>
+*Flow*:: <<nodes.adoc#node-dori-tree-executor,dori_tree_executor>> → /hri/set_follow_mode (SetBool) → <<nodes.adoc#node-person-detection-node,person_detection_node>>
 
 .Request fields
 [cols="1,1,1,3",options="header"]

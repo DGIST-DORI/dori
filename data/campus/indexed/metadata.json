@@ -1,0 +1,1028 @@
+[
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_edu.txt",
+    "source_key": "facility/facility_edu.txt",
+    "chunk_id": 0,
+    "text": "[교육시설]\n출처: https://www.dgist.ac.kr/college/sub04_01_01.do\n\nDGIST 교육시설 페이지에서는 각 강의실의 위치를 확인할 수 있습니다. 현재 다음 강의실들이 E7 건물에 위치해 있습니다.\n\n- SL Corporation 이충곤 강의실: E7 G01\n- 평화홀딩스(주) 강의실: E7 G02\n- 화성산업(주) 이인중 강의실: E7 G03\n- 일반강의실(소) 1: E7 L20\n- 멀티미디어강의실 3: E7 L21\n- 멀티미디어강의실 4: E7 L22\n- 어학강의실 4: E7 L27"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_edu.txt",
+    "source_key": "facility/facility_edu.txt",
+    "chunk_id": 1,
+    "text": "- 멀티미디어강의실 3: E7 L21\n- 멀티미디어강의실 4: E7 L22\n- 어학강의실 4: E7 L27\n- 어학강의실 5: E7 L28\n- 김범일 강의실: E7 L30\n- 일반강의실(소) 2: E7 L31\n- 멀티미디어강의실 5: E7 223\n- 멀티미디어강의실 6: E7 224\n- 일반강의실(소) 3: E7 229\n- 일반강의실(대) 1: E7 233\n- 일반강의실(소) 4: E7 235\n- 일반강의실(중) 1: E7 241\n- 일반강의실(중) 2: E7 242\n\n더 자세한 정보는 빠른 시일 내에 서비스될 예정입니다."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_edu.txt",
+    "source_key": "facility/facility_edu.txt",
+    "chunk_id": 2,
+    "text": "7 241\n- 일반강의실(중) 2: E7 242\n\n더 자세한 정보는 빠른 시일 내에 서비스될 예정입니다.\n\n---\n\n[Educational Facilities]\nSource: https://www.dgist.ac.kr/college/sub04_01_01.do\n\nOn the DGIST Educational Facilities page, you can check the locations of various classrooms. The following classrooms are currently located in the E7 buil"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_edu.txt",
+    "source_key": "facility/facility_edu.txt",
+    "chunk_id": 3,
+    "text": "he following classrooms are currently located in the E7 building:\n\n- SL Corporation Lee Choong-gon Classroom: E7 G01\n- Pyunghwa Holdings Inc. Classroom: E7 G02\n- Hwasung Industrial Co., Ltd. Lee In-joong Classroom: E7 G03\n- General Classroom (Small) 1: E7 L20\n- Multimedia Classroom 3: E7 L21"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_edu.txt",
+    "source_key": "facility/facility_edu.txt",
+    "chunk_id": 4,
+    "text": "lassroom (Small) 1: E7 L20\n- Multimedia Classroom 3: E7 L21\n- Multimedia Classroom 4: E7 L22\n- Language Classroom 4: E7 L27\n- Language Classroom 5: E7 L28\n- Kim Beom-il Classroom: E7 L30\n- General Classroom (Small) 2: E7 L31\n- Multimedia Classroom 5: E7 223\n- Multimedia Classroom 6: E7 224"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_edu.txt",
+    "source_key": "facility/facility_edu.txt",
+    "chunk_id": 5,
+    "text": "imedia Classroom 5: E7 223\n- Multimedia Classroom 6: E7 224\n- General Classroom (Small) 3: E7 229\n- General Classroom (Large) 1: E7 233\n- General Classroom (Small) 4: E7 235\n- General Classroom (Medium) 1: E7 241\n- General Classroom (Medium) 2: E7 242"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_edu.txt",
+    "source_key": "facility/facility_edu.txt",
+    "chunk_id": 6,
+    "text": "(Medium) 1: E7 241\n- General Classroom (Medium) 2: E7 242\n\nMore detailed information will be available soon."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 0,
+    "text": "[연구시설]\n출처: https://www.dgist.ac.kr/college/sub04_01_02.do\n\nDGIST는 다양한 학부 시설 중 연구시설을 운영하고 있습니다. 각 건물 탭을 클릭하면 해당하는 연구시설들의 자세한 설명을 보실 수 있습니다.\n\nE2\nE2-215 노벨상 실험실: <현대물리실험> 교과 활동이 이루어지는 노벨상실험실로, X-ray의 탄성/비탄성 충돌, 제만효과, 마이켈슨 간섭계, 핵자기공명, AFM, STM, SEM등의 노벨상 관련 실험을 수행할 수 있습니다."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 1,
+    "text": "효과, 마이켈슨 간섭계, 핵자기공명, AFM, STM, SEM등의 노벨상 관련 실험을 수행할 수 있습니다.\nE2-216 광학 실험실: 편광, 광학활성, 회절, 분광, 홀로그래피 등의 기본적인 광학실험과 함께, 양자지우개 흉내내기, 양자암호 흉내내기 등의 양자광학 실험을 수행할 수 있습니다. 펨토초 레이저와 비선형결정을 이용한 비선형광학 실험도 가능합니다.\nE2-217 고체물리 실험실: 여러 가지 성분 조합의 고체결정을 만들고 성질을 측정할 수 있는 인프라가 갖추어져 있습니다. 물성관련 UGRP실험이 매년 이루어지고 있으며, 푸리에의"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 2,
+    "text": "성질을 측정할 수 있는 인프라가 갖추어져 있습니다. 물성관련 UGRP실험이 매년 이루어지고 있으며, 푸리에의 열전도 실험, 진공실험, 단열팽창 실험 등 열역학 실험장치도 구비하고 있습니다.\nE2-218 물리공작 실험실: 레이저커터, 3D 프린터, 3D 스캐너, 전기톱 등의 공작기계를 구비하고 있습니다. 1학년 필수교과인 <고전역학실험>과 <전기역학실험>의 마지막 3주를 차지하는 창의실험 수행 시, 공작기계를 통해 다양한 아이디어를 구현할 수 있습니다."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 3,
+    "text": "실험>의 마지막 3주를 차지하는 창의실험 수행 시, 공작기계를 통해 다양한 아이디어를 구현할 수 있습니다.\nE2-219 고전역학/전자기학 실험실: 본 실험실은 1학기에는 <고전역학실험>을, 2학기에는 <전자기학실험>을 수행할 수 있는 공간으로, 2인1조로 하나의 큰 테이블을 사용할 수 있도록 디자인되어 있습니다. 고전역학에서는 중력가속도 측정, 포사체운동, 회전관성 등의 실험을, 전자기학에서는 등전위선 측정, RLC회로, 전류천칭, 브루스터 각 등의 실험을 수행하며, 마지막 3주는 자유로운 주제로 창의실험을 수행합니다."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 4,
+    "text": "회로, 전류천칭, 브루스터 각 등의 실험을 수행하며, 마지막 3주는 자유로운 주제로 창의실험을 수행합니다.\nE2-221 전기회로 실험실: 24명의 학생들이 각자 하나의 노트북 컴퓨터와 NI-ELVIS장비를 가지고 실험할 수 있도록 장비와 회로부품들이 구비되어 있습니다. 학생들은 다이오드, 트랜지스터, 연산증폭기 등의 원리를 이해하고 응용회로를 만드는 연습을 하며, 멀티미터와 오실로스코프를 다루는 법을 익힙니다. 다양한 아두이노 센서와 키트들도 구비되어 있습니다.\n\nE3"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 5,
+    "text": "멀티미터와 오실로스코프를 다루는 법을 익힙니다. 다양한 아두이노 센서와 키트들도 구비되어 있습니다.\n\nE3\nE3-317 수리체험실: 선형대수, 응용 미적분학과 미분방정식, 확률과 통계, 다변수 미적분학 등 수학 공통 교과목의 실습을 하는 수학연습실입니다. 수강생들은 클라이언트들을 통해 기초학부 전용 서버에 접속하여 가상화 환경에서 Matlab과 같은 수학 프로그램을 이용해 실습합니다.\nE3-318 수리해석실: 선형대수, 응용 미적분학과 미분방정식, 확률과 통계, 다변수 미적분학 등 수학 공통 교과목의 실습을 하는 수학연습실입니다."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 6,
+    "text": "미적분학과 미분방정식, 확률과 통계, 다변수 미적분학 등 수학 공통 교과목의 실습을 하는 수학연습실입니다. 수강생들은 클라이언트들을 통해 기초학부 전용 서버에 접속하여 가상화 환경에서 Matlab과 같은 수학 프로그램을 이용해 실습합니다.\nE3-320 수리시뮬레이션실: 선형대수, 응용 미적분학과 미분방정식, 확률과 통계, 다변수 미적분학 등 수학 공통 교과목의 실습을 하는 수학연습실입니다. 수강생들은 클라이언트들을 통해 기초학부 전용 서버에 접속하여 가상화 환경에서 Matlab과 같은 수학 프로그램을 이용해 실습합니다.\n\nE4"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 7,
+    "text": "초학부 전용 서버에 접속하여 가상화 환경에서 Matlab과 같은 수학 프로그램을 이용해 실습합니다.\n\nE4\nE4-223 세포생물학 실험실: 동물세포 또는 동물조직 배양, 관찰 및 기타 세포생물학 실습이 진행되는 실험실로 생명과학 실험, UGRP 및 고등학생 대상 R&E 수업에 활용됩니다. 주요 구축 장비로는 클린벤치, CO2 인큐베이터, 도립 광학 현미경, 스윙버켓 냉장 원심분리기, 웨스턴 블롯용 영상기록장비, Nucelofector 3D 등이 있습니다."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 8,
+    "text": "미경, 스윙버켓 냉장 원심분리기, 웨스턴 블롯용 영상기록장비, Nucelofector 3D 등이 있습니다.\nE4-224 실험준비실Ⅰ: 각종 실험의 준비 및 재료를 만드는 실험실로 모든 생물 교과 수업에 활용합니다. 주요 구축 장비로는 안전시약장, 초저온냉동고, 증류수제조장치 등이 있습니다.\nE4-225 분자생물학 실험실: 분자생물학, 분자유전학 실험을 진행하는 실험실로, 1학년 ‘분자와 생명현상 실험’ 수업이 이루어집니다. 주요 구축 장비로는 젤영상장치, 온도 구배 중합효소연쇄반응 장치 등이 있습니다. 국가 규정에 의거하여 미래창조"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 9,
+    "text": "요 구축 장비로는 젤영상장치, 온도 구배 중합효소연쇄반응 장치 등이 있습니다. 국가 규정에 의거하여 미래창조과학부에서 지정한 ‘안전관리 우수연구실’입니다.\nE4-226 미생물 실험실: 분유전학, 미생물학 실험을 주로 진행하는 실험실로 2학년 1학기 ‘생명과학실험Ⅰ’, 2학년 2학기 ‘생명과학실험Ⅱ’ 수업이 이루어집니다. 주요 구축 장비로는 미생물 배양기, 진탕배양기, 식물 배양기, 실체현미경 등이 있습니다.\nE4-227 미디어랩: 분석, 계산, 분자 모델링 등 소프트웨어를 이용한 실습이 진행되는 실험실로 고등학생 대상 R&E 수업에"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 10,
+    "text": "랩: 분석, 계산, 분자 모델링 등 소프트웨어를 이용한 실습이 진행되는 실험실로 고등학생 대상 R&E 수업에도 활용합니다. 주요 구축 장비로는 실습용 PC, 워크스테이션, 입체영상시스템 등이 있습니다.\nE4-228 모델생물 준비실: LMO법에 근거하여 모델생물 사육이 허가된 실험실로, 제브라피쉬를 포함한 살아 있는 동물을 다루는 교과 실험과 UGRP실험이 매년 이루어지고 있습니다. 주요 구축 장비로는 제브라피쉬 사육시스템, 초저온냉동고, 해부용 장비 등이 있습니다."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 11,
+    "text": "이루어지고 있습니다. 주요 구축 장비로는 제브라피쉬 사육시스템, 초저온냉동고, 해부용 장비 등이 있습니다.\nE4-229 분석장비실: 다양한 시료를 분석하는 장비들이 구축되어 있으며 모든 생물교과 수업에서 활용합니다. 주요 구축 장비로는 다각광산란모듈, 대용량 생체분자 분리정제장치, 대용량 단백질 결정 스크리닝 장치 등이 있습니다.\nE4-230 세척실: 초자류 세척기, 대용량 고압 멸균기가 구축되어 있습니다.\nE4-231 현미경실: 현미경을 실습하는 실험실로 모든 수업에서 활용합니다. 주요 구축 장비로는 형광실체현미경, 도립형광현미경"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 12,
+    "text": "실: 현미경을 실습하는 실험실로 모든 수업에서 활용합니다. 주요 구축 장비로는 형광실체현미경, 도립형광현미경, 전자동형광현미경이 있습니다.\nE4-233 실험준비실Ⅱ: 실험 비품 및 소모품을 보관 하는 실험실로 모든 생물 교과 수업에 활용합니다.\n\nE5\nE5-218 공학시작실 (기계공작실): 공학적 설계, 메카트로닉스 등의 실험실습 교과에서 학생들의 공학적, 창의 아이디어를 구현하기 위하여 제작 활동을 할 수 있는 공간으로, 고용량의 전기 설비, 용접실, 배기 시설이 구축되어 있으며, 다양한 공구류 및 드릴링 머신, 용접기, 레이저"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 13,
+    "text": "용량의 전기 설비, 용접실, 배기 시설이 구축되어 있으며, 다양한 공구류 및 드릴링 머신, 용접기, 레이저 컷팅기, 금속 절단기, 밀링기, 소형 선반 등의 다양한 기계공작 설비를 갖추고 있습니다. 디지스트 자동차 동아리 ‘디지니어스’의 활동 장소이며, 교수님이나 안전관리 책임자의 지도하에 이용 가능합니다.\nE5-218 공학시작실(유체역학 실험실): 열역학, 열전달, 유체역학, 내연기관의 이론을 검증할 수 있는 실험장비들이 구축되어 있습니다. 열전달 실험장치, 증기모터 실험장치, 엔진 실험장치, 차대동력계, 배기가스 분석장치를 통하여"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 14,
+    "text": "되어 있습니다. 열전달 실험장치, 증기모터 실험장치, 엔진 실험장치, 차대동력계, 배기가스 분석장치를 통하여 열역학적 에너지 거동을 측정, 분석 할 수 있고 오리피스, 벤츄리미터 실험장치 등의 다양한 유체역학 실험장비들을 통하여 베르누이 방정식, 천이 유동현상, 레이놀즈 수와 같은 현상을 확인 할 수 있습니다.\nE5-219 공학준비실: 학생들의 창작 활동을 지원하기 위하여 다수의 3D프린터를 운용하고, PCB 프린터, 아두이노, 라즈베리파이, 각종 정밀공구, 측정장비, 전자부품, 회로키트 등을 구비하고 있습니다. 회로 설계를 위한"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 15,
+    "text": ", 라즈베리파이, 각종 정밀공구, 측정장비, 전자부품, 회로키트 등을 구비하고 있습니다. 회로 설계를 위한 OrCAD, 3D 설계 및 해석을 위한 솔리드웍스, 카티아, 아담스 등의 정식 네트워크 라이선스를 보유하고 있어, 이용을 원하는 학생들의 개인 PC에 설치를 지원합니다.\nE5-220A & 220B 자동제어 실습실: 기초공학의 공통필수인 <자동제어실습> 교과 활동이 이루어지는 자동제어실습실은 다양한 공학적 시스템에 대한 모델링 및 해석을 통해 도출된 제어기의 성능을 확인하고 검증 등을 수행할 수 있습니다. 즉, 수행 가능한 제어"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 16,
+    "text": "델링 및 해석을 통해 도출된 제어기의 성능을 확인하고 검증 등을 수행할 수 있습니다. 즉, 수행 가능한 제어로는 (1) DC 모터 시스템을 이용한 각도 및 각속도 제어, (2) 역진자 시스템 이용한 평형 유지 제어, (3) Magnetic levitation 시스템 이용한 Ball 부양 높이 조절 제어, (4) coupled tank system 이용한 수조의 높이 조절 제어 등이 있습니다. 그 외에도 메카트로닉스, 진동공학 및 공학적 설계 등의 다양한 기초공학 교과목의 실습 공간으로 활용될 수 있도록 아두이노, 라즈베리파이, La"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 17,
+    "text": "및 공학적 설계 등의 다양한 기초공학 교과목의 실습 공간으로 활용될 수 있도록 아두이노, 라즈베리파이, LabVIEW/NI-myRIO 등의 다양한 제어 플랫폼과 각종 센서 등을 구비하고 있습니다.\nE5-221 프로그래밍 실습실: 프로그래밍 실습실에서는 Python, pycharm, Visual studio, R studio, Matlab 등을 이용하고, UNIX 및 LINUX가상머신 접속을 통하여 다양한 프로그래밍 교육 환경을 제공합니다. 엘리스 소프트웨어 서비스를 통한 체계적인 프로그래밍 교육환경을 제공하고, ZOOM 소프트웨어를"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 18,
+    "text": "제공합니다. 엘리스 소프트웨어 서비스를 통한 체계적인 프로그래밍 교육환경을 제공하고, ZOOM 소프트웨어를 통하여 수업 중 강의화면을 실시간으로 개인의 테블릿이나 휴대전화로 볼 수 있으며, 녹화 할 수 있습니다. 복잡한 시뮬레이션 및 3D 설계 등의 작업을 수행하기에 충분한 사양의 PC가 구축되어 있어 공학 교육 뿐만 아니라, 수학, 물리, 생물 교과의 수업 및 세미나를 지원 할 수 있습니다. 교원 및 학생들의 수요가 있을 시 수시로 3D설계 강의를 지원합니다.\n\nE6"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 19,
+    "text": "미나를 지원 할 수 있습니다. 교원 및 학생들의 수요가 있을 시 수시로 3D설계 강의를 지원합니다.\n\nE6\nE6-217 생화학 실험실: 내용 준비 중입니다. 빠른 시일내에 서비스하도록 하겠습니다.\nE6-218 기초화학 실험실1: 화학교과의 기초화학 실험과 화학실험 수업이 진행되는 곳으로 221호 기초화학실험실보다 규모가 작은 곳입니다. 효과적인 실험 수업 진행을 위한 빔 프로젝트가 앞쪽에 설치되어 있고, 2인 1조로 학생들이 실험을 진행하는데 불편함이 없도록 충분한 간격을 확보한 실험 테이블들이 있습니다. 밀폐형 시약장과 안전 캐비"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 20,
+    "text": "실험을 진행하는데 불편함이 없도록 충분한 간격을 확보한 실험 테이블들이 있습니다. 밀폐형 시약장과 안전 캐비닛에 시약들이 보관되어 있고, 양쪽 벽면의 여유 공간에는 실험에 필요한 실험 기구들과 장비들이 잘 정리되어 있습니다. 실험에 사용된 폐액의 안전한 처리를 위한 공간이 학생들의 동선에 맞춰 자리하고 있으며, 흄후드와 클린벤치 등이 있습니다. 기초화학 실험실은 많은 학생들이 한 공간에서 여러 시약을 다루기 때문에, 무엇보다 안전성을 바탕으로 디자인 하여 학생들에게 안전한 실험 환경을 제공하고 있습니다."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 21,
+    "text": "다루기 때문에, 무엇보다 안전성을 바탕으로 디자인 하여 학생들에게 안전한 실험 환경을 제공하고 있습니다.\nE6-219 실험준비실: 화학교과의 실험실습을 준비하는 공간으로 실험수업 준비 및 예비 실험, R&E 및 UGRP 실험 준비가 주로 이루어지고 있습니다. 기초화학실험실, 심화화학실험실과 직접 연결되어 있어 최적의 동선으로 이동할 수 있어 실험 준비가 유기적으로 이루어질 수 있도록 디자인되어 있습니다.\nE6-220 화학반응실: 정규 수업 외 개별적으로 추가 실험 실습을 진행할 수 있도록 마련된 공간입니다. R&E, UGRP등의"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 22,
+    "text": "실: 정규 수업 외 개별적으로 추가 실험 실습을 진행할 수 있도록 마련된 공간입니다. R&E, UGRP등의 소규모 실험 수행을 자유롭게 수행할 수 있도록 시약장, 컨벡션오븐, 초저온냉동고 등의 장비와 소규모 실험에 적합한 실험테이블 및 흄후드가 준비되어 있습니다.\nE6-221 기초화학 실험실2: 화학교과의 기초화학 실험과 화학실험 수업이 진행되는 곳으로, 218호 기초화학실험실보다 규모가 큰 곳입니다. 효과적인 실험 수업 진행을 위한 빔 프로젝트가 앞쪽에 설치되어 있고, 2인 1조로 학생들이 실험을 진행하는데 불편함이 없도록 충분한"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 23,
+    "text": "을 위한 빔 프로젝트가 앞쪽에 설치되어 있고, 2인 1조로 학생들이 실험을 진행하는데 불편함이 없도록 충분한 간격을 확보한 실험 테이블들이 있습니다. 밀폐형 시약장과 안전 캐비닛에 시약들이 안전하게 보관되어 있고, 실험에 필요한 실험 기구들과 장비들이 역시 잘 정리되어 있습니다. 실험에 사용된 폐액의 안전한 처리를 위한 공간이 학생들의 동선에 맞춰 자리하고 있으며, 증류수 제조기, 저울, 흄후드 등이 있습니다. 기초화학 실험실은 많은 학생들이 한 공간에서 여러 시약을 다루기 때문에, 무엇보다 안전성을 바탕으로 디자인 하여 학생들에게"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 24,
+    "text": "은 많은 학생들이 한 공간에서 여러 시약을 다루기 때문에, 무엇보다 안전성을 바탕으로 디자인 하여 학생들에게 안전한 실험 환경을 제공하고 있습니다.\nE6-222 심화화학 실험실1: 유기화학, 무기화학 실험을 비롯해 UGRP 실험을 수행하는 실험실로 조 별로 사용할 수 있는 흄 후드, 쉬링크 라인(Schlenk Line)과 실험 테이블이 설치되어 있습니다. 무산소, 무수분 환경의 실험을 위한 글로브 박스(Glove Box) 2조가 갖추어져 있으며 컨벡션 오븐, 회전 농축기, 전자 시약장, 방화방폭장 등 화학 실험에 필수적인 주요 장비"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 25,
+    "text": "가 갖추어져 있으며 컨벡션 오븐, 회전 농축기, 전자 시약장, 방화방폭장 등 화학 실험에 필수적인 주요 장비들이 충분하게 준비되어 있습니다. 심화화학실험실1은 다양한 시약을 다루는 화학 실험을 안전한 환경에서 수행할 수 있도록 최신의 시설을 갖추고 있습니다.\nE6-223 심화화학 실험실2: 화학교과의 물리화학, 분석화학 실험을 진행하는 곳입니다. 효과적인 실험 수업 진행을 위한 빔 프로젝트가 앞쪽에 설치되어 있고, 2인 1조로 학생들이 실험을 진행하는데 불편함이 없도록 충분한 간격을 확보한 실험 테이블들이 있습니다. 물리화학, 분석"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 26,
+    "text": "학생들이 실험을 진행하는데 불편함이 없도록 충분한 간격을 확보한 실험 테이블들이 있습니다. 물리화학, 분석화학실험에 필요한 소규모 장비들은 앞쪽 벽장에 실험별로 분류되어 있습니다.\n\n---\n\n[Research Facilities]\nSource: https://www.dgist.ac.kr/college/sub04_01_02.do\n\nDGIST operates various research facilities among its undergraduate facilities. You can find detailed descriptions"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 27,
+    "text": "ndergraduate facilities. You can find detailed descriptions of each research facility by clicking on the respective building tabs.\n\nE2\nE2-215 Nobel Prize Lab: This Nobel Prize Lab is where activities for the <Modern Physics Experiment> course take place. Students can perform experiments that led to"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 28,
+    "text": "se take place. Students can perform experiments that led to Nobel Prizes, such as elastic/inelastic collisions of X-rays, the Zeeman effect, Michelson interferometry, nuclear magnetic resonance, AFM, STM, and SEM.\nE2-216 Optics Lab: In the Optics Lab, basic optical experiments like polarization, opt"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 29,
+    "text": "Optics Lab, basic optical experiments like polarization, optical activity, diffraction, spectroscopy, and holography are performed. Additionally, quantum optics experiments such as simulating quantum erasure and quantum cryptography are possible. Nonlinear optics experiments using femtosecond lasers"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 30,
+    "text": "sible. Nonlinear optics experiments using femtosecond lasers and nonlinear crystals can also be conducted.\nE2-217 Solid State Physics Lab: The Solid State Physics Lab is equipped with infrastructure to create solid crystals with various component combinations and measure their properties. UGRP exper"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 31,
+    "text": "ponent combinations and measure their properties. UGRP experiments related to material properties are conducted here annually. Thermodynamic experimental devices, including Fourier's heat conduction experiments, vacuum experiments, and adiabatic expansion experiments, are also available."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 32,
+    "text": "s, and adiabatic expansion experiments, are also available.\nE2-218 Physics Workshop Lab: The Physics Workshop Lab is equipped with machine tools such as a laser cutter, 3D printer, 3D scanner, and electric saw. During the creative experiments that occupy the last three weeks of the mandatory first-y"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 33,
+    "text": "ts that occupy the last three weeks of the mandatory first-year courses, <Classical Mechanics Experiment> and <Electrodynamics Experiment>, students can realize diverse ideas using these machine tools.\nE2-219 Classical Mechanics/Electromagnetism Lab: This lab is designed for students to conduct <Cla"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 34,
+    "text": "etism Lab: This lab is designed for students to conduct <Classical Mechanics Experiment> in the first semester and <Electromagnetism Experiment> in the second semester, with large tables accommodating two students per group. In classical mechanics, experiments like gravitational acceleration measure"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 35,
+    "text": "chanics, experiments like gravitational acceleration measurement, projectile motion, and rotational inertia are performed. In electromagnetism, experiments such as equipotential line measurement, RLC circuits, current balances, and Brewster's angle are conducted, with the final three weeks dedicated"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 36,
+    "text": "'s angle are conducted, with the final three weeks dedicated to creative experiments on free topics.\nE2-221 Electric Circuits Lab: The Electric Circuits Lab is equipped for 24 students, each with a laptop computer and NI-ELVIS equipment, along with various circuit components. Students learn the prin"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 37,
+    "text": "ong with various circuit components. Students learn the principles of diodes, transistors, and operational amplifiers, practice building application circuits, and gain proficiency in using multimeters and oscilloscopes. A variety of Arduino sensors and kits are also available.\n\nE3"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 38,
+    "text": "variety of Arduino sensors and kits are also available.\n\nE3\nE3-317 Mathematical Experience Room: This is a mathematics practice room for common mathematics courses such as Linear Algebra, Applied Calculus and Differential Equations, Probability and Statistics, and Multivariable Calculus. Students ac"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 39,
+    "text": "lity and Statistics, and Multivariable Calculus. Students access a server dedicated to the undergraduate program via individual clients to practice using mathematical software like Matlab in a virtualized environment.\nE3-318 Mathematical Analysis Room: This is a mathematics practice room for common"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 40,
+    "text": "alysis Room: This is a mathematics practice room for common mathematics courses such as Linear Algebra, Applied Calculus and Differential Equations, Probability and Statistics, and Multivariable Calculus. Students access a server dedicated to the undergraduate program via individual clients to pract"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 41,
+    "text": "to the undergraduate program via individual clients to practice using mathematical software like Matlab in a virtualized environment.\nE3-320 Mathematical Simulation Room: This is a mathematics practice room for common mathematics courses such as Linear Algebra, Applied Calculus and Differential Equa"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 42,
+    "text": "ch as Linear Algebra, Applied Calculus and Differential Equations, Probability and Statistics, and Multivariable Calculus. Students access a server dedicated to the undergraduate program via individual clients to practice using mathematical software like Matlab in a virtualized environment.\n\nE4"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 43,
+    "text": "ical software like Matlab in a virtualized environment.\n\nE4\nE4-223 Cell Biology Lab: This lab is used for culturing and observing animal cells or tissues, as well as other cell biology practicals. It is utilized for life science experiments, UGRP, and R&E classes for high school students. Key equipm"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 44,
+    "text": ", UGRP, and R&E classes for high school students. Key equipment includes clean benches, CO2 incubators, inverted optical microscopes, swing-bucket refrigerated centrifuges, Western blot imaging systems, and Nucelofector 3D.\nE4-224 Experiment Preparation Room Ⅰ: This lab is for preparing various expe"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 45,
+    "text": "t Preparation Room Ⅰ: This lab is for preparing various experiments and materials, used for all biology courses. Key equipment includes a safety reagent cabinet, ultra-low temperature freezer, and distilled water purification system.\nE4-225 Molecular Biology Lab: This lab conducts molecular biology"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 46,
+    "text": "Molecular Biology Lab: This lab conducts molecular biology and molecular genetics experiments, including the first-year course 'Experiments in Molecules and Life Phenomena'. Key equipment includes gel imaging systems and temperature gradient polymerase chain reaction (PCR) devices. It is designated"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 47,
+    "text": "nt polymerase chain reaction (PCR) devices. It is designated as an 'Excellent Safety Management Research Lab' by the Ministry of Science and ICT, in accordance with national regulations.\nE4-226 Microbiology Lab: This lab primarily conducts molecular genetics and microbiology experiments, hosting 'Li"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 48,
+    "text": "molecular genetics and microbiology experiments, hosting 'Life Science Experiment Ⅰ' in the first semester of the second year and 'Life Science ExperimentⅡ' in the second semester. Key equipment includes microbial incubators, shaking incubators, plant incubators, and stereomicroscopes."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 49,
+    "text": "haking incubators, plant incubators, and stereomicroscopes.\nE4-227 Media Lab: This lab conducts practicals using software for analysis, computation, and molecular modeling, and is also used for R&E classes for high school students. Key equipment includes training PCs, workstations, and a stereoscopi"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 50,
+    "text": "pment includes training PCs, workstations, and a stereoscopic imaging system.\nE4-228 Model Organism Preparation Room: This lab is authorized for rearing model organisms under the LMO Act. Textbook experiments and UGRP experiments involving live animals, including zebrafish, are conducted here annual"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 51,
+    "text": "live animals, including zebrafish, are conducted here annually. Key equipment includes a zebrafish rearing system, ultra-low temperature freezer, and dissection tools.\nE4-229 Analysis Equipment Room: This room is equipped with various devices for analyzing diverse samples and is used in all biology"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 52,
+    "text": "es for analyzing diverse samples and is used in all biology courses. Key equipment includes a multi-angle light scattering module, large-scale biomolecule purification systems, and large-scale protein crystallization screening devices.\nE4-230 Washing Room: Equipped with glassware washers and large-c"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 53,
+    "text": "30 Washing Room: Equipped with glassware washers and large-capacity autoclaves.\nE4-231 Microscopy Room: This lab is for microscopy practicals and is used in all courses. Key equipment includes a fluorescence stereomicroscope, inverted fluorescence microscope, and automated fluorescence microscope."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 54,
+    "text": "rescence microscope, and automated fluorescence microscope.\nE4-233 Experiment Preparation RoomⅡ: This lab is used for storing experimental supplies and consumables, and is utilized for all biology courses.\n\nE5\nE5-218 Engineering Startup Room (Machine Workshop): This space is for students to engage i"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 55,
+    "text": "m (Machine Workshop): This space is for students to engage in fabrication activities to realize their engineering and creative ideas in practical courses such as engineering design and mechatronics. It is equipped with high-capacity electrical facilities, a welding room, exhaust systems, and various"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 56,
+    "text": "cal facilities, a welding room, exhaust systems, and various machine tools including drills, welders, laser cutters, metal cutters, milling machines, and small lathes. It is also the activity venue for the DGIST car club 'Digineers', and can be used under the supervision of a professor or safety man"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 57,
+    "text": "n be used under the supervision of a professor or safety manager.\nE5-218 Engineering Startup Room (Fluid Mechanics Lab): This lab is equipped with experimental devices to verify theories of thermodynamics, heat transfer, fluid mechanics, and internal combustion engines. Thermodynamic energy behavior"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 58,
+    "text": "d internal combustion engines. Thermodynamic energy behavior can be measured and analyzed using heat transfer experimental setups, steam motor experimental setups, engine experimental setups, chassis dynamometers, and exhaust gas analyzers. Various fluid mechanics experimental devices such as orific"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 59,
+    "text": "Various fluid mechanics experimental devices such as orifice and Venturi meter setups allow verification of phenomena like Bernoulli's equation, transitional flow, and Reynolds number.\nE5-219 Engineering Preparation Room: To support students' creative activities, the Engineering Preparation Room op"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 60,
+    "text": "ts' creative activities, the Engineering Preparation Room operates multiple 3D printers and is equipped with a PCB printer, Arduino, Raspberry Pi, various precision tools, measuring equipment, electronic components, and circuit kits. It holds official network licenses for circuit design software lik"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 61,
+    "text": "ds official network licenses for circuit design software like OrCAD and 3D design/analysis software like SolidWorks, CATIA, and Adams, and supports installation on students' personal PCs upon request.\nE5-220A & 220B Automatic Control Lab: The Automatic Control Lab, where activities for the common es"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 62,
+    "text": "he Automatic Control Lab, where activities for the common essential course <Automatic Control Practice> take place, allows students to confirm and verify the performance of controllers derived through modeling and analysis of various engineering systems. Controllable systems include (1) angle and an"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 63,
+    "text": "ering systems. Controllable systems include (1) angle and angular velocity control using a DC motor system, (2) equilibrium maintenance control using an inverted pendulum system, (3) ball levitation height adjustment control using a magnetic levitation system, and (4) water tank height adjustment co"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 64,
+    "text": "c levitation system, and (4) water tank height adjustment control using a coupled tank system. Additionally, it is equipped with various control platforms such as Arduino, Raspberry Pi, and LabVIEW/NI-myRIO, along with various sensors, to serve as a practical space for diverse basic engineering cour"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 65,
+    "text": "erve as a practical space for diverse basic engineering courses like mechatronics, vibration engineering, and engineering design.\nE5-221 Programming Lab: The Programming Lab offers diverse programming education environments using Python, PyCharm, Visual Studio, R Studio, and Matlab, and through acce"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 66,
+    "text": "Charm, Visual Studio, R Studio, and Matlab, and through access to UNIX and LINUX virtual machines. It provides a systematic programming education environment via Elice software services, and allows students to view and record lecture screens in real-time on their personal tablets or mobile phones us"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 67,
+    "text": "s in real-time on their personal tablets or mobile phones using ZOOM software during classes. Equipped with high-spec PCs capable of complex simulations and 3D design tasks, it supports not only engineering education but also mathematics, physics, and biology courses and seminars. 3D design lectures"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 68,
+    "text": "hysics, and biology courses and seminars. 3D design lectures are supported on demand from faculty and students.\n\nE6\nE6-217 Biochemistry Lab: Content is currently being prepared. We will provide service as soon as possible.\nE6-218 Basic Chemistry Lab 1: This is where basic chemistry experiments and c"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 69,
+    "text": "istry Lab 1: This is where basic chemistry experiments and chemistry classes for chemistry courses are held, smaller in scale than Basic Chemistry Lab 221. A beam projector is installed at the front for effective class delivery, and experimental tables are spaced adequately for two students per grou"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 70,
+    "text": "ental tables are spaced adequately for two students per group to conduct experiments comfortably. Reagents are stored in sealed reagent cabinets and safety cabinets. Experiment equipment and devices are well-organized on the available wall spaces. A dedicated area for safe disposal of used experimen"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 71,
+    "text": "spaces. A dedicated area for safe disposal of used experimental waste is located along student traffic paths, and fume hoods and clean benches are available. Basic Chemistry Lab 1 is designed with safety as the top priority to provide a safe experimental environment for many students handling variou"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 72,
+    "text": "e experimental environment for many students handling various reagents in one space.\nE6-219 Experiment Preparation Room: This space is for preparing chemistry practicals, primarily for experiment class preparation, preliminary experiments, R&E, and UGRP experiment preparation. It is directly connect"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 73,
+    "text": "R&E, and UGRP experiment preparation. It is directly connected to the Basic Chemistry Lab and Advanced Chemistry Lab, allowing for optimal movement and organic coordination of experiment preparation.\nE6-220 Chemical Reaction Room: This space is provided for individual additional experimental practic"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 74,
+    "text": "e is provided for individual additional experimental practicals outside of regular classes. It is equipped with reagent cabinets, convection ovens, ultra-low temperature freezers, and experimental tables suitable for small-scale experiments, along with fume hoods, allowing for flexible execution of"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 75,
+    "text": ", along with fume hoods, allowing for flexible execution of small-scale R&E and UGRP experiments.\nE6-221 Basic Chemistry Lab 2: This is where basic chemistry experiments and chemistry classes for chemistry courses are held, larger in scale than Basic Chemistry Lab 218. A beam projector is installed"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 76,
+    "text": "than Basic Chemistry Lab 218. A beam projector is installed at the front for effective class delivery, and experimental tables are spaced adequately for two students per group to conduct experiments comfortably. Reagents are safely stored in sealed reagent cabinets and safety cabinets, and experimen"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 77,
+    "text": "n sealed reagent cabinets and safety cabinets, and experiment equipment and devices are also well-organized. A dedicated area for safe disposal of used experimental waste is located along student traffic paths, and a distilled water generator, balances, and fume hoods are available. Basic Chemistry"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 78,
+    "text": "or, balances, and fume hoods are available. Basic Chemistry Lab 2 is designed with safety as the top priority to provide a safe experimental environment for many students handling various reagents in one space.\nE6-222 Advanced Chemistry Lab 1: This lab conducts organic chemistry, inorganic chemistry"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 79,
+    "text": "1: This lab conducts organic chemistry, inorganic chemistry, and UGRP experiments. It is equipped with group-use fume hoods, Schlenk Lines, and experimental tables. Two glove boxes are available for experiments requiring oxygen-free, moisture-free environments. Essential chemistry equipment such as"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 80,
+    "text": "ure-free environments. Essential chemistry equipment such as convection ovens, rotary evaporators, electronic reagent cabinets, and fire/explosion-proof cabinets are sufficiently provided. Advanced Chemistry Lab 1 is equipped with state-of-the-art facilities to conduct chemistry experiments involvin"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 81,
+    "text": "the-art facilities to conduct chemistry experiments involving various reagents in a safe environment.\nE6-223 Advanced Chemistry Lab 2: This is where physical chemistry and analytical chemistry experiments for chemistry courses are conducted. A beam projector is installed at the front for effective c"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 82,
+    "text": ". A beam projector is installed at the front for effective class delivery, and experimental tables are spaced adequately for two students per group to conduct experiments comfortably. Small-scale equipment required for physical chemistry and analytical chemistry experiments is categorized by experim"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_research.txt",
+    "source_key": "facility/facility_research.txt",
+    "chunk_id": 83,
+    "text": "d analytical chemistry experiments is categorized by experiment and stored in wall cabinets at the front."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 0,
+    "text": "[복지시설]\n출처: https://www.dgist.ac.kr/college/sub04_01_03.do\n\nDGIST 복지시설\n\nDGIST는 구성원들의 건강 증진과 복지 향상을 위해 종합체육관을 운영하고 있습니다. 종합체육관은 다양한 스포츠 및 문화 활동을 지원하는 현대적인 시설을 갖추고 있습니다.\n\n종합체육관 시설 현황:\n\n1층:\n*   **수영장**: 836.77㎡ 규모로 성인풀(6레인/25M)과 유아풀 1개를 갖추고 있습니다."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 1,
+    "text": "층:\n*   **수영장**: 836.77㎡ 규모로 성인풀(6레인/25M)과 유아풀 1개를 갖추고 있습니다.\n*   **피트니스**: 689.02㎡ 규모에 런닝머신 20대, 싸이클 8대 외 30여종의 운동기구 및 체내분석기를 보유하고 있습니다.\n*   **G·X룸**: 98㎡ 규모의 1실이 있으며 요가, 필라테스, 줌바 등 다양한 G·X 프로그램을 운영합니다.\n*   **스쿼시장/스트레칭룸**: 스쿼시장 1면과 전면 거울이 설치된 스트레칭룸 1면이 있습니다."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 2,
+    "text": "니다.\n*   **스쿼시장/스트레칭룸**: 스쿼시장 1면과 전면 거울이 설치된 스트레칭룸 1면이 있습니다.\n*   **실내체육관**: 1,078㎡ 규모로 무대, 경기장, 관람석 277석을 갖추고 있으며 농구, 배구, 배드민턴 등의 경기 및 대관이 가능합니다.\n\n2층:\n*   **골프연습장**: 432.26㎡ 규모로 스크린룸 2실, 스크린연습타석 5개, 모니터타석 6개를 포함합니다.\n*   **회의실 등**: 30인 규모의 회의실 2실과 12인 규모의 귀빈실 1실이 있어 세미나 및 회의에 활용됩니다."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 3,
+    "text": "의실 등**: 30인 규모의 회의실 2실과 12인 규모의 귀빈실 1실이 있어 세미나 및 회의에 활용됩니다.\n*   **동아리실**: 36인실 1실과 12인실 3실, 총 4개의 동아리실을 운영하고 있습니다.\n\n3층:\n*   **강사실**: 23㎡ 규모의 1실이 있습니다.\n*   **음악연습실**: 63㎡ 규모의 중형연습실 1실과 각 29㎡ 규모의 소형연습실 7실이 있습니다.\n\n이용 신청 안내:\n\n*   **월 등록 (강습)**: 수영, 아쿠아로빅, 요가, 줌바 등의 강습은 매월 접수일에 안내데스크에서 등록할 수 있습니다. 재등록 회원"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 4,
+    "text": "수영, 아쿠아로빅, 요가, 줌바 등의 강습은 매월 접수일에 안내데스크에서 등록할 수 있습니다. 재등록 회원은 매월 20일, 신규회원은 매월 24일에 접수합니다.\n*   **상시 등록**: 헬스, 테니스, 골프는 상시 등록이 가능합니다.\n*   **대관 신청**: 실내체육관, 실외테니스장 등의 시설은 DGIST 구성원은 안내데스크 문의 후 이용 일정 중복 확인을 통해 신청할 수 있으며, 외부인은 별도 문의가 필요합니다.\n\n이용 시설 안내:"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 5,
+    "text": "후 이용 일정 중복 확인을 통해 신청할 수 있으며, 외부인은 별도 문의가 필요합니다.\n\n이용 시설 안내:\n\n*   **수영장**: 평일 06:00~23:00, 토요일 07:00~17:00, 일요일(1, 3주) 및 공휴일 09:00~17:00 운영합니다. 수영강습은 주 5회(월~금) 진행되며, 자유수영은 토, 일 및 평일 지정 시간대에 가능합니다. 이용료는 홈페이지 [자료실]을 참조하십시오.\n*   **헬스장**: 평일 06:00~23:00, 토요일 07:00~17:00, 일요일(1, 3주) 및 공휴일 09:00~17:00 운영합니다"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 6,
+    "text": "0~23:00, 토요일 07:00~17:00, 일요일(1, 3주) 및 공휴일 09:00~17:00 운영합니다. 개인PT는 안내데스크에 문의하시고, 이용료는 홈페이지 [자료실]을 참조하십시오. 헬스복이 제공됩니다.\n*   **골프연습장**: 평일 06:00~23:00, 토요일 09:00~17:00 운영하며, 일요일은 휴관입니다. 레슨은 월, 화, 목, 금 오전 11:00~13:00, 오후 15:00~18:00, 19:00~22:30에 진행되며, 수요일은 필드레슨입니다. 이용료는 홈페이지 [자료실]을 참조하십시오."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 7,
+    "text": ", 19:00~22:30에 진행되며, 수요일은 필드레슨입니다. 이용료는 홈페이지 [자료실]을 참조하십시오.\n*   **실외테니스장**: 평일 07:00~12:00, 18:00~22:30, 토요일 09:00~17:00 운영하며, 일요일은 휴관입니다. 이 외 시간 이용은 별도 문의 바랍니다. 레슨은 월, 화, 목, 금 오전 07:00~12:00, 오후 18:00~22:00에 진행되며, 수요일은 휴강입니다. 이용료는 홈페이지 [자료실]을 참조하십시오."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 8,
+    "text": "오후 18:00~22:00에 진행되며, 수요일은 휴강입니다. 이용료는 홈페이지 [자료실]을 참조하십시오.\n*   **실내체육관**: 평일 06:00~23:00, 토요일 07:00~17:00, 일요일(1, 3주) 및 공휴일 09:00~17:00 운영합니다.\n\n기타사항:\n*   강습표 및 기타 월 운영일정은 스포츠센터 홈페이지 [공지사항]을 참조하십시오.\n*   이용료는 스포츠센터 홈페이지 [자료실]을 참조하십시오.\n*   DGIST 구성원 이용요금은 안내데스크에 별도 문의 바랍니다."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 9,
+    "text": "홈페이지 [자료실]을 참조하십시오.\n*   DGIST 구성원 이용요금은 안내데스크에 별도 문의 바랍니다.\n*   매주 2, 4, 5주 일요일은 스포츠센터 휴관일입니다.\n\n시설이용 및 대관 문의: 스포츠센터 안내데스크 053-720-7900, 7906\n\n---\n\n[Welfare Facilities]\nSource: https://www.dgist.ac.kr/college/sub04_01_03.do\n\nDGIST Welfare Facilities"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 10,
+    "text": "ist.ac.kr/college/sub04_01_03.do\n\nDGIST Welfare Facilities\n\nDGIST operates an Integrated Sports Center to promote the health and welfare of its members. The Sports Center is equipped with modern facilities supporting various sports and cultural activities."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 11,
+    "text": "ilities supporting various sports and cultural activities.\n\nIntegrated Sports Center Facilities Status:\n\n1st Floor:\n*   **Swimming Pool**: With an area of 836.77㎡, it features an adult pool (6 lanes/25m) and one toddler pool.\n*   **Fitness Center**: Spanning 689.02㎡, it houses 20 treadmills, 8 cycle"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 12,
+    "text": "Center**: Spanning 689.02㎡, it houses 20 treadmills, 8 cycles, approximately 30 other exercise machines, and a body composition analyzer.\n*   **G·X Room**: There is 1 room (98㎡) that hosts various G·X programs such as Yoga, Pilates, and Zumba."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 13,
+    "text": "osts various G·X programs such as Yoga, Pilates, and Zumba.\n*   **Squash Court/Stretching Room**: Includes 1 squash court and 1 stretching room equipped with a full-length mirror.\n*   **Indoor Gymnasium**: Covering 1,078㎡, it features a stage, court, and 277 spectator seats, suitable for sports like"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 14,
+    "text": "ge, court, and 277 spectator seats, suitable for sports like basketball, volleyball, badminton, and facility rentals.\n\n2nd Floor:\n*   **Golf Practice Range**: An area of 432.26㎡, including 2 screen rooms, 5 screen practice bays, and 6 monitor bays."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 15,
+    "text": "2 screen rooms, 5 screen practice bays, and 6 monitor bays.\n*   **Meeting Rooms, etc.**: Two meeting rooms (for 30 people each) and one VIP room (for 12 people) are available for seminars and meetings.\n*   **Club Rooms**: A total of 4 club rooms are operated, with 1 room for 36 people and 3 rooms fo"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 16,
+    "text": "rooms are operated, with 1 room for 36 people and 3 rooms for 12 people each.\n\n3rd Floor:\n*   **Instructor's Room**: There is 1 room, 23㎡ in size.\n*   **Music Practice Rooms**: Comprises 1 medium practice room (63㎡) and 7 small practice rooms (29㎡ each).\n\nApplication Guide:"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 17,
+    "text": "and 7 small practice rooms (29㎡ each).\n\nApplication Guide:\n\n*   **Monthly Registration (Classes)**: Registration for classes such as swimming, aqua aerobics, yoga, and Zumba can be done at the information desk on monthly registration days. Re-registration for existing members is on the 20th of every"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 18,
+    "text": "Re-registration for existing members is on the 20th of every month, and new member registration is on the 24th of every month.\n*   **Ongoing Registration**: Registration for health, tennis, and golf is available year-round.\n*   **Facility Rental**: For facilities like the indoor gymnasium and outdoo"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 19,
+    "text": "ental**: For facilities like the indoor gymnasium and outdoor tennis court, DGIST members can apply after inquiring at the information desk to check for schedule conflicts. External visitors need to make a separate inquiry.\n\nFacility Usage Information:"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 20,
+    "text": "d to make a separate inquiry.\n\nFacility Usage Information:\n\n*   **Swimming Pool**: Operates on weekdays from 06:00 to 23:00, Saturdays from 07:00 to 17:00, and on 1st, 3rd Sundays and public holidays from 09:00 to 17:00. Swimming lessons are held 5 times a week (Mon-Fri), and free swimming is availa"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 21,
+    "text": "e held 5 times a week (Mon-Fri), and free swimming is available on Saturdays, Sundays, and designated weekday hours. Please refer to the [Resource Room] section on the website for fees.\n*   **Fitness Center**: Operates on weekdays from 06:00 to 23:00, Saturdays from 07:00 to 17:00, and on 1st, 3rd S"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 22,
+    "text": "0 to 23:00, Saturdays from 07:00 to 17:00, and on 1st, 3rd Sundays and public holidays from 09:00 to 17:00. For personal training (PT), please inquire at the information desk. Fees can be found in the [Resource Room] on the website. Workout clothes are provided."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 23,
+    "text": "esource Room] on the website. Workout clothes are provided.\n*   **Golf Practice Range**: Operates on weekdays from 06:00 to 23:00 and Saturdays from 09:00 to 17:00; it is closed on Sundays. Lessons are available on Monday, Tuesday, Thursday, and Friday at 11:00-13:00, 15:00-18:00, and 19:00-22:30. W"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 24,
+    "text": ", and Friday at 11:00-13:00, 15:00-18:00, and 19:00-22:30. Wednesday is for field lessons. Please refer to the [Resource Room] section on the website for fees.\n*   **Outdoor Tennis Court**: Operates on weekdays from 07:00-12:00 and 18:00-22:30, and Saturdays from 09:00-17:00; it is closed on Sundays"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 25,
+    "text": ":30, and Saturdays from 09:00-17:00; it is closed on Sundays. For usage outside these hours, please make a separate inquiry. Lessons are held on Monday, Tuesday, Thursday, and Friday from 07:00-12:00 and 18:00-22:00; Wednesday lessons are suspended. Please refer to the [Resource Room] section on the"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 26,
+    "text": "uspended. Please refer to the [Resource Room] section on the website for fees.\n*   **Indoor Gymnasium**: Operates on weekdays from 06:00 to 23:00, Saturdays from 07:00 to 17:00, and on 1st, 3rd Sundays and public holidays from 09:00 to 17:00.\n\nOther Information:"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 27,
+    "text": "nd public holidays from 09:00 to 17:00.\n\nOther Information:\n*   Please refer to the [Notices] section of the Sports Center website for class schedules and other monthly operating schedules.\n*   For usage fees, please refer to the [Resource Room] section of the Sports Center website."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 28,
+    "text": "o the [Resource Room] section of the Sports Center website.\n*   DGIST members should inquire separately at the information desk regarding their usage fees.\n*   The Sports Center is closed on the 2nd, 4th, and 5th Sundays of every month.\n\nFor inquiries regarding facility usage and rentals: Sports Cen"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/facility/facility_welfare.txt",
+    "source_key": "facility/facility_welfare.txt",
+    "chunk_id": 29,
+    "text": "r inquiries regarding facility usage and rentals: Sports Center Information Desk 053-720-7900, 7906"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_directions.txt",
+    "source_key": "intro/dgist_directions.txt",
+    "chunk_id": 0,
+    "text": "[찾아오시는 길]\n출처: https://www.dgist.ac.kr/kor/sub01_03_01.do\n\n대구경북과학기술원 DGIST는 대구광역시 달성군 현풍읍 테크노중앙대로 333에 위치하고 있습니다. 우편번호는 42988입니다. 대표 전화는 053-785-0114이며, 팩스 번호는 053-785-1209입니다. 네이버 길찾기 및 카카오맵 길찾기를 통해 더 자세한 정보를 확인할 수 있습니다.\n\n**지하철 및 기차 이용 안내**\n*   **지하철 1호선 이용:** 지하철 1호선을 타고 진천역에서 하차하신 후 1번 출구를 이용합니다."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_directions.txt",
+    "source_key": "intro/dgist_directions.txt",
+    "chunk_id": 1,
+    "text": "*   **지하철 1호선 이용:** 지하철 1호선을 타고 진천역에서 하차하신 후 1번 출구를 이용합니다.\n*   **진천역에서 DGIST로 이동:**\n    *   **버스:** \"진천역(1번 출구) 정류장\"에서 급행8번 또는 급행8-1번 버스를 탑승합니다. \"유가읍사무소\" 정류장에서 하차 후 DGIST까지 도보로 약 13분 소요됩니다.\n    *   **택시:** 진천역에서 DGIST까지 택시 이용 시 예상 요금은 약 14,000원입니다."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_directions.txt",
+    "source_key": "intro/dgist_directions.txt",
+    "chunk_id": 2,
+    "text": "*   **택시:** 진천역에서 DGIST까지 택시 이용 시 예상 요금은 약 14,000원입니다.\n*   **동대구역/대구역에서 오시는 경우:** 동대구역 또는 대구역 앞에 위치한 지하철 1호선을 탑승하여 위의 지하철 이용 안내에 따라 진천역으로 이동합니다.\n*   **서대구역에서 오시는 경우:** \"서대구역(남측)1 정류장\"에서 급행8번 버스를 탑승합니다. \"유가읍사무소\" 정류장에서 하차 후 DGIST까지 도보로 약 13분 소요됩니다.\n\n**시외버스 이용 안내**"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_directions.txt",
+    "source_key": "intro/dgist_directions.txt",
+    "chunk_id": 3,
+    "text": "유가읍사무소\" 정류장에서 하차 후 DGIST까지 도보로 약 13분 소요됩니다.\n\n**시외버스 이용 안내**\n*   **경로:** 서부정류장에서 출발하여 현풍시외버스터미널에서 하차합니다.\n*   **거리/소요시간:** 약 26.4km이며, 30분 소요됩니다.\n*   **배차간격:** 30분 간격으로 운행됩니다.\n*   **요금:** 2,200원입니다.\n*   **현풍시외버스터미널에서 DGIST로 이동:** 현풍시외버스터미널 하차 후 택시로 약 10분 소요됩니다.\n\n**셔틀버스 이용 안내**"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_directions.txt",
+    "source_key": "intro/dgist_directions.txt",
+    "chunk_id": 4,
+    "text": "GIST로 이동:** 현풍시외버스터미널 하차 후 택시로 약 10분 소요됩니다.\n\n**셔틀버스 이용 안내**\nDGIST 셔틀버스 노선 및 출퇴근 정보는 DGIST 홈페이지 내 '대학생활 > 셔틀버스' 메뉴에서 확인하실 수 있습니다.\n\n---\n\n[Directions to DGIST]\nSource: https://www.dgist.ac.kr/kor/sub01_03_01.do\n\nDGIST (Daegu Gyeongbuk Institute of Science and Technology) is located at 333 Techno Jungan"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_directions.txt",
+    "source_key": "intro/dgist_directions.txt",
+    "chunk_id": 5,
+    "text": "e of Science and Technology) is located at 333 Techno Jungang-daero, Hyeonpung-eup, Dalseong-gun, Daegu. The postal code is 42988. The main contact number is 053-785-0114, and the fax number is 053-785-1209. More detailed directions can be found using Naver Maps and Kakao Map navigation."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_directions.txt",
+    "source_key": "intro/dgist_directions.txt",
+    "chunk_id": 6,
+    "text": "ns can be found using Naver Maps and Kakao Map navigation.\n\n**Directions by Subway and Train**\n*   **Using Subway Line 1:** Take Subway Line 1 and get off at Jincheon Station, then use Exit 1.\n*   **From Jincheon Station to DGIST:**\n    *   **Bus:** At the \"Jincheon Station (Exit 1) Bus Stop,\" take"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_directions.txt",
+    "source_key": "intro/dgist_directions.txt",
+    "chunk_id": 7,
+    "text": "**Bus:** At the \"Jincheon Station (Exit 1) Bus Stop,\" take Express Bus No. 8 or 8-1. Get off at the \"Yuga-eup Office\" stop, then walk for approximately 13 minutes to DGIST.\n    *   **Taxi:** The estimated taxi fare from Jincheon Station to DGIST is approximately 14,000 KRW."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_directions.txt",
+    "source_key": "intro/dgist_directions.txt",
+    "chunk_id": 8,
+    "text": "from Jincheon Station to DGIST is approximately 14,000 KRW.\n*   **From Dongdaegu Station / Daegu Station:** Take Subway Line 1, which is located in front of Dongdaegu Station or Daegu Station, and follow the subway instructions above to Jincheon Station."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_directions.txt",
+    "source_key": "intro/dgist_directions.txt",
+    "chunk_id": 9,
+    "text": "d follow the subway instructions above to Jincheon Station.\n*   **From Seodaegu Station:** At the \"Seodaegu Station (South) 1 Bus Stop,\" take Express Bus No. 8. Get off at the \"Yuga-eup Office\" stop, then walk for approximately 13 minutes to DGIST.\n\n**Directions by Intercity Bus**"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_directions.txt",
+    "source_key": "intro/dgist_directions.txt",
+    "chunk_id": 10,
+    "text": "ately 13 minutes to DGIST.\n\n**Directions by Intercity Bus**\n*   **Route:** Depart from Seobu Terminal and get off at Hyeonpung Intercity Bus Terminal.\n*   **Distance/Travel Time:** Approximately 26.4 km, taking 30 minutes.\n*   **Service Interval:** Buses run every 30 minutes."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_directions.txt",
+    "source_key": "intro/dgist_directions.txt",
+    "chunk_id": 11,
+    "text": "utes.\n*   **Service Interval:** Buses run every 30 minutes.\n*   **Fare:** The fare is 2,200 KRW.\n*   **From Hyeonpung Intercity Bus Terminal to DGIST:** After arriving at Hyeonpung Intercity Bus Terminal, it takes approximately 10 minutes by taxi to reach DGIST.\n\n**Shuttle Bus Information**"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_directions.txt",
+    "source_key": "intro/dgist_directions.txt",
+    "chunk_id": 12,
+    "text": "inutes by taxi to reach DGIST.\n\n**Shuttle Bus Information**\nInformation regarding DGIST shuttle bus routes and commute schedules can be found on the DGIST website under the 'Campus Life > Shuttle Bus' menu."
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 0,
+    "text": "[학교 연혁]\n출처: https://www.dgist.ac.kr/kor/sub01_02_04.do\n\nDGIST의 주요 연혁은 다음과 같습니다.\n\n2024년\n09.07 DGIST 창립 20주년\n05.14 THE 신흥대학평가 국내 3위, 세계 33위 달성\n04.04 DGIST 센소리움연구소 개소식\n\n2023년\n12.01 제5대 총장 이건우 박사 취임\n06.28 QS 세계대학평가 첫 진입 (국내 종합 9위, \"교수 1인당 피인용도\" 세계 7위)\n\n2022년\n02.28 학사조직 명칭 개편\n\n2020년"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 1,
+    "text": "종합 9위, \"교수 1인당 피인용도\" 세계 7위)\n\n2022년\n02.28 학사조직 명칭 개편\n\n2020년\n12.31 기술출자 기업 설립 누적 19개사\n07.01 발명장려유공 단체부분 '대통령 표창' 수상\n\n2019년\n06.14 2019년도 환경정보공개 최우수기관 수상 (환경부)\n04.01 제4대 총장 국양 박사 취임\n\n2018년\n06.29 R&R 재정립 방안 발표 및 협약 체결\n05.02 DGIST Innovation 2034 혁신선포\n02.07 제1회 융복합대학 기초학부 학위수여식 (첫 학사 졸업자 96명 배출)\n\n2017년"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 2,
+    "text": "34 혁신선포\n02.07 제1회 융복합대학 기초학부 학위수여식 (첫 학사 졸업자 96명 배출)\n\n2017년\n08. 기술출자(연구소)기업 누적 14개사 설립\n03.01 제3대 총장 손상혁 박사 취임\n\n2016년\n12.16 기술출자(연구소)기업 누적 13개사 설립\n11.10 초일류 연구인프라 센터 개소\n10.19 웰에이징연구센터 개소\n10.19 기술출자(연구소) 기업 누적 12개사 설립\n04.19 핵심단백질자원센터 개소\n02.19 학위수여식\n\n2015년\n12.30 2015년도 기관평가 국무총리 단체표창 (2년 연속)"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 3,
+    "text": "터 개소\n02.19 학위수여식\n\n2015년\n12.30 2015년도 기관평가 국무총리 단체표창 (2년 연속)\n07.14 2015년도 미래부 기관평가 결과 ‘우수’\n04.01 DGIST 융합연구원 설립 (승격 개편)\n03.02 제2회 학사과정 입학식\n02.26 제2대 총장 신성철 박사 취임\n02.13 학위수여식\n\n2014년\n12.30 2014년도 기관평가 부문 국무총리 단체표창\n12.10 기술출자(연구소)기업 누적 9개사 설립\n12.04 한국뇌연구원 준공식 (1단계)\n09.16 창립 10주년 기념식\n06.13 학사캠퍼스 준공식"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 4,
+    "text": "설립\n12.04 한국뇌연구원 준공식 (1단계)\n09.16 창립 10주년 기념식\n06.13 학사캠퍼스 준공식\n03.03 제1회 학부생 입학식\n\n2013년\n10.25 뇌대사체학 연구센터 개소\n06.28 설립 후 첫 기술출자기업 3개사 설립\n06.11 웰니스융합연구센터 개소\n05.22 비슬융합정원 오픈\n02.15 제1회 학위수여식\n\n2012년\n10.30 CPS(사이버물리시스템)글로벌센터 개소\n10.08 기초과학연구원 식물노화ㆍ수명연구단 유치\n07.16 DGIST-LBNL공동연구센터 개소"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 5,
+    "text": "센터 개소\n10.08 기초과학연구원 식물노화ㆍ수명연구단 유치\n07.16 DGIST-LBNL공동연구센터 개소\n05.02 DGIST VISION 2020 선포식 및 학사캠퍼스 기공식\n03.02 DGIST 2012학년도 대학원 입학식\n01.31 학위과정 건설 1단계 준공 (기숙사 1개동, 산학협력관)\n\n2011년\n10.14 DGIST 부설 한국뇌연구원 설립\n07.07 DGIST 차세대융복합연구센터 준공식 개최\n03.02 제1회 석박사 학위과정 입학식\n02.25 초대총장 신성철 박사 취임\n\n2010년"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 6,
+    "text": "터 준공식 개최\n03.02 제1회 석박사 학위과정 입학식\n02.25 초대총장 신성철 박사 취임\n\n2010년\n12.10 DGIST 연구동 준공식 개최\n11.22 DGIST 신청사 입주 (완료)\n\n2009년\n12.28 DGIST 차세대융복합연구센터 기공식 개최\n05.08 DGIST 비전 및 UI 선포식 개최\n05.01 학위과정 기본계획 수립 (교육과학기술부)\n\n2008년\n12.14 대구경북과학기술원법 시행령 시행 (대통령령 제21162호)\n10.31 연구원건설 기공식\n10.01 학위과정 설립준비위원회 개최"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 7,
+    "text": "시행령 시행 (대통령령 제21162호)\n10.31 연구원건설 기공식\n10.01 학위과정 설립준비위원회 개최\n07.21 학위과정 설치계획(안) 제 16회 임시이사회 의결\n06.13 대구경북과학기술원법 공포 (법률 제 9108호)\n\n2007년\n09.03 제2대 이인선 원장 선임\n\n2006년\n02.22 대구테크노파크 성서벤처공장 실험동 입주 (디스플레이, 나노신소재, BT 분야, 임대면적 2,476㎡)\n\n2005년\n12.27 DGIST 설립 총괄 기본계획(안) 승인 (이사회) (설립규모: 부지 330,579㎡, 건축 99,174㎡, 인원"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 8,
+    "text": "ST 설립 총괄 기본계획(안) 승인 (이사회) (설립규모: 부지 330,579㎡, 건축 99,174㎡, 인원 170명(~09년))\n06.13 \"기본계획 수립용역\" 최종발표회 개최\n05.18 \"기본계획 수립용역\" 최종보고서(시안) 제출\n03.28 연구원 입지 결정 (대구 현풍)\n\n2004년\n11.19 연구원 \"기본계획 수립용역\" 추진 (STEP-TNO-MIT 컨소시엄 수행)\n09.07 재단법인 설립 등기\n09.03 정규석 초대 원장 선임\n07. 재단법인 이사회 구성 (이사장 윤종용 등 13인)"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 9,
+    "text": "법인 설립 등기\n09.03 정규석 초대 원장 선임\n07. 재단법인 이사회 구성 (이사장 윤종용 등 13인)\n04. 재단법인 설립위원 위촉 (경상현 전 정통부장관 등 5명)\n03.09 대구경북과학기술연구원법 시행령 제정 (대통령령 제 18308호, 2004.3.9)\n\n2003년\n12.11 대구경북과학기술연구원법 제정 (법률 제 6996호, 2003.12.11)\n\n---\n\n[DGIST History]\nSource: https://www.dgist.ac.kr/kor/sub01_02_04.do"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 10,
+    "text": "istory]\nSource: https://www.dgist.ac.kr/kor/sub01_02_04.do\n\nThe main history of DGIST is as follows:\n\n2024\nSep 07: 20th Anniversary of DGIST's Founding\nMay 14: Achieved 3rd place domestically and 33rd worldwide in THE Young University Rankings"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 11,
+    "text": "tically and 33rd worldwide in THE Young University Rankings\nApr 04: Opening ceremony of DGIST Sensorium Research Institute\n\n2023\nDec 01: Dr. Kun-woo Lee inaugurated as the 5th President\nJun 28: First entry into QS World University Rankings (9th overall domestically, 7th worldwide for \"Citations per"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 12,
+    "text": "(9th overall domestically, 7th worldwide for \"Citations per Faculty\")\n\n2022\nFeb 28: Reorganization of academic structure names\n\n2020\nDec 31: Accumulated 19 spin-off companies established through technology transfer\nJul 01: Awarded 'Presidential Commendation' in the group category for promoting inven"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 13,
+    "text": "tial Commendation' in the group category for promoting inventions\n\n2019\nJun 14: Awarded 'Best Institution for Environmental Information Disclosure' in 2019 (Ministry of Environment)\nApr 01: Dr. Yang Kuk inaugurated as the 4th President\n\n2018"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 14,
+    "text": "Apr 01: Dr. Yang Kuk inaugurated as the 4th President\n\n2018\nJun 29: Announcement of R&R re-establishment plan and signing of agreement\nMay 02: Declaration of DGIST Innovation 2034\nFeb 07: 1st Commencement Ceremony for Undergraduate Basic Division of Convergence College (96 first bachelor's graduates"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 15,
+    "text": "vision of Convergence College (96 first bachelor's graduates produced)\n\n2017\nAug: Accumulated 14 spin-off companies (research institutes) established through technology transfer\nMar 01: Dr. Sang-Hyuk Son inaugurated as the 3rd President\n\n2016"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 16,
+    "text": "1: Dr. Sang-Hyuk Son inaugurated as the 3rd President\n\n2016\nDec 16: Accumulated 13 spin-off companies (research institutes) established through technology transfer\nNov 10: Opening of World-Class Research Infrastructure Center\nOct 19: Opening of Well-Aging Research Center"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 17,
+    "text": "ucture Center\nOct 19: Opening of Well-Aging Research Center\nOct 19: Accumulated 12 spin-off companies (research institutes) established through technology transfer\nApr 19: Opening of Core Protein Resources Center\nFeb 19: Degree Conferment Ceremony\n\n2015"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 18,
+    "text": "n Resources Center\nFeb 19: Degree Conferment Ceremony\n\n2015\nDec 30: Prime Minister's Group Commendation for Institutional Evaluation in 2015 (2nd consecutive year)\nJul 14: Achieved 'Excellent' in the Ministry of Future Planning's institutional evaluation for 2015"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 19,
+    "text": "stry of Future Planning's institutional evaluation for 2015\nApr 01: Establishment of DGIST Convergence Research Institute (promoted and reorganized)\nMar 02: 2nd Undergraduate Admission Ceremony\nFeb 26: Dr. Shin Sung-Chul inaugurated as the 2nd President\nFeb 13: Degree Conferment Ceremony\n\n2014"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 20,
+    "text": "the 2nd President\nFeb 13: Degree Conferment Ceremony\n\n2014\nDec 30: Prime Minister's Group Commendation for Institutional Evaluation in 2014\nDec 10: Accumulated 9 spin-off companies (research institutes) established through technology transfer"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 21,
+    "text": "esearch institutes) established through technology transfer\nDec 04: Completion ceremony of Korea Brain Research Institute (Phase 1)\nSep 16: 10th Anniversary Ceremony of Foundation\nJun 13: Completion ceremony of Undergraduate Campus\nMar 03: 1st Undergraduate Admission Ceremony\n\n2013"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 22,
+    "text": "e Campus\nMar 03: 1st Undergraduate Admission Ceremony\n\n2013\nOct 25: Opening of Brain Metabolomics Research Center\nJun 28: First 3 spin-off companies established after foundation\nJun 11: Opening of Wellness Convergence Research Center\nMay 22: Opening of Biseul Convergence Garden"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 23,
+    "text": "esearch Center\nMay 22: Opening of Biseul Convergence Garden\nFeb 15: 1st Degree Conferment Ceremony\n\n2012\nOct 30: Opening of CPS (Cyber-Physical Systems) Global Center\nOct 08: Attracted IBS Center for Plant Aging Research\nJul 16: Opening of DGIST-LBNL Joint Research Center"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 24,
+    "text": "esearch\nJul 16: Opening of DGIST-LBNL Joint Research Center\nMay 02: Declaration of DGIST VISION 2020 and groundbreaking ceremony for Undergraduate Campus\nMar 02: DGIST 2012 Graduate School Admission Ceremony\nJan 31: Phase 1 completion of degree program construction (1 dormitory building, Industry-Ac"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 25,
+    "text": "gree program construction (1 dormitory building, Industry-Academia Cooperation Hall)\n\n2011\nOct 14: Establishment of Korea Brain Research Institute affiliated with DGIST\nJul 07: Holding of DGIST Next-Generation Convergence Research Center Completion Ceremony"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 26,
+    "text": "-Generation Convergence Research Center Completion Ceremony\nMar 02: 1st Master's and Doctoral Degree Program Admission Ceremony\nFeb 25: Dr. Shin Sung-Chul inaugurated as the 1st President\n\n2010\nDec 10: Holding of DGIST Research Building Completion Ceremony"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 27,
+    "text": "10: Holding of DGIST Research Building Completion Ceremony\nNov 22: Relocation to new DGIST building completed\n\n2009\nDec 28: Holding of DGIST Next-Generation Convergence Research Center Groundbreaking Ceremony\nMay 08: Holding of DGIST Vision and UI Declaration Ceremony"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 28,
+    "text": "May 08: Holding of DGIST Vision and UI Declaration Ceremony\nMay 01: Establishment of basic plan for degree programs (Ministry of Education, Science and Technology)\n\n2008\nDec 14: Enforcement of Enforcement Decree of DGIST Act (Presidential Decree No. 21162)"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 29,
+    "text": "rcement Decree of DGIST Act (Presidential Decree No. 21162)\nOct 31: Research Institute construction groundbreaking ceremony\nOct 01: Holding of Degree Program Establishment Preparatory Committee\nJul 21: Resolution of Degree Program Establishment Plan (Draft) at the 16th Interim Board Meeting"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 30,
+    "text": "stablishment Plan (Draft) at the 16th Interim Board Meeting\nJun 13: Promulgation of DGIST Act (Law No. 9108)\n\n2007\nSep 03: Lee In-Seon appointed as the 2nd Director\n\n2006\nFeb 22: Relocated to Daegu Technopark Seongseo Venture Factory Experiment Building (for Display, Nano New Materials, BT fields, l"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 31,
+    "text": "ment Building (for Display, Nano New Materials, BT fields, leased area 2,476㎡)\n\n2005\nDec 27: Approval of DGIST Establishment Master Plan (Draft) (Board of Directors) (Establishment scale: site 330,579㎡, construction 99,174㎡, personnel 170 (~2009))"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 32,
+    "text": "site 330,579㎡, construction 99,174㎡, personnel 170 (~2009))\nJun 13: Holding of \"Basic Plan Establishment Service\" final presentation\nMay 18: Submission of \"Basic Plan Establishment Service\" final report (draft)\nMar 28: Decision on research institute location (Hyunpung, Daegu)\n\n2004"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 33,
+    "text": "sion on research institute location (Hyunpung, Daegu)\n\n2004\nNov 19: Promotion of research institute \"Basic Plan Establishment Service\" (conducted by STEP-TNO-MIT consortium)\nSep 07: Registration of Foundation establishment\nSep 03: Chung Kyu-Suk appointed as the 1st Director"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 34,
+    "text": "ishment\nSep 03: Chung Kyu-Suk appointed as the 1st Director\nJul: Formation of Foundation Board of Directors (13 members including Chairman Yoon Jong-Yong)\nApr: Appointment of Foundation Establishment Committee members (5 members including former Minister of Information and Communication, Kyung Sang-"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 35,
+    "text": "ormer Minister of Information and Communication, Kyung Sang-Hyun)\nMar 09: Enactment of Enforcement Decree of Daegu Gyeongbuk Institute of Science and Technology Act (Presidential Decree No. 18308, 2004.3.9)\n\n2003\nDec 11: Enactment of Daegu Gyeongbuk Institute of Science and Technology Act (Law No. 6"
+  },
+  {
+    "source": "/home/ofbt/dori/data/campus/processed/intro/dgist_history.txt",
+    "source_key": "intro/dgist_history.txt",
+    "chunk_id": 36,
+    "text": "Gyeongbuk Institute of Science and Technology Act (Law No. 6996, 2003.12.11)"
+  }
+]

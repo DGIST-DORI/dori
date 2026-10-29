@@ -17,6 +17,7 @@ import {
 } from './emotion';
 import { floatingPanelsSlice } from './floatingPanels';
 import { i18nSlice } from './i18nSlice';
+import { AUDIO_OUTPUT_MODES, EXECUTION_PROFILES } from './topicProfiles';
 
 const FACE_KEYS = ['U', 'R', 'F', 'D', 'L', 'B'];
 const FACE_COLORS = Object.freeze({
@@ -134,9 +135,11 @@ export const TOPIC_META = {
   // CI warning check: python3 tools/topic/topic_lint.py --check
   '/dori/hri/manager_state':       { tag: LOG_TAGS.STATE,   label: 'HRI State' },
   '/dori/stt/wake_word_detected':  { tag: LOG_TAGS.WAKE,    label: 'Wake Word' },
+  '/dori/llm/response': { tag: LOG_TAGS.LLM, label: 'LLM Response' },
+  '/dori/nav/locations': { tag: LOG_TAGS.NAV, label: 'Map Destinations' },
+  '/dori/hri/status': { tag: LOG_TAGS.STATE, label: 'HRI Status' },
   '/dori/stt/result':              { tag: LOG_TAGS.STT,     label: 'STT Result' },
-  '/dori/llm/query':               { tag: LOG_TAGS.LLM,     label: 'LLM Query' },
-  '/dori/llm/response':            { tag: LOG_TAGS.LLM,     label: 'LLM Response' },
+  '/dori/tts/audio_event': { tag: LOG_TAGS.TTS, label: 'TTS Output' },
   '/dori/tts/text':                { tag: LOG_TAGS.TTS,     label: 'TTS Text' },
   '/dori/tts/speaking':            { tag: LOG_TAGS.TTS,     label: 'TTS Speaking' },
   '/dori/tts/done':                { tag: LOG_TAGS.TTS,     label: 'TTS Done' },
@@ -149,7 +152,6 @@ export const TOPIC_META = {
   '/dori/hri/expression':          { tag: LOG_TAGS.EXPR,    label: 'Expression' },
   '/dori/hri/expression_command':  { tag: LOG_TAGS.EXPR,    label: 'Expression Cmd' },
   '/dori/follow/target_offset':    { tag: LOG_TAGS.TRACK,   label: 'Follow Offset' },
-  '/dori/nav/command':             { tag: LOG_TAGS.NAV,     label: 'Nav Command' },
   '/dori/landmark/context':        { tag: LOG_TAGS.NAV,     label: 'Landmark Context' },
   '/dori/system/metrics':         { tag: LOG_TAGS.SYS,     label: 'System Metrics' },
 };
@@ -335,6 +337,18 @@ export const useStore = create((set, get) => ({
   connected: false,
   isDemoMode: false,
   wsUrl: getDefaultWsUrl(),
+  executionProfile: EXECUTION_PROFILES.ROBOT,
+  useClientMic: true,
+  useClientCam: true,
+  audioOutputMode: AUDIO_OUTPUT_MODES.BROWSER_TTS,
+  activeAudioRoute: AUDIO_OUTPUT_MODES.BROWSER_TTS,
+  browserTtsWarning: '',
+  rosAudioDebug: {
+    packets: 0,
+    queueLength: 0,
+    underruns: 0,
+  },
+  rosBindingEpoch: 0,
 
   setConnected: (v) => set({ connected: v }),
   setDemoMode:  (v) => set({ isDemoMode: v }),
@@ -344,6 +358,48 @@ export const useStore = create((set, get) => ({
     }
     set({ wsUrl: v });
   },
+
+  setExecutionProfile: (profile) => set((s) => ({
+    executionProfile: profile,
+    rosBindingEpoch: s.rosBindingEpoch + 1,
+  })),
+  setUseClientMic: (v) => set({ useClientMic: !!v }),
+  setUseClientCam: (v) => set({ useClientCam: !!v }),
+  setAudioOutputMode: (mode) => set((s) => {
+    const nextMode = Object.values(AUDIO_OUTPUT_MODES).includes(mode)
+      ? mode
+      : AUDIO_OUTPUT_MODES.BROWSER_TTS;
+    const changed = s.audioOutputMode !== nextMode;
+    return {
+      audioOutputMode: nextMode,
+      ...(nextMode !== AUDIO_OUTPUT_MODES.BROWSER_TTS ? { browserTtsWarning: '' } : {}),
+      ...(changed ? {
+        log: [{
+          id: Date.now() + Math.random(),
+          ts: new Date(),
+          tag: LOG_TAGS.TTS,
+          text: `[audio-route] mode changed: ${s.audioOutputMode} -> ${nextMode}`,
+          raw: null,
+        }, ...s.log].slice(0, MAX_LOG),
+      } : {}),
+    };
+  }),
+  setActiveAudioRoute: (route) => set({ activeAudioRoute: route }),
+  setBrowserTtsWarning: (msg) => set({ browserTtsWarning: msg || '' }),
+  setRosAudioDebug: (nextDebug = {}) => set((s) => ({
+    rosAudioDebug: {
+      ...s.rosAudioDebug,
+      ...nextDebug,
+    },
+  })),
+  resetRosAudioDebug: () => set({
+    rosAudioDebug: {
+      packets: 0,
+      queueLength: 0,
+      underruns: 0,
+    },
+  }),
+
 
   // ── Main view (workspace/settings) ─────────────────────────────────────
   activeMainView: 'workspace',
@@ -504,19 +560,23 @@ export const useStore = create((set, get) => ({
       switch (topic) {
 
         case '/dori/hri/manager_state': {
-          const d = parsed && typeof parsed === 'object' ? parsed : {};
+          const isObj = parsed && typeof parsed === 'object';
+          const stateStr = isObj ? (parsed.state || 'IDLE') : (typeof parsed === 'string' ? parsed : String(payload || 'IDLE'));
+          const elapsed = isObj ? (parsed.state_elapsed_sec ?? 0) : 0;
+          const targetId = isObj ? (parsed.target_id ?? null) : null;
+          const locContext = isObj ? (parsed.location_context || '') : '';
           set({
-            hriState: d.state || 'IDLE',
-            hriStateElapsed: d.state_elapsed_sec ?? 0,
-            hriTargetId: d.target_id ?? null,
-            hriLocationContext: d.location_context || '',
+            hriState: stateStr,
+            hriStateElapsed: elapsed,
+            hriTargetId: targetId,
+            hriLocationContext: locContext,
           });
           // Auto-update emotion from state (only if not overriding)
           if (!get()._emotionOverride) {
-            const nextEmotion = resolveEmotionFromState(d.state);
+            const nextEmotion = resolveEmotionFromState(stateStr);
             set({ emotion: nextEmotion, emotionSource: 'state' });
           }
-          addLog(LOG_TAGS.STATE, `manager_state: state=${d.state || 'IDLE'} elapsed=${(d.state_elapsed_sec ?? 0).toFixed(1)}s target=${d.target_id ?? '-'} text=${d.text ?? '-'}`, rawVal);
+          addLog(LOG_TAGS.STATE, `manager_state: state=${stateStr} elapsed=${elapsed.toFixed(1)}s`, rawVal);
           break;
         }
 
@@ -535,14 +595,18 @@ export const useStore = create((set, get) => ({
           break;
         }
 
-        case '/dori/llm/query':
-          addLog(LOG_TAGS.LLM, `llm_query: user_text="${parsed?.user_text || payload}"`, rawVal);
-          break;
-
         case '/dori/llm/response': {
-          const text = typeof parsed === 'string' ? parsed : JSON.stringify(parsed);
+          const text = parsed?.text || parsed?.response_text || payload;
           set({ lastLlmResponse: text });
-          addLog(LOG_TAGS.LLM, `response: "${text.slice(0, 80)}${text.length > 80 ? '…' : ''}"`, rawVal);
+          addLog(LOG_TAGS.LLM, `response: ${text}`, rawVal);
+          break;
+        }
+
+        case '/dori/tts/audio_event': {
+          if (parsed?.event_type === 'tts_text') {
+            set({ lastTtsText: parsed.text });
+            addLog(LOG_TAGS.TTS, `speak: "${parsed.text}"`, rawVal);
+          }
           break;
         }
 
@@ -628,10 +692,6 @@ export const useStore = create((set, get) => ({
           }
           break;
         }
-
-        case '/dori/nav/command':
-          addLog(LOG_TAGS.NAV, `cmd: ${typeof parsed === 'string' ? parsed : JSON.stringify(parsed)}`, rawVal);
-          break;
 
         default:
           addLog(meta.tag, `${meta.label}: ${typeof parsed === 'string' ? parsed.slice(0, 60) : JSON.stringify(parsed).slice(0, 60)}`, rawVal);

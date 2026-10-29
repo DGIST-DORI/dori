@@ -44,13 +44,7 @@ const MOCK_SCRIPT = [
     data: JSON.stringify({ text: '도서관 어디야', language: 'ko', confidence: 0.92 }) },
 
   { delay: 6900, topic: '/dori/hri/manager_state',
-    data: JSON.stringify({ state: 'RESPONDING', state_elapsed_sec: 0, target_id: 3 }) },
-
-  { delay: 7000, topic: '/dori/llm/query',
-    data: JSON.stringify({ user_text: '도서관 어디야', location_context: '공학관 앞' }) },
-
-  { delay: 8400, topic: '/dori/llm/response',
-    data: '도서관으로 안내하겠습니다. 직진 후 우회전하세요.' },
+    data: 'RESPONDING' },
 
   { delay: 8600, topic: '/dori/tts/text',
     data: '도서관으로 안내하겠습니다. 직진 후 우회전하세요.' },
@@ -61,10 +55,7 @@ const MOCK_SCRIPT = [
   { delay: 10600, topic: '/dori/tts/done', data: true },
 
   { delay: 10800, topic: '/dori/hri/manager_state',
-    data: JSON.stringify({ state: 'NAVIGATING', state_elapsed_sec: 0, target_id: 3 }) },
-
-  { delay: 11000, topic: '/dori/nav/command',
-    data: JSON.stringify({ action: 'goto', destination: 'library' }) },
+    data: 'GUIDING' },
 
   { delay: 13000, topic: '/dori/hri/expression',
     data: JSON.stringify({ expression: 'SATISFIED', confidence: 0.78 }) },

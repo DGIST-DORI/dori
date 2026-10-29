@@ -194,10 +194,10 @@ NOTE: Rear camera topics use the same schema under `/camera/rear/...` (for examp
 
 *Type (msg)*:: `std_msgs/msg/String`
 *Publishers*:: <<nodes.adoc#node-landmark-detection-node,landmark_detection_node>>
-*Subscribers*:: <<nodes.adoc#node-hri-manager-node,hri_manager_node>>
+*Subscribers*:: (none documented)
 *Frequency*:: Expected: N/A, Actual: TBD
 *QoS*:: Reliability: Reliable, Durability: Volatile
-*Flow*:: <<nodes.adoc#node-landmark-detection-node,landmark_detection_node>> → /landmark/context → <<nodes.adoc#node-hri-manager-node,hri_manager_node>>
+*Flow*:: <<nodes.adoc#node-landmark-detection-node,landmark_detection_node>> → /landmark/context → (none documented)
 
 .Message fields
 [cols="1,1,1,3",options="header"]
@@ -255,20 +255,20 @@ NOTE: Rear camera topics use the same schema under `/camera/rear/...` (for examp
 === /hri/manager_state
 
 *Type (msg)*:: `std_msgs/msg/String`
-*Publishers*:: <<nodes.adoc#node-hri-manager-node,hri_manager_node>>
-*Subscribers*:: (none documented)
+*Publishers*:: <<nodes.adoc#node-dori-tree-executor,dori_tree_executor>>
+*Subscribers*:: <<nodes.adoc#node-emotion-publisher-node,emotion_publisher_node>>
 *Frequency*:: Expected: N/A, Actual: TBD
 *QoS*:: Reliability: Reliable, Durability: Volatile
-*Flow*:: <<nodes.adoc#node-hri-manager-node,hri_manager_node>> → /hri/manager_state → (none documented)
+*Flow*:: <<nodes.adoc#node-dori-tree-executor,dori_tree_executor>> → /hri/manager_state → <<nodes.adoc#node-emotion-publisher-node,emotion_publisher_node>>
 
 .Message fields
 [cols="1,1,1,3",options="header"]
 |===
 | Field | Type | Unit | Description
-| data | string | - | HRI state name (e.g., IDLE, LISTENING, RESPONDING, NAVIGATING).
+| data | string | - | Current robot mode/state published by BehaviorTree executor (`IDLE`, `GUIDING`, `INTERACTION`, `QA`, etc.).
 |===
 
-*Description*:: Current HRI state for observability and debugging.
+*Description*:: Current robot mode/state published by BehaviorTree executor for UI and emotion reflection.
 
 
 [[topic-dori-hri-emotion_override]]
@@ -416,10 +416,10 @@ NOTE: Rear camera topics use the same schema under `/camera/rear/...` (for examp
 
 *Type (msg)*:: `std_msgs/msg/String`
 *Publishers*:: <<nodes.adoc#node-facial-expression-node,facial_expression_node>>
-*Subscribers*:: <<nodes.adoc#node-hri-manager-node,hri_manager_node>>
+*Subscribers*:: (none documented)
 *Frequency*:: Expected: N/A, Actual: TBD
 *QoS*:: Reliability: Reliable, Durability: Volatile
-*Flow*:: <<nodes.adoc#node-facial-expression-node,facial_expression_node>> → /hri/expression_command → <<nodes.adoc#node-hri-manager-node,hri_manager_node>>
+*Flow*:: <<nodes.adoc#node-facial-expression-node,facial_expression_node>> → /hri/expression_command → (none documented)
 
 .Message fields
 [cols="1,1,1,3",options="header"]
@@ -456,10 +456,10 @@ NOTE: Rear camera topics use the same schema under `/camera/rear/...` (for examp
 
 *Type (msg)*:: `std_msgs/msg/String`
 *Publishers*:: <<nodes.adoc#node-gesture-recognition-node,gesture_recognition_node>>
-*Subscribers*:: <<nodes.adoc#node-hri-manager-node,hri_manager_node>>
+*Subscribers*:: (none documented)
 *Frequency*:: Expected: N/A, Actual: TBD
 *QoS*:: Reliability: Reliable, Durability: Volatile
-*Flow*:: <<nodes.adoc#node-gesture-recognition-node,gesture_recognition_node>> → /hri/gesture_command → <<nodes.adoc#node-hri-manager-node,hri_manager_node>>
+*Flow*:: <<nodes.adoc#node-gesture-recognition-node,gesture_recognition_node>> → /hri/gesture_command → (none documented)
 
 .Message fields
 [cols="1,1,1,3",options="header"]
@@ -516,10 +516,10 @@ NOTE: Rear camera topics use the same schema under `/camera/rear/...` (for examp
 
 *Type (msg)*:: `std_msgs/msg/String`
 *Publishers*:: <<nodes.adoc#node-person-detection-node,person_detection_node>>
-*Subscribers*:: <<nodes.adoc#node-hri-manager-node,hri_manager_node>>
+*Subscribers*:: <<nodes.adoc#node-dori-tree-executor,dori_tree_executor>>
 *Frequency*:: Expected: N/A, Actual: TBD
 *QoS*:: Reliability: Reliable, Durability: Volatile
-*Flow*:: <<nodes.adoc#node-person-detection-node,person_detection_node>> → /hri/tracking_state → <<nodes.adoc#node-hri-manager-node,hri_manager_node>>
+*Flow*:: <<nodes.adoc#node-person-detection-node,person_detection_node>> → /hri/tracking_state → <<nodes.adoc#node-dori-tree-executor,dori_tree_executor>>
 
 .Message fields
 [cols="1,1,1,3",options="header"]
@@ -535,11 +535,11 @@ NOTE: Rear camera topics use the same schema under `/camera/rear/...` (for examp
 === /stt/result
 
 *Type (msg)*:: `std_msgs/msg/String`
-*Publishers*:: external STT node
-*Subscribers*:: <<nodes.adoc#node-hri-manager-node,hri_manager_node>>
+*Publishers*:: <<nodes.adoc#node-stt-node,stt_node>>, external STT node
+*Subscribers*:: <<nodes.adoc#node-dori-tree-executor,dori_tree_executor>>
 *Frequency*:: Expected: N/A, Actual: TBD
 *QoS*:: Reliability: Reliable, Durability: Volatile
-*Flow*:: external STT node → /stt/result → <<nodes.adoc#node-hri-manager-node,hri_manager_node>>
+*Flow*:: <<nodes.adoc#node-stt-node,stt_node>> → /stt/result → <<nodes.adoc#node-dori-tree-executor,dori_tree_executor>>
 
 .Message fields
 [cols="1,1,1,3",options="header"]
@@ -555,11 +555,11 @@ NOTE: Rear camera topics use the same schema under `/camera/rear/...` (for examp
 === /stt/wake_word_detected
 
 *Type (msg)*:: `std_msgs/msg/Bool`
-*Publishers*:: <<nodes.adoc#node-gesture-recognition-node,gesture_recognition_node>> (WAVE trigger), external STT node
-*Subscribers*:: <<nodes.adoc#node-hri-manager-node,hri_manager_node>>
+*Publishers*:: <<nodes.adoc#node-gesture-recognition-node,gesture_recognition_node>> (WAVE trigger), <<nodes.adoc#node-stt-node,stt_node>>
+*Subscribers*:: (none documented)
 *Frequency*:: Expected: N/A, Actual: TBD
 *QoS*:: Reliability: Reliable, Durability: Volatile
-*Flow*:: <<nodes.adoc#node-gesture-recognition-node,gesture_recognition_node>> (WAVE trigger), external STT node → /stt/wake_word_detected → <<nodes.adoc#node-hri-manager-node,hri_manager_node>>
+*Flow*:: <<nodes.adoc#node-stt-node,stt_node>> → /stt/wake_word_detected → (none documented)
 
 .Message fields
 [cols="1,1,1,3",options="header"]
@@ -568,7 +568,7 @@ NOTE: Rear camera topics use the same schema under `/camera/rear/...` (for examp
 | data | TBD | - | See message definition for field-level details.
 |===
 
-*Description*:: Wake event that starts HRI listening flow.
+*Description*:: Wake event that triggers HRI interaction.
 
 
 [[topic-dori-tts-done]]
@@ -576,10 +576,10 @@ NOTE: Rear camera topics use the same schema under `/camera/rear/...` (for examp
 
 *Type (msg)*:: `std_msgs/msg/Bool`
 *Publishers*:: <<nodes.adoc#node-tts-node,tts_node>>
-*Subscribers*:: <<nodes.adoc#node-hri-manager-node,hri_manager_node>>
+*Subscribers*:: (none documented)
 *Frequency*:: Expected: N/A, Actual: TBD
 *QoS*:: Reliability: Reliable, Durability: Volatile
-*Flow*:: <<nodes.adoc#node-tts-node,tts_node>> → /tts/done → <<nodes.adoc#node-hri-manager-node,hri_manager_node>>
+*Flow*:: <<nodes.adoc#node-tts-node,tts_node>> → /tts/done → (none documented)
 
 .Message fields
 [cols="1,1,1,3",options="header"]
@@ -588,7 +588,7 @@ NOTE: Rear camera topics use the same schema under `/camera/rear/...` (for examp
 | data | TBD | - | See message definition for field-level details.
 |===
 
-*Description*:: Playback completion event for HRI state transitions.
+*Description*:: Playback completion event.
 
 
 [[topic-dori-tts-speaking]]
@@ -615,11 +615,11 @@ NOTE: Rear camera topics use the same schema under `/camera/rear/...` (for examp
 === /tts/text
 
 *Type (msg)*:: `std_msgs/msg/String`
-*Publishers*:: <<nodes.adoc#node-hri-manager-node,hri_manager_node>>
+*Publishers*:: dashboard TTSInjectPanel, debug clients
 *Subscribers*:: <<nodes.adoc#node-tts-node,tts_node>>
 *Frequency*:: Expected: N/A, Actual: TBD
 *QoS*:: Reliability: Reliable, Durability: Volatile
-*Flow*:: <<nodes.adoc#node-hri-manager-node,hri_manager_node>> → /tts/text → <<nodes.adoc#node-tts-node,tts_node>>
+*Flow*:: dashboard TTSInjectPanel, debug clients → /tts/text → <<nodes.adoc#node-tts-node,tts_node>>
 
 .Message fields
 [cols="1,1,1,3",options="header"]
@@ -628,75 +628,17 @@ NOTE: Rear camera topics use the same schema under `/camera/rear/...` (for examp
 | data | TBD | - | See message definition for field-level details.
 |===
 
-*Description*:: Direct TTS text (bypass LLM for prompts/system messages).
+*Description*:: Direct TTS text input topic for manual testing and UI trigger.
 
 
 == LLM
 
-[[topic-dori-llm-query]]
-=== /llm/query
-
-*Type (msg)*:: `std_msgs/msg/String`
-*Publishers*:: <<nodes.adoc#node-hri-manager-node,hri_manager_node>>
-*Subscribers*:: <<nodes.adoc#node-llm-node,llm_node>>
-*Frequency*:: Expected: N/A, Actual: TBD
-*QoS*:: Reliability: Reliable, Durability: Volatile
-*Flow*:: <<nodes.adoc#node-hri-manager-node,hri_manager_node>> → /llm/query → <<nodes.adoc#node-llm-node,llm_node>>
-
-.Message fields
-[cols="1,1,1,3",options="header"]
-|===
-| Field | Type | Unit | Description
-| data | string | - | JSON request containing user text and contextual fields.
-|===
-
-*Description*:: Input channel for LLM intent classification and response generation.
-
-
-[[topic-dori-llm-response]]
-=== /llm/response
-
-*Type (msg)*:: `std_msgs/msg/String`
-*Publishers*:: <<nodes.adoc#node-llm-node,llm_node>>
-*Subscribers*:: <<nodes.adoc#node-tts-node,tts_node>>
-*Frequency*:: Expected: N/A, Actual: TBD
-*QoS*:: Reliability: Reliable, Durability: Volatile
-*Flow*:: <<nodes.adoc#node-llm-node,llm_node>> → /llm/response → <<nodes.adoc#node-tts-node,tts_node>>
-
-.Message fields
-[cols="1,1,1,3",options="header"]
-|===
-| Field | Type | Unit | Description
-| data | TBD | - | See message definition for field-level details.
-|===
-
-*Description*:: Generated natural-language response text.
+NOTE: `/llm/query` and `/llm/response` topics have been superseded by ROS 2 Action interfaces. See <<actions.adoc#action-dori-llm-query,`/llm/query` (LLMQuery Action)>> and <<actions.adoc#action-dori-tts-speak,`/tts/speak` (Speak Action)>>.
 
 
 == Navigation
 
-NOTE: `/nav/destination`, `/nav/status`, and `/nav/cancel` are deprecated. Use <<actions.adoc#action-dori-nav-navigate_to,`/nav/navigate_to` action>> for goal, feedback, and cancel control.
-
-
-
-[[topic-dori-nav-command]]
-=== /nav/command
-
-*Type (msg)*:: `std_msgs/msg/String`
-*Publishers*:: <<nodes.adoc#node-hri-manager-node,hri_manager_node>>
-*Subscribers*:: (none documented)
-*Frequency*:: Expected: N/A, Actual: TBD
-*QoS*:: Reliability: Reliable, Durability: Volatile
-*Flow*:: <<nodes.adoc#node-hri-manager-node,hri_manager_node>> → /nav/command → (none documented)
-
-.Message fields
-[cols="1,1,1,3",options="header"]
-|===
-| Field | Type | Unit | Description
-| data | TBD | - | See message definition for field-level details.
-|===
-
-*Description*:: High-level navigation command channel.
+NOTE: `/nav/destination`, `/nav/command`, `/nav/status`, and `/nav/cancel` are deprecated. Use <<actions.adoc#action-dori-nav-navigate_to,`/nav/navigate_to` action>> for goal, feedback, and cancel control.
 
 
 

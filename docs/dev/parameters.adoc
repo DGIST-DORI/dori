@@ -188,32 +188,19 @@ This document is the SSOT for ROS2 parameter details in the current workspace.
 
 == Interaction / Voice
 
-[[param-hri_manager_node]]
-=== hri_manager_node parameters
+[[param-dori_tree_executor]]
+=== dori_tree_executor parameters
 
 [cols="1,1,1,1,1,3",options="header"]
 |===
 | Name | Type | Default | Range/Enum | Unit | Description
-| greeting_text | string | "Hello! ..." | any text | - | Greeting utterance after wake.
-| idle_timeout_sec | double | 10.0 | >0 | s | Idle timeout while in Listening state.
-| topics.wake_word_sub | string | `/stt/wake_word_detected` | topic path | - | Wake-word input.
-| topics.stt_result_sub | string | `/stt/result` | topic path | - | STT text input.
-| topics.tracking_state_sub | string | `/hri/tracking_state` | topic path | - | Person tracking state input.
-| topics.gesture_command_sub | string | `/hri/gesture_command` | topic path | - | Gesture command input.
-| topics.expression_command_sub | string | `/hri/expression_command` | topic path | - | Expression command input.
-| topics.landmark_context_sub | string | `/landmark/context` | topic path | - | Landmark context input.
-| topics.tts_done_sub | string | `/tts/done` | topic path | - | TTS completion input.
-| services.follow_mode_service | string | `/hri/set_follow_mode` | service path | - | Follow mode SetBool service client target.
-| topics.manager_state_pub | string | `/hri/manager_state` | topic path | - | HRI state output.
-| topics.llm_query_pub | string | `/llm/query` | topic path | - | LLM query output.
-| topics.tts_text_pub | string | `/tts/text` | topic path | - | Direct TTS text output.
-| topics.nav_command_pub | string | `/nav/command` | topic path | - | High-level nav command output.
+| tree_xml_file | string | `""` | file path or empty | - | Path to BehaviorTree XML definition. If empty, uses default `dori_tree.xml` from package share.
 |===
 
 *Dynamic reconfigure*:: Not supported
 *Read timing*:: startup only
-*Validation rules*:: Invalid values such as timeout<=0 can break expected state transitions.
-*Related node*:: <<nodes.adoc#node-hri-manager-node, hri_manager_node>>
+*Validation rules*:: Specified XML file must exist and be valid BehaviorTree.CPP v4 schema.
+*Related node*:: <<nodes.adoc#node-dori-tree-executor, dori_tree_executor>>
 
 
 [[param-stt_node]]
@@ -252,9 +239,7 @@ This document is the SSOT for ROS2 parameter details in the current workspace.
 | model_name | string | `gemini-2.5-flash` | provider model id | - | External model identifier.
 | api_key | string | `""` | secret string | - | External API key.
 | rag_top_k | int | 3 | >=1 | - | Number of retrieved chunks.
-| topics.query_sub | string | `/llm/query` | topic path | - | Query input topic.
-| topics.response_pub | string | `/llm/response` | topic path | - | Response output topic.
-| actions.navigate | string | `/nav/navigate_to` | action name | - | Navigation action target for goal requests.
+| action_name | string | `llm/query` | action path | - | Action server name for LLMQuery requests.
 |===
 
 *Dynamic reconfigure*:: Not supported
@@ -273,10 +258,13 @@ This document is the SSOT for ROS2 parameter details in the current workspace.
 | language | string | `ko` | locale code | - | Speech language.
 | speech_rate | int | 150 | >0 | - | Speech rate (engine-dependent).
 | volume | double | 0.9 | [0,1] | - | Playback volume.
+| playback_mode | string | `local_and_publish` | `local_only/publish_only/local_and_publish` | - | Local playback/publish routing policy.
+| action_name | string | `tts/speak` | action path | - | Action server name for Speak requests.
 | topics.speaking_pub | string | `/tts/speaking` | topic path | - | Speaking-state output.
 | topics.done_pub | string | `/tts/done` | topic path | - | Playback done output.
-| topics.llm_response_sub | string | `/llm/response` | topic path | - | LLM text input.
 | topics.tts_text_sub | string | `/tts/text` | topic path | - | Direct TTS text input.
+| topics.audio_cue_sub | string | `/hri/audio_cue` | topic path | - | Short audio cue input.
+| topics.audio_event_pub | string | `/tts/audio_event` | topic path | - | Audio event publish topic for dashboard/bridge playback.
 |===
 
 *Dynamic reconfigure*:: Not supported

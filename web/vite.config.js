@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react'
 import svgr from 'vite-plugin-svgr'
 
 export default defineConfig({
+  server: { proxy: { "/api": "http://127.0.0.1:3000", "/navigation": "http://127.0.0.1:3000" } },
   build: {
     manifest: 'manifest.json',
     rollupOptions: {

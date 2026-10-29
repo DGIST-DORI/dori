@@ -22,7 +22,7 @@
 
 # DORI
 
-[DORI](https://dgist-dori.xyz) (Dual-shell Omnidirectional Robot for Interaction, stylized as *Dori*) is a spherical campus guide robot capable of navigating diverse campus environments while providing LLM-powered voice interaction.
+[DORI](https://dgist-dori.xyz) (DGIST O-shaped Robot for Interaction, stylized as *Dori*) is a spherical campus guide robot capable of navigating diverse campus environments while providing LLM-powered voice interaction.
 
 > UGRP 2026 — DGIST
 
@@ -42,7 +42,8 @@
 sudo apt update
 sudo apt install -y \
   portaudio19-dev python3-pyaudio ffmpeg libsndfile1 mpg123 \
-  ros-humble-rosbridge-server ros-humble-realsense2-camera
+  ros-humble-rosbridge-server ros-humble-realsense2-camera \
+  ros-humble-behaviortree-cpp-v4 ros-humble-nav2-behavior-tree
 ```
 
 ### 2. Clone Repository
@@ -63,35 +64,35 @@ pip3 install -r requirements.txt
 1. Download the model
 [Porcupine Wake Word GitHub repository](https://github.com/Picovoice/porcupine/tree/master/lib/common)
 
-2. Put it in ros2_ws/src/stt_pkg/models
+2. Put it in ros2_ws/src/dori_hri/models
 
 ### 3-2. Download and Place MediaPipe `.task` Models (Perception)
 
-`perception_pkg` gesture/expression nodes use MediaPipe Tasks models that are **not** bundled by default.
+`dori_perception` gesture/expression nodes use MediaPipe Tasks models that are **not** bundled by default.
 
 1. Create the model asset directory:
 
 ```bash
-mkdir -p ros2_ws/src/perception_pkg/models
+mkdir -p ros2_ws/src/dori_perception/models
 ```
 
 2. Download required `.task` files and place them in that directory:
 
 ```text
-ros2_ws/src/perception_pkg/models/hand_landmarker.task
-ros2_ws/src/perception_pkg/models/face_landmarker.task
+ros2_ws/src/dori_perception/models/hand_landmarker.task
+ros2_ws/src/dori_perception/models/face_landmarker.task
 ```
 
 3. Build/install the workspace so models are copied to:
 
 ```text
-<install-prefix>/share/perception_pkg/models/
+<install-prefix>/share/dori_perception/models/
 ```
 
 4. Launch Perception with explicit model paths (recommended) or rely on default share-directory lookup:
 
 ```bash
-ros2 launch bringup perception.launch.py \
+ros2 launch dori_bringup perception.launch.py \
   hand_model_path:=/absolute/path/to/hand_landmarker.task \
   face_model_path:=/absolute/path/to/face_landmarker.task
 ```
@@ -117,6 +118,8 @@ Get your Porcupine key for free at [Picovoice Console](https://console.picovoice
 ```bash
 source /opt/ros/humble/setup.bash
 cd ros2_ws
+vcs import src < src/third_party.repos
+rosdep install --from-paths src --ignore-src -y -r
 colcon build --symlink-install
 source install/setup.bash
 ```
@@ -128,13 +131,13 @@ source install/setup.bash
 ### Full Robot (without Dashboard)
 
 ```bash
-ros2 launch bringup robot.launch.py
+ros2 launch dori_bringup bringup.launch.py
 ```
 
 or
 
 ```bash
-ros2 launch bringup robot_dev.launch.py enable_dashboard:=false
+ros2 launch dori_bringup bringup_dev.launch.py enable_dashboard:=false
 ```
 
 ### Topic Namespace (default vs multi-robot remap)
@@ -144,21 +147,21 @@ ros2 launch bringup robot_dev.launch.py enable_dashboard:=false
 
 ```bash
 # Basic topic (same as before)
-ros2 launch bringup robot.launch.py namespace:=/dori
+ros2 launch dori_bringup bringup.launch.py namespace:=/dori
 
 # robot1
-ros2 launch bringup robot.launch.py namespace:=/dori1
+ros2 launch dori_bringup bringup.launch.py namespace:=/dori1
 
 # robot2
-ros2 launch bringup robot.launch.py namespace:=/dori2
+ros2 launch dori_bringup bringup.launch.py namespace:=/dori2
 ```
 
 The default topic value is declared with `declare_parameter("topics.xxx", "...")` of each node, and is changed at once by injecting a common prefix at launch.
 
 ### Full Robot (with Dashboard)
  
-Launches the full robot stack via `robot_dev.launch.py`, together with the web dashboard (rosbridge + HTTP server + knowledge API).
-`robot.launch.py` is not responsible for dashboard orchestration in the current setup.
+Launches the full robot stack via `bringup_dev.launch.py`, together with the web dashboard (rosbridge + HTTP server + knowledge API).
+`bringup.launch.py` is not responsible for dashboard orchestration in the current setup.
 The dashboard frontend must be built before the first run.
  
 ```bash
@@ -169,10 +172,10 @@ colcon build --symlink-install
 source install/setup.bash
  
 # Launch (default includes dashboard)
-ros2 launch bringup robot_dev.launch.py
+ros2 launch dori_bringup bringup_dev.launch.py
 
 # Equivalent explicit form
-# ros2 launch bringup robot_dev.launch.py enable_dashboard:=true
+# ros2 launch dori_bringup bringup_dev.launch.py enable_dashboard:=true
 ```
 
 Dashboard access:

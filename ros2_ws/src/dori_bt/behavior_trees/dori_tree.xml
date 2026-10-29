@@ -1,0 +1,22 @@
+<root main_tree_to_execute="DoriMainTree">
+  <BehaviorTree ID="DoriMainTree">
+    <Sequence name="InteractionSession">
+      <HasRequest/>
+      <SetRobotMode mode="INTERACTION"/>
+      <WaitForIntent text="{user_text}" intent="{intent}" destination="{destination}" answer="{answer}"/>
+      <SetRobotMode mode="RESPONDING"/>
+      <Speak text="{answer}"/>
+      <Fallback name="IntentRouter">
+        <Sequence name="Guidance">
+          <IsGuide/>
+          <PrepareGuide/>
+          <NavigateToNamedGoal goal="{destination}"/>
+          <SetRobotMode mode="ARRIVED"/>
+          <Speak text="목적지에 도착했습니다."/>
+        </Sequence>
+        <Inverter><IsGuide/></Inverter>
+      </Fallback>
+      <CompleteSession/>
+    </Sequence>
+  </BehaviorTree>
+</root>

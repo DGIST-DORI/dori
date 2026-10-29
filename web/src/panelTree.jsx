@@ -15,6 +15,8 @@ const ConversationPanel = lazy(() => import('./panels/hri/ConversationPanel'));
 const FaceDisplayPanel = lazy(() => import('./panels/hri/FaceDisplayPanel'));
 const EmotionPalettePanel = lazy(() => import('./panels/hri/EmotionPalettePanel'));
 
+const NavigationPanel = lazy(() => import('./panels/control/NavigationPanel'));
+
 const CubeViewerPanel = lazy(() => import('./panels/control/CubeViewerPanel'));
 const RotationControlPanel = lazy(() => import('./panels/control/RotationControlPanel'));
 const PieceStatePanel = lazy(() => import('./panels/control/PieceStatePanel'));
@@ -88,7 +90,7 @@ export const PANEL_TREE = [
       {
         id: 'nav-map', label: 'Map', icon: <MapIcon />,
         children: [
-          { id: 'campus-map', label: 'Campus Map', placeholder: true },
+          { id: 'campus-map', label: 'Robot Map & Navigation', component: NavigationPanel },
         ],
       },
     ],

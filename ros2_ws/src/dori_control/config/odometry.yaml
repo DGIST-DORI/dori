@@ -1,0 +1,18 @@
+wheel_odometry_node:
+  ros__parameters:
+    # Match the real drive controller. Hardware already applies direction_sign.
+    wheel_radius: 0.234
+    wheel_separation: 0.184
+    left_joint_name: left_wheel_joint
+    right_joint_name: right_wheel_joint
+    # MIT feedback range [-4*pi, 4*pi]; use 0.0 for continuous unwrapped encoders.
+    position_wrap_radians: 25.132741228718345
+    max_wheel_speed: 30.0
+    joint_state_timeout_sec: 0.2
+    odom_frame: odom
+    base_frame: base_link
+    publish_tf: true
+    require_hardware_feedback: true
+    # Initial estimates, not calibrated sensor uncertainties.
+    pose_covariance_diagonal: [0.02, 0.02, 1000000.0, 1000000.0, 1000000.0, 0.05]
+    twist_covariance_diagonal: [0.02, 0.02, 1000000.0, 1000000.0, 1000000.0, 0.05]

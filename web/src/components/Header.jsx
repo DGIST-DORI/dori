@@ -21,8 +21,9 @@ export default function Header({ onLogoClick, themeMode, sidebarExpanded }) {
 
   // Keep URL input in sync when wsUrl changes (e.g. tunnel auto-detection)
   useEffect(() => {
-    if (!connected && !isConnecting) setUrlInput(wsUrl);
-  }, [wsUrl]);
+    const timer = setTimeout(() => { if (!connected && !isConnecting) setUrlInput(wsUrl); }, 0);
+    return () => clearTimeout(timer);
+  }, [wsUrl, connected, isConnecting]);
 
   const [isDark, setIsDark] = useState(false);
   useEffect(() => {

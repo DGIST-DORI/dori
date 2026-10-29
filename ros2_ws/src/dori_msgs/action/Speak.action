@@ -1,0 +1,9 @@
+# Goal (클라이언트가 요청하는 텍스트)
+string text
+---
+# Result (최종 성공 여부)
+bool success
+string message
+---
+# Feedback (현재 상태 진행률)
+string status
