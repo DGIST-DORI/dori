@@ -1,15 +1,15 @@
 # DORI AMM — 통합 로봇 정비·운용 매뉴얼
 
-| 문서 관리 | 값 |
-|---|---|
-| 문서 번호 | DORI-AMM-001 |
-| 개정 | R4 / 2026-10-28 — 제어·하드웨어 패키지 통합 후속 P0·P2 |
-| 적용 대상 | Ubuntu 22.04, ROS 2 Humble, Python 3.10, 기존 DORI 실물 제어장치 |
-| 소스 기준 | feature/control-and-navigation `d35f313` 이후 P0·P2 수정 |
-| main 대조 | `d4cc1ae079082ef5af94583ce684155c39f58c28` — 위 feature의 조상, 별도 미포함 HRI 커밋 없음 |
-| 통합 브랜치 | `integration/robot-hri-navigation` |
-| 검증 등급 | 빌드·설치·launch·웹 빌드 검증 / P1 전체 회귀 복구 및 실물 인수 미완료 |
-| 관련 기록 | [P0·P2 검증 범위와 재현 절차](../dev/refactor-validation.md) |
+| 문서 관리   | 값                                                                                        |
+| ----------- | ----------------------------------------------------------------------------------------- |
+| 문서 번호   | DORI-AMM-001                                                                              |
+| 개정        | R4 / 2026-10-28 — 제어·하드웨어 패키지 통합 후속 P0·P2                                    |
+| 적용 대상   | Ubuntu 22.04, ROS 2 Humble, Python 3.10, 기존 DORI 실물 제어장치                          |
+| 소스 기준   | feature/control-and-navigation `d35f313` 이후 P0·P2 수정                                  |
+| main 대조   | `d4cc1ae079082ef5af94583ce684155c39f58c28` — 위 feature의 조상, 별도 미포함 HRI 커밋 없음 |
+| 통합 브랜치 | `integration/robot-hri-navigation`                                                        |
+| 검증 등급   | 빌드·설치·launch·웹 빌드 검증 / P1 전체 회귀 복구 및 실물 인수 미완료                     |
+| 관련 기록   | [P0·P2 검증 범위와 재현 절차](../dev/refactor-validation.md)                              |
 
 이 문서는 항공기 정비서의 작업 번호·선행조건·작업·합격기준·복구 형식을 적용한 로봇 작업 문서다. 항공 인증 또는 현장 로봇의 운용 승인 문서가 아니다. 모든 명령은 별도 표시가 없으면 저장소 루트에서 일반 사용자로 실행한다.
 
@@ -23,19 +23,19 @@
 
 ### 00-20 주요 변경
 
-| 결함 | 통합 조치 |
-|---|---|
-| 디렉터리 이동 후 소스·설치 경로 불일치 | `ros2_ws/src`, `ros2_ws/install` 기준으로 빌드·런처·시험 수정 |
-| 삭제된 launch 디렉터리 설치 / 누락된 Python·웹 파일 | CMake·setup·실행 파일 설치 정리 |
-| Nav2와 HRI 액션/네임스페이스 불일치 | 공개 DORI 액션 → 단일 권한 중계 → 내부 Nav2 액션 |
-| main의 충돌 잔여 코드와 성공 고정 BT | Humble BT.CPP v3 기반 실제 LLM/TTS/주행 결과 대기 |
-| 여러 노드가 active/enabled 발행 | `nav2_adapter` 단일 소유, heartbeat 누락 시 주행 차단 |
-| 웹 지도 자리표시자 / TTS 입력을 출력으로 오인 | 실측 지도 뷰어 임베드, 실제 TTS 출력 이벤트 연결 |
-| API보다 먼저 등록된 SPA 경로 | API 뒤에 정적 페이지 라우트 배치 |
-| 재연결 시 ROS 토픽 타입 유실 / rosapi 미기동 | 타입 유지 및 rosapi 기동 |
-| 모델 import 중 다운로드·부분 초기화 | 명시적 모델 준비, 초기화 실패 시 종료 |
-| Conda Python/라이브러리 혼입 | Ubuntu Python 3.10, 별도 venv, 환경 경로 정리 |
-| 음성 의존성이 NumPy 2를 설치해 ROS 바이너리와 충돌 | `constraints-robot.txt`로 NumPy 1.24.4 / SciPy 1.10.1 고정 |
+| 결함                                                | 통합 조치                                                     |
+| --------------------------------------------------- | ------------------------------------------------------------- |
+| 디렉터리 이동 후 소스·설치 경로 불일치              | `ros2_ws/src`, `ros2_ws/install` 기준으로 빌드·런처·시험 수정 |
+| 삭제된 launch 디렉터리 설치 / 누락된 Python·웹 파일 | CMake·setup·실행 파일 설치 정리                               |
+| Nav2와 HRI 액션/네임스페이스 불일치                 | 공개 DORI 액션 → 단일 권한 중계 → 내부 Nav2 액션              |
+| main의 충돌 잔여 코드와 성공 고정 BT                | Humble BT.CPP v3 기반 실제 LLM/TTS/주행 결과 대기             |
+| 여러 노드가 active/enabled 발행                     | `nav2_adapter` 단일 소유, heartbeat 누락 시 주행 차단         |
+| 웹 지도 자리표시자 / TTS 입력을 출력으로 오인       | 실측 지도 뷰어 임베드, 실제 TTS 출력 이벤트 연결              |
+| API보다 먼저 등록된 SPA 경로                        | API 뒤에 정적 페이지 라우트 배치                              |
+| 재연결 시 ROS 토픽 타입 유실 / rosapi 미기동        | 타입 유지 및 rosapi 기동                                      |
+| 모델 import 중 다운로드·부분 초기화                 | 명시적 모델 준비, 초기화 실패 시 종료                         |
+| Conda Python/라이브러리 혼입                        | Ubuntu Python 3.10, 별도 venv, 환경 경로 정리                 |
+| 음성 의존성이 NumPy 2를 설치해 ROS 바이너리와 충돌  | `constraints-robot.txt`로 NumPy 1.24.4 / SciPy 1.10.1 고정    |
 
 Humble 액션 basename remap의 제약 때문에 내부 Nav2 액션의 send_goal/get_result/cancel_goal/feedback/status 다섯 endpoint를 모두 remap했다. 근거: [ROS 2 upstream 이슈 #1312](https://github.com/ros2/ros2/issues/1312). 도착 성공은 Nav2 성공 상태와 최근 map 좌표 피드백을 함께 확인한다.
 
@@ -149,19 +149,19 @@ done
 
 ### TASK 20-20-00 — 선택 기능 준비
 
-| 기능 | 준비 및 적용 |
-|---|---|
-| 외부 LLM/RAG | `dori_llm/requirements.txt`를 constraints와 함께 설치; 지식 파일/색인 및 제공자 API 키 준비; `use_external_llm:=true`, `llm_model:=...`, `knowledge_file:=...`, `rag_index_dir:=...` |
-| 기본 LLM | 키 없이 규칙 기반 QA와 등록 목적지 안내 사용. 임의 KB 좌표를 주행 목적지로 사용하지 않음 |
-| 로봇 스피커 TTS | 기본 `tts_engine:=gtts`, `tts_playback_mode:=local_only`; 인터넷과 mpg123 출력 장치 필요. GCP TTS는 SDK·자격증명 별도 준비 |
-| 브라우저 TTS | `tts_playback_mode:=publish_only`; 대시보드 ROS 연결 및 사용자 터치/키 입력으로 브라우저 음성 허용 |
-| 카메라/사람 추적 | 아래 vision 의존성 설치, RealSense 장치/SDK 및 YOLO 모델 준비. `enable_perception:=true person_model:=/절대경로/model.pt` |
-| 두 번째 카메라 | `enable_rear_camera:=true front_serial:=... rear_serial:=...`; 서로 다른 장치 serial 필수. 기본은 전방 한 대 |
-| 사용자 이탈 감시 | 정상적인 tracking 토픽이 있을 때 `require_user_tracking:=true`; 1초 이상 tracking 갱신이 없으면 정지·재확인 |
-| 제스처 | `enable_gesture:=true hand_model_path:=/절대경로/hand_landmarker.task` |
-| 표정 | `enable_expression:=true face_model_path:=/절대경로/face_landmarker.task` |
-| 랜드마크 | `enable_landmark:=true landmark_model:=/절대경로/model.pt`; 인지 결과는 LLM 설명 문맥용이며 지도 위치를 덮어쓰지 않음 |
-| 마이크 반환 감시 | 실제 접점/입력 장치가 `/dori/hri/mic_attached`를 발행할 때 `require_mic_return:=true` |
+| 기능             | 준비 및 적용                                                                                                                                                                         |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 외부 LLM/RAG     | `dori_llm/requirements.txt`를 constraints와 함께 설치; 지식 파일/색인 및 제공자 API 키 준비; `use_external_llm:=true`, `llm_model:=...`, `knowledge_file:=...`, `rag_index_dir:=...` |
+| 기본 LLM         | 키 없이 규칙 기반 QA와 등록 목적지 안내 사용. 임의 KB 좌표를 주행 목적지로 사용하지 않음                                                                                             |
+| 로봇 스피커 TTS  | 기본 `tts_engine:=gtts`, `tts_playback_mode:=local_only`; 인터넷과 mpg123 출력 장치 필요. GCP TTS는 SDK·자격증명 별도 준비                                                           |
+| 브라우저 TTS     | `tts_playback_mode:=publish_only`; 대시보드 ROS 연결 및 사용자 터치/키 입력으로 브라우저 음성 허용                                                                                   |
+| 카메라/사람 추적 | 아래 vision 의존성 설치, RealSense 장치/SDK 및 YOLO 모델 준비. `enable_perception:=true person_model:=/절대경로/model.pt`                                                            |
+| 두 번째 카메라   | `enable_rear_camera:=true front_serial:=... rear_serial:=...`; 서로 다른 장치 serial 필수. 기본은 전방 한 대                                                                         |
+| 사용자 이탈 감시 | 정상적인 tracking 토픽이 있을 때 `require_user_tracking:=true`; 1초 이상 tracking 갱신이 없으면 정지·재확인                                                                          |
+| 제스처           | `enable_gesture:=true hand_model_path:=/절대경로/hand_landmarker.task`                                                                                                               |
+| 표정             | `enable_expression:=true face_model_path:=/절대경로/face_landmarker.task`                                                                                                            |
+| 랜드마크         | `enable_landmark:=true landmark_model:=/절대경로/model.pt`; 인지 결과는 LLM 설명 문맥용이며 지도 위치를 덮어쓰지 않음                                                                |
+| 마이크 반환 감시 | 실제 접점/입력 장치가 `/dori/hri/mic_attached`를 발행할 때 `require_mic_return:=true`                                                                                                |
 
 마이크용 모델은 명시적으로 준비한다. 기본 openWakeWord `hey_mycroft`와 Whisper small을 사용하며 Porcupine `.ppn`을 이 설정에 넣지 않는다.
 
@@ -254,19 +254,19 @@ IMU 포트는 `dori_hardware`의 IMU 노드 파라미터, DXL 포트는 Dynamixe
 
 **불합격 조치:** 구형 `virtual_vlm_input_node`는 AUTO를 직접 발행하는 시험 도구다. 통합 하드웨어 launch는 `use_input_nodes=false`로 강제하고, 별도로 실행된 도구는 위 토픽 정보에서 추가 발행자로 나타난다. 제거 후 다시 점검한다. 웹의 일반 토픽 발행 패널에서는 `/cmd_vel` 항목을 제거했다. 주행은 지도 목표 또는 HRI 안내 인터페이스를 사용한다. 기구 상수와 bridge 파라미터는 실행 중 변경하지 않고 설정 파일 수정 후 전체 세션을 재시작한다.
 
-| 인터페이스 | 소유자 / 의미 |
-|---|---|
-| `/NAVIGATION_MODE` Int32 | 0 해제, 1 명시적 활성화 요청 |
+| 인터페이스                                            | 소유자 / 의미                                                    |
+| ----------------------------------------------------- | ---------------------------------------------------------------- |
+| `/NAVIGATION_MODE` Int32                              | 0 해제, 1 명시적 활성화 요청                                     |
 | `/navigation/enabled`, `/navigation/goal_active` Bool | `nav2_adapter`만 발행. active는 Nav2 목표 수락 및 취소 상태 반영 |
-| `/navigation/authority_heartbeat` Bool | 0.1초 주기, 0.5초 이상 미수신 시 drive bridge 차단 |
-| `/dori/nav/locations` String JSON | 현재 지도에 속한 유효 목적지 목록, LLM과 HRI가 공유 |
-| `/dori/nav/navigate_named` NavigateNamed | 이름/ID → 현재 지도 free cell 확인 → 공개 Navigate |
-| `/dori/nav/navigate_to` Navigate | map frame, 유한 planar pose, 정규 quaternion 검증 |
-| `/scan`, `/odom`, `/imu/data_raw` | 기존 실측 센서 계약 유지 |
-| `/system/action_state` | 0 IDLE / 1 DRIVE에서만 주행, 변형·ESTOP·ERROR에서는 차단 |
-| `/dori/hri/manager_state`, `/dori/hri/status` | BT 상태와 감시 조건, 웹에 전달 |
-| `/dori/tts/audio_event` | 실제 TTS 출력 이벤트. local_only에서는 브라우저 중복 재생 억제 |
-| `/dori/hri/emotion` | 상태 기반 감정 표현 및 수동 override |
+| `/navigation/authority_heartbeat` Bool                | 0.1초 주기, 0.5초 이상 미수신 시 drive bridge 차단               |
+| `/dori/nav/locations` String JSON                     | 현재 지도에 속한 유효 목적지 목록, LLM과 HRI가 공유              |
+| `/dori/nav/navigate_named` NavigateNamed              | 이름/ID → 현재 지도 free cell 확인 → 공개 Navigate               |
+| `/dori/nav/navigate_to` Navigate                      | map frame, 유한 planar pose, 정규 quaternion 검증                |
+| `/scan`, `/odom`, `/imu/data_raw`                     | 기존 실측 센서 계약 유지                                         |
+| `/system/action_state`                                | 0 IDLE / 1 DRIVE에서만 주행, 변형·ESTOP·ERROR에서는 차단         |
+| `/dori/hri/manager_state`, `/dori/hri/status`         | BT 상태와 감시 조건, 웹에 전달                                   |
+| `/dori/tts/audio_event`                               | 실제 TTS 출력 이벤트. local_only에서는 브라우저 중복 재생 억제   |
+| `/dori/hri/emotion`                                   | 상태 기반 감정 표현 및 수동 override                             |
 
 TF는 `map → odom → base_link → laser`를 사용한다. `/odom`과 odom TF는 LiDAR odometry가 소유한다. 실물 launch에서는 wheel odometry TF를 동시에 켜지 않는다. LiDAR yaw 기본값은 기존 실측값 π다. 설치 방향이 다르면 실제 외부 파라미터를 측정해 적용한다.
 
@@ -399,19 +399,19 @@ ros2 run nav2_map_server map_saver_cli -f "$DORI_ROOT/maps/new_site" -t /map \
 
 아래 값은 이번 통합에서 보존한 기본값 또는 추가한 권한 제한이다. 변경은 실측 재검증 대상이다.
 
-| 항목 | 값 / 동작 |
-|---|---|
-| 차륜 반경 / 간격 | 0.234 m / 0.184 m |
-| Nav2 전진 / 각속도 상한 | 0.3 m/s / 1.2 rad/s |
-| 후진 복구 상한 | 0.12 m/s, 후방 여유 확인 필수 |
-| 주행 명령 신선도 | 0.4초 |
-| odom / scan 신선도 | 0.5초 / 0.8초 |
-| CAN 바퀴 피드백 허용 나이 | 각 바퀴 CAN 나이 + ROS 전달/보관 시간 합계 0.2초 이하 |
-| 권한 heartbeat | 0.5초 이내 |
-| 일반 / 상대 이동 도착 재검증 | 목표와 0.35 m / 0.15 m 이내의 최근 1초 map 피드백 |
-| 액션 수락 / 취소 대기 | 기본 각각 5초, 초과 시 오류 유지·해제 |
-| 주행 실행 제한 | 기본 900초 |
-| 사용자 거리 > 2 m | 유효 추적 시 Nav2 속도 한도 50% |
+| 항목                         | 값 / 동작                                             |
+| ---------------------------- | ----------------------------------------------------- |
+| 차륜 반경 / 간격             | 0.234 m / 0.184 m                                     |
+| Nav2 전진 / 각속도 상한      | 0.3 m/s / 1.2 rad/s                                   |
+| 후진 복구 상한               | 0.12 m/s, 후방 여유 확인 필수                         |
+| 주행 명령 신선도             | 0.4초                                                 |
+| odom / scan 신선도           | 0.5초 / 0.8초                                         |
+| CAN 바퀴 피드백 허용 나이    | 각 바퀴 CAN 나이 + ROS 전달/보관 시간 합계 0.2초 이하 |
+| 권한 heartbeat               | 0.5초 이내                                            |
+| 일반 / 상대 이동 도착 재검증 | 목표와 0.35 m / 0.15 m 이내의 최근 1초 map 피드백     |
+| 액션 수락 / 취소 대기        | 기본 각각 5초, 초과 시 오류 유지·해제                 |
+| 주행 실행 제한               | 기본 900초                                            |
+| 사용자 거리 > 2 m            | 유효 추적 시 Nav2 속도 한도 50%                       |
 
 실측 응답 보정·모터 부호·토크 보상·변형·서보 파라미터는 원본 제어 설정을 사용한다. 상대 이동, 재시도, 후진 복구와 도착 안내는 기존 웹 주행의 의미를 유지한다.
 
@@ -440,43 +440,43 @@ P1에서 복구할 범위는 합성 LiDAR 매핑/지도 저장, HRI→Nav2→TTA
 
 **수행자:** 현장 운영자 및 비상 정지 담당자. **기록:** 지도·commit·구성 옵션·배터리 상태·기구 상태·시험 거리·실제 측정 오차·정지 거리·합불·서명.
 
-| 순서 | 작업 | 합격 기준 | 불합격 시 조치 |
-|---|---|---|---|
-| 1 | AMM 05, 기동, 초기 위치 | 장치 오류 없음, AMM 30-20/40-20 통과 | 구동 해제 및 FIM |
-| 2 | 정지 상태에서 QA | 바퀴 명령/차체 이동 없음, 응답 및 감정 표시 | HRI 입력·주행 권한 점검 |
-| 3 | 알려진 짧은 목적지 1개 안내 | 하나의 목표만 수락, 저속 전진, 실제 도착 후 발화 | 정지 후 TF/goal/피드백 점검 |
-| 4 | 웹과 음성 목표 동시 입력 | 동시에 두 목표를 실행하지 않음 | 권한 중계 중복 점검 |
-| 5 | 진행 중 웹/음성/제스처 취소 | active 해제, 정지 확인, 도착 발화 없음 | 비상 정지 후 액션 취소 경로 점검 |
-| 6 | 센서 또는 권한 노드 중단 시험 | 설정 watchdog 안에 출력 차단; 실제 관성 정지 거리 측정 | 즉시 물리 정지, 운용 중단 |
-| 7 | 전방 정체·후방 장애물 | 후방 막힘 시 후진하지 않음 | LiDAR 외부 파라미터/후방 판정 점검 |
-| 8 | 추적 필수 모드 사용자 이탈·복귀 | 정지, 확인 상태, 복귀 후 단일 재개 | 추적 갱신·취소 응답 점검 |
-| 9 | 마이크 반환·잡음·스피커 | echo 오인식 없음, wake/STT/발화의 실제 품질 확인 | 오디오 장치/환경 조정 |
-| 10 | 변형·오류·비상 정지 상태 | 주행 억제 유지 | supervisor/CAN 경로 점검 |
+| 순서 | 작업                            | 합격 기준                                              | 불합격 시 조치                     |
+| ---- | ------------------------------- | ------------------------------------------------------ | ---------------------------------- |
+| 1    | AMM 05, 기동, 초기 위치         | 장치 오류 없음, AMM 30-20/40-20 통과                   | 구동 해제 및 FIM                   |
+| 2    | 정지 상태에서 QA                | 바퀴 명령/차체 이동 없음, 응답 및 감정 표시            | HRI 입력·주행 권한 점검            |
+| 3    | 알려진 짧은 목적지 1개 안내     | 하나의 목표만 수락, 저속 전진, 실제 도착 후 발화       | 정지 후 TF/goal/피드백 점검        |
+| 4    | 웹과 음성 목표 동시 입력        | 동시에 두 목표를 실행하지 않음                         | 권한 중계 중복 점검                |
+| 5    | 진행 중 웹/음성/제스처 취소     | active 해제, 정지 확인, 도착 발화 없음                 | 비상 정지 후 액션 취소 경로 점검   |
+| 6    | 센서 또는 권한 노드 중단 시험   | 설정 watchdog 안에 출력 차단; 실제 관성 정지 거리 측정 | 즉시 물리 정지, 운용 중단          |
+| 7    | 전방 정체·후방 장애물           | 후방 막힘 시 후진하지 않음                             | LiDAR 외부 파라미터/후방 판정 점검 |
+| 8    | 추적 필수 모드 사용자 이탈·복귀 | 정지, 확인 상태, 복귀 후 단일 재개                     | 추적 갱신·취소 응답 점검           |
+| 9    | 마이크 반환·잡음·스피커         | echo 오인식 없음, wake/STT/발화의 실제 품질 확인       | 오디오 장치/환경 조정              |
+| 10   | 변형·오류·비상 정지 상태        | 주행 억제 유지                                         | supervisor/CAN 경로 점검           |
 
 이 카드의 실물 결과는 현재 기록에 포함되지 않는다. 소프트웨어 시험은 실제 마찰·하중·전원·CAN 결선·센서 장착·음향 인식을 증명하지 않는다.
 
 ## FIM 80 — 고장 격리
 
-| 증상 | 격리 순서 | 복구/재시험 |
-|---|---|---|
-| Python 확장 import/NumPy 오류 | AMM 20-12 환경, `which python3`, NumPy/SciPy 버전 확인 | requirements-runtime 재설치, 필요 시 CMake cache 정리 후 빌드 |
-| `/dori/nav/navigate_to` 없음 | `nav2_adapter` 실행·생성 인터페이스 설치 확인 | 전체 workspace 재빌드; 예전 액션 타입 클라이언트도 재빌드 |
-| Nav2 action server unavailable | 내부 endpoint remap, lifecycle 상태 확인 | 패키지 설치·launch 경로 정리 후 전체 세션 재시작 |
-| 권한 오류 유지 / 수락·취소 timeout | 관련 로그와 실제 Nav2 종료 여부 확인 | 정지 확인 후 세션 재시작; 실행 중 강제로 오류만 해제하지 않음 |
-| 주행 준비가 계속 빨간색 | scan/odom/TF/CAN feedback 나이, 초기 위치, lifecycle 확인 | 원인 수정 후 AMM 30-20/40-20 재수행 |
-| `hardware_scale_unverified` | drive/bridge의 속도 스케일 2개와 반경·간격 2개 확인 | 네 값 모두 일치하도록 설정 후 재기동 |
-| `nonfinite_odom` / `stale_hardware_feedback` | pose 외 twist도 유한한지, encoder position/velocity와 CAN+ROS 총 나이 확인 | 잘못된 센서/전달 경로 복구; 예전 샘플로 학습을 계속하지 않음 |
-| TTA 계수가 학습되지 않음 | 새 LiDAR stamp, encoder 부호, 제한기 후 입력의 stamp와 0.15초 응답 지연 확인 | 정지·과도 구간의 학습 억제는 정상. 누락/오래된 applied 샘플의 기록·통신 경로 점검 |
-| 지도는 보이나 HRI 목적지 없음 | goals 파일, map_key, 중복 이름, free cell 확인 | 현재 지도에서 목적지 다시 저장 |
-| 스캔이 반대 방향 | 실제 장착 방향 및 laser_yaw, 초기 yaw 비교 | 측정한 외부 파라미터로 재기동 |
-| 웹 연결만 되고 상태 없음 | WebSocket 9090, ROS domain, rosapi 프로세스 확인 | 동일 도메인으로 재연결 |
-| Navigation 프록시 503 | 로컬 8080 viewer 동작 여부 확인 | viewer 원인 해결 후 통합 재기동 |
-| 웹 명령 403 | 오래된 세션, CSRF, 다른 origin 여부 | 동일 대시보드 주소 새로고침 |
-| API가 HTML 반환 | 오래된 dashboard 설치 자산/서버 여부 | frontend build → ROS build → 재기동 |
-| TTS 무음 | local_only/publish_only, 인터넷, mpg123, 브라우저 음성 허용 확인 | 출력 모드에 맞는 실제 음향 시험 |
-| STT 시작 실패 | PortAudio, 입력 장치, 모델 경로·완전성 확인 | AMM 20-20 모델 준비 재수행; 마이크 접근 권한 점검 |
-| 카메라 두 노드가 같은 장치 사용 | front/rear serial 중복·빈 값 확인 | 서로 다른 serial 지정 또는 후방 비활성 |
-| 소프트웨어 배포 버튼 423 | 기본 운용 중 배포 잠금 | 로봇 종료 후 터미널에서 검토된 버전 설치 |
+| 증상                                         | 격리 순서                                                                    | 복구/재시험                                                                       |
+| -------------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Python 확장 import/NumPy 오류                | AMM 20-12 환경, `which python3`, NumPy/SciPy 버전 확인                       | requirements-runtime 재설치, 필요 시 CMake cache 정리 후 빌드                     |
+| `/dori/nav/navigate_to` 없음                 | `nav2_adapter` 실행·생성 인터페이스 설치 확인                                | 전체 workspace 재빌드; 예전 액션 타입 클라이언트도 재빌드                         |
+| Nav2 action server unavailable               | 내부 endpoint remap, lifecycle 상태 확인                                     | 패키지 설치·launch 경로 정리 후 전체 세션 재시작                                  |
+| 권한 오류 유지 / 수락·취소 timeout           | 관련 로그와 실제 Nav2 종료 여부 확인                                         | 정지 확인 후 세션 재시작; 실행 중 강제로 오류만 해제하지 않음                     |
+| 주행 준비가 계속 빨간색                      | scan/odom/TF/CAN feedback 나이, 초기 위치, lifecycle 확인                    | 원인 수정 후 AMM 30-20/40-20 재수행                                               |
+| `hardware_scale_unverified`                  | drive/bridge의 속도 스케일 2개와 반경·간격 2개 확인                          | 네 값 모두 일치하도록 설정 후 재기동                                              |
+| `nonfinite_odom` / `stale_hardware_feedback` | pose 외 twist도 유한한지, encoder position/velocity와 CAN+ROS 총 나이 확인   | 잘못된 센서/전달 경로 복구; 예전 샘플로 학습을 계속하지 않음                      |
+| TTA 계수가 학습되지 않음                     | 새 LiDAR stamp, encoder 부호, 제한기 후 입력의 stamp와 0.15초 응답 지연 확인 | 정지·과도 구간의 학습 억제는 정상. 누락/오래된 applied 샘플의 기록·통신 경로 점검 |
+| 지도는 보이나 HRI 목적지 없음                | goals 파일, map_key, 중복 이름, free cell 확인                               | 현재 지도에서 목적지 다시 저장                                                    |
+| 스캔이 반대 방향                             | 실제 장착 방향 및 laser_yaw, 초기 yaw 비교                                   | 측정한 외부 파라미터로 재기동                                                     |
+| 웹 연결만 되고 상태 없음                     | WebSocket 9090, ROS domain, rosapi 프로세스 확인                             | 동일 도메인으로 재연결                                                            |
+| Navigation 프록시 503                        | 로컬 8080 viewer 동작 여부 확인                                              | viewer 원인 해결 후 통합 재기동                                                   |
+| 웹 명령 403                                  | 오래된 세션, CSRF, 다른 origin 여부                                          | 동일 대시보드 주소 새로고침                                                       |
+| API가 HTML 반환                              | 오래된 dashboard 설치 자산/서버 여부                                         | frontend build → ROS build → 재기동                                               |
+| TTS 무음                                     | local_only/publish_only, 인터넷, mpg123, 브라우저 음성 허용 확인             | 출력 모드에 맞는 실제 음향 시험                                                   |
+| STT 시작 실패                                | PortAudio, 입력 장치, 모델 경로·완전성 확인                                  | AMM 20-20 모델 준비 재수행; 마이크 접근 권한 점검                                 |
+| 카메라 두 노드가 같은 장치 사용              | front/rear serial 중복·빈 값 확인                                            | 서로 다른 serial 지정 또는 후방 비활성                                            |
+| 소프트웨어 배포 버튼 423                     | 기본 운용 중 배포 잠금                                                       | 로봇 종료 후 터미널에서 검토된 버전 설치                                          |
 
 ## AMM 90 — 로그, 변경, 복귀
 
