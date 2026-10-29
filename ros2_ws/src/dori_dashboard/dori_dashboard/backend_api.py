@@ -1015,6 +1015,12 @@ def _execute_control_action(action: str, params: dict) -> dict:
             "detail": "dry-run mode: validated but not published to ROS network",
         }
 
+    ros2_exec = shutil.which("ros2")
+    if not ros2_exec:
+        raise HTTPException(
+            status_code=500, detail="ros2 executable not found in system PATH"
+        )
+
     if action == "move":
         linear_x = params["linear_x"]
         linear_y = params["linear_y"]
@@ -1028,7 +1034,7 @@ def _execute_control_action(action: str, params: dict) -> dict:
             "angular: {x: 0.0, y: 0.0, z: " + f"{angular_z:.4f}" + "}}"
         )
         cmd = [
-            "ros2",
+            ros2_exec,
             "topic",
             "pub",
             "--once",
@@ -1038,7 +1044,7 @@ def _execute_control_action(action: str, params: dict) -> dict:
         ]
     elif action == "stop":
         cmd = [
-            "ros2",
+            ros2_exec,
             "topic",
             "pub",
             "--once",
@@ -1049,7 +1055,7 @@ def _execute_control_action(action: str, params: dict) -> dict:
     elif action == "set_mode":
         mode = params["mode"]
         cmd = [
-            "ros2",
+            ros2_exec,
             "topic",
             "pub",
             "--once",
