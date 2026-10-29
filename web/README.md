@@ -49,7 +49,7 @@ ros2 launch dori_dashboard dashboard.launch.py
 
 ## Access
 
-- Dashboard: `http://[Robot IP]:3000` (`knowledge_api.py` serves port 3000)
+- Dashboard: `http://[Robot IP]:3000` (`backend_api.py` serves port 3000)
 - ROS WebSocket bridge: `ws://[Robot IP]:9090`
 
 If dashboard startup fails, check whether runtime dependencies are installed in the ROS/Python environment: `fastapi`, `uvicorn`, `python-multipart`.
