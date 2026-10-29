@@ -423,11 +423,11 @@ AMM 20-12 환경에서 실행한다. 이 범위는 ROS 노드·실물 구동기�
 
 ```bash
 mkdir -p log/refactor-p0p2
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest tests/refactor -q \
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest tests/contracts -q \
   --junitxml=log/refactor-p0p2/packages.xml
 ctest --test-dir ros2_ws/build/dori_control --output-on-failure
 ctest --test-dir ros2_ws/build/cubemars_hardware --output-on-failure
-(cd web && npm ci && npm run lint && npm run build)
+(cd web && npm ci && npm run lint && npm test && npm run build)
 ```
 
 **합격기준:** 소스와 설치 목록 21개 일치, 구형 overlay 없음, IMU 실행 파일 4개 설치/import, 전체 launch 경로 및 URDF 해석, C++ 시험 타깃 3개, 웹 lint/build 통과. 웹을 변경했다면 다시 ROS 빌드하여 설치 자산도 갱신한다.
