@@ -60,7 +60,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "dori_bridge = dori_dashboard.dori_bridge:main",
+            "bridge_api = dori_dashboard.bridge_api:main",
         ],
     },
 )
