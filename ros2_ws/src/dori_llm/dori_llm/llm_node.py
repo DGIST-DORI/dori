@@ -7,7 +7,8 @@ import json
 import os
 import re
 import threading
-from std_msgs.msg import Bool, String
+from std_msgs.msg import String
+from std_srvs.srv import Trigger
 from rclpy.qos import QoSProfile, DurabilityPolicy
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -303,7 +304,11 @@ class LLMNode(Node):
             self._on_locations,
             QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL),
         )
-        self.create_subscription(Bool, "/dori/llm/reset", self._on_reset_history, 10)
+        self.create_service(
+            Trigger,
+            "/dori/llm/reset",
+            self._on_reset_history,
+        )
         self.response_pub = self.create_publisher(String, "llm/response", 10)
         self._busy_lock = threading.Lock()
         self._busy = False
@@ -404,10 +409,18 @@ class LLMNode(Node):
         except (ValueError, TypeError):
             self.registered = []
 
-    def _on_reset_history(self, message: Bool):
-        if message.data:
+    def _on_reset_history(self, request, response):
+        try:
             self.conversation_history.clear()
+            response.success = True
+            response.message = "Conversation history cleared."
             self.get_logger().info("Conversation history cleared due to session reset.")
+        except Exception as e:
+            response.success = False
+            response.message = f"Failed to reset history: {e}"
+            self.get_logger().error(response.message)
+
+        return response
 
     # --- Response Generation (구조화된 딕셔너리 반환으로 변경) ---
     def _generate_response(self, user_text: str, location_context: str) -> dict:

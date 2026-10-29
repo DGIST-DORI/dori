@@ -16,6 +16,7 @@ from typing import Dict, Optional, Set
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Bool, String
+from std_srvs.srv import Trigger
 from geometry_msgs.msg import Twist
 
 import uvicorn
@@ -76,7 +77,8 @@ class BridgeNode(Node):
         self.pub_wake = self.create_publisher(Bool, "/stt/wake_word_detected", 10)
         self.pub_chime = self.create_publisher(String, "/hri/audio_cue", 10)
         self.pub_cmd_vel = self.create_publisher(Twist, "/cmd_vel", 10)
-        self.pub_llm_reset = self.create_publisher(Bool, "/dori/llm/reset", 10)
+
+        self.cli_llm_reset = self.create_client(Trigger, "/dori/llm/reset")
 
     def llm_callback(self, msg):
         # 활성 세션이 있으면 WS로 하향 전송
@@ -94,14 +96,64 @@ class BridgeNode(Node):
         self.pub_chime.publish(String(data="wake_chime"))
         logger.info("[ROS] Pairing success triggered to HRI")
 
-    def execute_cleanup(self):
-        """세션 ENDING 시 정리 작업"""
-        # 1. 로봇 정지
+    async def execute_cleanup(self, timeout_sec: float = 5.0) -> bool:
+        """로봇 정지 및 LLM 대화 기록 초기화를 수행한다."""
+        # 1. 로봇 정지 명령
         self.pub_cmd_vel.publish(Twist())
-        # 2. LLM 대화 기록 초기화 (llm_node에서 이 토픽을 받아 history clear 수행 필요)
-        self.pub_llm_reset.publish(Bool(data=True))
-        # 3. 추가 HRI/네비게이션 취소 명령 publish 가능
-        logger.info("[ROS] Session cleanup executed")
+
+        # 2. LLM 리셋 서비스가 준비될 때까지 대기
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout_sec
+
+        while not self.cli_llm_reset.wait_for_service(timeout_sec=0.0):
+            if loop.time() >= deadline:
+                logger.error("LLM reset service unavailable")
+                return False
+            await asyncio.sleep(0.1)
+
+        # 3. 서비스 요청
+        request = Trigger.Request()
+        ros_future = self.cli_llm_reset.call_async(request)
+        async_future = loop.create_future()
+
+        def on_done(future):
+            try:
+                result = future.result()
+            except Exception as exc:
+
+                def set_exception(error=exc):
+                    if not async_future.done():
+                        async_future.set_exception(error)
+
+                loop.call_soon_threadsafe(set_exception)
+            else:
+
+                def set_result(value=result):
+                    if not async_future.done():
+                        async_future.set_result(value)
+
+                loop.call_soon_threadsafe(set_result)
+
+        ros_future.add_done_callback(on_done)
+
+        try:
+            response = await asyncio.wait_for(
+                async_future,
+                timeout=max(0.1, deadline - loop.time()),
+            )
+        except asyncio.TimeoutError:
+            logger.error("LLM reset service timed out")
+            return False
+        except Exception:
+            logger.exception("LLM reset service call failed")
+            return False
+
+        if not response.success:
+            logger.error("LLM reset failed: %s", response.message)
+            return False
+
+        logger.info("[ROS] Session cleanup completed")
+        return True
 
 
 # ─── Core Logic: Nonce & Session Management ────────────────────────────────
@@ -175,16 +227,29 @@ class SessionManager:
 
     async def end_session(self):
         if self.state == SessionState.IDLE:
-            return
+            return True
+
         self.state = SessionState.ENDING
 
-        ros_node.execute_cleanup()
-
+        # 기존 세션의 접근 권한을 먼저 무효화
         self.current_token = None
         self.active_ws = None
+
+        # 실제 LLM 초기화 완료까지 대기
+        cleanup_ok = await ros_node.execute_cleanup()
+
+        if not cleanup_ok:
+            logger.error(
+                "Session cleanup failed. "
+                "Keeping the robot unavailable until reset succeeds."
+            )
+            await self.broadcast_display("state", {"status": "ENDING"})
+            return False
+
         self.state = SessionState.IDLE
         await self.broadcast_display("state", {"status": "IDLE"})
         logger.info("Session ENDED and cleaned up")
+        return True
 
 
 nonce_manager = NonceManager()
@@ -208,8 +273,11 @@ async def pair_device(req: PairRequest, response: Response):
     if not req.consent:
         raise HTTPException(status_code=400, detail="Consent required")
 
-    if session_manager.state not in (SessionState.IDLE, SessionState.ENDING):
-        raise HTTPException(status_code=409, detail="Robot is currently in use")
+    if session_manager.state != SessionState.IDLE:
+        raise HTTPException(
+            status_code=409,
+            detail="Robot is currently in use or cleaning up",
+        )
 
     if not nonce_manager.validate_and_consume(req.nonce):
         raise HTTPException(status_code=410, detail="Invalid or expired nonce")
@@ -228,9 +296,16 @@ async def pair_device(req: PairRequest, response: Response):
 
 
 @app_public.delete("/api/session")
-async def delete_session(dori_session: Optional[str] = Cookie(None)):
+async def delete_session(
+    dori_session: Optional[str] = Cookie(None),
+):
     if dori_session and dori_session == session_manager.current_token:
-        await session_manager.end_session()
+        ok = await session_manager.end_session()
+        if not ok:
+            raise HTTPException(
+                status_code=503,
+                detail="Session cleanup failed",
+            )
     return {"status": "ok"}
 
 
