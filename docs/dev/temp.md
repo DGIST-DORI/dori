@@ -1,4 +1,4 @@
-> Note: Port `3000` is now served directly by `knowledge_api.py` (unified frontend + API server).
+> Note: Port `3000` is now served directly by `backend_api.py` (unified frontend + API server).
 > If dashboard launch fails on startup, first verify runtime dependencies are installed (`fastapi`, `uvicorn`, `python-multipart`).
 
 ### Common Launch Options
@@ -63,12 +63,12 @@ Alternatively, a **WAVE** gesture activates the same wake-word handler for users
 
 ### Supported Gestures
 
-| Gesture | Action |
-|---|---|
-| WAVE | Activate DORI (same as wake word) |
-| STOP | Pause navigation |
-| POINT | Provide directional hint |
-| THUMBS_UP | Positive confirmation |
+| Gesture   | Action                            |
+| --------- | --------------------------------- |
+| WAVE      | Activate DORI (same as wake word) |
+| STOP      | Pause navigation                  |
+| POINT     | Provide directional hint          |
+| THUMBS_UP | Positive confirmation             |
 
 ---
 
@@ -122,7 +122,7 @@ The dashboard displays real-time topic values, HRI state, person tracking, gestu
 - **YOLOv8:** TensorRT inference on GPU (~5 ms/frame); infers every 2–3 frames
 - **MediaPipe gesture/expression:** activates only after wake word (Tier 3 resource)
 - **LLM:** offload to external server recommended for 7B+ models
-- **SLAM:** 
+- **SLAM:**
 
 ### MediaPipe Task Models (Operations)
 

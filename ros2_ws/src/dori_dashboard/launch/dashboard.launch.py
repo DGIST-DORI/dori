@@ -102,13 +102,13 @@ def _make_tunnel_actions(context, *args, **kwargs):
 
 
 def _make_api_server_action(context, *args, **kwargs):
-    """OpaqueFunction: knowledge_api 를 환경변수와 함께 실행."""
+    """OpaqueFunction: backend_api 를 환경변수와 함께 실행."""
     pkg_dir = get_package_share_directory("dori_dashboard")
     web_dir = os.path.join(pkg_dir, "web_current")
     if not os.path.isdir(web_dir):
         web_dir = os.path.join(pkg_dir, "web")
     repo_root = _resolve_repo_root(pkg_dir)
-    knowledge_api_script = os.path.join(pkg_dir, "scripts", "knowledge_api.py")
+    backend_api_script = os.path.join(pkg_dir, "scripts", "backend_api.py")
 
     dashboard_url = LaunchConfiguration("dashboard_url").perform(context)
     ws_url = LaunchConfiguration("ws_url").perform(context)
@@ -123,7 +123,7 @@ def _make_api_server_action(context, *args, **kwargs):
         ExecuteProcess(
             cmd=[
                 "python3",
-                knowledge_api_script,
+                backend_api_script,
                 "--repo-root",
                 repo_root,
                 "--port",
@@ -132,7 +132,7 @@ def _make_api_server_action(context, *args, **kwargs):
                 web_dir,
             ],
             output="both",
-            name="knowledge_api_server",
+            name="backend_api_server",
             emulate_tty=True,
             respawn=True,
             respawn_delay=2.0,
@@ -155,7 +155,7 @@ def generate_launch_description():
         )
 
     repo_root = _resolve_repo_root(pkg_dir)
-    knowledge_api_script = os.path.join(pkg_dir, "scripts", "knowledge_api.py")
+    backend_api_script = os.path.join(pkg_dir, "scripts", "backend_api.py")
 
     return LaunchDescription(
         [
@@ -188,7 +188,7 @@ def generate_launch_description():
             Node(package="rosapi", executable="rosapi_node", name="rosapi"),
             # ── Unified dashboard server (frontend + API on port 3000) ────────
             # DORI_DASHBOARD_URL / DORI_WS_URL 환경변수로 고정 도메인 주입
-            # knowledge_api 의 /api/tunnel-url 이 이 값을 1순위로 반환
+            # backend_api 의 /api/tunnel-url 이 이 값을 1순위로 반환
             OpaqueFunction(function=_make_api_server_action),
             # ── Cloudflare Tunnel (optional, default: enabled) ────────────────
             OpaqueFunction(function=_make_tunnel_actions),

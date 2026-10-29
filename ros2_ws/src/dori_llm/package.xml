@@ -9,6 +9,7 @@
 
   <depend>rclpy</depend>
   <depend>std_msgs</depend>
+  <exec_depend>std_srvs</exec_depend>
   <depend>geometry_msgs</depend>
   <depend>dori_msgs</depend>
 

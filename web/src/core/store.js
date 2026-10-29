@@ -282,7 +282,7 @@ const TUNNEL_POLL_MAX = 20;
 
 /**
  * 외부(Cloudflare Tunnel) 접속 시에만 실행.
- * knowledge_api 의 /api/tunnel-url 을 폴링해서
+ * backend_api 의 /api/tunnel-url 을 폴링해서
  * WS URL이 준비되면 store 에 주입한다.
  *
  * 로컬 접속(IP / localhost)이면 즉시 반환 — 기존 hostname:9090 동작 유지.

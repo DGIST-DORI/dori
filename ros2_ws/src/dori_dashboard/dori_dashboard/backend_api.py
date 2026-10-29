@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-DORI Dashboard — Knowledge Manager API Server
-Provides REST endpoints for the KnowledgeTab frontend.
+DORI Dashboard — Backend API Server
+Provides REST endpoints for Knowledge Management, Deployment, and Robot Control.
 
 Endpoints:
+  GET  /navigation/*                        Reverse proxy to navigation map service
   POST /api/knowledge/parse-menu            Receive menu files, run parser
   POST /api/knowledge/build-index           Start index build job
   GET  /api/knowledge/build-index/status/{job_id}  Poll job progress
@@ -11,14 +12,20 @@ Endpoints:
   GET  /api/knowledge/documents             List indexed .txt files
   GET  /api/knowledge/buildings             Read campus_knowledge.json
   PUT  /api/knowledge/buildings/{key}       Update one building entry
+  POST /api/control/actions                 Execute safe robot control actions
+  GET  /api/tunnel-url                      Get Cloudflare Tunnel WS URL
+  POST /api/webhook                         Handle GitHub deploy webhook
 
 Usage:
   pip install fastapi uvicorn python-multipart
-  python3 knowledge_api.py [--port 3000] [--repo-root /path/to/dori] [--web-dir /path/to/web]
+  python3 dashboard_api.py [--port 3000] [--repo-root /path/to/dori] [--web-dir /path/to/web]
 """
 
 import argparse
 import asyncio
+import base64
+import hashlib
+import hmac
 import json
 import logging
 import os
@@ -30,15 +37,25 @@ import tempfile
 import threading
 import time
 import uuid
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile, Request
-from fastapi.responses import Response, RedirectResponse
-import httpx
+from fastapi import (
+    Depends,
+    FastAPI,
+    File,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+)
+from fastapi.responses import Response, RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+import httpx
 
 try:
     from dori_llm.paths import find_repo_root as _shared_find_repo_root
@@ -49,12 +66,7 @@ except Exception:
 
 
 def find_repo_root(start: Path) -> Path:
-    """Walk up from start until we find the repo root.
-
-    Root markers:
-      - ros2_ws/src directory + README.md
-      - OR .git + README.md
-    """
+    """Walk up from start until we find the repo root."""
     if _shared_find_repo_root is not None:
         return _shared_find_repo_root(start)
 
@@ -64,7 +76,7 @@ def find_repo_root(start: Path) -> Path:
         has_git = (parent / ".git").exists()
         if has_readme and (has_ros2_src or has_git):
             return parent
-    return start  # fallback
+    return start
 
 
 def normalize_repo_root(candidate: Path) -> Path:
@@ -111,7 +123,6 @@ _jobs: dict[str, dict] = {}
 
 _TOTAL_CHUNKS_RE = re.compile(r"^\s*Total chunks\s*:\s*(\d+)\s*$")
 _TOTAL_VECTORS_RE = re.compile(r"^\s*Total vectors\s*:\s*(\d+)\s*$")
-
 _crawl_jobs: dict[str, dict] = {}
 # job schema: { status: pending|running|done|error, lines: [str], started_at: str|None,
 #               finished_at: str|None, error: str }
@@ -119,15 +130,265 @@ _crawl_jobs: dict[str, dict] = {}
 
 # ── App ────────────────────────────────────────────────────────────────────────
 
-app = FastAPI(title="DORI Knowledge API", version="1.0.0")
+app = FastAPI(title="DORI Backend API", version="1.0.0")
 logger = logging.getLogger(__name__)
+
+_DEFAULT_ALLOWED_ORIGINS = ("https://dash.dgist-dori.xyz",)
+
+
+def _parse_allowed_origins(raw: str) -> list[str]:
+    if not raw:
+        return list(_DEFAULT_ALLOWED_ORIGINS)
+    origins: list[str] = []
+    for item in (part.strip() for part in raw.split(",") if part.strip()):
+        normalized = item.rstrip("/")
+        if normalized and normalized not in origins:
+            origins.append(normalized)
+    return origins or list(_DEFAULT_ALLOWED_ORIGINS)
+
+
+_ALLOWED_ORIGINS = _parse_allowed_origins(
+    os.environ.get("DORI_ALLOWED_ORIGINS", "").strip()
+)
+_ALLOWED_ORIGIN_SET = set(_ALLOWED_ORIGINS)
+
+
+@app.middleware("http")
+async def enforce_origin_allowlist(request: Request, call_next):
+    origin = request.headers.get("origin", "").strip().rstrip("/")
+    if origin and origin not in _ALLOWED_ORIGIN_SET:
+        logger.warning(
+            "cors_origin_blocked origin=%s path=%s method=%s client=%s",
+            origin,
+            request.url.path,
+            request.method,
+            request.client.host if request.client else "-",
+        )
+        return JSONResponse(
+            status_code=403, content={"detail": "Origin is not allowed"}
+        )
+    return await call_next(request)
+
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_ALLOWED_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
+
+# ── AuthN/AuthZ ───────────────────────────────────────────────────────────────
+
+_AUTH_TOKEN_HEADER = "Bearer"
+_JWT_SECRET = os.environ.get("DORI_API_JWT_SECRET", "").strip()
+_JWT_AUDIENCE = os.environ.get("DORI_API_JWT_AUDIENCE", "").strip()
+_JWT_ISSUER = os.environ.get("DORI_API_JWT_ISSUER", "").strip()
+_ACCESS_ROLE_MAP_RAW = os.environ.get("DORI_API_ACCESS_TOKENS", "").strip()
+
+
+@dataclass(frozen=True)
+class AuthPrincipal:
+    user_id: str
+    roles: frozenset[str]
+    auth_type: str
+
+
+def _b64url_decode(value: str) -> bytes:
+    padding = "=" * (-len(value) % 4)
+    return base64.urlsafe_b64decode(value + padding)
+
+
+def _parse_access_role_map(raw: str) -> dict[str, AuthPrincipal]:
+    principals: dict[str, AuthPrincipal] = {}
+    if not raw:
+        return principals
+
+    # format: token=user_id:role1|role2,token2=user2:viewer
+    for item in (part.strip() for part in raw.split(",") if part.strip()):
+        if "=" not in item:
+            continue
+        token, right = item.split("=", 1)
+        if ":" in right:
+            user_id, role_blob = right.split(":", 1)
+        else:
+            user_id, role_blob = right, "viewer"
+        roles = frozenset(r.strip().lower() for r in role_blob.split("|") if r.strip())
+        principals[token.strip()] = AuthPrincipal(
+            user_id=user_id.strip() or "unknown",
+            roles=roles or frozenset({"viewer"}),
+            auth_type="access",
+        )
+    return principals
+
+
+_ACCESS_ROLE_MAP = _parse_access_role_map(_ACCESS_ROLE_MAP_RAW)
+
+
+def _log_auth_event(
+    request: Request, principal: AuthPrincipal | None, required: str, status_code: int
+) -> None:
+    logger.info(
+        "auth_audit status=%s path=%s user=%s roles=%s required=%s method=%s",
+        status_code,
+        request.url.path,
+        principal.user_id if principal else "-",
+        ",".join(sorted(principal.roles)) if principal else "-",
+        required,
+        request.method,
+    )
+
+
+def _verify_jwt(token: str) -> AuthPrincipal:
+    try:
+        encoded_header, encoded_payload, encoded_signature = token.split(".")
+    except ValueError as e:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid token format",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from e
+
+    try:
+        header = json.loads(_b64url_decode(encoded_header).decode("utf-8"))
+        payload = json.loads(_b64url_decode(encoded_payload).decode("utf-8"))
+    except Exception as e:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid token payload",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from e
+
+    alg = header.get("alg", "")
+    if alg != "HS256":
+        raise HTTPException(
+            status_code=401,
+            detail="Unsupported JWT algorithm",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if not _JWT_SECRET:
+        raise HTTPException(
+            status_code=401,
+            detail="JWT secret is not configured",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    signed_part = f"{encoded_header}.{encoded_payload}".encode("utf-8")
+    expected_sig = (
+        base64.urlsafe_b64encode(
+            hmac.new(_JWT_SECRET.encode("utf-8"), signed_part, hashlib.sha256).digest()
+        )
+        .decode("utf-8")
+        .rstrip("=")
+    )
+    if not hmac.compare_digest(expected_sig, encoded_signature):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid token signature",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    now_ts = int(time.time())
+    exp = payload.get("exp")
+    if exp is not None and int(exp) < now_ts:
+        raise HTTPException(
+            status_code=401,
+            detail="Token expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    nbf = payload.get("nbf")
+    if nbf is not None and int(nbf) > now_ts:
+        raise HTTPException(
+            status_code=401,
+            detail="Token not active yet",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if _JWT_AUDIENCE and payload.get("aud") != _JWT_AUDIENCE:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid token audience",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if _JWT_ISSUER and payload.get("iss") != _JWT_ISSUER:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid token issuer",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    roles = payload.get("roles", payload.get("scope", ""))
+    if isinstance(roles, str):
+        role_values = frozenset(
+            r.strip().lower() for r in roles.replace(",", " ").split() if r.strip()
+        )
+    elif isinstance(roles, list):
+        role_values = frozenset(str(r).strip().lower() for r in roles if str(r).strip())
+    else:
+        role_values = frozenset()
+
+    user_id = str(payload.get("sub", payload.get("user_id", "unknown")))
+    return AuthPrincipal(
+        user_id=user_id, roles=role_values or frozenset({"viewer"}), auth_type="jwt"
+    )
+
+
+def _authenticate_request(
+    authorization: str | None, access: str | None
+) -> AuthPrincipal:
+    if authorization and authorization.startswith(f"{_AUTH_TOKEN_HEADER} "):
+        bearer = authorization[len(_AUTH_TOKEN_HEADER) + 1 :].strip()
+        if bearer:
+            return _verify_jwt(bearer)
+
+    if access:
+        token = access.strip()
+        if token in _ACCESS_ROLE_MAP:
+            return _ACCESS_ROLE_MAP[token]
+
+    raise HTTPException(
+        status_code=401,
+        detail="Authentication required",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+def _has_permission(
+    principal: AuthPrincipal, required: Literal["view", "control", "admin"]
+) -> bool:
+    if "admin" in principal.roles:
+        return True
+    if required == "view":
+        return bool({"viewer", "view", "control", "deploy"} & principal.roles)
+    if required == "control":
+        return bool({"control", "deploy"} & principal.roles)
+    return False
+
+
+def require_permission(required: Literal["view", "control", "admin"]):
+    async def _dependency(
+        request: Request,
+        authorization: str | None = Header(default=None),
+        access: str | None = Header(default=None, alias="Access"),
+    ) -> AuthPrincipal:
+        principal: AuthPrincipal | None = None
+        try:
+            principal = _authenticate_request(authorization, access)
+        except HTTPException:
+            _log_auth_event(request, principal=None, required=required, status_code=401)
+            raise
+
+        if not _has_permission(principal, required):
+            _log_auth_event(
+                request, principal=principal, required=required, status_code=403
+            )
+            raise HTTPException(status_code=403, detail="Forbidden")
+
+        _log_auth_event(
+            request, principal=principal, required=required, status_code=200
+        )
+        return principal
+
+    return _dependency
 
 
 def _resolve_web_dir() -> Path | None:
@@ -147,7 +408,7 @@ def _resolve_web_dir() -> Path | None:
     return None
 
 
-# ── /api/knowledge/parse-menu ─────────────────────────────────────────────────
+# ── /navigation ───────────────────────────────────────────────────────────────
 
 
 @app.get("/navigation", include_in_schema=False)
@@ -156,7 +417,9 @@ async def navigation_redirect():
 
 
 @app.api_route("/navigation/{path:path}", methods=["GET", "POST"])
-async def navigation_proxy(path: str, request: Request):
+async def navigation_proxy(
+    path: str, request: Request, _: AuthPrincipal = Depends(require_permission("view"))
+):
     """Keep map assets, CSRF and control leases on the dashboard origin."""
     if path not in (
         "",
@@ -207,8 +470,14 @@ async def navigation_proxy(path: str, request: Request):
         )
 
 
+# ── /api/knowledge/parse-menu ─────────────────────────────────────────────────
+
+
 @app.post("/api/knowledge/parse-menu")
-async def parse_menu(files: list[UploadFile] = File(...)):
+async def parse_menu(
+    files: list[UploadFile] = File(...),
+    _: AuthPrincipal = Depends(require_permission("control")),
+):
     """
     Receive one or more menu files (xlsx/pdf), save to a temp dir,
     run parse_cafeteria_menu.py, and return per-file results.
@@ -229,7 +498,6 @@ async def parse_menu(files: list[UploadFile] = File(...)):
             )
             continue
 
-        # Save to temp file
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             tmp.write(await upload.read())
             tmp_path = tmp.name
@@ -342,7 +610,10 @@ def _run_build_index(
 
 
 @app.post("/api/knowledge/build-index")
-async def build_index(body: dict):
+async def build_index(
+    body: dict,
+    _: AuthPrincipal = Depends(require_permission("control")),
+):
     incremental = body.get("incremental", True)
     batch_size = body.get("batch_size")
     chunk_batch_size = body.get("chunk_batch_size")
@@ -378,7 +649,11 @@ async def build_index(body: dict):
 
 
 @app.get("/api/knowledge/build-index/status/{job_id}")
-async def build_index_status(job_id: str, cursor: int = Query(0, ge=0)):
+async def build_index_status(
+    job_id: str,
+    cursor: int = Query(0, ge=0),
+    _: AuthPrincipal = Depends(require_permission("view")),
+):
     """
     Build-index status contract:
       - total_chunks is sourced from build_index.py final summary line:
@@ -521,7 +796,10 @@ def _run_crawl_job(job_id: str, cmd: list[str]):
 
 
 @app.post("/api/knowledge/crawl-campus")
-async def crawl_campus(body: dict):
+async def crawl_campus(
+    body: dict,
+    _: AuthPrincipal = Depends(require_permission("control")),
+):
     if not CRAWLER_SCRIPT.exists():
         raise HTTPException(500, f"Crawler script not found: {CRAWLER_SCRIPT}")
 
@@ -547,7 +825,10 @@ async def crawl_campus(body: dict):
 
 
 @app.get("/api/knowledge/crawl-campus/status/{job_id}")
-async def crawl_campus_status(job_id: str):
+async def crawl_campus_status(
+    job_id: str,
+    _: AuthPrincipal = Depends(require_permission("view")),
+):
     job = _crawl_jobs.get(job_id)
     if not job:
         raise HTTPException(404, "Job not found")
@@ -565,7 +846,7 @@ async def crawl_campus_status(job_id: str):
 
 
 @app.get("/api/knowledge/index-info")
-async def index_info():
+async def index_info(_: AuthPrincipal = Depends(require_permission("view"))):
     meta_file = INDEXED_DIR / "metadata.json"
     index_file = INDEXED_DIR / "index.faiss"
 
@@ -593,7 +874,7 @@ async def index_info():
 
 
 @app.get("/api/knowledge/documents")
-async def list_documents():
+async def list_documents(_: AuthPrincipal = Depends(require_permission("view"))):
     docs = []
     if not PROCESSED_DIR.exists():
         return docs
@@ -603,8 +884,7 @@ async def list_documents():
         # Count lines as rough chunk estimate
         try:
             text = path.read_text(encoding="utf-8")
-            # Rough chunk count: chars / 300
-            chunks = max(1, len(text) // 300)
+            chunks = max(1, len(text) // 300)  # Rough chunk count: chars / 300
         except Exception:
             chunks = 0
 
@@ -651,12 +931,16 @@ def _save_knowledge(locations: dict):
 
 
 @app.get("/api/knowledge/buildings")
-async def get_buildings():
+async def get_buildings(_: AuthPrincipal = Depends(require_permission("view"))):
     return _load_knowledge()
 
 
 @app.put("/api/knowledge/buildings/{key}")
-async def update_building(key: str, body: dict):
+async def update_building(
+    key: str,
+    body: dict,
+    _: AuthPrincipal = Depends(require_permission("control")),
+):
     locations = _load_knowledge()
     if key not in locations:
         raise HTTPException(404, f"Building key not found: {key}")
@@ -666,6 +950,268 @@ async def update_building(key: str, body: dict):
     except Exception as e:
         raise HTTPException(500, str(e))
     return {"ok": True, "key": key}
+
+
+# ── /api/control/actions (external-safe control path) ────────────────────────
+
+_CONTROL_EXECUTOR = (
+    os.environ.get("DORI_CONTROL_EXECUTOR", "dry-run").strip().lower() or "dry-run"
+)
+_CONTROL_ACTIONS = frozenset({"move", "stop", "set_mode"})
+_CONTROL_MODES = frozenset({"manual", "auto", "dock", "idle"})
+_CONTROL_RATE_LIMITS = {
+    # action -> (max_requests, window_seconds)
+    "move": (10, 1.0),
+    "stop": (5, 1.0),
+    "set_mode": (2, 1.0),
+}
+_control_rate_events: dict[tuple[str, str], list[float]] = {}
+_control_rate_lock = threading.Lock()
+
+
+def _validate_float_range(
+    value, *, field: str, min_value: float, max_value: float
+) -> float:
+    if not isinstance(value, (int, float)):
+        raise HTTPException(400, f"{field} must be a number")
+    normalized = float(value)
+    if normalized < min_value or normalized > max_value:
+        raise HTTPException(400, f"{field} must be in range [{min_value}, {max_value}]")
+    return normalized
+
+
+def _enforce_control_rate_limit(principal: AuthPrincipal, action: str) -> None:
+    limit = _CONTROL_RATE_LIMITS.get(action)
+    if not limit:
+        return
+    max_requests, window_sec = limit
+    now = time.monotonic()
+    key = (principal.user_id, action)
+
+    with _control_rate_lock:
+        events = _control_rate_events.setdefault(key, [])
+        cutoff = now - window_sec
+        events[:] = [t for t in events if t >= cutoff]
+        if len(events) >= max_requests:
+            raise HTTPException(
+                status_code=429,
+                detail=f"rate limit exceeded for action={action} "
+                f"({max_requests}/{window_sec:.1f}s)",
+            )
+        events.append(now)
+
+
+def _execute_control_action(action: str, params: dict) -> dict:
+    """
+    Execute a validated control action through a constrained backend interface.
+
+    Default mode is dry-run for safety. To enable ROS2 CLI execution:
+      DORI_CONTROL_EXECUTOR=ros2_cli
+    """
+    if _CONTROL_EXECUTOR != "ros2_cli":
+        return {
+            "executor": _CONTROL_EXECUTOR,
+            "executed": False,
+            "detail": "dry-run mode: validated but not published to ROS network",
+        }
+
+    ros2_exec = shutil.which("ros2")
+    if not ros2_exec:
+        raise HTTPException(
+            status_code=500, detail="ros2 executable not found in system PATH"
+        )
+
+    if action == "move":
+        linear_x = params["linear_x"]
+        linear_y = params["linear_y"]
+        angular_z = params["angular_z"]
+        payload = (
+            "{linear: {x: "
+            + f"{linear_x:.4f}"
+            + ", y: "
+            + f"{linear_y:.4f}"
+            + ", z: 0.0}, "
+            "angular: {x: 0.0, y: 0.0, z: " + f"{angular_z:.4f}" + "}}"
+        )
+        cmd = [
+            ros2_exec,
+            "topic",
+            "pub",
+            "--once",
+            "/cmd_vel",
+            "geometry_msgs/msg/Twist",
+            payload,
+        ]
+    elif action == "stop":
+        cmd = [
+            ros2_exec,
+            "topic",
+            "pub",
+            "--once",
+            "/cmd_vel",
+            "geometry_msgs/msg/Twist",
+            "{linear: {x: 0.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}",
+        ]
+    elif action == "set_mode":
+        mode = params["mode"]
+        mode_payloads = {
+            "manual": '{data: "manual"}',
+            "auto": '{data: "auto"}',
+            "safe": '{data: "safe"}',
+        }
+        payload = mode_payloads.get(mode)
+        if payload is None:
+            raise HTTPException(400, "Unsupported mode")
+        cmd = [
+            ros2_exec,
+            "topic",
+            "pub",
+            "--once",
+            "/dori/control/mode",
+            "std_msgs/msg/String",
+            payload,
+        ]
+    else:
+        raise HTTPException(400, f"Unsupported action: {action}")
+
+    completed = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+    if completed.returncode != 0:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "control action execution failed: "
+                + (
+                    completed.stderr.strip()
+                    or completed.stdout.strip()
+                    or f"exit={completed.returncode}"
+                )
+            ),
+        )
+    return {
+        "executor": _CONTROL_EXECUTOR,
+        "executed": True,
+        "detail": "published via ros2_cli",
+    }
+
+
+@app.post("/api/control/actions")
+async def control_actions(
+    body: dict,
+    principal: AuthPrincipal = Depends(require_permission("control")),
+):
+    """
+    Public-safe control API for external users.
+    Only allowlisted actions are accepted, with strict validation and rate limiting.
+    """
+    action = body.get("action")
+    params = body.get("params", {})
+    if not isinstance(action, str):
+        raise HTTPException(400, "action must be a string")
+    if not isinstance(params, dict):
+        raise HTTPException(400, "params must be an object")
+
+    action = action.strip().lower()
+    if action not in _CONTROL_ACTIONS:
+        raise HTTPException(400, f"action must be one of: {sorted(_CONTROL_ACTIONS)}")
+
+    validated: dict = {}
+    if action == "move":
+        validated["linear_x"] = _validate_float_range(
+            params.get("linear_x", 0.0), field="linear_x", min_value=-0.8, max_value=0.8
+        )
+        validated["linear_y"] = _validate_float_range(
+            params.get("linear_y", 0.0), field="linear_y", min_value=-0.8, max_value=0.8
+        )
+        validated["angular_z"] = _validate_float_range(
+            params.get("angular_z", 0.0),
+            field="angular_z",
+            min_value=-1.2,
+            max_value=1.2,
+        )
+    elif action == "set_mode":
+        mode = params.get("mode")
+        if not isinstance(mode, str):
+            raise HTTPException(400, "mode must be a string")
+        mode = mode.strip().lower()
+        if mode not in _CONTROL_MODES:
+            raise HTTPException(400, f"mode must be one of: {sorted(_CONTROL_MODES)}")
+        validated["mode"] = mode
+
+    _enforce_control_rate_limit(principal, action)
+    exec_result = _execute_control_action(action, validated)
+    return {
+        "ok": True,
+        "action": action,
+        "validated_params": validated,
+        "rate_limit": {
+            "max_requests": _CONTROL_RATE_LIMITS[action][0],
+            "window_sec": _CONTROL_RATE_LIMITS[action][1],
+        },
+        **exec_result,
+    }
+
+
+@app.post("/api/admin/publish")
+async def admin_publish(
+    body: dict,
+    _: AuthPrincipal = Depends(require_permission("admin")),
+):
+    """
+    High-risk raw publish endpoint.
+    Intentionally admin-only and disabled unless explicitly enabled.
+    """
+    if os.environ.get("DORI_ENABLE_ADMIN_PUBLISH", "").strip().lower() not in (
+        "1",
+        "true",
+        "yes",
+    ):
+        raise HTTPException(403, "admin publish endpoint is disabled")
+    return {
+        "ok": False,
+        "detail": (
+            "admin publish endpoint is reserved for controlled environments. "
+            "Use /api/control/actions for external control flows."
+        ),
+        "requested": body,
+    }
+
+
+# ── /api/admin/sessions (Bridge API 연동) ───────────────────────────────────
+
+BRIDGE_API_URL = "http://127.0.0.1:3100"
+
+
+@app.get("/api/admin/sessions")
+async def admin_get_sessions(_: AuthPrincipal = Depends(require_permission("admin"))):
+    """Get current user session status from bridge_api."""
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            # 브릿지의 로컬 엔드포인트 호출
+            resp = await client.get(f"{BRIDGE_API_URL}/internal/session")
+        return Response(
+            content=resp.content,
+            status_code=resp.status_code,
+            media_type="application/json",
+        )
+    except httpx.RequestError as e:
+        logger.error(f"Failed to reach bridge_api: {e}")
+        raise HTTPException(503, "Bridge API is unreachable")
+
+
+@app.delete("/api/admin/sessions")
+async def admin_delete_session(_: AuthPrincipal = Depends(require_permission("admin"))):
+    """Force terminate current user session in bridge_api."""
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            resp = await client.delete(f"{BRIDGE_API_URL}/internal/session")
+        return Response(
+            content=resp.content,
+            status_code=resp.status_code,
+            media_type="application/json",
+        )
+    except httpx.RequestError as e:
+        logger.error(f"Failed to reach bridge_api: {e}")
+        raise HTTPException(503, "Bridge API is unreachable")
 
 
 # ── /api/tunnel-url ───────────────────────────────────────────────────────────
@@ -687,6 +1233,9 @@ _CF_URL_RE = _re.compile(r"https://[a-z0-9\-]+\.trycloudflare\.com")
 #     DORI_WS_URL=wss://ws.dgist-dori.xyz
 _FIXED_DASHBOARD_URL = _os.environ.get("DORI_DASHBOARD_URL", "").strip()
 _FIXED_WS_URL = _os.environ.get("DORI_WS_URL", "").strip()
+_EXPOSE_ROSBRIDGE_TUNNEL = _os.environ.get(
+    "DORI_EXPOSE_ROSBRIDGE_TUNNEL", ""
+).strip().lower() in ("1", "true", "yes")
 
 
 def _parse_tunnel_url(log_path: Path) -> str | None:
@@ -702,10 +1251,10 @@ def _parse_tunnel_url(log_path: Path) -> str | None:
 @app.get("/api/tunnel-url")
 async def get_tunnel_url():
     """
-    Return Cloudflare Tunnel public URLs for the dashboard and rosbridge.
+    Return Cloudflare Tunnel public URL for the dashboard and (optionally) rosbridge.
 
     Response:
-      { "dashboard_url": str|null, "ws_url": str|null, "ready": bool }
+      { "dashboard_url": str|null, "ws_url": str|null, "ready": bool, "ws_exposed": bool }
 
     Priority:
       1) DORI_WS_URL / DORI_DASHBOARD_URL env vars (fixed custom domain)
@@ -719,17 +1268,21 @@ async def get_tunnel_url():
             "dashboard_url": _FIXED_DASHBOARD_URL or None,
             "ws_url": _FIXED_WS_URL,
             "ready": True,
+            "ws_exposed": True,
         }
 
     # 2순위: trycloudflare.com 임시 터널 로그 파싱
     dashboard_url = _parse_tunnel_url(_CF_LOG_DASHBOARD)
-    ws_http_url = _parse_tunnel_url(_CF_LOG_WS)
-    ws_url = ws_http_url.replace("https://", "wss://", 1) if ws_http_url else None
+    ws_url = None
+    if _EXPOSE_ROSBRIDGE_TUNNEL:
+        ws_http_url = _parse_tunnel_url(_CF_LOG_WS)
+        ws_url = ws_http_url.replace("https://", "wss://", 1) if ws_http_url else None
 
     return {
         "dashboard_url": dashboard_url,
         "ws_url": ws_url,
-        "ready": ws_url is not None,
+        "ready": dashboard_url is not None or ws_url is not None,
+        "ws_exposed": _EXPOSE_ROSBRIDGE_TUNNEL and ws_url is not None,
     }
 
 
@@ -743,11 +1296,7 @@ async def get_tunnel_url():
 #   DORI_WEBHOOK_SECRET  : GitHub webhook secret (HMAC-SHA256)
 #   DORI_ROS_DISTRO      : ROS distro name (default: humble)
 
-import hashlib
-import hmac
 import shlex
-import threading
-from fastapi import Request
 
 _WEBHOOK_SECRET = _os.environ.get("DORI_WEBHOOK_SECRET", "").encode()
 _ROS_DISTRO = _os.environ.get("DORI_ROS_DISTRO", "humble")
@@ -770,8 +1319,10 @@ _deploy_lock = threading.Lock()
 def _verify_github_signature(body: bytes, sig_header: str | None) -> bool:
     """Verify X-Hub-Signature-256 against DORI_WEBHOOK_SECRET."""
     if not _WEBHOOK_SECRET:
-        return True  # Dev mode: skip verification
+        logger.error("Webhook secret is not configured. Rejecting request.")
+        return False  # (True)Dev mode: skip verification
     if not sig_header or not sig_header.startswith("sha256="):
+        logger.error("Invalid signature header. It must start with 'sha256='.")
         return False
     expected = "sha256=" + hmac.new(_WEBHOOK_SECRET, body, hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, sig_header)
@@ -812,7 +1363,6 @@ def _run_step(
 
         step["status"] = "done"
         return True, step["log"]
-
     except Exception as e:
         step["status"] = "error"
         step["log"] = str(e)
@@ -855,10 +1405,8 @@ def _normalize_static_asset_path(raw: str) -> str | None:
     candidate = raw.strip()
     if not candidate:
         return None
-
     if candidate.startswith(("http://", "https://", "//", "data:")):
         return None
-
     normalized = candidate.split("?", 1)[0].split("#", 1)[0].lstrip("/")
     return normalized or None
 
@@ -872,18 +1420,15 @@ def _collect_manifest_references(
     if key in visited:
         return
     visited.add(key)
-
     entry = manifest.get(key)
     if not isinstance(entry, dict):
         return
-
     for field in ("file", "src"):
         value = entry.get(field)
         if isinstance(value, str):
             normalized = _normalize_static_asset_path(value)
             if normalized:
                 refs.append((f"manifest[{key}].{field}", normalized))
-
     for list_field in ("css", "assets"):
         values = entry.get(list_field)
         if isinstance(values, list):
@@ -892,7 +1437,6 @@ def _collect_manifest_references(
                     normalized = _normalize_static_asset_path(value)
                     if normalized:
                         refs.append((f"manifest[{key}].{list_field}", normalized))
-
     for dep_field in ("imports", "dynamicImports"):
         deps = entry.get(dep_field)
         if not isinstance(deps, list):
@@ -913,7 +1457,6 @@ def _validate_static_tree(web_dir: Path) -> tuple[list[str], int]:
     index_path = web_dir / "index.html"
     if not index_path.is_file():
         return ["index.html"], 1
-
     manifest_path = web_dir / "manifest.json"
     if manifest_path.is_file():
         try:
@@ -945,7 +1488,6 @@ def _validate_static_tree(web_dir: Path) -> tuple[list[str], int]:
             if asset_path.startswith("api/"):
                 continue
             refs.append(("index.html", asset_path))
-
     missing: list[str] = []
     seen_refs: set[str] = set()
     for source, asset_path in refs:
@@ -957,7 +1499,6 @@ def _validate_static_tree(web_dir: Path) -> tuple[list[str], int]:
         seen_refs.add(ref_key)
         if not (web_dir / asset_path).is_file():
             missing.append(f"{source}: {asset_path}")
-
     return missing, len(seen_refs)
 
 
@@ -976,56 +1517,32 @@ def _publish_built_web_tree() -> tuple[bool, str]:
     missing, checked = _validate_static_tree(built_web_dir)
     if missing:
         preview = ", ".join(missing[:5])
-        if len(missing) > 5:
-            preview += f", ... (+{len(missing) - 5} more)"
-        return False, (
-            "Installed static tree is incomplete; refusing to publish "
-            f"{built_web_dir}. Validation checked={checked}, missing={len(missing)}. "
-            f"Missing: {preview}"
+        return (
+            False,
+            f"Installed static tree is incomplete. checked={checked}, missing={len(missing)}. {preview}",
         )
-    validation_summary = f"Validation checked={checked}, missing=0."
-
     release_root = _web_release_root()
     release_root.mkdir(parents=True, exist_ok=True)
-
     release_name = (
         datetime.utcnow().strftime("%Y%m%dT%H%M%S") + f"-{uuid.uuid4().hex[:8]}"
     )
     release_dir = release_root / release_name
     tmp_release_dir = release_root / f".{release_name}.tmp"
-
     if tmp_release_dir.exists():
         shutil.rmtree(tmp_release_dir)
     shutil.copytree(built_web_dir, tmp_release_dir)
-
     copied_missing, copied_checked = _validate_static_tree(tmp_release_dir)
     if copied_missing:
         shutil.rmtree(tmp_release_dir, ignore_errors=True)
-        preview = ", ".join(copied_missing[:5])
-        if len(copied_missing) > 5:
-            preview += f", ... (+{len(copied_missing) - 5} more)"
-        return False, (
-            "Staged static tree is incomplete after copy; refusing to publish. "
-            f"Validation checked={copied_checked}, missing={len(copied_missing)}. "
-            f"Missing: {preview}"
-        )
-    copied_validation_summary = f"Validation checked={copied_checked}, missing=0."
-
+        return False, "Staged static tree is incomplete after copy."
     tmp_release_dir.rename(release_dir)
-
     published_link = _published_web_dir()
     tmp_link = published_link.with_name(published_link.name + ".tmp")
     if tmp_link.exists() or tmp_link.is_symlink():
         tmp_link.unlink()
     tmp_link.symlink_to(release_dir, target_is_directory=True)
     os.replace(tmp_link, published_link)
-
-    return True, (
-        "Published dashboard static tree via atomic symlink swap. "
-        f"{validation_summary} {copied_validation_summary} "
-        f"Active tree: {published_link} -> {release_dir}. "
-        "Cache purge/window for public exposure must happen after this step."
-    )
+    return True, f"Published via atomic symlink swap: {release_dir}"
 
 
 def _repair_publish_if_needed(*, reason: str) -> tuple[bool, bool, str, list[str]]:
@@ -1040,55 +1557,37 @@ def _repair_publish_if_needed(*, reason: str) -> tuple[bool, bool, str, list[str
         missing_files: missing reference list discovered from web_current validation.
     """
     published_dir = _published_web_dir()
-
     if not published_dir.exists():
-        log = (
-            f"Repair trigger({reason}): web_current path does not exist: {published_dir}. "
-            "Forcing publish from installed web tree."
-        )
         ok, publish_log = _publish_built_web_tree()
         return (
             ok,
             True,
-            f"{log}\n{publish_log}",
-            ["web_current: missing directory/symlink"],
+            f"Repair trigger: path does not exist. {publish_log}",
+            ["web_current: missing"],
         )
-
     if published_dir.is_symlink():
         target = published_dir.resolve(strict=False)
         if not target.exists():
-            log = (
-                f"Repair trigger({reason}): web_current symlink target is missing: "
-                f"{published_dir} -> {target}. Forcing publish."
-            )
             ok, publish_log = _publish_built_web_tree()
             return (
                 ok,
                 True,
-                f"{log}\n{publish_log}",
-                [f"web_current symlink target missing: {target}"],
+                f"Repair trigger: symlink target missing. {publish_log}",
+                [f"missing: {target}"],
             )
-
     missing, checked = _validate_static_tree(published_dir)
     if missing:
-        preview = ", ".join(missing[:5])
-        if len(missing) > 5:
-            preview += f", ... (+{len(missing) - 5} more)"
-        log = (
-            f"Repair trigger({reason}): web_current integrity check failed. "
-            f"Validation checked={checked}, missing={len(missing)}. Missing: {preview}. "
-            "Forcing publish from installed web tree."
-        )
         ok, publish_log = _publish_built_web_tree()
-        return ok, True, f"{log}\n{publish_log}", missing
-
+        return (
+            ok,
+            True,
+            f"Repair trigger: integrity check failed. {publish_log}",
+            missing,
+        )
     return (
         True,
         False,
-        (
-            f"Repair skipped({reason}): web_current integrity check passed. "
-            f"Validation checked={checked}, missing=0."
-        ),
+        f"Repair skipped: integrity check passed (checked={checked}).",
         [],
     )
 
@@ -1121,7 +1620,6 @@ def _deploy_pipeline(*, force_web_repair: bool = False):
             "finished_at": None,
         }
     )
-
     repo = str(REPO_ROOT)
     ros_setup = f"/opt/ros/{_ROS_DISTRO}/setup.bash"
 
@@ -1142,30 +1640,23 @@ def _deploy_pipeline(*, force_web_repair: bool = False):
         return
 
     changed = _changed_paths(pull_log)
-    already_up_to_date = "Already up to date" in pull_log
-
-    if already_up_to_date:
+    if "Already up to date" in pull_log:
         repair_step = {
-            "step": "web integrity check (already up to date)",
+            "step": "web integrity check",
             "status": "running",
-            "log": 'git pull reported "Already up to date". Running web_current integrity check.',
+            "log": "Running web_current integrity check.",
         }
         _deploy_job["steps"].append(repair_step)
         ok, attempted, repair_log, missing_files = _repair_publish_if_needed(
-            reason="already-up-to-date",
+            reason="already-up-to-date"
         )
         repair_step["log"] += "\n" + repair_log
-        if attempted:
-            repair_step["log"] += "\nRepair publish executed due to integrity failure."
-        else:
-            repair_step["log"] += "\nRepair publish not required."
         if not ok:
             repair_step["status"] = "error"
             _deploy_job.update(
                 {
                     "status": "error",
-                    "error": "dashboard static repair publish failed",
-                    "missing_files": missing_files,
+                    "error": "dashboard static repair failed",
                     "finished_at": datetime.datetime.now().isoformat(),
                 }
             )
@@ -1183,7 +1674,6 @@ def _deploy_pipeline(*, force_web_repair: bool = False):
     # ── Step 2: npm build (only if web/ files changed) ───────────────────────
     web_changed = any(p.startswith("web/") for p in changed)
     web = _web_dir()
-
     if web_changed and web:
         ok, _ = _run_step("npm ci", ["npm", "ci"], cwd=str(web))
         if not ok:
@@ -1195,7 +1685,6 @@ def _deploy_pipeline(*, force_web_repair: bool = False):
                 }
             )
             return
-
         ok, _ = _run_step("npm run build", ["npm", "run", "build"], cwd=str(web))
         if not ok:
             _deploy_job.update(
@@ -1220,7 +1709,6 @@ def _deploy_pipeline(*, force_web_repair: bool = False):
     packages_to_build = []
     if web_changed or dashboard_changed:
         packages_to_build.append("dori_dashboard")
-
     if ros_changed:
         packages_to_build.extend(
             [
@@ -1236,28 +1724,10 @@ def _deploy_pipeline(*, force_web_repair: bool = False):
                 "dori_observability",
             ]
         )
-
     packages_to_build = sorted(set(packages_to_build))
 
     if packages_to_build:
-        _deploy_job["steps"].append(
-            {
-                "step": "select packages",
-                "status": "done",
-                "log": "Packages selected: " + ", ".join(packages_to_build),
-            }
-        )
         package_args = " ".join(shlex.quote(pkg) for pkg in packages_to_build)
-        if not ROS2_WS_ROOT.is_dir():
-            _deploy_job.update(
-                {
-                    "status": "error",
-                    "error": f"ROS2 workspace not found: {ROS2_WS_ROOT}",
-                    "finished_at": datetime.datetime.now().isoformat(),
-                }
-            )
-            return
-
         ok, _ = _run_step(
             "colcon build",
             [
@@ -1278,52 +1748,28 @@ def _deploy_pipeline(*, force_web_repair: bool = False):
             return
 
     # ── Step 4: publish dashboard static tree only after install completes ───
-    should_attempt_repair = force_web_repair or web_changed
-    if should_attempt_repair:
-        step = {
-            "step": "publish dashboard static tree",
-            "status": "running",
-            "log": (
-                "Validating install/share/dori_dashboard/web, copying into a new "
-                "versioned release directory, and switching web_current only "
-                "after the full asset set is present. Purge caches only after "
-                "this step reports done."
-            ),
-        }
+    if force_web_repair or web_changed:
+        step = {"step": "publish dashboard static tree", "status": "running", "log": ""}
         _deploy_job["steps"].append(step)
         if force_web_repair and not web_changed:
-            step[
-                "log"
-            ] += "\nRepair mode enabled: running integrity check and publishing only if needed."
             ok, attempted, publish_log, missing_files = _repair_publish_if_needed(
                 reason="manual-repair"
-            )
-            step["log"] += "\n" + publish_log
-            step["log"] += (
-                "\nRepair publish executed."
-                if attempted
-                else "\nRepair publish skipped."
             )
         else:
             ok, publish_log = _publish_built_web_tree()
             missing_files = []
-            step["log"] += "\nPublish mode: web changes detected; publish is mandatory."
-            step["log"] += "\n" + publish_log
-            step["log"] += "\nRepair publish executed."
+        step["log"] += "\n" + publish_log
         if not ok:
             step["status"] = "error"
             _deploy_job.update(
                 {
                     "status": "error",
                     "error": "dashboard static publish failed",
-                    "missing_files": missing_files,
                     "finished_at": datetime.datetime.now().isoformat(),
                 }
             )
             return
         step["status"] = "done"
-
-    requires_restart = dashboard_changed
 
     _deploy_job.update(
         {
@@ -1333,17 +1779,9 @@ def _deploy_pipeline(*, force_web_repair: bool = False):
         }
     )
 
-    if requires_restart:
+    if dashboard_changed:
         import signal
-        import os
 
-        _deploy_job["steps"].append(
-            {
-                "step": "restart knowledge api",
-                "status": "done",
-                "log": "dori_dashboard change is detected and knowledge_api process is restarted.",
-            }
-        )
         os.kill(os.getpid(), signal.SIGTERM)
 
 
@@ -1353,14 +1791,8 @@ def _deploy_pipeline(*, force_web_repair: bool = False):
 @app.post("/api/webhook")
 async def github_webhook(request: Request):
     """Receive GitHub push webhook, trigger deploy pipeline on main branch."""
-    if os.getenv("DORI_ALLOW_LIVE_DEPLOY") != "1":
-        raise HTTPException(
-            423,
-            "Robot deployment is locked; stop the robot and deploy from the terminal",
-        )
     body = await request.body()
     sig = request.headers.get("X-Hub-Signature-256")
-
     if not _verify_github_signature(body, sig):
         return JSONResponse({"error": "Invalid signature"}, status_code=403)
 
@@ -1383,23 +1815,18 @@ async def github_webhook(request: Request):
             )
         thread = threading.Thread(target=_deploy_pipeline, daemon=True)
         thread.start()
-
     return JSONResponse({"ok": True, "message": "Deploy started"})
 
 
 @app.get("/api/deploy/status")
-async def deploy_status():
+async def deploy_status(_: AuthPrincipal = Depends(require_permission("view"))):
     """Poll deploy pipeline progress."""
-    return JSONResponse(
-        {**_deploy_job, "enabled": os.getenv("DORI_ALLOW_LIVE_DEPLOY") == "1"}
-    )
+    return JSONResponse(_deploy_job)
 
 
 @app.post("/api/deploy/trigger")
-async def deploy_trigger():
+async def deploy_trigger(_: AuthPrincipal = Depends(require_permission("admin"))):
     """Manually trigger the deploy pipeline (no webhook needed, dev use)."""
-    if os.getenv("DORI_ALLOW_LIVE_DEPLOY") != "1":
-        raise HTTPException(423, "Stop the robot and deploy from the terminal")
     with _deploy_lock:
         if _deploy_job["status"] == "running":
             return JSONResponse(
@@ -1411,19 +1838,15 @@ async def deploy_trigger():
 
 
 @app.post("/api/deploy/repair-web")
-async def deploy_repair_web():
+async def deploy_repair_web(_: AuthPrincipal = Depends(require_permission("admin"))):
     """Run a web integrity check and repair-publish if required."""
-    if os.getenv("DORI_ALLOW_LIVE_DEPLOY") != "1":
-        raise HTTPException(423, "Stop the robot and deploy from the terminal")
     with _deploy_lock:
         if _deploy_job["status"] == "running":
             return JSONResponse(
                 {"skipped": "deploy already in progress"}, status_code=409
             )
         thread = threading.Thread(
-            target=_deploy_pipeline,
-            kwargs={"force_web_repair": True},
-            daemon=True,
+            target=_deploy_pipeline, kwargs={"force_web_repair": True}, daemon=True
         )
         thread.start()
     return JSONResponse({"ok": True, "message": "Repair deploy started"})
@@ -1456,29 +1879,11 @@ if WEB_DIR:
         ".otf",
         ".eot",
     }
-    _IMMUTABLE_ASSET_EXTENSIONS = {
-        ".js",
-        ".mjs",
-        ".css",
-        ".map",
-        ".png",
-        ".jpg",
-        ".jpeg",
-        ".gif",
-        ".webp",
-        ".svg",
-        ".ico",
-        ".woff",
-        ".woff2",
-        ".ttf",
-        ".otf",
-        ".eot",
-    }
+    _IMMUTABLE_ASSET_EXTENSIONS = _STATIC_FILE_EXTENSIONS.copy()
 
     def _is_versioned_asset(requested_path: Path) -> bool:
         if "assets" not in requested_path.parts:
             return False
-
         stem_parts = [part for part in requested_path.stem.split(".") if part]
         return len(stem_parts) > 1
 
@@ -1490,13 +1895,11 @@ if WEB_DIR:
 
         if normalized_parts == ("index.html",):
             return {"Cache-Control": "no-cache, no-store, must-revalidate"}
-
         if (
             _is_versioned_asset(requested_path)
             and suffix in _IMMUTABLE_ASSET_EXTENSIONS
         ):
             return {"Cache-Control": "public, max-age=31536000, immutable"}
-
         if suffix in {
             ".png",
             ".jpg",
@@ -1512,17 +1915,16 @@ if WEB_DIR:
             ".eot",
         }:
             return {"Cache-Control": "public, max-age=3600"}
-
         return {"Cache-Control": "public, max-age=300"}
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_spa(full_path: str):
-        # 실제 파일이 있으면 그대로 반환 (JS, CSS, 이미지 등)
         target = (WEB_DIR / full_path).resolve()
         if not target.is_relative_to(WEB_DIR.resolve()):
             raise HTTPException(404, "Not Found")
         if full_path.startswith("api/"):
             raise HTTPException(404, "Unknown API")
+
         requested_path = Path(full_path)
         if target.is_file():
             return _FileResponse(
@@ -1536,7 +1938,6 @@ if WEB_DIR:
         if is_asset_request:
             raise HTTPException(404, "Not Found")
 
-        # 파일 확장자가 없는 SPA route만 index.html fallback 처리
         if not requested_path.suffix:
             index_path = Path("index.html")
             return _FileResponse(
@@ -1551,8 +1952,8 @@ if WEB_DIR:
 if __name__ == "__main__":
     import uvicorn
 
-    print(f"[DORI Knowledge API] Repo root : {REPO_ROOT}")
-    print(f"[DORI Knowledge API] Parser    : {PARSER_SCRIPT}")
-    print(f"[DORI Knowledge API] Builder   : {BUILDER_SCRIPT}")
-    print(f"[DORI Knowledge API] Listening : http://0.0.0.0:{args.port}")
+    print(f"[DORI Backend API] Repo root : {REPO_ROOT}")
+    print(f"[DORI Backend API] Parser    : {PARSER_SCRIPT}")
+    print(f"[DORI Backend API] Builder   : {BUILDER_SCRIPT}")
+    print(f"[DORI Backend API] Listening : http://0.0.0.0:{args.port}")
     uvicorn.run(app, host="0.0.0.0", port=args.port, log_level="warning")
