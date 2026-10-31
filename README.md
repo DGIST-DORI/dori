@@ -8,21 +8,21 @@
 <br>
 <div align="center">
 
-<a href="">![GitHub commit activity](https://img.shields.io/github/commit-activity/w/DGIST-DORI/dori)</a>
-<a href="">![GitHub last commit](https://img.shields.io/github/last-commit/DGIST-DORI/dori)</a>
-<a href="">![GitHub repo size](https://img.shields.io/github/repo-size/DGIST-DORI/dori)</a>
-<br>
-<a href="">[![CodeQL Advanced](https://github.com/DGIST-DORI/dori/actions/workflows/codeql.yml/badge.svg)](https://github.com/DGIST-DORI/dori/actions/workflows/codeql.yml)</a>
-<a href="">[![Dependency review](https://github.com/DGIST-DORI/dori/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/DGIST-DORI/dori/actions/workflows/dependency-review.yml)</a>
-<br>
-<a href="">[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-v2.0%20adopted-hotpink.svg)](CODE_OF_CONDUCT.md)</a>
-<a href="">![Discord](https://img.shields.io/discord/1416157037695598753)</a>
-
+  <a href="">![GitHub commit activity](https://img.shields.io/github/commit-activity/w/DGIST-DORI/dori)</a>
+  <a href="">![GitHub last commit](https://img.shields.io/github/last-commit/DGIST-DORI/dori)</a>
+  <a href="">![GitHub repo size](https://img.shields.io/github/repo-size/DGIST-DORI/dori)</a>
+  <br>
+  <a href="">[![CodeQL Advanced](https://github.com/DGIST-DORI/dori/actions/workflows/codeql.yml/badge.svg)](https://github.com/DGIST-DORI/dori/actions/workflows/codeql.yml)</a>
+  <a href="">[![Dependency review](https://github.com/DGIST-DORI/dori/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/DGIST-DORI/dori/actions/workflows/dependency-review.yml)</a>
+  <br>
+  <a href="">[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-v2.0%20adopted-hotpink.svg)](CODE_OF_CONDUCT.md)</a>
+  <a href="">![Discord](https://img.shields.io/discord/1416157037695598753)</a>
+  
 </div>
 
 # DORI
 
-[DORI](https://dgist-dori.xyz) (DGIST O-shaped Robot for Interaction, stylized as _Dori_) is a spherical campus guide robot capable of navigating diverse campus environments while providing LLM-powered voice interaction.
+[DORI](https://dgist-dori.xyz) (DGIST O-shaped Robot for Interaction, stylized as *Dori*) is a spherical campus guide robot capable of navigating diverse campus environments while providing LLM-powered voice interaction.
 
 > UGRP 2026 — DGIST
 
@@ -93,7 +93,7 @@ print('Voice assets ready.')
 PYVOICE
 ```
 
-_(Alternatively, use the helper script under tools/voice if available)_
+*(Alternatively, use the helper script under tools/voice if available)*
 
 ### 3-2. (Optional) Download Perception & Vision Models
 
