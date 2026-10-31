@@ -1,4 +1,4 @@
-"""Executable HRI behavior tree using Ubuntu 22.04 / Humble's BT.CPP v3 ABI."""
+"""Executable HRI behavior tree using Ubuntu 22.04 / Humble's BT.CPP v4 ABI."""
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
