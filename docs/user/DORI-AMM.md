@@ -28,7 +28,7 @@
 | 디렉터리 이동 후 소스·설치 경로 불일치              | `ros2_ws/src`, `ros2_ws/install` 기준으로 빌드·런처·시험 수정 |
 | 삭제된 launch 디렉터리 설치 / 누락된 Python·웹 파일 | CMake·setup·실행 파일 설치 정리                               |
 | Nav2와 HRI 액션/네임스페이스 불일치                 | 공개 DORI 액션 → 단일 권한 중계 → 내부 Nav2 액션              |
-| main의 충돌 잔여 코드와 성공 고정 BT                | Humble BT.CPP v3 기반 실제 LLM/TTS/주행 결과 대기             |
+| main의 충돌 잔여 코드와 성공 고정 BT                | Humble BT.CPP v4 기반 실제 LLM/TTS/주행 결과 대기             |
 | 여러 노드가 active/enabled 발행                     | `nav2_adapter` 단일 소유, heartbeat 누락 시 주행 차단         |
 | 웹 지도 자리표시자 / TTS 입력을 출력으로 오인       | 실측 지도 뷰어 임베드, 실제 TTS 출력 이벤트 연결              |
 | API보다 먼저 등록된 SPA 경로                        | API 뒤에 정적 페이지 라우트 배치                              |
