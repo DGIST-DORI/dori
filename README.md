@@ -40,35 +40,64 @@
 
 ```bash
 sudo apt update
-sudo apt install -y \
-  portaudio19-dev python3-pyaudio ffmpeg libsndfile1 mpg123 \
-  ros-humble-rosbridge-server ros-humble-realsense2-camera \
-  ros-humble-behaviortree-cpp-v4 ros-humble-nav2-behavior-tree
+sudo apt install -y git build-essential python3.10-venv python3-pip python3-rosdep \
+  python3-colcon-common-extensions python3-vcstool libportaudio2 portaudio19-dev \
+  ffmpeg mpg123 can-utils nlohmann-json3-dev \
+  ros-humble-navigation2 ros-humble-nav2-bringup ros-humble-cartographer-ros \
+  ros-humble-rosbridge-server ros-humble-behaviortree-cpp-v4
 ```
 
-### 2. Clone Repository
+Ensure Node.js (version 22 recommended) and npm are installed for building dashboard web assets.
+
+### 2. Clone Repository & Import Dependencies
 
 ```bash
 git clone https://github.com/DGIST-DORI/dori
 cd dori
+
+# Import third-party repositories
+vcs import ros2_ws/src < ros2_ws/src/third_party.repos
 ```
 
-### 3. Install Python Dependencies
+### 3. Install ROS & Python Dependencies
+
+Initialize and update rosdep:
 
 ```bash
-pip3 install -r requirements.txt
+source /opt/ros/humble/setup.bash
+if [ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]; then sudo rosdep init; fi
+rosdep update --rosdistro humble
+rosdep install --from-paths ros2_ws/src --ignore-src --rosdistro humble -y
 ```
 
-### 3-1. Download and Place Porcupine `.pv` Models (STT)
+Set up a virtual environment inheriting system site-packages (required for ROS Python bindings):
 
-1. Download the model
-[Porcupine Wake Word GitHub repository](https://github.com/Picovoice/porcupine/tree/master/lib/common)
+```bash
+/usr/bin/python3 -m venv --system-site-packages .venv
+.venv/bin/python -m pip install -r requirements-runtime.txt
+```
 
-2. Put it in ros2_ws/src/dori_hri/models
+### 3-1. Prepare Voice Assets (STT / openWakeWord & Whisper)
 
-### 3-2. Download and Place MediaPipe `.task` Models (Perception)
+DORI uses openWakeWord (`hey_mycroft` / custom wake word) and faster-whisper (`small` model) for speech recognition:
 
-`dori_perception` gesture/expression nodes use MediaPipe Tasks models that are **not** bundled by default.
+```bash
+.venv/bin/python -m pip install -c constraints-robot.txt 'openwakeword>=0.6,<0.7' 'faster-whisper>=1,<2'
+mkdir -p .state/voice
+.venv/bin/python - <<'PYVOICE'
+import openwakeword
+from faster_whisper.utils import download_model
+openwakeword.utils.download_models(model_names=['hey_mycroft'])
+download_model('small', output_dir='.state/voice/whisper-small')
+print('Voice assets ready.')
+PYVOICE
+```
+
+*(Alternatively, use the helper script under tools/voice if available)*
+
+### 3-2. (Optional) Download Perception & Vision Models
+
+If `enable_perception:=true` is used, gesture and expression nodes require MediaPipe Task models:
 
 1. Create the model asset directory:
 
@@ -83,113 +112,137 @@ ros2_ws/src/dori_perception/models/hand_landmarker.task
 ros2_ws/src/dori_perception/models/face_landmarker.task
 ```
 
-3. Build/install the workspace so models are copied to:
-
-```text
-<install-prefix>/share/dori_perception/models/
-```
-
-4. Launch Perception with explicit model paths (recommended) or rely on default share-directory lookup:
+3. Install perception dependencies:
 
 ```bash
-ros2 launch dori_bringup perception.launch.py \
-  hand_model_path:=/absolute/path/to/hand_landmarker.task \
-  face_model_path:=/absolute/path/to/face_landmarker.task
+.venv/bin/python -m pip install -c constraints-robot.txt -r ros2_ws/src/dori_perception/requirements.txt
 ```
 
-If model files are missing/unreadable/corrupted, the nodes log explicit errors and stop startup.
+### 4. Set Environment & API Keys (Optional)
 
-### 4. Set API Keys
+DORI works out-of-the-box with local rule-based intent classification and offline guidance without any external API keys.
+
+If using external LLM providers (e.g. Gemini) or cloud services:
 
 ```bash
-# Porcupine wake word (required)
-echo 'export PORCUPINE_ACCESS_KEY="your_key_here"' >> ~/.bashrc
-
-# Optional: external LLM providers
+# Optional: external LLM providers (Gemini)
 echo 'export GEMINI_API_KEY="your_key_here"' >> ~/.bashrc
 
 source ~/.bashrc
 ```
 
-Get your Porcupine key for free at [Picovoice Console](https://console.picovoice.ai/).
+If using external LLM features, install the LLM requirements:
+
+```bash
+.venv/bin/python -m pip install -c constraints-robot.txt -r ros2_ws/src/dori_llm/requirements.txt
+```
 
 ### 5. Build
 
+> **Note:** The web dashboard frontend must be built before building ROS packages so that the compiled assets are packaged into `dori_dashboard`.
+
 ```bash
+# 1. Build frontend dashboard assets
+cd web
+npm ci
+npm run build
+cd ..
+
+# 2. Build ROS 2 workspace
 source /opt/ros/humble/setup.bash
+source .venv/bin/activate
+export PYTHONNOUSERSITE=1
 cd ros2_ws
-vcs import src < src/third_party.repos
-rosdep install --from-paths src --ignore-src -y -r
-colcon build --symlink-install
-source install/setup.bash
+python -m colcon build --symlink-install --parallel-workers 2 \
+  --cmake-args -DBUILD_TESTING=ON \
+  -DPython3_EXECUTABLE="$VIRTUAL_ENV/bin/python" \
+  -DPYTHON_EXECUTABLE="$VIRTUAL_ENV/bin/python"
+source install/local_setup.bash
+cd ..
 ```
 
 ---
 
 ## Usage
 
-### Full Robot (without Dashboard)
+### Setting Up Terminal Environment
+
+Before running any ROS 2 nodes or launch files, configure your terminal environment:
 
 ```bash
-ros2 launch dori_bringup bringup.launch.py
+export DORI_ROOT="$PWD"
+source /opt/ros/humble/setup.bash
+source "$DORI_ROOT/.venv/bin/activate"
+source "$DORI_ROOT/ros2_ws/install/local_setup.bash"
+export PYTHONPATH="$DORI_ROOT/.venv/lib/python3.10/site-packages:${PYTHONPATH:-}"
+export ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}"
+export PYTHONNOUSERSITE=1
 ```
 
-or
+### Desktop / Simulation Mode (without Actuators)
+
+Run desktop HRI with or without the dashboard on a development PC:
 
 ```bash
+# Desktop HRI + Dashboard (Default)
+ros2 launch dori_bringup bringup_dev.launch.py
+
+# Desktop HRI without Dashboard
 ros2 launch dori_bringup bringup_dev.launch.py enable_dashboard:=false
+
+# Dashboard Standalone
+ros2 launch dori_dashboard dashboard.launch.py
 ```
 
-### Topic Namespace (default vs multi-robot remap)
+### Physical Robot (Hardware Launch)
+
+For complete robot operation with hardware drivers, LiDAR, Nav2, HRI, and web viewer:
+
+```bash
+ros2 launch dori_bringup hardware.launch.py \
+  map:=$(pwd)/maps/live_navigation_20261023_1938.yaml \
+  named_goals_file:=$(pwd)/maps/web_goals.json
+```
+
+Or using the standard bringup entrypoint:
+
+```bash
+ros2 launch dori_bringup bringup.launch.py \
+  dori_mode:=real \
+  real_map:=$(pwd)/maps/live_navigation_20261023_1938.yaml \
+  real_named_goals_file:=$(pwd)/maps/web_goals.json \
+  enable_dashboard:=true
+```
+
+### Topic Namespace (Default vs Multi-Robot)
 
 - Default (single robot): `namespace:=/dori`
-- Multi Robot: Change only the launch argument to expand to `/dori1/...`, `/dori2/...`
+- Multi Robot: Set the `namespace` launch argument to expand to `/dori1/...`, `/dori2/...`
 
 ```bash
-# Basic topic (same as before)
+# Default topic namespace
 ros2 launch dori_bringup bringup.launch.py namespace:=/dori
 
-# robot1
+# Robot 1
 ros2 launch dori_bringup bringup.launch.py namespace:=/dori1
 
-# robot2
+# Robot 2
 ros2 launch dori_bringup bringup.launch.py namespace:=/dori2
 ```
 
-The default topic value is declared with `declare_parameter("topics.xxx", "...")` of each node, and is changed at once by injecting a common prefix at launch.
+### Dashboard Access
 
-### Full Robot (with Dashboard)
- 
-Launches the full robot stack via `bringup_dev.launch.py`, together with the web dashboard (rosbridge + HTTP server + knowledge API).
-`bringup.launch.py` is not responsible for dashboard orchestration in the current setup.
-The dashboard frontend must be built before the first run.
- 
-```bash
-# First time only — build the frontend assets
-cd web && npm ci && npm run build && cd ..
-cd ros2_ws
-colcon build --symlink-install
-source install/setup.bash
- 
-# Launch (default includes dashboard)
-ros2 launch dori_bringup bringup_dev.launch.py
-
-# Equivalent explicit form
-# ros2 launch dori_bringup bringup_dev.launch.py enable_dashboard:=true
-```
-
-Dashboard access:
+Once launched, access the dashboard at:
 
 ```text
-# Same machine
+# Local machine
 http://localhost:3000
- 
-# Remote (another device on the same network)
-http://[Robot IP]:3000
+
+# Remote device on the same local network
+http://<Robot-IP>:3000
 ```
 
-or
-
+or via Cloudflare Tunnel if configured:
 [Cloudflare Server](https://dash.dgist-dori.xyz)
 
 ---

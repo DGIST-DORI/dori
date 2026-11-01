@@ -24,11 +24,11 @@ source the clean Humble/Python 3.10 environment. Run from the repository root:
 
 ```bash
 mkdir -p log/refactor-p0p2
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest tests/refactor -q \
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest tests/contracts -q \
   --junitxml=log/refactor-p0p2/packages.xml
 ctest --test-dir ros2_ws/build/dori_control --output-on-failure
 ctest --test-dir ros2_ws/build/cubemars_hardware --output-on-failure
-(cd web && npm ci && npm run lint && npm run build)
+(cd web && npm ci && npm run lint && npm test && npm run build)
 ```
 
 | Check | Local result / acceptance |
@@ -67,7 +67,7 @@ only; there was no new browser/rosbridge runtime test in this follow-up.
 
 ## CI and retained evidence
 
-[Refactor P0-P2 workflow](../../.github/workflows/refactor.yml) uses a clean
+[DORI CI workflow](../../.github/workflows/ci.yml) uses a clean
 Ubuntu 22.04 / ROS Humble container, builds the web first, builds all ROS packages,
 then runs the dedicated package/launch/documentation checks and three C++ targets.
 It runs on pull requests and pushes to main/feature/control-and-navigation.

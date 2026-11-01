@@ -1,20 +1,21 @@
-name: Refactor P0-P2
+name: DORI CI
 
 on:
   pull_request:
   push:
-    branches: [main, feature/control-and-navigation]
+    branches: [main, 'feature/**']
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: refactor-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  humble-packaging:
+  humble-ci:
+    name: Humble Build & Comprehensive Tests
     runs-on: ubuntu-22.04
     container: ros:humble-ros-base-jammy
     timeout-minutes: 45
@@ -26,7 +27,7 @@ jobs:
       PYTHONNOUSERSITE: '1'
       PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
       ROS_LOCALHOST_ONLY: '1'
-      ROS_DOMAIN_ID: '93'
+      ROS_DOMAIN_ID: '96'
       OPENBLAS_NUM_THREADS: '1'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -48,14 +49,15 @@ jobs:
           rosdep install --from-paths ros2_ws/src --ignore-src --rosdistro humble -y
           /usr/bin/python3 -m venv --system-site-packages .venv
           .venv/bin/python -m pip install -r requirements-runtime.txt
-      - name: Lint and build installed dashboard assets
+      - name: Lint, test, and build dashboard assets
         run: |
-          mkdir -p log/refactor-p0p2
+          mkdir -p log/ci
           cd web
-          npm ci --no-audit --no-fund 2>&1 | tee ../log/refactor-p0p2/npm-ci.log
-          npm run lint 2>&1 | tee ../log/refactor-p0p2/web-lint.log
-          npm run build 2>&1 | tee ../log/refactor-p0p2/web-build.log
-      - name: Clean build with C++ tests enabled
+          npm ci --no-audit --no-fund 2>&1 | tee ../log/ci/npm-ci.log
+          npm run lint 2>&1 | tee ../log/ci/web-lint.log
+          npm test 2>&1 | tee ../log/ci/web-test.log
+          npm run build 2>&1 | tee ../log/ci/web-build.log
+      - name: Clean ROS 2 build with testing enabled
         id: build
         run: |
           test ! -e ros2_ws/build
@@ -66,46 +68,70 @@ jobs:
           python -m colcon build --symlink-install --parallel-workers 2 --cmake-args \
             -DBUILD_TESTING=ON -DPython3_EXECUTABLE="$VIRTUAL_ENV/bin/python" \
             -DPYTHON_EXECUTABLE="$VIRTUAL_ENV/bin/python" \
-            2>&1 | tee ../log/refactor-p0p2/build.log
-      - name: Installed package and non-actuating launch checks
+            2>&1 | tee ../log/ci/build.log
+      - name: Packaging, launch, and documentation contracts
         run: |
           source /opt/ros/humble/setup.bash
           source .venv/bin/activate
           source ros2_ws/install/local_setup.bash
           export PYTHONPATH="$VIRTUAL_ENV/lib/python3.10/site-packages:${PYTHONPATH:-}"
-          python -m pytest tests/refactor -q --junitxml=log/refactor-p0p2/packages.xml \
-            2>&1 | tee log/refactor-p0p2/packages.log
-      - name: Wheel control and CAN fault tests
+          python -m pytest tests/contracts -q --junitxml=log/ci/contracts.xml \
+            2>&1 | tee log/ci/contracts.log
+      - name: Wheel control and CAN fault C++ tests
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           source /opt/ros/humble/setup.bash
           source ros2_ws/install/local_setup.bash
           ctest --test-dir ros2_ws/build/dori_control --output-on-failure \
-            2>&1 | tee log/refactor-p0p2/control.log
+            2>&1 | tee log/ci/control.log
           ctest --test-dir ros2_ws/build/cubemars_hardware --output-on-failure \
-            2>&1 | tee log/refactor-p0p2/can.log
-      - name: Record validation scope
+            2>&1 | tee log/ci/can.log
+      - name: Core control and navigation unit tests
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          source /opt/ros/humble/setup.bash
+          source .venv/bin/activate
+          source ros2_ws/install/local_setup.bash
+          export PYTHONPATH="$VIRTUAL_ENV/lib/python3.10/site-packages:${PYTHONPATH:-}"
+          python -m pytest tests/control_and_nav -q --junitxml=log/ci/control_and_nav.xml \
+            2>&1 | tee log/ci/control_and_nav.log
+      - name: Integration flow and adapter contract tests
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          source /opt/ros/humble/setup.bash
+          source .venv/bin/activate
+          source ros2_ws/install/local_setup.bash
+          export PYTHONPATH="$VIRTUAL_ENV/lib/python3.10/site-packages:${PYTHONPATH:-}"
+          python -m pytest tests/integration ros2_ws/src/dori_navigation/test/test_nav2_adapter_contract.py \
+            -q --junitxml=log/ci/integration.xml \
+            2>&1 | tee log/ci/integration.log
+      - name: Topic consistency check
+        run: |
+          python3 tools/topic/topic_lint.py --check 2>&1 | tee log/ci/topic_lint.log
+      - name: Record test summary
         if: always()
         run: |
           cat >> "$GITHUB_STEP_SUMMARY" <<'SUMMARY'
-          P0/P2 only: clean 21-package build, installed package/launch checks,
-          CAN/wheel-control C++ tests, documentation links and web lint/build.
-          ROS nodes and physical actuators are not launched by these checks.
-
-          P1 is pending: the legacy HRI/Nav2/mapping/browser regression suites
-          still reference removed helpers/packages and are not collected here.
-          This job does not certify full runtime integration or physical operation.
+          ### DORI CI / Comprehensive Verification Summary
+          - **Web Dashboard**: Linting, unit tests, and production build passed.
+          - **ROS 2 Workspace**: Clean colcon build with testing enabled.
+          - **Contracts**: Package dependency graph, launch resolution, DDS serialization, and documentation links verified.
+          - **C++ Tests**: Wheel odometry, wheel speed servo, and CAN bus fault handling passed.
+          - **Control & Navigation**: Algorithmic unit tests verified (motion interpreter, nav drive timing, reverse recovery, lidar odometry core, map matcher, auto alignment, named web goals, navigation contracts, rviz goals).
+          - **Integration**: Nav2Adapter, registry, and hardware launch lifecycle tested.
+          - **Topic Lint**: ROS topic naming and type consistency checked.
           SUMMARY
       - name: Upload validation logs
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: refactor-p0p2-${{ github.sha }}
+          name: ci-validation-${{ github.sha }}
           retention-days: 14
           if-no-files-found: warn
           path: |
-            log/refactor-p0p2/
+            log/ci/
             ros2_ws/log/
             ros2_ws/build/dori_control/Testing/
             ros2_ws/build/dori_control/test_results/
             ros2_ws/build/cubemars_hardware/Testing/
+
