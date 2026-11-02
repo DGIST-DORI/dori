@@ -41,6 +41,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
+import jwt
+from jwt import PyJWKClient
+import secrets
+import websockets
 
 from fastapi import (
     Depends,
@@ -52,6 +56,8 @@ from fastapi import (
     Request,
     UploadFile,
 )
+
+from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.responses import Response, RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -152,22 +158,32 @@ _ALLOWED_ORIGINS = _parse_allowed_origins(
 )
 _ALLOWED_ORIGIN_SET = set(_ALLOWED_ORIGINS)
 
+_DEV_MODE = os.environ.get("DORI_DEV_MODE", "").strip().lower() in ("1", "true", "yes")
+
 
 @app.middleware("http")
 async def enforce_origin_allowlist(request: Request, call_next):
     origin = request.headers.get("origin", "").strip().rstrip("/")
-    if origin and origin not in _ALLOWED_ORIGIN_SET:
-        logger.warning(
-            "cors_origin_blocked origin=%s path=%s method=%s client=%s",
-            origin,
-            request.url.path,
-            request.method,
-            request.client.host if request.client else "-",
-        )
-        return JSONResponse(
-            status_code=403, content={"detail": "Origin is not allowed"}
-        )
-    return await call_next(request)
+    if not origin:
+        return await call_next(request)
+
+    # 동일 출처(Same-Origin) 허용
+    host_url = f"{request.url.scheme}://{request.url.netloc}"
+    if origin == host_url or origin in _ALLOWED_ORIGIN_SET:
+        return await call_next(request)
+
+    # 개발 모드일 때 로컬호스트 접근 무조건 허용
+    if _DEV_MODE and ("localhost" in origin or "127.0.0.1" in origin):
+        return await call_next(request)
+
+    logger.warning(
+        "cors_origin_blocked origin=%s path=%s method=%s client=%s",
+        origin,
+        request.url.path,
+        request.method,
+        request.client.host if request.client else "-",
+    )
+    return JSONResponse(status_code=403, content={"detail": "Origin is not allowed"})
 
 
 app.add_middleware(
@@ -186,17 +202,24 @@ _JWT_AUDIENCE = os.environ.get("DORI_API_JWT_AUDIENCE", "").strip()
 _JWT_ISSUER = os.environ.get("DORI_API_JWT_ISSUER", "").strip()
 _ACCESS_ROLE_MAP_RAW = os.environ.get("DORI_API_ACCESS_TOKENS", "").strip()
 
+_CF_TEAM_DOMAIN = os.environ.get(
+    "DORI_CF_TEAM_DOMAIN", ""
+).strip()  # 예: https://your-team.cloudflareaccess.com
+_CF_AUDIENCE = os.environ.get("DORI_CF_AUDIENCE", "").strip()
+_CF_ROLE_MAP_RAW = os.environ.get(
+    "DORI_CF_ROLE_MAP", ""
+).strip()  # 예: admin@dgist.ac.kr:admin,op@dgist.ac.kr:control
+
+_jwks_client = (
+    PyJWKClient(f"{_CF_TEAM_DOMAIN}/cdn-cgi/access/certs") if _CF_TEAM_DOMAIN else None
+)
+
 
 @dataclass(frozen=True)
 class AuthPrincipal:
     user_id: str
     roles: frozenset[str]
     auth_type: str
-
-
-def _b64url_decode(value: str) -> bytes:
-    padding = "=" * (-len(value) % 4)
-    return base64.urlsafe_b64decode(value + padding)
 
 
 def _parse_access_role_map(raw: str) -> dict[str, AuthPrincipal]:
@@ -239,111 +262,88 @@ def _log_auth_event(
     )
 
 
-def _verify_jwt(token: str) -> AuthPrincipal:
-    try:
-        encoded_header, encoded_payload, encoded_signature = token.split(".")
-    except ValueError as e:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid token format",
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from e
+def _get_cf_roles(email: str) -> frozenset[str]:
+    if not email or not _CF_ROLE_MAP_RAW:
+        return frozenset({"viewer"})
+    for item in _CF_ROLE_MAP_RAW.split(","):
+        if ":" in item:
+            k, v = item.split(":", 1)
+            if k.strip().lower() == email.lower():
+                return frozenset(r.strip().lower() for r in v.split("|") if r.strip())
+    return frozenset({"viewer"})
 
+
+def _verify_cf_jwt(token: str) -> AuthPrincipal:
+    if not _jwks_client or not _CF_AUDIENCE:
+        raise HTTPException(401, "Cloudflare Access not configured")
     try:
-        header = json.loads(_b64url_decode(encoded_header).decode("utf-8"))
-        payload = json.loads(_b64url_decode(encoded_payload).decode("utf-8"))
+        signing_key = _jwks_client.get_signing_key_from_jwt(token)
+        payload = jwt.decode(
+            token, signing_key.key, algorithms=["RS256"], audience=_CF_AUDIENCE
+        )
+        email = payload.get("email", "unknown")
+        return AuthPrincipal(
+            user_id=email, roles=_get_cf_roles(email), auth_type="cf_access"
+        )
     except Exception as e:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid token payload",
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from e
+        raise HTTPException(401, f"CF Access token invalid: {str(e)}")
 
-    alg = header.get("alg", "")
-    if alg != "HS256":
-        raise HTTPException(
-            status_code=401,
-            detail="Unsupported JWT algorithm",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+
+def _verify_fallback_jwt(token: str) -> AuthPrincipal:
     if not _JWT_SECRET:
-        raise HTTPException(
-            status_code=401,
-            detail="JWT secret is not configured",
-            headers={"WWW-Authenticate": "Bearer"},
+        raise HTTPException(401, "Fallback JWT secret not configured")
+    try:
+        # PyJWT를 사용하여 exp 필수를 강제하고 만료 검증 처리
+        payload = jwt.decode(
+            token,
+            _JWT_SECRET,
+            algorithms=["HS256"],
+            audience=_JWT_AUDIENCE or None,
+            issuer=_JWT_ISSUER or None,
+            options={"require": ["exp"]},
         )
+        user_id = str(payload.get("sub", payload.get("user_id", "unknown")))
 
-    signed_part = f"{encoded_header}.{encoded_payload}".encode("utf-8")
-    expected_sig = (
-        base64.urlsafe_b64encode(
-            hmac.new(_JWT_SECRET.encode("utf-8"), signed_part, hashlib.sha256).digest()
-        )
-        .decode("utf-8")
-        .rstrip("=")
-    )
-    if not hmac.compare_digest(expected_sig, encoded_signature):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid token signature",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        roles_raw = payload.get("roles", payload.get("scope", ""))
+        if isinstance(roles_raw, str):
+            roles = frozenset(
+                r.strip().lower()
+                for r in roles_raw.replace(",", " ").split()
+                if r.strip()
+            )
+        elif isinstance(roles_raw, list):
+            roles = frozenset(
+                str(r).strip().lower() for r in roles_raw if str(r).strip()
+            )
+        else:
+            roles = frozenset()
 
-    now_ts = int(time.time())
-    exp = payload.get("exp")
-    if exp is not None and int(exp) < now_ts:
-        raise HTTPException(
-            status_code=401,
-            detail="Token expired",
-            headers={"WWW-Authenticate": "Bearer"},
+        return AuthPrincipal(
+            user_id=user_id, roles=roles or frozenset({"viewer"}), auth_type="jwt"
         )
-    nbf = payload.get("nbf")
-    if nbf is not None and int(nbf) > now_ts:
-        raise HTTPException(
-            status_code=401,
-            detail="Token not active yet",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    if _JWT_AUDIENCE and payload.get("aud") != _JWT_AUDIENCE:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid token audience",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    if _JWT_ISSUER and payload.get("iss") != _JWT_ISSUER:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid token issuer",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    roles = payload.get("roles", payload.get("scope", ""))
-    if isinstance(roles, str):
-        role_values = frozenset(
-            r.strip().lower() for r in roles.replace(",", " ").split() if r.strip()
-        )
-    elif isinstance(roles, list):
-        role_values = frozenset(str(r).strip().lower() for r in roles if str(r).strip())
-    else:
-        role_values = frozenset()
-
-    user_id = str(payload.get("sub", payload.get("user_id", "unknown")))
-    return AuthPrincipal(
-        user_id=user_id, roles=role_values or frozenset({"viewer"}), auth_type="jwt"
-    )
+    except Exception as e:
+        raise HTTPException(401, f"Fallback JWT invalid: {str(e)}")
 
 
 def _authenticate_request(
-    authorization: str | None, access: str | None
+    authorization: str | None, access: str | None, cf_assertion: str | None
 ) -> AuthPrincipal:
+    # 1. Cloudflare Access 헤더 최우선 검증
+    if cf_assertion:
+        return _verify_cf_jwt(cf_assertion)
+
+    # 2. LAN 비상용 Bearer 토큰 검증
     if authorization and authorization.startswith(f"{_AUTH_TOKEN_HEADER} "):
         bearer = authorization[len(_AUTH_TOKEN_HEADER) + 1 :].strip()
         if bearer:
-            return _verify_jwt(bearer)
+            return _verify_fallback_jwt(bearer)
 
+    # 3. 정적 Access 토큰 검증 (타이밍 공격 방지를 위해 compare_digest 사용)
     if access:
         token = access.strip()
-        if token in _ACCESS_ROLE_MAP:
-            return _ACCESS_ROLE_MAP[token]
+        for valid_token, principal in _ACCESS_ROLE_MAP.items():
+            if secrets.compare_digest(valid_token, token):
+                return principal
 
     raise HTTPException(
         status_code=401,
@@ -369,10 +369,13 @@ def require_permission(required: Literal["view", "control", "admin"]):
         request: Request,
         authorization: str | None = Header(default=None),
         access: str | None = Header(default=None, alias="Access"),
+        cf_assertion: str | None = Header(
+            default=None, alias="Cf-Access-Jwt-Assertion"
+        ),
     ) -> AuthPrincipal:
         principal: AuthPrincipal | None = None
         try:
-            principal = _authenticate_request(authorization, access)
+            principal = _authenticate_request(authorization, access, cf_assertion)
         except HTTPException:
             _log_auth_event(request, principal=None, required=required, status_code=401)
             raise
@@ -958,7 +961,7 @@ _CONTROL_EXECUTOR = (
     os.environ.get("DORI_CONTROL_EXECUTOR", "dry-run").strip().lower() or "dry-run"
 )
 _CONTROL_ACTIONS = frozenset({"move", "stop", "set_mode"})
-_CONTROL_MODES = frozenset({"manual", "auto", "dock", "idle"})
+_CONTROL_MODES = frozenset({"manual", "auto", "dock", "idle", "safe"})
 _CONTROL_RATE_LIMITS = {
     # action -> (max_requests, window_seconds)
     "move": (10, 1.0),
@@ -1001,7 +1004,7 @@ def _enforce_control_rate_limit(principal: AuthPrincipal, action: str) -> None:
         events.append(now)
 
 
-def _execute_control_action(action: str, params: dict) -> dict:
+async def _execute_control_action(action: str, params: dict) -> dict:
     """
     Execute a validated control action through a constrained backend interface.
 
@@ -1038,7 +1041,7 @@ def _execute_control_action(action: str, params: dict) -> dict:
             "topic",
             "pub",
             "--once",
-            "/cmd_vel",
+            "cmd_vel",
             "geometry_msgs/msg/Twist",
             payload,
         ]
@@ -1048,7 +1051,7 @@ def _execute_control_action(action: str, params: dict) -> dict:
             "topic",
             "pub",
             "--once",
-            "/cmd_vel",
+            "cmd_vel",
             "geometry_msgs/msg/Twist",
             "{linear: {x: 0.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}",
         ]
@@ -1057,6 +1060,8 @@ def _execute_control_action(action: str, params: dict) -> dict:
         mode_payloads = {
             "manual": '{data: "manual"}',
             "auto": '{data: "auto"}',
+            "dock": '{data: "dock"}',
+            "idle": '{data: "idle"}',
             "safe": '{data: "safe"}',
         }
         payload = mode_payloads.get(mode)
@@ -1067,26 +1072,33 @@ def _execute_control_action(action: str, params: dict) -> dict:
             "topic",
             "pub",
             "--once",
-            "/dori/control/mode",
+            "dori/control/mode",
             "std_msgs/msg/String",
             payload,
         ]
     else:
         raise HTTPException(400, f"Unsupported action: {action}")
 
-    completed = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
-    if completed.returncode != 0:
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+    )
+
+    try:
+        stdout_bytes, stderr_bytes = await asyncio.wait_for(
+            proc.communicate(), timeout=5.0
+        )
+    except asyncio.TimeoutError:
+        proc.kill()
+        raise HTTPException(502, "control action execution timed out")
+
+    if proc.returncode != 0:
+        stderr_str = stderr_bytes.decode().strip()
+        stdout_str = stdout_bytes.decode().strip()
         raise HTTPException(
             status_code=502,
-            detail=(
-                "control action execution failed: "
-                + (
-                    completed.stderr.strip()
-                    or completed.stdout.strip()
-                    or f"exit={completed.returncode}"
-                )
-            ),
+            detail=f"control action execution failed: {stderr_str or stdout_str or f'exit={proc.returncode}'}",
         )
+
     return {
         "executor": _CONTROL_EXECUTOR,
         "executed": True,
@@ -1138,7 +1150,7 @@ async def control_actions(
         validated["mode"] = mode
 
     _enforce_control_rate_limit(principal, action)
-    exec_result = _execute_control_action(action, validated)
+    exec_result = await _execute_control_action(action, validated)
     return {
         "ok": True,
         "action": action,
@@ -1178,7 +1190,8 @@ async def admin_publish(
 
 # ── /api/admin/sessions (Bridge API 연동) ───────────────────────────────────
 
-BRIDGE_API_URL = "http://127.0.0.1:3100"
+BRIDGE_API_URL = "http://127.0.0.1:3001"
+_INTERNAL_TOKEN = os.environ.get("DORI_INTERNAL_TOKEN", "default-internal-secret")
 
 
 @app.get("/api/admin/sessions")
@@ -1187,7 +1200,10 @@ async def admin_get_sessions(_: AuthPrincipal = Depends(require_permission("admi
     try:
         async with httpx.AsyncClient(timeout=2.0) as client:
             # 브릿지의 로컬 엔드포인트 호출
-            resp = await client.get(f"{BRIDGE_API_URL}/internal/session")
+            resp = await client.get(
+                f"{BRIDGE_API_URL}/internal/session",
+                headers={"X-Internal-Token": _INTERNAL_TOKEN},
+            )
         return Response(
             content=resp.content,
             status_code=resp.status_code,
@@ -1203,7 +1219,10 @@ async def admin_delete_session(_: AuthPrincipal = Depends(require_permission("ad
     """Force terminate current user session in bridge_api."""
     try:
         async with httpx.AsyncClient(timeout=2.0) as client:
-            resp = await client.delete(f"{BRIDGE_API_URL}/internal/session")
+            resp = await client.delete(
+                f"{BRIDGE_API_URL}/internal/session",
+                headers={"X-Internal-Token": _INTERNAL_TOKEN},
+            )
         return Response(
             content=resp.content,
             status_code=resp.status_code,
@@ -1212,6 +1231,59 @@ async def admin_delete_session(_: AuthPrincipal = Depends(require_permission("ad
     except httpx.RequestError as e:
         logger.error(f"Failed to reach bridge_api: {e}")
         raise HTTPException(503, "Bridge API is unreachable")
+
+
+@app.websocket("/ws/admin")
+async def admin_ws_proxy(websocket: WebSocket):
+    # 1. WS 인증 (CF Access 헤더 또는 LAN 비상용 쿼리파라미터)
+    cf_assertion = websocket.headers.get("Cf-Access-Jwt-Assertion")
+    access_query = websocket.query_params.get("access")
+
+    try:
+        principal = _authenticate_request(None, access_query, cf_assertion)
+        if not _has_permission(principal, "admin"):
+            await websocket.close(code=1008, reason="Admin permission required")
+            return
+    except HTTPException as e:
+        await websocket.close(code=1008, reason=str(e.detail))
+        return
+
+    await websocket.accept()
+    logger.info(f"Admin WS connected: {principal.user_id}")
+
+    # 2. 로컬 무인증 rosbridge(9090)로 프록시 연결
+    try:
+        async with websockets.connect("ws://127.0.0.1:9090") as rosbridge_ws:
+
+            async def forward_to_rosbridge():
+                try:
+                    while True:
+                        data = await websocket.receive_text()
+                        await rosbridge_ws.send(data)
+                except WebSocketDisconnect:
+                    pass
+                except Exception as e:
+                    logger.debug(f"WS Client -> ROS error: {e}")
+
+            async def forward_to_client():
+                try:
+                    while True:
+                        data = await rosbridge_ws.recv()
+                        await websocket.send_text(data)
+                except websockets.exceptions.ConnectionClosed:
+                    pass
+                except Exception as e:
+                    logger.debug(f"WS ROS -> Client error: {e}")
+
+            # 양방향 중계 시작
+            await asyncio.gather(forward_to_rosbridge(), forward_to_client())
+
+    except Exception as e:
+        logger.error(f"Failed to connect to local rosbridge: {e}")
+        try:
+            await websocket.close(code=1011, reason="Rosbridge unavailable")
+        except:
+            pass
 
 
 # ── /api/tunnel-url ───────────────────────────────────────────────────────────
@@ -1249,7 +1321,7 @@ def _parse_tunnel_url(log_path: Path) -> str | None:
 
 
 @app.get("/api/tunnel-url")
-async def get_tunnel_url():
+async def get_tunnel_url(request: Request):
     """
     Return Cloudflare Tunnel public URL for the dashboard and (optionally) rosbridge.
 
@@ -1262,27 +1334,19 @@ async def get_tunnel_url():
 
     ws_url must use wss:// — Cloudflare Tunnel always terminates TLS.
     """
-    # 1순위: 고정 도메인 환경변수
-    if _FIXED_WS_URL:
-        return {
-            "dashboard_url": _FIXED_DASHBOARD_URL or None,
-            "ws_url": _FIXED_WS_URL,
-            "ready": True,
-            "ws_exposed": True,
-        }
-
-    # 2순위: trycloudflare.com 임시 터널 로그 파싱
-    dashboard_url = _parse_tunnel_url(_CF_LOG_DASHBOARD)
-    ws_url = None
-    if _EXPOSE_ROSBRIDGE_TUNNEL:
-        ws_http_url = _parse_tunnel_url(_CF_LOG_WS)
-        ws_url = ws_http_url.replace("https://", "wss://", 1) if ws_http_url else None
+    scheme = (
+        "wss"
+        if request.url.scheme == "https" or "trycloudflare" in request.url.netloc
+        else "ws"
+    )
+    default_admin_ws = f"{scheme}://{request.url.netloc}/ws/admin"
 
     return {
-        "dashboard_url": dashboard_url,
-        "ws_url": ws_url,
-        "ready": dashboard_url is not None or ws_url is not None,
-        "ws_exposed": _EXPOSE_ROSBRIDGE_TUNNEL and ws_url is not None,
+        "dashboard_url": _FIXED_DASHBOARD_URL
+        or f"{request.url.scheme}://{request.url.netloc}",
+        "ws_url": _FIXED_WS_URL or default_admin_ws,
+        "ready": True,
+        "ws_exposed": False,  # rosbridge(9090)의 외부 직접 노출은 완전히 차단됨
     }
 
 

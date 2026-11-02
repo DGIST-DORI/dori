@@ -4,9 +4,11 @@ DORI WebSocket Gateway & Session Manager (bridge_api.py)
 사용자 앱 서빙, QR 페어링, 세션 관리 및 제한된 ROS 프로토콜 게이트웨이를 담당합니다.
 """
 
+from contextlib import asynccontextmanager
 import asyncio
 import json
 import logging
+import os
 import secrets
 import threading
 import time
@@ -15,12 +17,14 @@ from typing import Dict, Optional, Set
 
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Bool, String
+from action_msgs.msg import GoalID
+from std_msgs.msg import Bool, String, Empty
 from std_srvs.srv import Trigger
 from geometry_msgs.msg import Twist
 
 import uvicorn
 from fastapi import (
+    Header,
     FastAPI,
     WebSocket,
     WebSocketDisconnect,
@@ -41,10 +45,15 @@ NONCE_TTL = 30  # QR 갱신 주기 (초)
 NONCE_GRACE = 5  # 스캔 지연 오차 허용 (초)
 GRACE_TIMEOUT = 90  # WS 끊김 후 재연결 유예 시간 (초)
 SESSION_MAX_TIME = 900  # 최대 세션 시간 (15분)
-ALLOWED_ORIGINS = [
-    "[https://app.dgist-dori.xyz](https://app.dgist-dori.xyz)",
-    "http://localhost:3100",
-]
+MAX_WS_MSG_SIZE = 1024 * 50
+
+_INTERNAL_TOKEN = os.environ.get("DORI_INTERNAL_TOKEN", "default-internal-secret")
+_DEV_MODE = os.environ.get("DORI_DEV_MODE", "").strip().lower() in ("1", "true", "yes")
+PUBLIC_HOST = "0.0.0.0" if _DEV_MODE else "127.0.0.1"
+
+ALLOWED_ORIGINS = ["https://app.dgist-dori.xyz"]
+if _DEV_MODE:
+    ALLOWED_ORIGINS.append("http://localhost:3100")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("bridge_api")
@@ -71,14 +80,21 @@ class BridgeNode(Node):
     def __init__(self):
         super().__init__("bridge_api_node")
         # 하향(ROS -> WS) Subscriptions
-        self.create_subscription(String, "/dori/llm/text", self.llm_callback, 10)
+        self.create_subscription(String, "llm/text", self.llm_callback, 10)
 
         # 상향(WS -> ROS) & 제어용 Publishers
-        self.pub_wake = self.create_publisher(Bool, "/stt/wake_word_detected", 10)
-        self.pub_chime = self.create_publisher(String, "/hri/audio_cue", 10)
-        self.pub_cmd_vel = self.create_publisher(Twist, "/cmd_vel", 10)
+        self.pub_wake = self.create_publisher(Bool, "stt/wake_word_detected", 10)
+        self.pub_chime = self.create_publisher(String, "hri/audio_cue", 10)
+        self.pub_cmd_vel = self.create_publisher(Twist, "cmd_vel", 10)
+        self.pub_mode = self.create_publisher(String, "control/mode", 10)
+        self.pub_tts_cancel = self.create_publisher(Empty, "tts/cancel", 10)
+        self.pub_nav_cancel = self.create_publisher(
+            GoalID, "navigate_to_pose/_action/cancel", 10
+        )
+        self.pub_stop = self.create_publisher(Twist, "teleop_stop_vel", 10)
 
-        self.cli_llm_reset = self.create_client(Trigger, "/dori/llm/reset")
+        self.cli_llm_reset = self.create_client(Trigger, "llm/reset")
+        self.cli_bt_clear = self.create_client(Trigger, "bt/clear_session")
 
     def llm_callback(self, msg):
         # 활성 세션이 있으면 WS로 하향 전송
@@ -99,61 +115,60 @@ class BridgeNode(Node):
     async def execute_cleanup(self, timeout_sec: float = 5.0) -> bool:
         """로봇 정지 및 LLM 대화 기록 초기화를 수행한다."""
         # 1. 로봇 정지 명령
-        self.pub_cmd_vel.publish(Twist())
+        self.pub_cmd_vel.publish(Twist())  # 영벡터 (임시)
+        self.pub_mode.publish(
+            String(data="idle")
+        )  # BT 모드를 IDLE로 복귀하여 Nav/행동 제어권 회수
+        self.pub_tts_cancel.publish(Empty())
+        self.pub_stop.publish(Twist())  # 정지 명령
 
-        # 2. LLM 리셋 서비스가 준비될 때까지 대기
-        loop = asyncio.get_running_loop()
-        deadline = loop.time() + timeout_sec
+        nav_cancel_msg = GoalID()
+        nav_cancel_msg.stamp = self.get_clock().now().to_msg()
+        self.pub_nav_cancel.publish(nav_cancel_msg)
 
-        while not self.cli_llm_reset.wait_for_service(timeout_sec=0.0):
-            if loop.time() >= deadline:
-                logger.error("LLM reset service unavailable")
+        # 2. 비동기 서비스 호출 헬퍼 함수
+        async def call_ros_service(cli, name):
+            if not cli.wait_for_service(timeout_sec=0.1):
+                logger.warning(f"Cleanup: {name} service not immediately available")
                 return False
-            await asyncio.sleep(0.1)
 
-        # 3. 서비스 요청
-        request = Trigger.Request()
-        ros_future = self.cli_llm_reset.call_async(request)
-        async_future = loop.create_future()
+            loop = asyncio.get_running_loop()
+            async_future = loop.create_future()
+            ros_future = cli.call_async(Trigger.Request())
 
-        def on_done(future):
+            def on_done(f):
+                loop.call_soon_threadsafe(
+                    lambda: (
+                        async_future.set_result(f.result())
+                        if not async_future.done()
+                        else None
+                    )
+                )
+
+            ros_future.add_done_callback(on_done)
+
             try:
-                result = future.result()
-            except Exception as exc:
+                res = await asyncio.wait_for(async_future, timeout=timeout_sec)
+                if not res.success:
+                    logger.warning(f"Cleanup: {name} failed - {res.message}")
+                    return False
+                return True
+            except asyncio.TimeoutError:
+                logger.error(f"Cleanup: {name} service timed out")
+                return False
+            except Exception as e:
+                logger.error(f"Cleanup: {name} error - {e}")
+                return False
 
-                def set_exception(error=exc):
-                    if not async_future.done():
-                        async_future.set_exception(error)
-
-                loop.call_soon_threadsafe(set_exception)
-            else:
-
-                def set_result(value=result):
-                    if not async_future.done():
-                        async_future.set_result(value)
-
-                loop.call_soon_threadsafe(set_result)
-
-        ros_future.add_done_callback(on_done)
-
-        try:
-            response = await asyncio.wait_for(
-                async_future,
-                timeout=max(0.1, deadline - loop.time()),
-            )
-        except asyncio.TimeoutError:
-            logger.error("LLM reset service timed out")
-            return False
-        except Exception:
-            logger.exception("LLM reset service call failed")
-            return False
-
-        if not response.success:
-            logger.error("LLM reset failed: %s", response.message)
-            return False
+        # 3. LLM과 BT 초기화 서비스 동시 실행 및 대기
+        results = await asyncio.gather(
+            call_ros_service(self.cli_llm_reset, "LLM"),
+            call_ros_service(self.cli_bt_clear, "BT"),
+        )
 
         logger.info("[ROS] Session cleanup completed")
-        return True
+        # 둘 다 성공했는지 여부 반환 (필요에 따라 엄격도를 조절할 수 있습니다)
+        return all(results)
 
 
 # ─── Core Logic: Nonce & Session Management ────────────────────────────────
@@ -188,8 +203,12 @@ class SessionManager:
         self.session_expires_at: float = 0
         self.active_ws: Optional[WebSocket] = None
         self.display_queues: Set[asyncio.Queue] = set()
-        self.main_loop = asyncio.get_event_loop()
+        self.main_loop: Optional[asyncio.AbstractEventLoop] = None
         self.grace_task: Optional[asyncio.Task] = None
+        self.last_activity = 0.0
+        self._ending_lock = asyncio.Lock()
+        self.session_timer_task: Optional[asyncio.Task] = None
+        self.idle_timeout = 120.0  # 2분 무조작 시 강제 종료
 
     async def broadcast_display(self, event_type: str, data: dict):
         payload = f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
@@ -200,12 +219,18 @@ class SessionManager:
                 self.display_queues.discard(q)
 
     async def start_session(self):
+        nonce_manager.nonces.clear()
         self.state = SessionState.ACTIVE
         self.current_token = secrets.token_hex(32)
         self.session_expires_at = time.time() + SESSION_MAX_TIME
+        self.last_activity = time.time()
+
         if self.grace_task:
             self.grace_task.cancel()
+        if self.session_timer_task:
+            self.session_timer_task.cancel()
 
+        self.session_timer_task = asyncio.create_task(self._max_time_watcher())
         await self.broadcast_display("paired", {"status": "ACTIVE"})
         ros_node.trigger_pairing_success()
         logger.info("Session ACTIVE")
@@ -225,39 +250,58 @@ class SessionManager:
             logger.info("Grace period timeout")
             await self.end_session()
 
-    async def end_session(self):
-        if self.state == SessionState.IDLE:
-            return True
+    async def _max_time_watcher(self):
+        await asyncio.sleep(SESSION_MAX_TIME)
+        logger.info("Session Max Time reached. Forcing end.")
+        await self.end_session()
 
-        self.state = SessionState.ENDING
+    async def end_session(self, admin_force=False):
+        async with self._ending_lock:  # 재진입 동시 실행 완벽 차단
+            if self.state == SessionState.IDLE:
+                return True
 
-        # 기존 세션의 접근 권한을 먼저 무효화
-        self.current_token = None
-        self.active_ws = None
+            self.state = SessionState.ENDING
+            self.current_token = None
+            if self.active_ws:
+                try:
+                    await self.active_ws.close(code=1000)
+                except Exception:
+                    pass
+                self.active_ws = None
 
-        # 실제 LLM 초기화 완료까지 대기
-        cleanup_ok = await ros_node.execute_cleanup()
+            # Exponential Backoff 적용된 정리 로직
+            for attempt in range(3):
+                if await ros_node.execute_cleanup():
+                    self.state = SessionState.IDLE
+                    await self.broadcast_display("state", {"status": "IDLE"})
+                    return True
+                logger.warning(f"Cleanup failed, retrying in {2**attempt}s...")
+                await asyncio.sleep(2**attempt)
 
-        if not cleanup_ok:
-            logger.error(
-                "Session cleanup failed. "
-                "Keeping the robot unavailable until reset succeeds."
-            )
+            if admin_force:
+                logger.error("Admin forced cleanup despite failures.")
+                self.state = SessionState.IDLE
+                return True
+
+            logger.error("Critical: Cleanup failed completely. Robot stuck in ENDING.")
             await self.broadcast_display("state", {"status": "ENDING"})
             return False
-
-        self.state = SessionState.IDLE
-        await self.broadcast_display("state", {"status": "IDLE"})
-        logger.info("Session ENDED and cleaned up")
-        return True
 
 
 nonce_manager = NonceManager()
 session_manager = SessionManager()
 
+
+@asynccontextmanager
+async def public_lifespan(app: FastAPI):
+    # 앱이 시작될 때 단일 메인 이벤트 루프를 확보하여 저장
+    session_manager.main_loop = asyncio.get_running_loop()
+    yield
+
+
 # ─── FastAPI 1: Public App (Port 3100) ─────────────────────────────────────
 
-app_public = FastAPI(title="DORI App Gateway")
+app_public = FastAPI(title="DORI App Gateway", lifespan=public_lifespan)
 
 app_public.add_middleware(
     CORSMiddleware,
@@ -312,33 +356,6 @@ async def delete_session(
 # ─── Internal IPC Endpoints (Called by backend_api.py) ─────────────────────
 
 
-@app_public.get("/internal/session")
-async def get_internal_session(request: Request):
-    """현재 세션 상태를 반환 (내부 호출용)"""
-    # 보안 강화를 위해 로컬호스트 요청만 허용
-    if request.client and request.client.host != "127.0.0.1":
-        raise HTTPException(status_code=403, detail="Localhost only")
-
-    return {
-        "state": session_manager.state.value,
-        "expires_at": session_manager.session_expires_at,
-        "has_active_ws": session_manager.active_ws is not None,
-    }
-
-
-@app_public.delete("/internal/session")
-async def delete_internal_session(request: Request):
-    """관리자 권한으로 현재 세션을 강제 종료 (내부 호출용)"""
-    if request.client and request.client.host != "127.0.0.1":
-        raise HTTPException(status_code=403, detail="Localhost only")
-
-    if session_manager.state != SessionState.IDLE:
-        await session_manager.end_session()
-        return {"status": "terminated", "message": "Session forcefully ended by admin"}
-
-    return {"status": "already_idle", "message": "No active session to terminate"}
-
-
 @app_public.websocket("/ws/user")
 async def websocket_user(websocket: WebSocket):
     # 1. Origin 검증 (Cross-site WS Hijacking 방지)
@@ -349,12 +366,24 @@ async def websocket_user(websocket: WebSocket):
 
     # 2. 쿠키 기반 세션 토큰 검증
     cookie_token = websocket.cookies.get("dori_session")
-    if not cookie_token or cookie_token != session_manager.current_token:
+    if (
+        not cookie_token
+        or not session_manager.current_token
+        or not secrets.compare_digest(cookie_token, session_manager.current_token)
+    ):
         await websocket.close(code=1008)
         return
 
     await websocket.accept()
+
+    if session_manager.active_ws and session_manager.active_ws is not websocket:
+        try:
+            await session_manager.active_ws.close(code=4000, reason="Replaced")
+        except Exception:
+            pass
+
     session_manager.active_ws = websocket
+    session_manager.last_activity = time.time()
 
     if session_manager.state == SessionState.GRACE:
         session_manager.state = SessionState.ACTIVE
@@ -365,24 +394,50 @@ async def websocket_user(websocket: WebSocket):
 
     try:
         while True:
-            data = await websocket.receive_text()
-            payload = json.loads(data)
+            # Heartbeat 감지: 15초 동안 아무 메시지(핑 포함)가 없으면 Exception 발생
+            data = await asyncio.wait_for(websocket.receive_text(), timeout=15.0)
+            session_manager.last_activity = time.time()
+
+            if len(data) > MAX_WS_MSG_SIZE:
+                logger.warning("WS message exceeds size limit, dropping")
+                continue
+
+            try:
+                payload = json.loads(data)
+            except json.JSONDecodeError:
+                logger.warning("Invalid JSON format in WS, dropping")
+                continue  # 세션을 끊지 않고 해당 메시지만 무시
 
             # 제한된 자체 프로토콜 처리 (명령어 화이트리스트 필터링)
             cmd_type = payload.get("type")
             if cmd_type == "command":
                 action = payload.get("action")
                 if action == "STOP":
-                    ros_node.pub_cmd_vel.publish(Twist())
+                    # ros_node.pub_cmd_vel.publish(Twist())
+                    ros_node.pub_stop.publish(Twist())
                 # 상향 메시지(오디오, 카메라 등) 추가 구현 지점
             elif cmd_type == "heartbeat":
                 pass
 
+            if (
+                time.time() - session_manager.last_activity
+                > session_manager.idle_timeout
+            ):
+                logger.info("User idle timeout reached.")
+                await session_manager.end_session()
+                break
+
+    except asyncio.TimeoutError:
+        logger.warning("WS Heartbeat timeout. Network likely dropped.")
+        if websocket is session_manager.active_ws:
+            await session_manager.handle_disconnect()
     except WebSocketDisconnect:
-        await session_manager.handle_disconnect()
+        if websocket is session_manager.active_ws:
+            await session_manager.handle_disconnect()
     except Exception as e:
         logger.error(f"WS Error: {e}")
-        await session_manager.handle_disconnect()
+        if websocket is session_manager.active_ws:
+            await session_manager.handle_disconnect()
 
 
 # ─── FastAPI 2: Display Listener (Port 3001, 127.0.0.1 Only) ─────────────────
@@ -411,6 +466,40 @@ async def display_event_generator(q: asyncio.Queue):
         session_manager.display_queues.discard(q)
 
 
+# ─── Internal IPC Endpoints (Called by backend_api.py) ─────────────────────
+# app_display (Port 3001)에 등록되어 외부(3100) 터널로부터 물리적/포트 단위로 완전히 격리됨
+
+
+@app_display.get("/internal/session")
+async def get_internal_session(x_internal_token: str = Header(None)):
+    """현재 세션 상태를 반환 (내부 호출용)"""
+    if not x_internal_token or not secrets.compare_digest(
+        x_internal_token, _INTERNAL_TOKEN
+    ):
+        raise HTTPException(status_code=403, detail="Invalid internal token")
+
+    return {
+        "state": session_manager.state.value,
+        "expires_at": session_manager.session_expires_at,
+        "has_active_ws": session_manager.active_ws is not None,
+    }
+
+
+@app_display.delete("/internal/session")
+async def delete_internal_session(x_internal_token: str = Header(None)):
+    """관리자 권한으로 현재 세션을 강제 종료 (내부 호출용)"""
+    if not x_internal_token or not secrets.compare_digest(
+        x_internal_token, _INTERNAL_TOKEN
+    ):
+        raise HTTPException(status_code=403, detail="Invalid internal token")
+
+    if session_manager.state != SessionState.IDLE:
+        await session_manager.end_session()
+        return {"status": "terminated", "message": "Session forcefully ended by admin"}
+
+    return {"status": "already_idle", "message": "No active session to terminate"}
+
+
 @app_display.get("/display/events")
 async def display_events(request: Request):
     """로봇 화면으로 QR Nonce와 세션 상태(Pairing 등)를 실시간 푸시하는 SSE"""
@@ -422,26 +511,34 @@ async def display_events(request: Request):
 # ─── Entrypoint & Runner ───────────────────────────────────────────────────
 
 
-def run_ros_node():
-    rclpy.init()
-    global ros_node
-    ros_node = BridgeNode()
-    rclpy.spin(ros_node)
-    ros_node.destroy_node()
-    rclpy.shutdown()
+async def run_servers():
+    config_public = uvicorn.Config(
+        app_public, host=PUBLIC_HOST, port=PUBLIC_PORT, log_level="info"
+    )
+    config_display = uvicorn.Config(
+        app_display, host="127.0.0.1", port=DISPLAY_PORT, log_level="warning"
+    )
 
+    server_public = uvicorn.Server(config_public)
+    server_display = uvicorn.Server(config_display)
 
-def run_display_server():
-    uvicorn.run(app_display, host="127.0.0.1", port=DISPLAY_PORT, log_level="warning")
+    # 한 이벤트 루프에서 두 서버를 동시에 비동기로 실행 (상태 및 큐 공유 문제 완전 해결)
+    await asyncio.gather(server_public.serve(), server_display.serve())
 
 
 if __name__ == "__main__":
-    # 1. ROS 2 스핀 스레드 시작
-    threading.Thread(target=run_ros_node, daemon=True).start()
+    rclpy.init()
+    global ros_node
+    ros_node = BridgeNode()
 
-    # 2. Display (127.0.0.1 전용) 스레드 시작
-    threading.Thread(target=run_display_server, daemon=True).start()
+    # 1. ROS 2 스핀 스레드 시작 (블로킹이므로 별도 스레드 유지)
+    threading.Thread(target=lambda: rclpy.spin(ros_node), daemon=True).start()
 
-    # 3. Public App (Tunnel) 메인 스레드 실행
-    logger.info(f"Starting Public Gateway on port {PUBLIC_PORT}")
-    uvicorn.run(app_public, host="0.0.0.0", port=PUBLIC_PORT, log_level="info")
+    # 2. FastAPI 서버들을 단일 이벤트 루프로 실행
+    logger.info(
+        f"Starting Gateways: Public({PUBLIC_PORT}), Display(127.0.0.1:{DISPLAY_PORT})"
+    )
+    asyncio.run(run_servers())
+
+    ros_node.destroy_node()
+    rclpy.shutdown()
