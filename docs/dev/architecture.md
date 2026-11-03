@@ -72,7 +72,7 @@ ros2_ws/src/
 ├── dori_dashboard/        # ROS ↔ web dashboard bridge
 └── dori_bringup/              # Launch files
 ├── dori_hri/               # Voice I/O (STT, TTS, emotion publishing)
-├── dori_bt/                # BehaviorTree.CPP v4 robot decision orchestration
+├── dori_bt/                # BehaviorTree.CPP v3 robot decision orchestration
 ├── dori_core/              # Shared utilities and SQLite DB management
 ├── dori_llm/               # Intent classification + RAG + LLM Query Action Server
 ├── dori_navigation/        # Navigation execution node
@@ -171,7 +171,7 @@ The detailed API reference for ROS2 topics is managed as a single source at [`to
 
 ## HRI Behavior Tree Architecture
 
-기존의 단순 상태 머신(`hri_manager_node.py`)에서 **BehaviorTree.CPP v4** 기반의 오케스트레이션 노드(`dori_tree_executor`, 패키지: `dori_bt`)로 전환되었습니다. 
+기존의 단순 상태 머신(`hri_manager_node.py`)에서 **BehaviorTree.CPP v3** 기반의 오케스트레이션 노드(`dori_tree_executor`, 패키지: `dori_bt`)로 전환되었습니다. ROS 2 Humble의 Nav2와 동일한 `behaviortree_cpp_v3` 시스템 패키지를 사용합니다.
 로봇의 HRI 및 가이딩 흐름은 XML 트리 정의(`dori_tree.xml`)에 의해 제어되며, 비동기 ROS 2 Action 인터페이스(`Speak`, `LLMQuery`, `Navigate`)를 통해 하위 노드들과 상호작용합니다.
 
 ```mermaid

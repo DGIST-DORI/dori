@@ -15,8 +15,17 @@
   <depend>ament_index_cpp</depend>
   <depend>std_msgs</depend>
 
+<<<<<<< Updated upstream
   <!-- BehaviorTree.CPP v4 (ROS Humble) -->
+=======
+<<<<<<< Updated upstream
+  <!-- BehaviorTree.CPP v3 (ROS Humble) -->
+>>>>>>> Stashed changes
   <depend>behaviortree_cpp</depend>
+=======
+  <!-- BehaviorTree.CPP v3, matching ROS 2 Humble's Nav2 -->
+  <depend>behaviortree_cpp_v3</depend>
+>>>>>>> Stashed changes
 
   <!-- Dori Custom Messages (LLMQuery, Speak 등) -->
   <depend>dori_msgs</depend>

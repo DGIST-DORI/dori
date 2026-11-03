@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import runpy
 import shutil
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
 
@@ -54,7 +55,6 @@ EXPECTED = {
     "dynamixel_sdk",
     "dynamixel_sdk_custom_interfaces",
     "dynamixel_sdk_examples",
-    "behaviortree_cpp",
     "sllidar_ros2",
 }
 REMOVED = {
@@ -136,6 +136,16 @@ def test_installed_executables(package, executables):
     for executable in executables:
         path = directory / executable
         assert path.is_file() and os.access(path, os.X_OK), path
+
+
+def test_behavior_tree_executor_links_humble_v3():
+    executable = Path(get_package_prefix("dori_bt")) / "lib/dori_bt/dori_tree_executor"
+    result = subprocess.run(
+        ["ldd", str(executable)], capture_output=True, text=True, check=True
+    )
+    assert "libbehaviortree_cpp_v3.so" in result.stdout, result.stdout
+    assert "libbehaviortree_cpp.so" not in result.stdout, result.stdout
+    assert "not found" not in result.stdout, result.stdout
 
 
 @pytest.mark.parametrize("name", IMU_NODES)

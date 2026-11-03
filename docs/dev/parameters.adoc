@@ -199,7 +199,7 @@ This document is the SSOT for ROS2 parameter details in the current workspace.
 
 *Dynamic reconfigure*:: Not supported
 *Read timing*:: startup only
-*Validation rules*:: Specified XML file must exist and be valid BehaviorTree.CPP v4 schema.
+*Validation rules*:: Specified XML file must exist and use BehaviorTree.CPP v3 XML syntax, matching Humble Nav2. The root uses `main_tree_to_execute`; `BTCPP_format="4"` is not used.
 *Related node*:: <<nodes.adoc#node-dori-tree-executor, dori_tree_executor>>
 
 
