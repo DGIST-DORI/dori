@@ -72,6 +72,8 @@ class PairRequest(BaseModel):
     consent: bool
 
 
+ros_node: Optional["BridgeNode"] = None
+
 # ─── ROS 2 Node (Bridge Gateway) ───────────────────────────────────────────
 
 
@@ -323,12 +325,24 @@ session_manager = SessionManager()
 
 @asynccontextmanager
 async def public_lifespan(app: FastAPI):
-    # 앱이 시작될 때 단일 메인 이벤트 루프를 확보하여 저장
+    global ros_node
+
+    # 1. 앱 시작 시 ROS 2 노드 초기화 및 스핀 스레드 구동
+    if not rclpy.ok():
+        rclpy.init()
+    ros_node = BridgeNode()
+    ros_thread = threading.Thread(target=lambda: rclpy.spin(ros_node), daemon=True)
+    ros_thread.start()
+
+    # 2. 메인 이벤트 루프 확보
     session_manager.main_loop = asyncio.get_running_loop()
-    try:
-        yield
-    finally:
-        await session_manager._cancel_session_timers()
+    yield
+
+    # 3. 앱 종료 시 ROS 2 안전하게 정리
+    if ros_node:
+        ros_node.destroy_node()
+    if rclpy.ok():
+        rclpy.shutdown()
 
 
 # ─── FastAPI 1: Public App (Port 3100) ─────────────────────────────────────
@@ -375,7 +389,11 @@ async def pair_device(req: PairRequest, response: Response):
 async def delete_session(
     dori_session: Optional[str] = Cookie(None),
 ):
-    if dori_session and dori_session == session_manager.current_token:
+    if (
+        dori_session
+        and session_manager.current_token
+        and secrets.compare_digest(dori_session, session_manager.current_token)
+    ):
         ok = await session_manager.end_session()
         if not ok:
             raise HTTPException(
@@ -583,18 +601,8 @@ async def run_servers():
 
 
 if __name__ == "__main__":
-    rclpy.init()
-    global ros_node
-    ros_node = BridgeNode()
-
-    # 1. ROS 2 스핀 스레드 시작 (블로킹이므로 별도 스레드 유지)
-    threading.Thread(target=lambda: rclpy.spin(ros_node), daemon=True).start()
-
-    # 2. FastAPI 서버들을 단일 이벤트 루프로 실행
+    # rclpy.init() 등의 로직은 public_lifespan으로 이동하여 삭제됨
     logger.info(
-        f"Starting Gateways: Public({PUBLIC_PORT}), Display(127.0.0.1:{DISPLAY_PORT})"
+        f"Starting Gateways: Public({PUBLIC_HOST}:{PUBLIC_PORT}), Display(127.0.0.1:{DISPLAY_PORT})"
     )
     asyncio.run(run_servers())
-
-    ros_node.destroy_node()
-    rclpy.shutdown()

@@ -2015,9 +2015,17 @@ if WEB_DIR:
 
 if __name__ == "__main__":
     import uvicorn
+    import os
+
+    _DEV_MODE_LOCAL = os.environ.get("DORI_DEV_MODE", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    _BIND_HOST = "0.0.0.0" if _DEV_MODE_LOCAL else "127.0.0.1"
 
     print(f"[DORI Backend API] Repo root : {REPO_ROOT}")
     print(f"[DORI Backend API] Parser    : {PARSER_SCRIPT}")
     print(f"[DORI Backend API] Builder   : {BUILDER_SCRIPT}")
-    print(f"[DORI Backend API] Listening : http://0.0.0.0:{args.port}")
-    uvicorn.run(app, host="0.0.0.0", port=args.port, log_level="warning")
+    print(f"[DORI Backend API] Listening : http://{_BIND_HOST}:{args.port}")
+    uvicorn.run(app, host=_BIND_HOST, port=args.port, log_level="warning")
