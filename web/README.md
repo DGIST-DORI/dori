@@ -89,7 +89,7 @@ a token **on the trusted host** using the same environment:
 Paste the result into the login screen. The shared API wrapper uses an HttpOnly,
 SameSite=Strict session cookie (Secure on HTTPS); tokens are never saved in
 localStorage/sessionStorage. The cookie expires within 15 minutes and never
-outlives the source JWT. This also authenticates the navigation iframe. API 401s
+outlives the source JWT. This also authenticates the navigation panel requests. API 401s
 return the UI to login. Logout clears the local session and tickets; Access
 logins additionally use Cloudflare's [logout endpoint](https://developers.cloudflare.com/cloudflare-one/access-controls/access-settings/session-management/).
 
@@ -107,6 +107,50 @@ HTTPS or an SSH port forward when entering a token. For Vite development,
 `/api`, `/navigation`, and `/ws` are proxied to localhost:3000.
 
 ## Dashboard control contract
+
+### Navigation panel
+
+`Navigation → Map → Robot Map & Navigation` renders a native React canvas and
+controls. The existing `/navigation/api/{session,state,map.png,command}` proxy
+continues to connect to the navigation web viewer on loopback port 8080. Run the
+hardware/navigation stack for live data; starting the dashboard alone does not
+start Nav2 or the viewer. The standalone `/navigation/` viewer remains available.
+
+The panel supports map pan/zoom, robot follow, initial pose and goal direction,
+named destination editing, AUTO stop, and sensor/drive diagnostics. Narrow panels
+and mobile screens stack the controls below the map. Viewer accounts can inspect
+data; control, deploy, and admin roles can use the command controls, matching the
+backend permission policy.
+
+State polling runs 200ms after each response. A 1.5-second gap disables motion
+controls; upstream failures and stale ROS snapshots are displayed. Map images
+refresh on version changes. Server/coordinate-system changes clear pending pose
+selections. Commands are never automatically replayed on reconnect.
+
+Each mounted panel has its own control client ID. Only the owning client sends
+heartbeats. Closing/minimizing the panel ends polling and heartbeat; the existing
+server lease expires after 10 seconds and stops AUTO. Use **AUTO 정지** for an
+explicit stop before closing; ESC sends that same request only while focus is
+inside this panel. This retains the navigation stop behavior, separate from the
+dashboard's emergency-stop latch. Reopening never automatically acquires control.
+
+Frontend regression checks: `npm test`, `npm run lint`, and `npm run build`.
+Navigation client tests cover permissions, stale state, ownership/heartbeat,
+restart, HTTP failures and cleanup; geometry tests cover rotated map origins,
+coordinate conversion, cursor-anchored zoom and pose input. Physical driving and
+stopping still require the hardware acceptance checks below.
+
+For the browser regression, start Vite on loopback port 5178, install Playwright
+and its Chromium browser in your test environment, then run
+`node tests/navigation.browser.mjs` from `web`. Set `PLAYWRIGHT_MODULE` to an
+external Playwright module path if it is not installed locally, and
+`PLAYWRIGHT_BROWSERS_PATH` if using a custom browser cache. `NAV_TEST_URL` can
+override the Vite URL. The test intercepts all API calls with fixtures and never
+sends robot commands. It checks pose selection, destination CRUD, scoped ESC,
+map caching, resizing/mobile, ownership, reconnect, cleanup and authentication.
+Desktop/mobile screenshots are written under `/tmp/dori-navigation-*.png`.
+
+### Manual control
 
 `DORI_CONTROL_EXECUTOR=dry-run` remains the default. Live control requires
 `DORI_CONTROL_EXECUTOR=bridge` in **both** backend and bridge environments.
