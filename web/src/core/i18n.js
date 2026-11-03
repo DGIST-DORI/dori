@@ -105,12 +105,9 @@ const TRANSLATIONS = {
     'header.connect': '⏎ connect',
     'header.disconnect': '⏏ disconnect',
     'header.connecting': 'connecting...',
-    'header.demo.start': '▶ demo',
-    'header.demo.stop': '■ stop demo',
 
     // Status
     'status.connected': 'LIVE',
-    'status.demo': 'DEMO',
     'status.offline': 'OFF',
 
     // Home tab
@@ -121,10 +118,8 @@ const TRANSLATIONS = {
     'home.card.hri': 'HRI State',
     'home.card.log': 'Log Entries',
     'home.status.connected': 'CONNECTED',
-    'home.status.demo': 'DEMO MODE',
     'home.status.offline': 'OFFLINE',
     'home.hint.1': '← Select a tab from the sidebar, or connect to ROS in the top right.',
-    'home.hint.2': 'To test without ROS, press the ▶ demo button.',
 
     // Settings panel
     'settings.title': 'Settings',
@@ -219,12 +214,9 @@ const TRANSLATIONS = {
     'header.connect': '⏎ 연결',
     'header.disconnect': '⏏ 연결 해제',
     'header.connecting': '연결 중...',
-    'header.demo.start': '▶ 데모',
-    'header.demo.stop': '■ 데모 중지',
 
     // Status
     'status.connected': 'LIVE',
-    'status.demo': 'DEMO',
     'status.offline': 'OFF',
 
     // Home tab
@@ -235,10 +227,8 @@ const TRANSLATIONS = {
     'home.card.hri': 'HRI 상태',
     'home.card.log': '로그 항목',
     'home.status.connected': '연결됨',
-    'home.status.demo': '데모 모드',
     'home.status.offline': '오프라인',
     'home.hint.1': '← 사이드바에서 탭을 선택하거나, 우측 상단에서 ROS에 연결하세요.',
-    'home.hint.2': 'ROS 없이 테스트하려면 ▶ 데모 버튼을 누르세요.',
 
     // Settings panel
     'settings.title': '설정',

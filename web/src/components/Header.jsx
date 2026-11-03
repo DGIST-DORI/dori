@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { LOG_TAGS, useStore } from '../core/store';
 import { useI18n } from '../core/i18n';
 import { connectROS, disconnectROS } from '../core/ros';
-import { startDemo, stopDemo } from '../core/demo';
 import { logout } from '../core/api';
 import DashLogoText     from '../assets/logo/dash-text.svg?react';
 import DashLogoTextDark from '../assets/logo/dash-text-dark.svg?react';
@@ -11,7 +10,6 @@ import './Header.css';
 export default function Header({ onLogoClick, themeMode, sidebarExpanded }) {
   const { t } = useI18n();
   const connected    = useStore(s => s.connected);
-  const isDemoMode   = useStore(s => s.isDemoMode);
   const wsUrl        = useStore(s => s.wsUrl);
   const setConnected = useStore(s => s.setConnected);
   const addLog       = useStore(s => s.addLog);
@@ -60,7 +58,6 @@ export default function Header({ onLogoClick, themeMode, sidebarExpanded }) {
         if (!['ws:', 'wss:'].includes(parsed.protocol)) throw new Error('URL protocol must be ws:// or wss://');
         setIsConnecting(true);
         setConnected(false);
-        stopDemo();
         await connectROS(urlInput, {
           onConnect: () => { setConnected(true);  setIsConnecting(false); addLog(LOG_TAGS.SYS, `Connected → ${urlInput}`); },
           onError:   e  => { setConnected(false); setIsConnecting(false); addLog(LOG_TAGS.ERROR, formatConnectError(e, urlInput, 'network')); },
@@ -72,11 +69,6 @@ export default function Header({ onLogoClick, themeMode, sidebarExpanded }) {
         addLog(LOG_TAGS.ERROR, formatConnectError(e, urlInput, source));
       }
     }
-  }
-
-  function handleDemo() {
-    if (isDemoMode) stopDemo();
-    else { disconnectROS(); setConnected(false); startDemo(); }
   }
 
   const LogoText = isDark ? DashLogoTextDark : DashLogoText;
@@ -97,7 +89,7 @@ export default function Header({ onLogoClick, themeMode, sidebarExpanded }) {
 
       <div className="hdr-conn">
         <button className="hdr-btn" onClick={async () => {
-          try { stopDemo(); await logout(); }
+          try { await logout(); }
           catch (error) { addLog(LOG_TAGS.ERROR, error.message); }
         }}>로그아웃</button>
         {/* URL input — synced with Settings tab but kept here for quick access */}
@@ -106,25 +98,19 @@ export default function Header({ onLogoClick, themeMode, sidebarExpanded }) {
           value={urlInput}
           readOnly
           onKeyDown={e => e.key === 'Enter' && handleConnect()}
-          disabled={connected || isDemoMode || isConnecting}
+          disabled={connected || isConnecting}
           spellCheck={false}
         />
         <button
           className={`hdr-btn ${connected ? 'connected' : ''}`}
           onClick={handleConnect}
-          disabled={isDemoMode || isConnecting}
+          disabled={isConnecting}
         >
           {isConnecting
             ? t('header.connecting')
             : connected
               ? t('header.disconnect')
               : t('header.connect')}
-        </button>
-        <button
-          className={`hdr-btn demo ${isDemoMode ? 'active' : ''}`}
-          onClick={handleDemo}
-        >
-          {isDemoMode ? t('header.demo.stop') : t('header.demo.start')}
         </button>
       </div>
     </header>

@@ -98,7 +98,6 @@
 .el-filter-btn.active.tag-TRACK   { background: var(--accent-dim);    border-color: var(--accent);  color: var(--accent); }
 .el-filter-btn.active.tag-NAV     { background: var(--accent-dim);    border-color: var(--accent);  color: var(--accent); }
 .el-filter-btn.active.tag-SYS     { background: var(--accent-dim);    border-color: var(--accent);  color: var(--accent); }
-.el-filter-btn.active.tag-DEMO    { background: var(--yellow-dim);    border-color: var(--yellow);  color: var(--yellow); }
 .el-filter-btn.active.tag-ERROR   { background: var(--red-dim);       border-color: var(--red);     color: var(--red); }
 
 /* ── Row 3: Actions ──────────────────────────────────────────────────────── */
@@ -208,7 +207,6 @@
   letter-spacing: 0.5px;
   min-width: 52px;
 }
-.el-tag.tag-DEMO { color: var(--yellow); }
 
 .el-text {
   font-size: 11px;

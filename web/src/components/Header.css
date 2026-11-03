@@ -94,8 +94,6 @@
 }
 .hdr-btn:hover          { border-color: var(--border-bright); color: var(--text-0); }
 .hdr-btn.connected      { border-color: var(--green);  color: var(--green);  background: var(--green-dim); }
-.hdr-btn.demo:hover     { border-color: var(--yellow); color: var(--yellow); background: var(--yellow-dim); }
-.hdr-btn.demo.active    { border-color: var(--yellow); color: var(--yellow); background: var(--yellow-dim); }
 
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 

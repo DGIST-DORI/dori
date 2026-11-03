@@ -20,15 +20,13 @@ function SectionLabel({ children }) {
 function TTSInjectPanel() {
   const { t } = useI18n();
   const connected = useStore(s => s.connected);
-  const isDemoMode = useStore(s => s.isDemoMode);
   const addLog = useStore(s => s.addLog);
   const lastTts = useStore(s => s.lastTtsText);
-  const canPublish = connected || isDemoMode;
 
   const [ttsText, setTtsText] = useState('');
 
   function handleTTS() {
-    if (!ttsText.trim()) return;
+    if (!connected || !ttsText.trim()) return;
 
     pub('/dori/tts/text', 'std_msgs/msg/String', { data: ttsText.trim() });
     addLog(LOG_TAGS.TTS, `[inject] "${ttsText.trim()}"`);
@@ -46,7 +44,7 @@ function TTSInjectPanel() {
         onChange={e => setTtsText(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleTTS(); } }}
       />
-      <button className="btn btn-sm btn-primary" disabled={!canPublish || !ttsText.trim()} onClick={handleTTS}>
+      <button className="btn btn-sm btn-primary" disabled={!connected || !ttsText.trim()} onClick={handleTTS}>
         Speak
       </button>
       {lastTts && (

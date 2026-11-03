@@ -13,7 +13,6 @@ const ALLOWED_TOPICS = [
 
 export default function TopicPublisherPanel() {
   const connected = useStore((s) => s.connected);
-  const isDemoMode = useStore((s) => s.isDemoMode);
   const isPublishing = useStore((s) => s.isPublishing);
   const lastPublishAt = useStore((s) => s.lastPublishAt);
   const publishError = useStore((s) => s.publishError);
@@ -27,7 +26,6 @@ export default function TopicPublisherPanel() {
   const [rateHz, setRateHz] = useState('1');
   const intervalRef = useRef(null);
 
-  const canPublish = connected || isDemoMode;
   const rateValue = Number(rateHz);
   const isRateValid = Number.isFinite(rateValue) && rateValue > 0;
   const isTopicAllowed = useMemo(() => ALLOWED_TOPICS.includes(topic), [topic]);
@@ -105,7 +103,7 @@ export default function TopicPublisherPanel() {
   }, [addLog, isRateValid, publishOnce, rateHz, rateValue, setPublishState, stopPeriodic]);
 
   const handlePublishClick = () => {
-    if (!canPublish) return;
+    if (!connected) return;
     if (mode === 'once') {
       stopPeriodic();
       publishOnce();
@@ -151,11 +149,11 @@ export default function TopicPublisherPanel() {
           )}
         </div>
         <div className="tp-footer">
-          <button className="tp-publish-btn" onClick={handlePublishClick} disabled={!canPublish}>
+          <button className="tp-publish-btn" onClick={handlePublishClick} disabled={!connected}>
             {mode === 'periodic' && isPublishing ? 'Stop' : 'Publish'}
           </button>
           <span className="tp-status">
-            {!canPublish ? 'ROS not connected' : publishError ? `Error: ${publishError}` : lastPublishAt ? `Last publish: ${new Date(lastPublishAt).toLocaleTimeString()}` : 'Ready'}
+            {!connected ? 'ROS not connected' : publishError ? `Error: ${publishError}` : lastPublishAt ? `Last publish: ${new Date(lastPublishAt).toLocaleTimeString()}` : 'Ready'}
           </span>
         </div>
 

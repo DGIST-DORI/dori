@@ -146,14 +146,11 @@ export default function Sidebar({
 }) {
   const { t } = useI18n();
   const connected  = useStore(s => s.connected);
-  const isDemoMode = useStore(s => s.isDemoMode);
 
   const statusLabel = connected
     ? t('status.connected')
-    : isDemoMode
-      ? t('status.demo')
-      : t('status.offline');
-  const statusClass = connected ? 'connected' : isDemoMode ? 'demo' : '';
+    : t('status.offline');
+  const statusClass = connected ? 'connected' : '';
 
   // Resolve dark/light for logo variant
   const [autoIsDark, setAutoIsDark] = useState(

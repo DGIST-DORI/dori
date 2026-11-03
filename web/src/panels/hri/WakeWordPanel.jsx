@@ -29,10 +29,8 @@ function SectionLabel({ children }) {
 function WakeWordPanel() {
   const { t } = useI18n();
   const connected  = useStore(s => s.connected);
-  const isDemoMode = useStore(s => s.isDemoMode);
   const hriState   = useStore(s => s.hriState);
   const addLog     = useStore(s => s.addLog);
-  const canPublish = connected || isDemoMode;
   const [lastTs, setLastTs] = useState(null);
 
   function fire() {
@@ -53,7 +51,7 @@ function WakeWordPanel() {
         <span className={`hri-state-val hri-state-${hriState}`}>{hriState}</span>
       </div>
       <div className="row">
-        <button className="btn btn-sm btn-ok btn-icon" disabled={!canPublish} onClick={fire}>
+        <button className="btn btn-sm btn-ok btn-icon" disabled={!connected} onClick={fire}>
           <Zap size={12} /> Trigger Wake Word
         </button>
         {lastTs && <span className="hint-inline">fired at {lastTs}</span>}

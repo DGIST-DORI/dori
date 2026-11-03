@@ -296,9 +296,7 @@ function ChatBubble({ turn, canReplay, onReplay }) {
 function ConversationTabContent() {
   const log        = useStore(s => s.log);
   const connected  = useStore(s => s.connected);
-  const isDemoMode = useStore(s => s.isDemoMode);
   const addLog     = useStore(s => s.addLog);
-  const canPublish = connected || isDemoMode;
 
   const liveSessions = useMemo(() => parseSessions(log), [log]);
   const [importedSessions, setImportedSessions] = useState([]);
@@ -413,7 +411,7 @@ function ConversationTabContent() {
             {sessions.length === 0 ? (
               <div className="cr-empty">
                 {source === 'live'
-                  ? 'Wake word 트리거 또는\nDemo 모드를 실행하세요.'
+                  ? 'ROS에 연결한 뒤\nWake word를 트리거하세요.'
                   : 'JSON 파일을 Import하세요.'}
               </div>
             ) : sessions.map(s => (
@@ -463,7 +461,7 @@ function ConversationTabContent() {
             <ChatBubble
               key={turn.id}
               turn={turn}
-              canReplay={canPublish && turn.type === 'user'}
+              canReplay={connected && turn.type === 'user'}
               onReplay={handleReplay}
             />
           ))}

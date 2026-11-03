@@ -43,11 +43,9 @@ function SectionLabel({ children }) {
 function VisionPanel() {
   const { t } = useI18n();
   const connected   = useStore(s => s.connected);
-  const isDemoMode  = useStore(s => s.isDemoMode);
   const addLog      = useStore(s => s.addLog);
   const executionProfile = useStore(s => s.executionProfile);
   const useClientCam = useStore(s => s.useClientCam);
-  const canPublish  = connected || isDemoMode;
 
   const videoRef    = useRef(null);
   const canvasRef   = useRef(null);
@@ -179,7 +177,7 @@ function VisionPanel() {
         )}
 
         {camActive && !isPublishing && (
-          <button className="btn btn-sm btn-primary btn-icon" disabled={!canPublish} onClick={startPublish}>
+          <button className="btn btn-sm btn-primary btn-icon" disabled={!connected} onClick={startPublish}>
             <Play size={12} /> Publish Frames
           </button>
         )}

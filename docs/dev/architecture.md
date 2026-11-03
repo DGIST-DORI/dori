@@ -215,7 +215,7 @@ flowchart TD
 ## Dashboard Execution Profile (Robot/Sim)
 
 - Settings > Connection 에서 `Execution Profile` 을 `Robot|Sim` 으로 전환한다.
-- Sim 프로파일은 데모(mock) 모드와 다르며, **실제 ROS 그래프를 타는 테스트 모드**다.
+- Sim 프로파일은 **실제 ROS 그래프를 타는 테스트 모드**이며, ROS 연결이 필요하다.
 - 기본 토픽은 프로파일 기반 자동 매핑을 사용한다.
   - STT 입력: `stt/audio_input`
   - Vision 입력: `perception/vision/image/compressed`

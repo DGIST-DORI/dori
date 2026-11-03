@@ -20,16 +20,14 @@ function SectionLabel({ children }) {
 function LLMInjectPanel() {
   const { t } = useI18n();
   const connected = useStore(s => s.connected);
-  const isDemoMode = useStore(s => s.isDemoMode);
   const addLog = useStore(s => s.addLog);
   const lastLlmResp = useStore(s => s.lastLlmResponse);
-  const canPublish = connected || isDemoMode;
 
   const [llmQuery, setLlmQuery] = useState('');
   const [locCtx, setLocCtx] = useState('');
 
   function handleLLM() {
-    if (!llmQuery.trim()) return;
+    if (!connected || !llmQuery.trim()) return;
 
     const payload = {
       text: llmQuery.trim(),
@@ -66,7 +64,7 @@ function LLMInjectPanel() {
           onChange={e => setLocCtx(e.target.value)}
         />
       </div>
-      <button className="btn btn-sm btn-primary" disabled={!canPublish || !llmQuery.trim()} onClick={handleLLM}>
+      <button className="btn btn-sm btn-primary" disabled={!connected || !llmQuery.trim()} onClick={handleLLM}>
         Send to LLM
       </button>
       {lastLlmResp && (

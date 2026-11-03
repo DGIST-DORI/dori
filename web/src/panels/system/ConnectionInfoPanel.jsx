@@ -4,16 +4,13 @@ import './ConnectionInfoPanel.css';
 
 function ConnectionInfoPanel() {
   const connected  = useStore(s => s.connected);
-  const isDemoMode = useStore(s => s.isDemoMode);
   const wsUrl      = useStore(s => s.wsUrl);
 
   const parsedWsUrl = parseWsUrl(wsUrl);
 
   const statusColor = connected
     ? 'var(--color-ok)'
-    : isDemoMode
-      ? 'var(--color-warn)'
-      : 'var(--text-muted)';
+    : 'var(--text-muted)';
 
   return (
     <div className="layout-panel-body">
@@ -21,7 +18,7 @@ function ConnectionInfoPanel() {
         <div className="sys-info-row">
           <span>Status</span>
           <span style={{ color: statusColor }}>
-            {connected ? 'ROS Connected' : isDemoMode ? 'Demo Mode' : 'Disconnected'}
+            {connected ? 'ROS Connected' : 'Disconnected'}
           </span>
         </div>
         <div className="sys-info-row">

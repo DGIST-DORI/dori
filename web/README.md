@@ -223,7 +223,7 @@ System panels include `Event Log` and `Topic Publisher`, located at
 ## Execution Profile and I/O routing
 
 - Settings > Connection 에서 Execution Profile (`Robot`/`Sim`)을 선택합니다.
-- Sim은 demo(mock)와 분리된 모드이며, 실제 ROS 토픽 파이프라인 검증용입니다.
+- Sim은 실제 ROS 토픽 파이프라인 검증용 프로파일이며, ROS 연결이 필요합니다.
 - 기본 라우팅
   - STT input: `stt/audio_input`
   - Vision input: `perception/vision/image/compressed`

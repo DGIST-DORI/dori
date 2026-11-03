@@ -39,11 +39,9 @@ function SectionLabel({ children }) {
 function STTPanel() {
   const { t } = useI18n();
   const connected  = useStore(s => s.connected);
-  const isDemoMode = useStore(s => s.isDemoMode);
   const addLog     = useStore(s => s.addLog);
   const executionProfile = useStore(s => s.executionProfile);
   const useClientMic = useStore(s => s.useClientMic);
-  const canPublish = connected || isDemoMode;
 
   const [text,          setText]          = useState('');
   const [lang,          setLang]          = useState('auto');
@@ -70,7 +68,7 @@ function STTPanel() {
 
   // Inject text manually
   function handleTextInject() {
-    if (!text.trim()) return;
+    if (!connected || !text.trim()) return;
     const payload = {
       text:       text.trim(),
       language:   lang,
@@ -207,7 +205,7 @@ function STTPanel() {
         </div>
         <button
           className="btn btn-sm btn-primary"
-          disabled={!canPublish || !text.trim()}
+          disabled={!connected || !text.trim()}
           onClick={handleTextInject}
         >Inject STT</button>
       </div>
@@ -238,7 +236,7 @@ function STTPanel() {
         {!micActive ? (
           <button
             className="btn btn-sm btn-ok btn-icon"
-            disabled={!micAvail || !canPublish || !useClientMic}
+            disabled={!micAvail || !connected || !useClientMic}
             onClick={handleMicStart}
           >
             <Mic size={12} /> Start Recording

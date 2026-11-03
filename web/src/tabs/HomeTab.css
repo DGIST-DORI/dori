@@ -51,7 +51,6 @@
   transition: border-color 0.3s;
 }
 .home-card.ok   { border-color: var(--green);  background: var(--green-dim); }
-.home-card.demo { border-color: var(--yellow); background: var(--yellow-dim); }
 
 .home-card-label {
   font-size: 10px;

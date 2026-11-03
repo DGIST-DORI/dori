@@ -112,7 +112,6 @@ export const LOG_TAGS = Object.freeze({
   TRACK: 'TRACK',
   NAV: 'NAV',
   SYS: 'SYS',
-  DEMO: 'DEMO',
   ERROR: 'ERROR',
 });
 
@@ -127,7 +126,6 @@ export const LOG_TAG_ORDER = Object.freeze([
   LOG_TAGS.TRACK,
   LOG_TAGS.NAV,
   LOG_TAGS.SYS,
-  LOG_TAGS.DEMO,
   LOG_TAGS.ERROR,
 ]);
 
@@ -239,7 +237,6 @@ export const useStore = create((set, get) => ({
 
   // ── Connection ──────────────────────────────────────────────────────────
   connected: false,
-  isDemoMode: false,
   wsUrl: getDefaultWsUrl(),
   executionProfile: EXECUTION_PROFILES.ROBOT,
   useClientMic: true,
@@ -255,7 +252,6 @@ export const useStore = create((set, get) => ({
   rosBindingEpoch: 0,
 
   setConnected: (v) => set({ connected: v }),
-  setDemoMode:  (v) => set({ isDemoMode: v }),
   setWsUrl: (v) => {
     if (v === getDefaultWsUrl()) set({ wsUrl: v });
   },

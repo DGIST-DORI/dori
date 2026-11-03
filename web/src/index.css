@@ -92,4 +92,3 @@ select { font-family: var(--font-mono); outline: none; }
 .tag-NAV     { color: var(--yellow); }
 .tag-SYS     { color: var(--text-1); }
 .tag-ERROR   { color: var(--red); }
-.tag-DEMO    { color: var(--yellow); }

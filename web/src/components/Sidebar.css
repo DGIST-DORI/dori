@@ -579,11 +579,6 @@
   box-shadow: 0 0 6px var(--green);
   animation: sb-pulse-green 2s ease-in-out infinite;
 }
-.sb-status.demo .sb-status-dot {
-  background: var(--yellow);
-  box-shadow: 0 0 6px var(--yellow);
-  animation: sb-pulse-yellow 1.5s ease-in-out infinite;
-}
 .sb-status-label {
   font-size: 10px;
   font-weight: 600;
@@ -593,7 +588,6 @@
   animation: sb-fade-in 0.15s ease;
 }
 .sb-status.connected .sb-status-label { color: var(--green); }
-.sb-status.demo      .sb-status-label { color: var(--yellow); }
 .sb-tooltip-status { top: 50%; }
 
 /* ── Animations ── */
@@ -604,8 +598,4 @@
 @keyframes sb-pulse-green {
   0%,100% { box-shadow: 0 0 4px var(--green); }
   50%     { box-shadow: 0 0 10px var(--green); }
-}
-@keyframes sb-pulse-yellow {
-  0%,100% { box-shadow: 0 0 4px var(--yellow); }
-  50%     { box-shadow: 0 0 10px var(--yellow); }
 }

@@ -19,7 +19,6 @@ const E2E_SEQUENCE = [
 
 export default function HomeTab() {
   const connected  = useStore(s => s.connected);
-  const isDemoMode = useStore(s => s.isDemoMode);
   const hriState   = useStore(s => s.hriState);
   const log        = useStore(s => s.log);
   const addLog     = useStore(s => s.addLog);
@@ -94,6 +93,7 @@ export default function HomeTab() {
   }, [stepStatuses, elapsedMs, runState.phase, addLog]);
 
   function startConversationE2E() {
+    if (!connected) return;
     const baseline = E2E_SEQUENCE.reduce((acc, topic) => {
       acc[topic] = topicStats?.[topic]?.lastSeenMs ?? 0;
       return acc;
@@ -138,10 +138,10 @@ export default function HomeTab() {
 
       {/* Status cards */}
       <div className="home-cards">
-        <div className={`home-card ${connected ? 'ok' : isDemoMode ? 'demo' : ''}`}>
+        <div className={`home-card ${connected ? 'ok' : ''}`}>
           <div className="home-card-label">ROS Connection</div>
           <div className="home-card-value">
-            {connected ? 'CONNECTED' : isDemoMode ? 'DEMO MODE' : 'OFFLINE'}
+            {connected ? 'CONNECTED' : 'OFFLINE'}
           </div>
         </div>
 
@@ -163,7 +163,7 @@ export default function HomeTab() {
           <span className={badgeClass}>{badgeText}</span>
         </div>
         <p className="home-e2e-desc">한 번 클릭으로 STT → HRI → LLM → TTS 파이프라인 상태 전이를 검사합니다.</p>
-        <button className="btn btn-primary" onClick={startConversationE2E} disabled={runState.phase === 'running'}>
+        <button className="btn btn-primary" onClick={startConversationE2E} disabled={!connected || runState.phase === 'running'}>
           {runState.phase === 'running' ? 'Running…' : 'Run Conversation E2E Test'}
         </button>
 
@@ -185,7 +185,6 @@ export default function HomeTab() {
 
       <div className="home-hint">
         <p>← 사이드바에서 탭을 선택하거나, 우측 상단에서 ROS에 연결하세요.</p>
-        <p>ROS 없이 테스트하려면 <code>▶ demo</code> 버튼을 누르세요.</p>
       </div>
 
     </div>
