@@ -1,6 +1,7 @@
 """
 dashboard.launch.py
 Launches: rosbridge WebSocket + unified dashboard server (frontend + API on port 3000)
+          + loopback navigation viewer (port 8080, no hardware startup)
           + Cloudflare Tunnel (dashboard port 3000 only, optional)
 
 Cloudflare Tunnel is disabled by default.
@@ -136,6 +137,32 @@ def _make_server_actions(context, *args, **kwargs):
     ]
 
 
+def _make_navigation_viewer_actions(context, *args, **kwargs):
+    """Own the dashboard's map backend unless the parent launch supplies one."""
+    enabled = LaunchConfiguration("enable_navigation_viewer").perform(context).lower()
+    if enabled not in ("true", "1", "yes"):
+        return []
+    repo_root = _resolve_repo_root(get_package_share_directory("dori_dashboard"))
+    return [
+        Node(
+            package="dori_navigation",
+            executable="web_viewer.py",
+            name="dori_web_viewer",
+            arguments=[
+                "--host", "127.0.0.1",
+                "--port", "8080",
+                "--user-port", "0",
+                "--mode", "auto",
+                "--goals-file", str(Path(repo_root) / "maps/web_goals.json"),
+            ],
+            output="screen",
+            respawn=True,
+            respawn_delay=2.0,
+            additional_env={"DORI_WS": repo_root},
+        ),
+    ]
+
+
 def generate_launch_description():
     pkg_dir = get_package_share_directory("dori_dashboard")
     web_dir = os.path.join(pkg_dir, "web_current")
@@ -165,6 +192,12 @@ def generate_launch_description():
                 default_value="",
                 description="Fixed public dashboard URL (custom Cloudflare domain)",
             ),
+            DeclareLaunchArgument(
+                "enable_navigation_viewer",
+                default_value="true",
+                description="Start the loopback map backend without hardware/Nav2. "
+                "Set false when another launch already owns port 8080.",
+            ),
             # ── rosbridge WebSocket (port 9090) ───────────────────────────────
             Node(
                 package="rosbridge_server",
@@ -183,6 +216,7 @@ def generate_launch_description():
             # DORI_DASHBOARD_URL 환경변수로 고정 도메인 주입
             # /api/tunnel-url returns the authenticated request origin.
             OpaqueFunction(function=_make_server_actions),
+            OpaqueFunction(function=_make_navigation_viewer_actions),
             # ── Cloudflare Tunnel (optional, default: disabled) ────────────────
             OpaqueFunction(function=_make_tunnel_actions),
         ]

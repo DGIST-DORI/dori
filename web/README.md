@@ -19,7 +19,11 @@ web build. For package migrations, follow the clean-overlay procedure in AMM 20-
 
 ## Launch
 
-The development launch below starts desktop HRI, not physical navigation.
+The development launch below starts desktop HRI and the dashboard map backend,
+not physical navigation. The map backend starts automatically with the dashboard
+and restarts after an unexpected exit. It listens only on `127.0.0.1:8080`; it
+does not open the standalone user port or start hardware/Nav2. Without a running
+robot/map source, the panel connects in monitor mode and waits for data.
 For hardware + Nav2 + map viewer + HRI, use `dori_bringup hardware.launch.py`
 with the device preparation and arguments in AMM 40-10.
 
@@ -46,6 +50,17 @@ If you need to run the dashboard standalone (without the desktop HRI stack):
 ```bash
 ros2 launch dori_dashboard dashboard.launch.py
 ```
+
+If a separately managed viewer already owns port 8080, launch the dashboard with
+`enable_navigation_viewer:=false`. The integrated `hardware.launch.py` sets this
+automatically because it supplies its own navigation-mode viewer. Stop a desktop
+dashboard session before switching to the full hardware launch.
+
+After installing this update, remove the temporary recovery viewer before the
+next normal dashboard launch: `systemctl --user stop dori-navigation-viewer.service`
+(only if that temporary service is running). The dashboard launch then owns the
+viewer lifecycle. This follows the dashboard's existing startup mechanism; it
+does not install a new boot service for the dashboard itself.
 
 ## Access and authentication
 
@@ -113,8 +128,9 @@ HTTPS or an SSH port forward when entering a token. For Vite development,
 `Navigation → Map → Robot Map & Navigation` renders a native React canvas and
 controls. The existing `/navigation/api/{session,state,map.png,command}` proxy
 continues to connect to the navigation web viewer on loopback port 8080. Run the
-hardware/navigation stack for live data; starting the dashboard alone does not
-start Nav2 or the viewer. The standalone `/navigation/` viewer remains available.
+hardware/navigation stack for live data; starting the dashboard alone starts the
+viewer in auto-detection mode, but does not start Nav2. The standalone
+`/navigation/` viewer remains available.
 
 The panel supports map pan/zoom, robot follow, initial pose and goal direction,
 named destination editing, AUTO stop, and sensor/drive diagnostics. Narrow panels

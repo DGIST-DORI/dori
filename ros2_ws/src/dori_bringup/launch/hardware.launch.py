@@ -171,7 +171,10 @@ def setup(context):
             )
         )
     if value("enable_dashboard") == "true":
-        actions.append(include("dori_dashboard", "dashboard.launch.py", {}))
+        # This launch already owns the navigation-mode viewer on port 8080.
+        actions.append(include("dori_dashboard", "dashboard.launch.py", {
+            "enable_navigation_viewer": "false",
+        }))
     return actions
 
 

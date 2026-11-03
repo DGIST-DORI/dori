@@ -18,6 +18,7 @@
   <!-- python-multipart has no rosdep key; install via requirements-runtime.txt
        in the workspace venv (also declared in setup.py install_requires). -->
   <exec_depend>dori_observability</exec_depend>
+  <exec_depend>dori_navigation</exec_depend>
 
   <export>
     <build_type>ament_python</build_type>
