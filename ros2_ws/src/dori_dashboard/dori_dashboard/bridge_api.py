@@ -17,8 +17,7 @@ from typing import Dict, Optional, Set
 
 import rclpy
 from rclpy.node import Node
-from action_msgs.msg import GoalID
-from std_msgs.msg import Bool, String, Empty
+from std_msgs.msg import Bool, String
 from std_srvs.srv import Trigger
 from geometry_msgs.msg import Twist
 
@@ -197,7 +196,21 @@ class SessionManager:
         self.last_activity = 0.0
         self._ending_lock = asyncio.Lock()
         self.session_timer_task: Optional[asyncio.Task] = None
+        self.idle_task: Optional[asyncio.Task] = None
         self.idle_timeout = 120.0  # 2분 무조작 시 강제 종료
+
+    async def _cancel_session_timers(self):
+        # watcher가 직접 종료를 요청한 경우 자기 자신은 취소하지 않는다.
+        current = asyncio.current_task()
+        tasks = [
+            task
+            for task in (self.grace_task, self.session_timer_task, self.idle_task)
+            if task is not None and task is not current
+        ]
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        self.grace_task = self.session_timer_task = self.idle_task = None
 
     async def broadcast_display(self, event_type: str, data: dict):
         payload = f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
@@ -208,18 +221,15 @@ class SessionManager:
                 self.display_queues.discard(q)
 
     async def start_session(self):
+        await self._cancel_session_timers()
         nonce_manager.nonces.clear()
         self.state = SessionState.ACTIVE
         self.current_token = secrets.token_hex(32)
         self.session_expires_at = time.time() + SESSION_MAX_TIME
-        self.last_activity = time.time()
-
-        if self.grace_task:
-            self.grace_task.cancel()
-        if self.session_timer_task:
-            self.session_timer_task.cancel()
+        self.last_activity = time.monotonic()
 
         self.session_timer_task = asyncio.create_task(self._max_time_watcher())
+        self.idle_task = asyncio.create_task(self._idle_watcher())
         await self.broadcast_display("paired", {"status": "ACTIVE"})
         ros_node.trigger_pairing_success()
         logger.info("Session ACTIVE")
@@ -244,6 +254,19 @@ class SessionManager:
         logger.info("Session Max Time reached. Forcing end.")
         await self.end_session()
 
+    async def _idle_watcher(self):
+        while self.state in (SessionState.ACTIVE, SessionState.GRACE):
+            # GRACE 중에는 기존 재연결 유예 시간을 보장한다.
+            if self.state == SessionState.ACTIVE:
+                remaining = self.idle_timeout - (time.monotonic() - self.last_activity)
+                if remaining <= 0:
+                    logger.info("User idle timeout reached.")
+                    await self.end_session()
+                    return
+                await asyncio.sleep(min(remaining, 1.0))
+            else:
+                await asyncio.sleep(1.0)
+
     async def _retry_cleanup_loop(self):
         logger.info("Starting background cleanup retry task (5s interval)...")
         while self.state == SessionState.ENDING:
@@ -262,6 +285,7 @@ class SessionManager:
 
             self.state = SessionState.ENDING
             self.current_token = None
+            await self._cancel_session_timers()
             if self.active_ws:
                 try:
                     await self.active_ws.close(code=1000)
@@ -301,7 +325,10 @@ session_manager = SessionManager()
 async def public_lifespan(app: FastAPI):
     # 앱이 시작될 때 단일 메인 이벤트 루프를 확보하여 저장
     session_manager.main_loop = asyncio.get_running_loop()
-    yield
+    try:
+        yield
+    finally:
+        await session_manager._cancel_session_timers()
 
 
 # ─── FastAPI 1: Public App (Port 3100) ─────────────────────────────────────
@@ -388,7 +415,7 @@ async def websocket_user(websocket: WebSocket):
             pass
 
     session_manager.active_ws = websocket
-    session_manager.last_activity = time.time()
+    session_manager.last_activity = time.monotonic()
 
     if session_manager.state == SessionState.GRACE:
         session_manager.state = SessionState.ACTIVE
@@ -399,12 +426,30 @@ async def websocket_user(websocket: WebSocket):
 
     try:
         while True:
-            # Heartbeat 감지: 15초 동안 아무 메시지(핑 포함)가 없으면 Exception 발생
-            data = await asyncio.wait_for(websocket.receive_text(), timeout=15.0)
-            session_manager.last_activity = time.time()
+            # 연결 생존 확인은 사용자 활동과 별개다. ASGI에는 프로토콜 ping이
+            # 전달되지 않으므로 클라이언트는 애플리케이션 heartbeat를 보낸다.
+            message = await asyncio.wait_for(websocket.receive(), timeout=15.0)
+            if message["type"] == "websocket.disconnect":
+                raise WebSocketDisconnect(code=message.get("code", 1000))
+            if (
+                websocket is not session_manager.active_ws
+                or session_manager.state != SessionState.ACTIVE
+            ):
+                break
 
-            if len(data) > MAX_WS_MSG_SIZE:
+            data = message.get("text")
+            binary = message.get("bytes")
+            size = len(data.encode("utf-8")) if data is not None else len(binary or b"")
+            if size > MAX_WS_MSG_SIZE:
                 logger.warning("WS message exceeds size limit, dropping")
+                continue
+
+            if binary is not None:
+                # 3단계 오디오/카메라 프로토콜 구현 지점. 현재는 연결을 유지하고
+                # 미지원 바이너리를 무시하며, 사용자 활동으로 집계하지 않는다.
+                logger.debug("Unsupported binary WS message, dropping")
+                continue
+            if data is None:
                 continue
 
             try:
@@ -413,23 +458,20 @@ async def websocket_user(websocket: WebSocket):
                 logger.warning("Invalid JSON format in WS, dropping")
                 continue  # 세션을 끊지 않고 해당 메시지만 무시
 
+            if not isinstance(payload, dict):
+                logger.warning("WS JSON payload must be an object, dropping")
+                continue
+
             # 제한된 자체 프로토콜 처리 (명령어 화이트리스트 필터링)
             cmd_type = payload.get("type")
             if cmd_type == "command":
                 action = payload.get("action")
                 if action == "STOP":
                     ros_node.pub_cancel.publish(Bool(data=True))
+                    session_manager.last_activity = time.monotonic()
                 # 상향 메시지(오디오, 카메라 등) 추가 구현 지점
             elif cmd_type == "heartbeat":
                 pass
-
-            if (
-                time.time() - session_manager.last_activity
-                > session_manager.idle_timeout
-            ):
-                logger.info("User idle timeout reached.")
-                await session_manager.end_session()
-                break
 
     except asyncio.TimeoutError:
         logger.warning("WS Heartbeat timeout. Network likely dropped.")
@@ -522,7 +564,12 @@ async def display_events(request: Request):
 
 async def run_servers():
     config_public = uvicorn.Config(
-        app_public, host=PUBLIC_HOST, port=PUBLIC_PORT, log_level="info"
+        app_public,
+        host=PUBLIC_HOST,
+        port=PUBLIC_PORT,
+        log_level="info",
+        ws="websockets",
+        ws_max_size=MAX_WS_MSG_SIZE,
     )
     config_display = uvicorn.Config(
         app_display, host="127.0.0.1", port=DISPLAY_PORT, log_level="warning"
