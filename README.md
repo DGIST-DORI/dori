@@ -70,12 +70,6 @@ rosdep update --rosdistro humble
 rosdep install --from-paths ros2_ws/src --ignore-src --rosdistro humble -y
 ```
 
-<<<<<<< Updated upstream
-Set up a virtual environment inheriting system site-packages (required for ROS Python bindings):
-=======
-<<<<<<< Updated upstream
-### 3. Install Python Dependencies
-=======
 Dori's behavior tree uses Humble's `behaviortree_cpp_v3` package, installed by
 rosdep as `ros-humble-behaviortree-cpp-v3`, matching Nav2. Existing checkouts that
 imported BehaviorTree.CPP 4.9.0 must archive the old vendor source and generated
@@ -93,11 +87,10 @@ done
 ```
 
 Set up a virtual environment inheriting system site-packages (required for ROS Python bindings):
->>>>>>> Stashed changes
->>>>>>> Stashed changes
 
 ```bash
 /usr/bin/python3 -m venv --system-site-packages .venv
+export PYTHONNOUSERSITE=1
 .venv/bin/python -m pip install -r requirements-runtime.txt
 ```
 

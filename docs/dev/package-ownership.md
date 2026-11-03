@@ -29,34 +29,6 @@ that system with navigation/HRI/web. Lower packages do not depend on bringup.
 
 ## Package inventory
 
-<<<<<<< Updated upstream
-=======
-<<<<<<< Updated upstream
-| Package | Responsibility |
-|---|---|
-| `dori_bringup` | Top-level launch composition |
-| `dori_control` | Drive, input and transformation control |
-| `dori_hardware` | Physical launch, DXL bridges, IMU and body/pitch processing |
-| `dori_supervisor` | Manual/AUTO authority, stop and transform gating |
-| `dori_diagnostics` | Hardware/system error logging |
-| `dori_mapping` | LiDAR odometry, extrinsics and Cartographer |
-| `dori_navigation` | Nav2 plugin/configuration, TTA bridge, public actions and map web UI |
-| `dori_msgs` | Five control messages and four actions |
-| `dori_bt` | HRI BehaviorTree.CPP v3 coordinator |
-| `dori_hri` | Wake word, STT, TTS and emotion I/O |
-| `dori_llm` | Intent, knowledge and optional LLM/RAG |
-| `dori_core` | Shared application contracts |
-| `dori_dashboard` | HTTP API, ROS/WebSocket composition and installed dashboard |
-| `dori_observability` | Runtime metrics |
-| `dori_perception` | Person, gesture, expression and landmark processing |
-| `dori_perception_camera` | Optional native RealSense camera adapter |
-| `cubemars_hardware` | MIT CAN hardware plugin and CAN fault regression test |
-| `sllidar_ros2` | LiDAR device driver |
-| `dynamixel_sdk` | Dynamixel SDK |
-| `dynamixel_sdk_custom_interfaces` | Dynamixel interfaces |
-| `dynamixel_sdk_examples` | Physical servo driver |
-=======
->>>>>>> Stashed changes
 | Package                           | Responsibility                                                       |
 | --------------------------------- | -------------------------------------------------------------------- |
 | `dori_bringup`                    | Top-level launch composition                                         |
@@ -67,11 +39,7 @@ that system with navigation/HRI/web. Lower packages do not depend on bringup.
 | `dori_mapping`                    | LiDAR odometry, extrinsics and Cartographer                          |
 | `dori_navigation`                 | Nav2 plugin/configuration, TTA bridge, public actions and map web UI |
 | `dori_msgs`                       | Five control messages and four actions                               |
-<<<<<<< Updated upstream
-| `dori_bt`                         | HRI BehaviorTree.CPP v4 coordinator                                  |
-=======
 | `dori_bt`                         | HRI BehaviorTree.CPP v3 coordinator                                  |
->>>>>>> Stashed changes
 | `dori_hri`                        | Wake word, STT, TTS and emotion I/O                                  |
 | `dori_llm`                        | Intent, knowledge and optional LLM/RAG                               |
 | `dori_core`                       | Shared application contracts                                         |
@@ -84,10 +52,6 @@ that system with navigation/HRI/web. Lower packages do not depend on bringup.
 | `dynamixel_sdk`                   | Dynamixel SDK                                                        |
 | `dynamixel_sdk_custom_interfaces` | Dynamixel interfaces                                                 |
 | `dynamixel_sdk_examples`          | Physical servo driver                                                |
-<<<<<<< Updated upstream
-=======
->>>>>>> Stashed changes
->>>>>>> Stashed changes
 
 ## Upgrade contract and validation
 
