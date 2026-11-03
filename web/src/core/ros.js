@@ -7,6 +7,7 @@
  */
 
 import * as ROSLIB from 'roslib';
+import { ticketedWsUrl } from './api';
 
 let ros = null;
 const subscribers = {}; // topic -> ROSLIB.Topic
@@ -24,7 +25,8 @@ export async function connectROS(url, { onConnect, onError, onClose } = {}) {
   const roslib = getROSLib();
   if (ros) disconnectROS();
 
-  ros = new roslib.Ros({ url });
+  const authenticatedUrl = await ticketedWsUrl(url);
+  ros = new roslib.Ros({ url: authenticatedUrl });
   const connection = ros;
 
   ros.on('connection', () => {

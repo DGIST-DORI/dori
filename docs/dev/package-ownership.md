@@ -6,14 +6,14 @@ topics, and `dori_msgs` messages/actions are unchanged by this consolidation.
 
 ## Consolidation map
 
-| Previous package/component | Current owner |
-|---|---|
-| `dori_drive`, `dori_input` | `dori_control` |
-| `dori_transform` transform manager/controller, fake joint state, transform parameters | `dori_control` |
-| `dori_transform` DXL bridge/state publisher and DXL parameters | `dori_hardware` |
-| `imu_serial` Python nodes | `dori_hardware` |
-| `dori_error` | `dori_diagnostics` |
-| `cubemars_hardware` | Same ROS identity; source under `third_party` |
+| Previous package/component                                                            | Current owner                                 |
+| ------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `dori_drive`, `dori_input`                                                            | `dori_control`                                |
+| `dori_transform` transform manager/controller, fake joint state, transform parameters | `dori_control`                                |
+| `dori_transform` DXL bridge/state publisher and DXL parameters                        | `dori_hardware`                               |
+| `imu_serial` Python nodes                                                             | `dori_hardware`                               |
+| `dori_error`                                                                          | `dori_diagnostics`                            |
+| `cubemars_hardware`                                                                   | Same ROS identity; source under `third_party` |
 
 `dori_control` installs 10 native executables, its headers under
 `include/dori_control`, and drive/kinematics/odometry/transform configuration.
@@ -29,29 +29,29 @@ that system with navigation/HRI/web. Lower packages do not depend on bringup.
 
 ## Package inventory
 
-| Package | Responsibility |
-|---|---|
-| `dori_bringup` | Top-level launch composition |
-| `dori_control` | Drive, input and transformation control |
-| `dori_hardware` | Physical launch, DXL bridges, IMU and body/pitch processing |
-| `dori_supervisor` | Manual/AUTO authority, stop and transform gating |
-| `dori_diagnostics` | Hardware/system error logging |
-| `dori_mapping` | LiDAR odometry, extrinsics and Cartographer |
-| `dori_navigation` | Nav2 plugin/configuration, TTA bridge, public actions and map web UI |
-| `dori_msgs` | Five control messages and four actions |
-| `dori_bt` | HRI BehaviorTree.CPP v3 coordinator |
-| `dori_hri` | Wake word, STT, TTS and emotion I/O |
-| `dori_llm` | Intent, knowledge and optional LLM/RAG |
-| `dori_core` | Shared application contracts |
-| `dori_dashboard` | HTTP API, ROS/WebSocket composition and installed dashboard |
-| `dori_observability` | Runtime metrics |
-| `dori_perception` | Person, gesture, expression and landmark processing |
-| `dori_perception_camera` | Optional native RealSense camera adapter |
-| `cubemars_hardware` | MIT CAN hardware plugin and CAN fault regression test |
-| `sllidar_ros2` | LiDAR device driver |
-| `dynamixel_sdk` | Dynamixel SDK |
-| `dynamixel_sdk_custom_interfaces` | Dynamixel interfaces |
-| `dynamixel_sdk_examples` | Physical servo driver |
+| Package                           | Responsibility                                                       |
+| --------------------------------- | -------------------------------------------------------------------- |
+| `dori_bringup`                    | Top-level launch composition                                         |
+| `dori_control`                    | Drive, input and transformation control                              |
+| `dori_hardware`                   | Physical launch, DXL bridges, IMU and body/pitch processing          |
+| `dori_supervisor`                 | Manual/AUTO authority, stop and transform gating                     |
+| `dori_diagnostics`                | Hardware/system error logging                                        |
+| `dori_mapping`                    | LiDAR odometry, extrinsics and Cartographer                          |
+| `dori_navigation`                 | Nav2 plugin/configuration, TTA bridge, public actions and map web UI |
+| `dori_msgs`                       | Five control messages and four actions                               |
+| `dori_bt`                         | HRI BehaviorTree.CPP v4 coordinator                                  |
+| `dori_hri`                        | Wake word, STT, TTS and emotion I/O                                  |
+| `dori_llm`                        | Intent, knowledge and optional LLM/RAG                               |
+| `dori_core`                       | Shared application contracts                                         |
+| `dori_dashboard`                  | HTTP API, ROS/WebSocket composition and installed dashboard          |
+| `dori_observability`              | Runtime metrics                                                      |
+| `dori_perception`                 | Person, gesture, expression and landmark processing                  |
+| `dori_perception_camera`          | Optional native RealSense camera adapter                             |
+| `cubemars_hardware`               | MIT CAN hardware plugin and CAN fault regression test                |
+| `sllidar_ros2`                    | LiDAR device driver                                                  |
+| `dynamixel_sdk`                   | Dynamixel SDK                                                        |
+| `dynamixel_sdk_custom_interfaces` | Dynamixel interfaces                                                 |
+| `dynamixel_sdk_examples`          | Physical servo driver                                                |
 
 ## Upgrade contract and validation
 

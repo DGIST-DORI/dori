@@ -1,3 +1,4 @@
+import { adminWsUrl } from './api';
 /**
  * core/store.js
  * Zustand global store.
@@ -228,107 +229,10 @@ function parseBoolPayload(value) {
   return false;
 }
 
-const DEFAULT_WS_PORT = '9090';
-const WS_URL_STORAGE_KEY = 'wsUrl';
-const WS_URL_QUERY_KEYS = ['wsUrl', 'ws_url', 'ws'];
-
-function resolveWsUrlOverrideFromQuery(search) {
-  if (!search) return null;
-
-  const params = new URLSearchParams(search);
-  for (const key of WS_URL_QUERY_KEYS) {
-    const candidate = params.get(key)?.trim();
-    if (candidate) return candidate;
-  }
-  return null;
-}
-
-function isValidWsUrl(url) {
-  if (!url) return false;
-  try {
-    const parsed = new URL(url);
-    return ['ws:', 'wss:'].includes(parsed.protocol);
-  } catch {
-    return false;
-  }
-}
-
+// Persisted/query URLs from older builds must not bypass the authenticated proxy.
 function getDefaultWsUrl() {
-  const fallback = `ws://localhost:${DEFAULT_WS_PORT}`;
-  if (typeof window === 'undefined') return fallback;
- 
-  // 1순위: query string (?ws=wss://... 등)
-  const queryOverride = resolveWsUrlOverrideFromQuery(window.location?.search);
-  if (isValidWsUrl(queryOverride)) return queryOverride;
- 
-  // 2순위: localStorage (사용자가 직접 입력·저장한 URL)
-  const stored = window.localStorage?.getItem(WS_URL_STORAGE_KEY)?.trim();
-  if (isValidWsUrl(stored)) return stored;
- 
-  // 3순위: 외부(터널) 접속이면 빈 문자열 → initTunnelWsUrl 폴링이 채워줌
-  //   - *.trycloudflare.com : 임시 터널
-  //   - 커스텀 도메인 (EXTERNAL_DOMAINS) : 고정 도메인
-  const hostname = window.location?.hostname ?? '';
-  const EXTERNAL_DOMAINS = ['.trycloudflare.com', '.dgist-dori.xyz'];
-  if (EXTERNAL_DOMAINS.some(d => hostname.endsWith(d))) return '';
- 
-  // 4순위: 로컬 접속 → ws://[현재 hostname]:9090
-  const protocol = window.location?.protocol === 'https:' ? 'wss' : 'ws';
-  return `${protocol}://${hostname}:${DEFAULT_WS_PORT}`;
+  return typeof window === 'undefined' ? 'ws://localhost:3000/ws/admin' : adminWsUrl();
 }
-
-const TUNNEL_POLL_INTERVAL  = 500;   // ms
-const TUNNEL_POLL_MAX = 20;
-
-/**
- * 외부(Cloudflare Tunnel) 접속 시에만 실행.
- * knowledge_api 의 /api/tunnel-url 을 폴링해서
- * WS URL이 준비되면 store 에 주입한다.
- *
- * 로컬 접속(IP / localhost)이면 즉시 반환 — 기존 hostname:9090 동작 유지.
- */
-async function initTunnelWsUrl(setWsUrl) {
-  if (typeof window === 'undefined') return;
- 
-  // 1순위·2순위 override 가 있으면 건너뜀
-  const queryOverride = resolveWsUrlOverrideFromQuery(window.location?.search);
-  if (isValidWsUrl(queryOverride)) return;
- 
-  const stored = window.localStorage?.getItem(WS_URL_STORAGE_KEY)?.trim();
-  if (isValidWsUrl(stored)) return;
- 
-  // ── 핵심 조건: 외부 접속인 경우에만 폴링 ──────────────────────────
-  // 1) *.trycloudflare.com : 임시 터널 (후순위)
-  // 2) 커스텀 도메인 (EXTERNAL_DOMAINS) : 고정 도메인 (1순위로 서버가 응답)
-  const hostname = window.location?.hostname ?? '';
-  const EXTERNAL_DOMAINS = ['.trycloudflare.com', '.dgist-dori.xyz'];
-  if (!EXTERNAL_DOMAINS.some(d => hostname.endsWith(d))) return;
-  // ────────────────────────────────────────────────────────────────
- 
-  const apiUrl = `${window.location.origin}/api/tunnel-url`;
- 
-  for (let i = 0; i < TUNNEL_POLL_MAX; i++) {
-    await new Promise(r => setTimeout(r, TUNNEL_POLL_INTERVAL));
-    try {
-      const res = await fetch(apiUrl, { signal: AbortSignal.timeout(2000) });
-      if (!res.ok) continue;
-      const data = await res.json();
-      if (data.ready && data.ws_url) {
-        // 포트 번호 제거 — Cloudflare Tunnel 은 포트 지정 불가
-        const wsUrl = data.ws_url.replace(/:\d+$/, '');
-        if (!isValidWsUrl(wsUrl)) continue;
-        // 터널 URL 은 매번 바뀌므로 localStorage 에는 저장하지 않음
-        setWsUrl(wsUrl, /* persist= */ false);
-        console.info(`[DORI] Tunnel WS URL auto-detected: ${wsUrl}`);
-        return;
-      }
-    } catch {
-      // network error / timeout — 재시도
-    }
-  }
-  console.warn('[DORI] Tunnel WS URL not ready after 10s. Using fallback.');
-}
-
 
 // ─── Store ───────────────────────────────────────────────────────────────────
 export const useStore = create((set, get) => ({
@@ -352,11 +256,8 @@ export const useStore = create((set, get) => ({
 
   setConnected: (v) => set({ connected: v }),
   setDemoMode:  (v) => set({ isDemoMode: v }),
-  setWsUrl: (v, persist = true) => {
-    if (persist && typeof window !== 'undefined' && typeof v === 'string') {
-      window.localStorage?.setItem(WS_URL_STORAGE_KEY, v);
-    }
-    set({ wsUrl: v });
+  setWsUrl: (v) => {
+    if (v === getDefaultWsUrl()) set({ wsUrl: v });
   },
 
   setExecutionProfile: (profile) => set((s) => ({
@@ -461,13 +362,6 @@ export const useStore = create((set, get) => ({
     const { hriState } = get();
     set({ emotion: resolveEmotionFromState(hriState), emotionSource: 'state', _emotionOverride: null });
   },
-
-  // ── Tunnel WS URL auto-detection (external access only) ───────────
-  // Auto-detect Cloudflare Tunnel WS URL when accessed externally
-  ...(typeof window !== 'undefined' && (() => {
-    setTimeout(() => initTunnelWsUrl(get().setWsUrl), 0);
-    return {};
-  })()),
 
   // ── Event Log ────────────────────────────────────────────────────────────
   // Each entry: { id, ts, tag, text, raw? }

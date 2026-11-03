@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-DORI Dashboard — Knowledge Manager API Server
-Provides REST endpoints for the KnowledgeTab frontend.
+DORI Dashboard — Backend API Server
+Provides REST endpoints for Knowledge Management, Deployment, and Robot Control.
 
 Endpoints:
+  GET  /navigation/*                        Reverse proxy to navigation map service
   POST /api/knowledge/parse-menu            Receive menu files, run parser
   POST /api/knowledge/build-index           Start index build job
   GET  /api/knowledge/build-index/status/{job_id}  Poll job progress
@@ -11,14 +12,21 @@ Endpoints:
   GET  /api/knowledge/documents             List indexed .txt files
   GET  /api/knowledge/buildings             Read campus_knowledge.json
   PUT  /api/knowledge/buildings/{key}       Update one building entry
+  POST /api/control/actions                 Execute safe robot control actions
+  GET  /api/tunnel-url                      Get Cloudflare Tunnel WS URL
+  POST /api/webhook                         Handle GitHub deploy webhook
 
 Usage:
   pip install fastapi uvicorn python-multipart
-  python3 knowledge_api.py [--port 3000] [--repo-root /path/to/dori] [--web-dir /path/to/web]
+  python3 backend_api.py [--port 3000] [--repo-root /path/to/dori] [--web-dir /path/to/web]
 """
 
+from contextlib import asynccontextmanager
 import argparse
+import math
 import asyncio
+import hashlib
+import hmac
 import json
 import logging
 import os
@@ -30,31 +38,51 @@ import tempfile
 import threading
 import time
 import uuid
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Literal
+from urllib.parse import urlsplit
+import jwt
+from jwt import PyJWKClient
+import secrets
+import websockets
 
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile, Request
-from fastapi.responses import Response, RedirectResponse
-import httpx
+from fastapi import (
+    Cookie,
+    Depends,
+    FastAPI,
+    File,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+)
+
+from fastapi import WebSocket
+from fastapi.responses import Response, RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+import httpx
 
 try:
     from dori_llm.paths import find_repo_root as _shared_find_repo_root
 except Exception:
     _shared_find_repo_root = None
 
+try:
+    from .control_contract import validate_control
+    from .internal_auth import internal_token
+except ImportError:
+    from control_contract import validate_control
+    from internal_auth import internal_token
+
 # ── Path resolution ────────────────────────────────────────────────────────────
 
 
 def find_repo_root(start: Path) -> Path:
-    """Walk up from start until we find the repo root.
-
-    Root markers:
-      - ros2_ws/src directory + README.md
-      - OR .git + README.md
-    """
+    """Walk up from start until we find the repo root."""
     if _shared_find_repo_root is not None:
         return _shared_find_repo_root(start)
 
@@ -64,7 +92,7 @@ def find_repo_root(start: Path) -> Path:
         has_git = (parent / ".git").exists()
         if has_readme and (has_ros2_src or has_git):
             return parent
-    return start  # fallback
+    return start
 
 
 def normalize_repo_root(candidate: Path) -> Path:
@@ -111,7 +139,6 @@ _jobs: dict[str, dict] = {}
 
 _TOTAL_CHUNKS_RE = re.compile(r"^\s*Total chunks\s*:\s*(\d+)\s*$")
 _TOTAL_VECTORS_RE = re.compile(r"^\s*Total vectors\s*:\s*(\d+)\s*$")
-
 _crawl_jobs: dict[str, dict] = {}
 # job schema: { status: pending|running|done|error, lines: [str], started_at: str|None,
 #               finished_at: str|None, error: str }
@@ -119,15 +146,369 @@ _crawl_jobs: dict[str, dict] = {}
 
 # ── App ────────────────────────────────────────────────────────────────────────
 
-app = FastAPI(title="DORI Knowledge API", version="1.0.0")
+@asynccontextmanager
+async def lifespan(app):
+    internal_token()
+    if _CONTROL_EXECUTOR not in ("dry-run", "bridge"):
+        raise RuntimeError("DORI_CONTROL_EXECUTOR must be dry-run or bridge; ros2_cli was removed")
+    yield
+
+
+app = FastAPI(title="DORI Backend API", version="1.0.0", lifespan=lifespan)
 logger = logging.getLogger(__name__)
+
+_DEFAULT_ALLOWED_ORIGINS = ("https://dash.dgist-dori.xyz",)
+
+
+def _parse_allowed_origins(raw: str) -> list[str]:
+    if not raw:
+        return list(_DEFAULT_ALLOWED_ORIGINS)
+    origins: list[str] = []
+    for item in (part.strip() for part in raw.split(",") if part.strip()):
+        normalized = item.rstrip("/")
+        if normalized and normalized not in origins:
+            origins.append(normalized)
+    return origins or list(_DEFAULT_ALLOWED_ORIGINS)
+
+
+_ALLOWED_ORIGINS = _parse_allowed_origins(
+    os.environ.get("DORI_ALLOWED_ORIGINS", "").strip()
+)
+_ALLOWED_ORIGIN_SET = set(_ALLOWED_ORIGINS)
+
+_DEV_MODE = os.environ.get("DORI_DEV_MODE", "").strip().lower() in ("1", "true", "yes")
+
+
+@app.middleware("http")
+async def enforce_origin_allowlist(request: Request, call_next):
+    origin = request.headers.get("origin", "").strip().rstrip("/")
+    if not origin:
+        return await call_next(request)
+
+    # 동일 출처(Same-Origin) 허용
+    host_url = f"{request.url.scheme}://{request.url.netloc}"
+    if origin == host_url or origin in _ALLOWED_ORIGIN_SET:
+        return await call_next(request)
+
+    # 개발 모드일 때 로컬호스트 접근 무조건 허용
+    if _DEV_MODE and urlsplit(origin).hostname in ("localhost", "127.0.0.1", "::1"):
+        return await call_next(request)
+
+    logger.warning(
+        "cors_origin_blocked origin=%s path=%s method=%s client=%s",
+        origin,
+        request.url.path,
+        request.method,
+        request.client.host if request.client else "-",
+    )
+    return JSONResponse(status_code=403, content={"detail": "Origin is not allowed"})
+
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Access", "Content-Type", "X-Requested-With"],
 )
+
+# ── AuthN/AuthZ ───────────────────────────────────────────────────────────────
+
+_AUTH_TOKEN_HEADER = "Bearer"
+_JWT_SECRET = os.environ.get("DORI_API_JWT_SECRET", "").strip()
+_JWT_AUDIENCE = os.environ.get("DORI_API_JWT_AUDIENCE", "").strip()
+_JWT_ISSUER = os.environ.get("DORI_API_JWT_ISSUER", "").strip()
+_ACCESS_ROLE_MAP_RAW = os.environ.get("DORI_API_ACCESS_TOKENS", "").strip()
+
+_CF_TEAM_DOMAIN = os.environ.get(
+    "DORI_CF_TEAM_DOMAIN", ""
+).strip().rstrip("/")  # https://your-team.cloudflareaccess.com
+_CF_AUDIENCE = os.environ.get("DORI_CF_AUDIENCE", "").strip()
+_CF_ROLE_MAP_RAW = os.environ.get(
+    "DORI_CF_ROLE_MAP", ""
+).strip()  # 예: admin@dgist.ac.kr:admin,op@dgist.ac.kr:control
+
+if _CF_TEAM_DOMAIN and not re.fullmatch(r"https://[a-zA-Z0-9-]+\.cloudflareaccess\.com", _CF_TEAM_DOMAIN):
+    raise RuntimeError("DORI_CF_TEAM_DOMAIN must be an HTTPS Cloudflare Access team domain")
+_jwks_client = (
+    PyJWKClient(f"{_CF_TEAM_DOMAIN}/cdn-cgi/access/certs", timeout=3, lifespan=300)
+    if _CF_TEAM_DOMAIN else None
+)
+_jwks_lock = threading.Lock()
+_cf_verifications = asyncio.Semaphore(4)
+_BREAK_GLASS_ENABLED = os.environ.get("DORI_ENABLE_BREAK_GLASS", "").lower() in ("1", "true", "yes")
+_AUTH_COOKIE = "dori_admin_session"
+_AUTH_SESSION_TTL = 900
+_WS_TICKET_TTL = 30
+_auth_sessions: dict[str, tuple[float, "AuthPrincipal"]] = {}
+_ws_tickets: dict[str, tuple[float, "AuthPrincipal", str]] = {}
+
+
+
+@dataclass(frozen=True)
+class AuthPrincipal:
+    user_id: str
+    roles: frozenset[str]
+    auth_type: str
+    expires_at: float = 0.0
+
+
+def _parse_access_role_map(raw: str) -> dict[str, AuthPrincipal]:
+    principals: dict[str, AuthPrincipal] = {}
+    if not raw:
+        return principals
+
+    # format: token=user_id:role1|role2,token2=user2:viewer
+    for item in (part.strip() for part in raw.split(",") if part.strip()):
+        if "=" not in item:
+            continue
+        token, right = item.split("=", 1)
+        if ":" in right:
+            user_id, role_blob = right.split(":", 1)
+        else:
+            user_id, role_blob = right, "viewer"
+        roles = frozenset(r.strip().lower() for r in role_blob.split("|") if r.strip())
+        principals[token.strip()] = AuthPrincipal(
+            user_id=user_id.strip() or "unknown",
+            roles=roles or frozenset({"viewer"}),
+            auth_type="access",
+        )
+    return principals
+
+
+_ACCESS_ROLE_MAP = _parse_access_role_map(_ACCESS_ROLE_MAP_RAW)
+
+
+def _log_auth_event(
+    request: Request, principal: AuthPrincipal | None, required: str, status_code: int
+) -> None:
+    logger.info(
+        "auth_audit status=%s path=%s user=%s roles=%s required=%s method=%s",
+        status_code,
+        request.url.path,
+        principal.user_id if principal else "-",
+        ",".join(sorted(principal.roles)) if principal else "-",
+        required,
+        request.method,
+    )
+
+
+def _get_cf_roles(email: str) -> frozenset[str]:
+    if not email or not _CF_ROLE_MAP_RAW:
+        return frozenset({"viewer"})
+    for item in _CF_ROLE_MAP_RAW.split(","):
+        if ":" in item:
+            k, v = item.split(":", 1)
+            if k.strip().lower() == email.lower():
+                return frozenset(r.strip().lower() for r in v.split("|") if r.strip())
+    return frozenset({"viewer"})
+
+
+def _token_expiry(payload: dict) -> float:
+    value = payload.get("exp")
+    if type(value) not in (int, float) or not math.isfinite(value) or value <= time.time():
+        raise ValueError("exp must be a finite future NumericDate")
+    return float(value)
+
+
+def _verify_cf_jwt(token: str) -> AuthPrincipal:
+    if not _jwks_client or not _CF_AUDIENCE:
+        raise HTTPException(401, "Cloudflare Access not configured")
+    try:
+        # This entire function runs on a worker, including cache misses and RSA.
+        with _jwks_lock:
+            signing_key = _jwks_client.get_signing_key_from_jwt(token)
+        payload = jwt.decode(
+            token, signing_key.key, algorithms=["RS256"], audience=_CF_AUDIENCE,
+            issuer=_CF_TEAM_DOMAIN, options={"require": ["exp", "iss", "aud", "sub"]},
+        )
+        expires_at = _token_expiry(payload)
+        email = payload.get("email", "unknown")
+        if not isinstance(email, str):
+            raise ValueError("invalid email")
+        return AuthPrincipal(
+            user_id=email, roles=_get_cf_roles(email), auth_type="cf_access", expires_at=expires_at
+        )
+    except Exception:
+        raise HTTPException(401, "CF Access token invalid") from None
+
+
+def _verify_fallback_jwt(token: str) -> AuthPrincipal:
+    if not _JWT_SECRET:
+        raise HTTPException(401, "Fallback JWT secret not configured")
+    try:
+        # PyJWT를 사용하여 exp 필수를 강제하고 만료 검증 처리
+        payload = jwt.decode(
+            token,
+            _JWT_SECRET,
+            algorithms=["HS256"],
+            audience=_JWT_AUDIENCE or None,
+            issuer=_JWT_ISSUER or None,
+            options={"require": ["exp"]},
+        )
+        user_id = str(payload.get("sub", payload.get("user_id", "unknown")))
+
+        roles_raw = payload.get("roles", payload.get("scope", ""))
+        if isinstance(roles_raw, str):
+            roles = frozenset(
+                r.strip().lower()
+                for r in roles_raw.replace(",", " ").split()
+                if r.strip()
+            )
+        elif isinstance(roles_raw, list):
+            roles = frozenset(
+                str(r).strip().lower() for r in roles_raw if str(r).strip()
+            )
+        else:
+            roles = frozenset()
+
+        return AuthPrincipal(
+            user_id=user_id, roles=roles or frozenset({"viewer"}), auth_type="jwt",
+            expires_at=_token_expiry(payload)
+        )
+    except Exception:
+        raise HTTPException(401, "Fallback JWT invalid") from None
+
+
+async def _authenticate_request(
+    authorization: str | None, access: str | None, cf_assertion: str | None,
+    session_cookie: str | None = None,
+) -> AuthPrincipal:
+    # 1. Cloudflare Access 헤더 최우선 검증
+    if cf_assertion:
+        async with _cf_verifications:
+            return await asyncio.to_thread(_verify_cf_jwt, cf_assertion)
+
+    # 2. LAN 비상용 Bearer 토큰 검증
+    if authorization and authorization.startswith(f"{_AUTH_TOKEN_HEADER} "):
+        bearer = authorization[len(_AUTH_TOKEN_HEADER) + 1 :].strip()
+        if bearer:
+            return _verify_fallback_jwt(bearer)
+
+    # 3. 정적 Access 토큰 검증 (타이밍 공격 방지를 위해 compare_digest 사용)
+    if access and _BREAK_GLASS_ENABLED:
+        token = access.strip()
+        for valid_token, principal in _ACCESS_ROLE_MAP.items():
+            if secrets.compare_digest(valid_token.encode(), token.encode()):
+                return principal
+
+    if session_cookie and not authorization and not access:
+        record = _auth_sessions.get(session_cookie)
+        if record and record[0] > time.time():
+            return record[1]
+        _auth_sessions.pop(session_cookie, None)
+
+    raise HTTPException(
+        status_code=401,
+        detail="Authentication required",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+def _has_permission(
+    principal: AuthPrincipal, required: Literal["view", "control", "admin"]
+) -> bool:
+    if "admin" in principal.roles:
+        return True
+    if required == "view":
+        return bool({"viewer", "view", "control", "deploy"} & principal.roles)
+    if required == "control":
+        return bool({"control", "deploy"} & principal.roles)
+    return False
+
+
+def require_permission(required: Literal["view", "control", "admin"]):
+    async def _dependency(
+        request: Request,
+        authorization: str | None = Header(default=None),
+        access: str | None = Header(default=None, alias="Access"),
+        cf_assertion: str | None = Header(default=None, alias="Cf-Access-Jwt-Assertion"),
+        session_cookie: str | None = Cookie(default=None, alias=_AUTH_COOKIE),
+    ) -> AuthPrincipal:
+        principal: AuthPrincipal | None = None
+        try:
+            principal = await _authenticate_request(authorization, access, cf_assertion, session_cookie)
+        except HTTPException:
+            _log_auth_event(request, principal=None, required=required, status_code=401)
+            raise
+
+        if not _has_permission(principal, required):
+            _log_auth_event(
+                request, principal=principal, required=required, status_code=403
+            )
+            raise HTTPException(status_code=403, detail="Forbidden")
+
+        _log_auth_event(
+            request, principal=principal, required=required, status_code=200
+        )
+        return principal
+
+    return _dependency
+
+
+def _prune_auth_records():
+    now = time.time()
+    for records in (_auth_sessions, _ws_tickets):
+        for key, record in list(records.items()):
+            if record[0] <= now:
+                records.pop(key, None)
+
+
+def _auth_payload(principal):
+    return {"user_id": principal.user_id, "roles": sorted(principal.roles), "auth_type": principal.auth_type}
+
+
+@app.get("/api/auth/session")
+async def auth_session(principal: AuthPrincipal = Depends(require_permission("view"))):
+    return JSONResponse(_auth_payload(principal), headers={"Cache-Control": "no-store"})
+
+
+@app.post("/api/auth/session")
+async def login_session(request: Request, principal: AuthPrincipal = Depends(require_permission("view"))):
+    _prune_auth_records()
+    if len(_auth_sessions) >= 1024:
+        raise HTTPException(503, "Too many login sessions")
+    expiry = min(time.time() + _AUTH_SESSION_TTL, principal.expires_at or float("inf"))
+    # Exchanging an existing cookie must never extend its original lifetime.
+    old = _auth_sessions.pop(request.cookies.get(_AUTH_COOKIE, ""), None)
+    if old:
+        expiry = min(expiry, old[0])
+    token = secrets.token_urlsafe(32)
+    _auth_sessions[token] = (expiry, principal)
+    response = JSONResponse(_auth_payload(principal), headers={"Cache-Control": "no-store"})
+    response.set_cookie(_AUTH_COOKIE, token, httponly=True, secure=request.url.scheme == "https",
+                        samesite="strict", max_age=max(0, int(expiry - time.time())), path="/")
+    return response
+
+
+@app.delete("/api/auth/session")
+async def logout_session(request: Request):
+    cookie = request.cookies.get(_AUTH_COOKIE, "")
+    _auth_sessions.pop(cookie, None)
+    for ticket, record in list(_ws_tickets.items()):
+        if record[2] == cookie:
+            _ws_tickets.pop(ticket, None)
+    response = JSONResponse({
+        "ok": True,
+        "logout_url": "/cdn-cgi/access/logout" if request.headers.get("Cf-Access-Jwt-Assertion") else None,
+    }, headers={"Cache-Control": "no-store"})
+    response.delete_cookie(_AUTH_COOKIE, path="/")
+    return response
+
+
+@app.post("/api/auth/ws-ticket")
+async def issue_ws_ticket(request: Request, principal: AuthPrincipal = Depends(require_permission("admin"))):
+    _prune_auth_records()
+    if len(_ws_tickets) >= 1024:
+        raise HTTPException(429, "Too many outstanding tickets")
+    ticket = secrets.token_urlsafe(32)
+    cookie = request.cookies.get(_AUTH_COOKIE, "")
+    expiry = min(time.time() + _WS_TICKET_TTL, principal.expires_at or float("inf"))
+    if cookie in _auth_sessions:
+        expiry = min(expiry, _auth_sessions[cookie][0])
+    _ws_tickets[ticket] = (expiry, principal, cookie)
+    return JSONResponse({"ticket": ticket, "expires_in": max(0, int(expiry - time.time()))},
+                        headers={"Cache-Control": "no-store"})
 
 
 def _resolve_web_dir() -> Path | None:
@@ -147,7 +528,7 @@ def _resolve_web_dir() -> Path | None:
     return None
 
 
-# ── /api/knowledge/parse-menu ─────────────────────────────────────────────────
+# ── /navigation ───────────────────────────────────────────────────────────────
 
 
 @app.get("/navigation", include_in_schema=False)
@@ -156,8 +537,12 @@ async def navigation_redirect():
 
 
 @app.api_route("/navigation/{path:path}", methods=["GET", "POST"])
-async def navigation_proxy(path: str, request: Request):
+async def navigation_proxy(
+    path: str, request: Request, principal: AuthPrincipal = Depends(require_permission("view"))
+):
     """Keep map assets, CSRF and control leases on the dashboard origin."""
+    if request.method == "POST" and not _has_permission(principal, "control"):
+        raise HTTPException(403, "Control permission required")
     if path not in (
         "",
         "app.js",
@@ -207,8 +592,14 @@ async def navigation_proxy(path: str, request: Request):
         )
 
 
+# ── /api/knowledge/parse-menu ─────────────────────────────────────────────────
+
+
 @app.post("/api/knowledge/parse-menu")
-async def parse_menu(files: list[UploadFile] = File(...)):
+async def parse_menu(
+    files: list[UploadFile] = File(...),
+    _: AuthPrincipal = Depends(require_permission("control")),
+):
     """
     Receive one or more menu files (xlsx/pdf), save to a temp dir,
     run parse_cafeteria_menu.py, and return per-file results.
@@ -229,7 +620,6 @@ async def parse_menu(files: list[UploadFile] = File(...)):
             )
             continue
 
-        # Save to temp file
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             tmp.write(await upload.read())
             tmp_path = tmp.name
@@ -342,7 +732,10 @@ def _run_build_index(
 
 
 @app.post("/api/knowledge/build-index")
-async def build_index(body: dict):
+async def build_index(
+    body: dict,
+    _: AuthPrincipal = Depends(require_permission("control")),
+):
     incremental = body.get("incremental", True)
     batch_size = body.get("batch_size")
     chunk_batch_size = body.get("chunk_batch_size")
@@ -378,7 +771,11 @@ async def build_index(body: dict):
 
 
 @app.get("/api/knowledge/build-index/status/{job_id}")
-async def build_index_status(job_id: str, cursor: int = Query(0, ge=0)):
+async def build_index_status(
+    job_id: str,
+    cursor: int = Query(0, ge=0),
+    _: AuthPrincipal = Depends(require_permission("view")),
+):
     """
     Build-index status contract:
       - total_chunks is sourced from build_index.py final summary line:
@@ -521,7 +918,10 @@ def _run_crawl_job(job_id: str, cmd: list[str]):
 
 
 @app.post("/api/knowledge/crawl-campus")
-async def crawl_campus(body: dict):
+async def crawl_campus(
+    body: dict,
+    _: AuthPrincipal = Depends(require_permission("control")),
+):
     if not CRAWLER_SCRIPT.exists():
         raise HTTPException(500, f"Crawler script not found: {CRAWLER_SCRIPT}")
 
@@ -547,7 +947,10 @@ async def crawl_campus(body: dict):
 
 
 @app.get("/api/knowledge/crawl-campus/status/{job_id}")
-async def crawl_campus_status(job_id: str):
+async def crawl_campus_status(
+    job_id: str,
+    _: AuthPrincipal = Depends(require_permission("view")),
+):
     job = _crawl_jobs.get(job_id)
     if not job:
         raise HTTPException(404, "Job not found")
@@ -565,7 +968,7 @@ async def crawl_campus_status(job_id: str):
 
 
 @app.get("/api/knowledge/index-info")
-async def index_info():
+async def index_info(_: AuthPrincipal = Depends(require_permission("view"))):
     meta_file = INDEXED_DIR / "metadata.json"
     index_file = INDEXED_DIR / "index.faiss"
 
@@ -593,7 +996,7 @@ async def index_info():
 
 
 @app.get("/api/knowledge/documents")
-async def list_documents():
+async def list_documents(_: AuthPrincipal = Depends(require_permission("view"))):
     docs = []
     if not PROCESSED_DIR.exists():
         return docs
@@ -603,8 +1006,7 @@ async def list_documents():
         # Count lines as rough chunk estimate
         try:
             text = path.read_text(encoding="utf-8")
-            # Rough chunk count: chars / 300
-            chunks = max(1, len(text) // 300)
+            chunks = max(1, len(text) // 300)  # Rough chunk count: chars / 300
         except Exception:
             chunks = 0
 
@@ -651,12 +1053,16 @@ def _save_knowledge(locations: dict):
 
 
 @app.get("/api/knowledge/buildings")
-async def get_buildings():
+async def get_buildings(_: AuthPrincipal = Depends(require_permission("view"))):
     return _load_knowledge()
 
 
 @app.put("/api/knowledge/buildings/{key}")
-async def update_building(key: str, body: dict):
+async def update_building(
+    key: str,
+    body: dict,
+    _: AuthPrincipal = Depends(require_permission("control")),
+):
     locations = _load_knowledge()
     if key not in locations:
         raise HTTPException(404, f"Building key not found: {key}")
@@ -668,68 +1074,234 @@ async def update_building(key: str, body: dict):
     return {"ok": True, "key": key}
 
 
-# ── /api/tunnel-url ───────────────────────────────────────────────────────────
-# 터널 WS URL을 반환. 프론트엔드가 외부 접속 시 폴링해서 WS URL 기본값 자동 설정.
-#
-# 우선순위:
-#   1) 환경변수 DORI_WS_URL 이 설정되어 있으면 그 값을 사용 (고정 도메인용)
-#   2) cloudflared 로그 파싱 (trycloudflare.com 임시 터널용, 후순위)
+# ── /api/control/actions (external-safe control path) ────────────────────────
 
-import re as _re
-import os as _os
-
-_CF_LOG_DASHBOARD = Path("/tmp/cloudflared_dashboard.log")
-_CF_LOG_WS = Path("/tmp/cloudflared_ws.log")
-_CF_URL_RE = _re.compile(r"https://[a-z0-9\-]+\.trycloudflare\.com")
-
-# 고정 도메인 환경변수 (dashboard.launch.py 또는 systemd 에서 주입)
-# 예: DORI_DASHBOARD_URL=https://dash.dgist-dori.xyz
-#     DORI_WS_URL=wss://ws.dgist-dori.xyz
-_FIXED_DASHBOARD_URL = _os.environ.get("DORI_DASHBOARD_URL", "").strip()
-_FIXED_WS_URL = _os.environ.get("DORI_WS_URL", "").strip()
+_CONTROL_EXECUTOR = (
+    os.environ.get("DORI_CONTROL_EXECUTOR", "dry-run").strip().lower() or "dry-run"
+)
+_CONTROL_RATE_LIMITS = {
+    # action -> (max_requests, window_seconds)
+    "move": (10, 1.0),
+    "stop": (5, 1.0),
+    "set_mode": (2, 1.0),
+}
+_control_rate_events: dict[tuple[str, str], list[float]] = {}
+_control_rate_lock = threading.Lock()
 
 
-def _parse_tunnel_url(log_path: Path) -> str | None:
-    """Read a cloudflared log file and return the first trycloudflare URL found."""
+def _enforce_control_rate_limit(principal: AuthPrincipal, action: str) -> None:
+    limit = _CONTROL_RATE_LIMITS.get(action)
+    if not limit:
+        return
+    max_requests, window_sec = limit
+    now = time.monotonic()
+    key = (principal.user_id, action)
+
+    with _control_rate_lock:
+        events = _control_rate_events.setdefault(key, [])
+        cutoff = now - window_sec
+        events[:] = [t for t in events if t >= cutoff]
+        if len(events) >= max_requests:
+            raise HTTPException(
+                status_code=429,
+                detail=f"rate limit exceeded for action={action} "
+                f"({max_requests}/{window_sec:.1f}s)",
+            )
+        events.append(now)
+
+
+async def _execute_control_action(action: str, params: dict) -> dict:
+    if _CONTROL_EXECUTOR == "dry-run":
+        return {"executor": "dry-run", "executed": False,
+                "detail": "Validated only; move values are normalized joystick inputs"}
+    if _CONTROL_EXECUTOR != "bridge":
+        raise HTTPException(503, "Unsupported control executor; configure dry-run or bridge")
     try:
-        text = log_path.read_text(encoding="utf-8", errors="ignore")
-        match = _CF_URL_RE.search(text)
-        return match.group(0) if match else None
+        async with httpx.AsyncClient(timeout=2.0, trust_env=False) as client:
+            resp = await client.post(f"{BRIDGE_API_URL}/internal/control",
+                                     headers={"X-Internal-Token": internal_token()},
+                                     json={"action": action, "params": params})
+        if resp.status_code != 200:
+            raise HTTPException(resp.status_code, "Bridge rejected control action")
+        return resp.json()
+    except (httpx.RequestError, RuntimeError):
+        raise HTTPException(503, "Control bridge unavailable") from None
+
+
+@app.post("/api/control/actions")
+async def control_actions(
+    body: dict,
+    principal: AuthPrincipal = Depends(require_permission("control")),
+):
+    """
+    Public-safe control API for external users.
+    Only allowlisted actions are accepted, with strict validation and rate limiting.
+    """
+    action, validated = validate_control(body)
+
+    _enforce_control_rate_limit(principal, action)
+    exec_result = await _execute_control_action(action, validated)
+    return {
+        "ok": True,
+        "action": action,
+        "validated_params": validated,
+        "rate_limit": {
+            "max_requests": _CONTROL_RATE_LIMITS[action][0],
+            "window_sec": _CONTROL_RATE_LIMITS[action][1],
+        },
+        **exec_result,
+    }
+
+
+@app.post("/api/admin/publish")
+async def admin_publish(
+    body: dict,
+    _: AuthPrincipal = Depends(require_permission("admin")),
+):
+    """
+    High-risk raw publish endpoint.
+    Intentionally admin-only and disabled unless explicitly enabled.
+    """
+    if os.environ.get("DORI_ENABLE_ADMIN_PUBLISH", "").strip().lower() not in (
+        "1",
+        "true",
+        "yes",
+    ):
+        raise HTTPException(403, "admin publish endpoint is disabled")
+    return {
+        "ok": False,
+        "detail": (
+            "admin publish endpoint is reserved for controlled environments. "
+            "Use /api/control/actions for external control flows."
+        ),
+        "requested": body,
+    }
+
+
+# ── /api/admin/sessions (Bridge API 연동) ───────────────────────────────────
+
+BRIDGE_API_URL = "http://127.0.0.1:3001"
+
+
+@app.get("/api/admin/sessions")
+async def admin_get_sessions(_: AuthPrincipal = Depends(require_permission("admin"))):
+    """Get current user session status from bridge_api."""
+    try:
+        async with httpx.AsyncClient(timeout=2.0, trust_env=False) as client:
+            # 브릿지의 로컬 엔드포인트 호출
+            resp = await client.get(
+                f"{BRIDGE_API_URL}/internal/session",
+                headers={"X-Internal-Token": internal_token()},
+            )
+        return Response(
+            content=resp.content,
+            status_code=resp.status_code,
+            media_type="application/json",
+        )
+    except httpx.RequestError as e:
+        logger.error(f"Failed to reach bridge_api: {e}")
+        raise HTTPException(503, "Bridge API is unreachable")
+
+
+@app.delete("/api/admin/sessions")
+async def admin_delete_session(_: AuthPrincipal = Depends(require_permission("admin"))):
+    """Force terminate current user session in bridge_api."""
+    try:
+        async with httpx.AsyncClient(timeout=30.0, trust_env=False) as client:
+            resp = await client.delete(
+                f"{BRIDGE_API_URL}/internal/session",
+                headers={"X-Internal-Token": internal_token()},
+            )
+        return Response(
+            content=resp.content,
+            status_code=resp.status_code,
+            media_type="application/json",
+        )
+    except httpx.RequestError as e:
+        logger.error(f"Failed to reach bridge_api: {e}")
+        raise HTTPException(503, "Bridge API is unreachable")
+
+
+@app.websocket("/ws/admin")
+async def admin_ws_proxy(websocket: WebSocket):
+    origin = websocket.headers.get("origin", "").rstrip("/")
+    expected = f"{'https' if websocket.url.scheme == 'wss' else 'http'}://{websocket.url.netloc}"
+    if not origin or (origin != expected and origin not in _ALLOWED_ORIGIN_SET):
+        await websocket.close(code=1008, reason="Origin is not allowed")
+        return
+    cookie = ""
+    try:
+        ticket = websocket.query_params.get("ticket", "")
+        if ticket:
+            record = _ws_tickets.pop(ticket, None)  # consume even on rejected use
+            if not record or record[0] <= time.time():
+                raise HTTPException(401, "Invalid or expired ticket")
+            _, principal, cookie = record
+            if cookie and cookie not in _auth_sessions:
+                raise HTTPException(401, "Login session ended")
+        else:
+            # Cloudflare injects the assertion when its cookie authenticates the
+            # upgrade. Raw long-lived access tokens in the URL are never accepted.
+            principal = await _authenticate_request(None, None, websocket.headers.get("Cf-Access-Jwt-Assertion"))
+        if not _has_permission(principal, "admin"):
+            raise HTTPException(403, "Admin permission required")
+    except HTTPException:
+        await websocket.close(code=1008, reason="Admin authentication required")
+        return
+    await websocket.accept()
+    try:
+        async with websockets.connect("ws://127.0.0.1:9090", max_size=2**20, open_timeout=3) as upstream:
+            async def to_ros():
+                while True:
+                    await upstream.send(await websocket.receive_text())
+
+            async def to_browser():
+                async for data in upstream:
+                    if isinstance(data, bytes):
+                        await websocket.send_bytes(data)
+                    else:
+                        await websocket.send_text(data)
+
+            async def expiry_watch():
+                deadline = min(time.time() + _AUTH_SESSION_TTL, principal.expires_at or float("inf"))
+                while time.time() < deadline:
+                    if cookie:
+                        record = _auth_sessions.get(cookie)
+                        if not record or record[0] <= time.time():
+                            break
+                    await asyncio.sleep(min(1.0, max(0, deadline - time.time())))
+                await websocket.close(code=1008, reason="Authentication expired")
+
+            tasks = [asyncio.create_task(coro()) for coro in (to_ros, to_browser, expiry_watch)]
+            try:
+                await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            finally:
+                for task in tasks:
+                    task.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
     except Exception:
-        return None
+        logger.warning("Admin WS upstream disconnected")
+    finally:
+        try:
+            await websocket.close(code=1000)
+        except RuntimeError:
+            pass
+
+
+# ── /api/tunnel-url ──────────────────────────────────────────────────────────
+import os as _os
 
 
 @app.get("/api/tunnel-url")
-async def get_tunnel_url():
-    """
-    Return Cloudflare Tunnel public URLs for the dashboard and rosbridge.
-
-    Response:
-      { "dashboard_url": str|null, "ws_url": str|null, "ready": bool }
-
-    Priority:
-      1) DORI_WS_URL / DORI_DASHBOARD_URL env vars (fixed custom domain)
-      2) cloudflared log parsing (trycloudflare.com quick tunnel, fallback)
-
-    ws_url must use wss:// — Cloudflare Tunnel always terminates TLS.
-    """
-    # 1순위: 고정 도메인 환경변수
-    if _FIXED_WS_URL:
-        return {
-            "dashboard_url": _FIXED_DASHBOARD_URL or None,
-            "ws_url": _FIXED_WS_URL,
-            "ready": True,
-        }
-
-    # 2순위: trycloudflare.com 임시 터널 로그 파싱
-    dashboard_url = _parse_tunnel_url(_CF_LOG_DASHBOARD)
-    ws_http_url = _parse_tunnel_url(_CF_LOG_WS)
-    ws_url = ws_http_url.replace("https://", "wss://", 1) if ws_http_url else None
-
+async def get_tunnel_url(request: Request):
+    # The browser always upgrades on the authenticated dashboard origin.
+    # Ignore legacy DORI_WS_URL / rosbridge tunnel settings entirely.
+    scheme = "wss" if request.url.scheme == "https" else "ws"
     return {
-        "dashboard_url": dashboard_url,
-        "ws_url": ws_url,
-        "ready": ws_url is not None,
+        "dashboard_url": str(request.base_url).rstrip("/"),
+        "ws_url": f"{scheme}://{request.url.netloc}/ws/admin",
+        "ready": True,
+        "ws_exposed": False,
     }
 
 
@@ -743,11 +1315,7 @@ async def get_tunnel_url():
 #   DORI_WEBHOOK_SECRET  : GitHub webhook secret (HMAC-SHA256)
 #   DORI_ROS_DISTRO      : ROS distro name (default: humble)
 
-import hashlib
-import hmac
 import shlex
-import threading
-from fastapi import Request
 
 _WEBHOOK_SECRET = _os.environ.get("DORI_WEBHOOK_SECRET", "").encode()
 _ROS_DISTRO = _os.environ.get("DORI_ROS_DISTRO", "humble")
@@ -770,8 +1338,10 @@ _deploy_lock = threading.Lock()
 def _verify_github_signature(body: bytes, sig_header: str | None) -> bool:
     """Verify X-Hub-Signature-256 against DORI_WEBHOOK_SECRET."""
     if not _WEBHOOK_SECRET:
-        return True  # Dev mode: skip verification
+        logger.error("Webhook secret is not configured. Rejecting request.")
+        return False  # (True)Dev mode: skip verification
     if not sig_header or not sig_header.startswith("sha256="):
+        logger.error("Invalid signature header. It must start with 'sha256='.")
         return False
     expected = "sha256=" + hmac.new(_WEBHOOK_SECRET, body, hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, sig_header)
@@ -812,7 +1382,6 @@ def _run_step(
 
         step["status"] = "done"
         return True, step["log"]
-
     except Exception as e:
         step["status"] = "error"
         step["log"] = str(e)
@@ -855,10 +1424,8 @@ def _normalize_static_asset_path(raw: str) -> str | None:
     candidate = raw.strip()
     if not candidate:
         return None
-
     if candidate.startswith(("http://", "https://", "//", "data:")):
         return None
-
     normalized = candidate.split("?", 1)[0].split("#", 1)[0].lstrip("/")
     return normalized or None
 
@@ -872,18 +1439,15 @@ def _collect_manifest_references(
     if key in visited:
         return
     visited.add(key)
-
     entry = manifest.get(key)
     if not isinstance(entry, dict):
         return
-
     for field in ("file", "src"):
         value = entry.get(field)
         if isinstance(value, str):
             normalized = _normalize_static_asset_path(value)
             if normalized:
                 refs.append((f"manifest[{key}].{field}", normalized))
-
     for list_field in ("css", "assets"):
         values = entry.get(list_field)
         if isinstance(values, list):
@@ -892,7 +1456,6 @@ def _collect_manifest_references(
                     normalized = _normalize_static_asset_path(value)
                     if normalized:
                         refs.append((f"manifest[{key}].{list_field}", normalized))
-
     for dep_field in ("imports", "dynamicImports"):
         deps = entry.get(dep_field)
         if not isinstance(deps, list):
@@ -913,7 +1476,6 @@ def _validate_static_tree(web_dir: Path) -> tuple[list[str], int]:
     index_path = web_dir / "index.html"
     if not index_path.is_file():
         return ["index.html"], 1
-
     manifest_path = web_dir / "manifest.json"
     if manifest_path.is_file():
         try:
@@ -945,7 +1507,6 @@ def _validate_static_tree(web_dir: Path) -> tuple[list[str], int]:
             if asset_path.startswith("api/"):
                 continue
             refs.append(("index.html", asset_path))
-
     missing: list[str] = []
     seen_refs: set[str] = set()
     for source, asset_path in refs:
@@ -957,7 +1518,6 @@ def _validate_static_tree(web_dir: Path) -> tuple[list[str], int]:
         seen_refs.add(ref_key)
         if not (web_dir / asset_path).is_file():
             missing.append(f"{source}: {asset_path}")
-
     return missing, len(seen_refs)
 
 
@@ -976,56 +1536,32 @@ def _publish_built_web_tree() -> tuple[bool, str]:
     missing, checked = _validate_static_tree(built_web_dir)
     if missing:
         preview = ", ".join(missing[:5])
-        if len(missing) > 5:
-            preview += f", ... (+{len(missing) - 5} more)"
-        return False, (
-            "Installed static tree is incomplete; refusing to publish "
-            f"{built_web_dir}. Validation checked={checked}, missing={len(missing)}. "
-            f"Missing: {preview}"
+        return (
+            False,
+            f"Installed static tree is incomplete. checked={checked}, missing={len(missing)}. {preview}",
         )
-    validation_summary = f"Validation checked={checked}, missing=0."
-
     release_root = _web_release_root()
     release_root.mkdir(parents=True, exist_ok=True)
-
     release_name = (
         datetime.utcnow().strftime("%Y%m%dT%H%M%S") + f"-{uuid.uuid4().hex[:8]}"
     )
     release_dir = release_root / release_name
     tmp_release_dir = release_root / f".{release_name}.tmp"
-
     if tmp_release_dir.exists():
         shutil.rmtree(tmp_release_dir)
     shutil.copytree(built_web_dir, tmp_release_dir)
-
     copied_missing, copied_checked = _validate_static_tree(tmp_release_dir)
     if copied_missing:
         shutil.rmtree(tmp_release_dir, ignore_errors=True)
-        preview = ", ".join(copied_missing[:5])
-        if len(copied_missing) > 5:
-            preview += f", ... (+{len(copied_missing) - 5} more)"
-        return False, (
-            "Staged static tree is incomplete after copy; refusing to publish. "
-            f"Validation checked={copied_checked}, missing={len(copied_missing)}. "
-            f"Missing: {preview}"
-        )
-    copied_validation_summary = f"Validation checked={copied_checked}, missing=0."
-
+        return False, "Staged static tree is incomplete after copy."
     tmp_release_dir.rename(release_dir)
-
     published_link = _published_web_dir()
     tmp_link = published_link.with_name(published_link.name + ".tmp")
     if tmp_link.exists() or tmp_link.is_symlink():
         tmp_link.unlink()
     tmp_link.symlink_to(release_dir, target_is_directory=True)
     os.replace(tmp_link, published_link)
-
-    return True, (
-        "Published dashboard static tree via atomic symlink swap. "
-        f"{validation_summary} {copied_validation_summary} "
-        f"Active tree: {published_link} -> {release_dir}. "
-        "Cache purge/window for public exposure must happen after this step."
-    )
+    return True, f"Published via atomic symlink swap: {release_dir}"
 
 
 def _repair_publish_if_needed(*, reason: str) -> tuple[bool, bool, str, list[str]]:
@@ -1040,55 +1576,37 @@ def _repair_publish_if_needed(*, reason: str) -> tuple[bool, bool, str, list[str
         missing_files: missing reference list discovered from web_current validation.
     """
     published_dir = _published_web_dir()
-
     if not published_dir.exists():
-        log = (
-            f"Repair trigger({reason}): web_current path does not exist: {published_dir}. "
-            "Forcing publish from installed web tree."
-        )
         ok, publish_log = _publish_built_web_tree()
         return (
             ok,
             True,
-            f"{log}\n{publish_log}",
-            ["web_current: missing directory/symlink"],
+            f"Repair trigger: path does not exist. {publish_log}",
+            ["web_current: missing"],
         )
-
     if published_dir.is_symlink():
         target = published_dir.resolve(strict=False)
         if not target.exists():
-            log = (
-                f"Repair trigger({reason}): web_current symlink target is missing: "
-                f"{published_dir} -> {target}. Forcing publish."
-            )
             ok, publish_log = _publish_built_web_tree()
             return (
                 ok,
                 True,
-                f"{log}\n{publish_log}",
-                [f"web_current symlink target missing: {target}"],
+                f"Repair trigger: symlink target missing. {publish_log}",
+                [f"missing: {target}"],
             )
-
     missing, checked = _validate_static_tree(published_dir)
     if missing:
-        preview = ", ".join(missing[:5])
-        if len(missing) > 5:
-            preview += f", ... (+{len(missing) - 5} more)"
-        log = (
-            f"Repair trigger({reason}): web_current integrity check failed. "
-            f"Validation checked={checked}, missing={len(missing)}. Missing: {preview}. "
-            "Forcing publish from installed web tree."
-        )
         ok, publish_log = _publish_built_web_tree()
-        return ok, True, f"{log}\n{publish_log}", missing
-
+        return (
+            ok,
+            True,
+            f"Repair trigger: integrity check failed. {publish_log}",
+            missing,
+        )
     return (
         True,
         False,
-        (
-            f"Repair skipped({reason}): web_current integrity check passed. "
-            f"Validation checked={checked}, missing=0."
-        ),
+        f"Repair skipped: integrity check passed (checked={checked}).",
         [],
     )
 
@@ -1121,7 +1639,6 @@ def _deploy_pipeline(*, force_web_repair: bool = False):
             "finished_at": None,
         }
     )
-
     repo = str(REPO_ROOT)
     ros_setup = f"/opt/ros/{_ROS_DISTRO}/setup.bash"
 
@@ -1142,30 +1659,23 @@ def _deploy_pipeline(*, force_web_repair: bool = False):
         return
 
     changed = _changed_paths(pull_log)
-    already_up_to_date = "Already up to date" in pull_log
-
-    if already_up_to_date:
+    if "Already up to date" in pull_log:
         repair_step = {
-            "step": "web integrity check (already up to date)",
+            "step": "web integrity check",
             "status": "running",
-            "log": 'git pull reported "Already up to date". Running web_current integrity check.',
+            "log": "Running web_current integrity check.",
         }
         _deploy_job["steps"].append(repair_step)
         ok, attempted, repair_log, missing_files = _repair_publish_if_needed(
-            reason="already-up-to-date",
+            reason="already-up-to-date"
         )
         repair_step["log"] += "\n" + repair_log
-        if attempted:
-            repair_step["log"] += "\nRepair publish executed due to integrity failure."
-        else:
-            repair_step["log"] += "\nRepair publish not required."
         if not ok:
             repair_step["status"] = "error"
             _deploy_job.update(
                 {
                     "status": "error",
-                    "error": "dashboard static repair publish failed",
-                    "missing_files": missing_files,
+                    "error": "dashboard static repair failed",
                     "finished_at": datetime.datetime.now().isoformat(),
                 }
             )
@@ -1183,7 +1693,6 @@ def _deploy_pipeline(*, force_web_repair: bool = False):
     # ── Step 2: npm build (only if web/ files changed) ───────────────────────
     web_changed = any(p.startswith("web/") for p in changed)
     web = _web_dir()
-
     if web_changed and web:
         ok, _ = _run_step("npm ci", ["npm", "ci"], cwd=str(web))
         if not ok:
@@ -1195,7 +1704,6 @@ def _deploy_pipeline(*, force_web_repair: bool = False):
                 }
             )
             return
-
         ok, _ = _run_step("npm run build", ["npm", "run", "build"], cwd=str(web))
         if not ok:
             _deploy_job.update(
@@ -1220,7 +1728,6 @@ def _deploy_pipeline(*, force_web_repair: bool = False):
     packages_to_build = []
     if web_changed or dashboard_changed:
         packages_to_build.append("dori_dashboard")
-
     if ros_changed:
         packages_to_build.extend(
             [
@@ -1236,28 +1743,10 @@ def _deploy_pipeline(*, force_web_repair: bool = False):
                 "dori_observability",
             ]
         )
-
     packages_to_build = sorted(set(packages_to_build))
 
     if packages_to_build:
-        _deploy_job["steps"].append(
-            {
-                "step": "select packages",
-                "status": "done",
-                "log": "Packages selected: " + ", ".join(packages_to_build),
-            }
-        )
         package_args = " ".join(shlex.quote(pkg) for pkg in packages_to_build)
-        if not ROS2_WS_ROOT.is_dir():
-            _deploy_job.update(
-                {
-                    "status": "error",
-                    "error": f"ROS2 workspace not found: {ROS2_WS_ROOT}",
-                    "finished_at": datetime.datetime.now().isoformat(),
-                }
-            )
-            return
-
         ok, _ = _run_step(
             "colcon build",
             [
@@ -1278,52 +1767,28 @@ def _deploy_pipeline(*, force_web_repair: bool = False):
             return
 
     # ── Step 4: publish dashboard static tree only after install completes ───
-    should_attempt_repair = force_web_repair or web_changed
-    if should_attempt_repair:
-        step = {
-            "step": "publish dashboard static tree",
-            "status": "running",
-            "log": (
-                "Validating install/share/dori_dashboard/web, copying into a new "
-                "versioned release directory, and switching web_current only "
-                "after the full asset set is present. Purge caches only after "
-                "this step reports done."
-            ),
-        }
+    if force_web_repair or web_changed:
+        step = {"step": "publish dashboard static tree", "status": "running", "log": ""}
         _deploy_job["steps"].append(step)
         if force_web_repair and not web_changed:
-            step[
-                "log"
-            ] += "\nRepair mode enabled: running integrity check and publishing only if needed."
             ok, attempted, publish_log, missing_files = _repair_publish_if_needed(
                 reason="manual-repair"
-            )
-            step["log"] += "\n" + publish_log
-            step["log"] += (
-                "\nRepair publish executed."
-                if attempted
-                else "\nRepair publish skipped."
             )
         else:
             ok, publish_log = _publish_built_web_tree()
             missing_files = []
-            step["log"] += "\nPublish mode: web changes detected; publish is mandatory."
-            step["log"] += "\n" + publish_log
-            step["log"] += "\nRepair publish executed."
+        step["log"] += "\n" + publish_log
         if not ok:
             step["status"] = "error"
             _deploy_job.update(
                 {
                     "status": "error",
                     "error": "dashboard static publish failed",
-                    "missing_files": missing_files,
                     "finished_at": datetime.datetime.now().isoformat(),
                 }
             )
             return
         step["status"] = "done"
-
-    requires_restart = dashboard_changed
 
     _deploy_job.update(
         {
@@ -1333,17 +1798,9 @@ def _deploy_pipeline(*, force_web_repair: bool = False):
         }
     )
 
-    if requires_restart:
+    if dashboard_changed:
         import signal
-        import os
 
-        _deploy_job["steps"].append(
-            {
-                "step": "restart knowledge api",
-                "status": "done",
-                "log": "dori_dashboard change is detected and knowledge_api process is restarted.",
-            }
-        )
         os.kill(os.getpid(), signal.SIGTERM)
 
 
@@ -1353,14 +1810,8 @@ def _deploy_pipeline(*, force_web_repair: bool = False):
 @app.post("/api/webhook")
 async def github_webhook(request: Request):
     """Receive GitHub push webhook, trigger deploy pipeline on main branch."""
-    if os.getenv("DORI_ALLOW_LIVE_DEPLOY") != "1":
-        raise HTTPException(
-            423,
-            "Robot deployment is locked; stop the robot and deploy from the terminal",
-        )
     body = await request.body()
     sig = request.headers.get("X-Hub-Signature-256")
-
     if not _verify_github_signature(body, sig):
         return JSONResponse({"error": "Invalid signature"}, status_code=403)
 
@@ -1383,23 +1834,18 @@ async def github_webhook(request: Request):
             )
         thread = threading.Thread(target=_deploy_pipeline, daemon=True)
         thread.start()
-
     return JSONResponse({"ok": True, "message": "Deploy started"})
 
 
 @app.get("/api/deploy/status")
-async def deploy_status():
+async def deploy_status(_: AuthPrincipal = Depends(require_permission("view"))):
     """Poll deploy pipeline progress."""
-    return JSONResponse(
-        {**_deploy_job, "enabled": os.getenv("DORI_ALLOW_LIVE_DEPLOY") == "1"}
-    )
+    return JSONResponse(_deploy_job)
 
 
 @app.post("/api/deploy/trigger")
-async def deploy_trigger():
+async def deploy_trigger(_: AuthPrincipal = Depends(require_permission("admin"))):
     """Manually trigger the deploy pipeline (no webhook needed, dev use)."""
-    if os.getenv("DORI_ALLOW_LIVE_DEPLOY") != "1":
-        raise HTTPException(423, "Stop the robot and deploy from the terminal")
     with _deploy_lock:
         if _deploy_job["status"] == "running":
             return JSONResponse(
@@ -1411,19 +1857,15 @@ async def deploy_trigger():
 
 
 @app.post("/api/deploy/repair-web")
-async def deploy_repair_web():
+async def deploy_repair_web(_: AuthPrincipal = Depends(require_permission("admin"))):
     """Run a web integrity check and repair-publish if required."""
-    if os.getenv("DORI_ALLOW_LIVE_DEPLOY") != "1":
-        raise HTTPException(423, "Stop the robot and deploy from the terminal")
     with _deploy_lock:
         if _deploy_job["status"] == "running":
             return JSONResponse(
                 {"skipped": "deploy already in progress"}, status_code=409
             )
         thread = threading.Thread(
-            target=_deploy_pipeline,
-            kwargs={"force_web_repair": True},
-            daemon=True,
+            target=_deploy_pipeline, kwargs={"force_web_repair": True}, daemon=True
         )
         thread.start()
     return JSONResponse({"ok": True, "message": "Repair deploy started"})
@@ -1456,29 +1898,11 @@ if WEB_DIR:
         ".otf",
         ".eot",
     }
-    _IMMUTABLE_ASSET_EXTENSIONS = {
-        ".js",
-        ".mjs",
-        ".css",
-        ".map",
-        ".png",
-        ".jpg",
-        ".jpeg",
-        ".gif",
-        ".webp",
-        ".svg",
-        ".ico",
-        ".woff",
-        ".woff2",
-        ".ttf",
-        ".otf",
-        ".eot",
-    }
+    _IMMUTABLE_ASSET_EXTENSIONS = _STATIC_FILE_EXTENSIONS.copy()
 
     def _is_versioned_asset(requested_path: Path) -> bool:
         if "assets" not in requested_path.parts:
             return False
-
         stem_parts = [part for part in requested_path.stem.split(".") if part]
         return len(stem_parts) > 1
 
@@ -1490,13 +1914,11 @@ if WEB_DIR:
 
         if normalized_parts == ("index.html",):
             return {"Cache-Control": "no-cache, no-store, must-revalidate"}
-
         if (
             _is_versioned_asset(requested_path)
             and suffix in _IMMUTABLE_ASSET_EXTENSIONS
         ):
             return {"Cache-Control": "public, max-age=31536000, immutable"}
-
         if suffix in {
             ".png",
             ".jpg",
@@ -1512,17 +1934,16 @@ if WEB_DIR:
             ".eot",
         }:
             return {"Cache-Control": "public, max-age=3600"}
-
         return {"Cache-Control": "public, max-age=300"}
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_spa(full_path: str):
-        # 실제 파일이 있으면 그대로 반환 (JS, CSS, 이미지 등)
         target = (WEB_DIR / full_path).resolve()
         if not target.is_relative_to(WEB_DIR.resolve()):
             raise HTTPException(404, "Not Found")
         if full_path.startswith("api/"):
             raise HTTPException(404, "Unknown API")
+
         requested_path = Path(full_path)
         if target.is_file():
             return _FileResponse(
@@ -1536,7 +1957,6 @@ if WEB_DIR:
         if is_asset_request:
             raise HTTPException(404, "Not Found")
 
-        # 파일 확장자가 없는 SPA route만 index.html fallback 처리
         if not requested_path.suffix:
             index_path = Path("index.html")
             return _FileResponse(
@@ -1550,9 +1970,17 @@ if WEB_DIR:
 
 if __name__ == "__main__":
     import uvicorn
+    import os
 
-    print(f"[DORI Knowledge API] Repo root : {REPO_ROOT}")
-    print(f"[DORI Knowledge API] Parser    : {PARSER_SCRIPT}")
-    print(f"[DORI Knowledge API] Builder   : {BUILDER_SCRIPT}")
-    print(f"[DORI Knowledge API] Listening : http://0.0.0.0:{args.port}")
-    uvicorn.run(app, host="0.0.0.0", port=args.port, log_level="warning")
+    _DEV_MODE_LOCAL = os.environ.get("DORI_DEV_MODE", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    _BIND_HOST = "0.0.0.0" if _DEV_MODE_LOCAL else "127.0.0.1"
+
+    print(f"[DORI Backend API] Repo root : {REPO_ROOT}")
+    print(f"[DORI Backend API] Parser    : {PARSER_SCRIPT}")
+    print(f"[DORI Backend API] Builder   : {BUILDER_SCRIPT}")
+    print(f"[DORI Backend API] Listening : http://{_BIND_HOST}:{args.port}")
+    uvicorn.run(app, host=_BIND_HOST, port=args.port, log_level="warning")

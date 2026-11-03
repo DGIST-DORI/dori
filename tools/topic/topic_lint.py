@@ -67,8 +67,23 @@ def render_arch_topic_section(entries: list[dict]) -> str:
 
 def extract_code_topics() -> set[str]:
     out: set[str] = set()
+    
+    excluded_dirs = {
+        "third_party",
+        "build",
+        "install",
+        "log",
+        "__pycache__",
+    }
+
     for base in [ROOT / "ros2_ws/src", ROOT / "web/src"]:
         for p in base.rglob("*"):
+            if not p.is_file():
+                continue
+            
+            if excluded_dirs.intersection(p.parts):
+                continue
+            
             if p.suffix.lower() not in {
                 ".py",
                 ".cpp",

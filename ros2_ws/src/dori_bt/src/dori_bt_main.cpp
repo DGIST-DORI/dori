@@ -15,6 +15,7 @@
 #include <std_msgs/msg/int32.hpp>
 #include <std_msgs/msg/string.hpp>
 #include <std_srvs/srv/set_bool.hpp>
+#include <std_srvs/srv/trigger.hpp>
 #include <string>
 
 using namespace std::chrono_literals;
@@ -282,6 +283,16 @@ class DoriTreeExecutor : public rclcpp::Node {
                 if (m->data >= 2 && mode_ == "GUIDING")
                     interrupt("ERROR", false);
             });
+        clear_srv_ = create_service<std_srvs::srv::Trigger>(
+            "bt/clear_session",
+            [this](const std::shared_ptr<std_srvs::srv::Trigger::Request>,
+                   std::shared_ptr<std_srvs::srv::Trigger::Response> res) {
+                interrupt(
+                    "CANCELED",
+                    false); // nav·TTS 취소, 정지, follow 해제, pending 비움
+                res->success = true;
+                res->message = "session cleared";
+            });
         timer_ = create_wall_timer(100ms, [this] { tick(); });
         set_mode("IDLE");
     }
@@ -467,6 +478,7 @@ class DoriTreeExecutor : public rclcpp::Node {
     rclcpp::Subscription<Bool>::SharedPtr wake_, mic_, access_, cancel_, estop_,
         trigger_;
     rclcpp::Subscription<Int>::SharedPtr hardware_;
+    rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr clear_srv_;
     rclcpp::TimerBase::SharedPtr timer_;
 };
 int main(int argc, char **argv) {

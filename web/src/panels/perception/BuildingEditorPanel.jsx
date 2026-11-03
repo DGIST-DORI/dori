@@ -1,3 +1,4 @@
+import { apiFetch } from '../../core/api';
 import { useState, useEffect, useCallback } from 'react';
 import './BuildingEditorPanel.css';
 
@@ -31,7 +32,7 @@ function BuildingEditorPanel() {
 
   const fetchBuildings = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/buildings`);
+      const res = await apiFetch(`${API}/buildings`);
       if (res.ok) setBuildings(await res.json());
     } catch { /* ignore */ }
   }, []);
@@ -53,7 +54,7 @@ function BuildingEditorPanel() {
     setSaving(true);
     setSaveStatus('running');
     try {
-      const res = await fetch(`${API}/buildings/${encodeURIComponent(selected)}`, {
+      const res = await apiFetch(`${API}/buildings/${encodeURIComponent(selected)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(draft),

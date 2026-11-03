@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useStore } from '../core/store';
 import { useI18n, detectBrowserLang, LANG_LABELS } from '../core/i18n';
 import { AUDIO_OUTPUT_MODES, EXECUTION_PROFILES } from '../core/topicProfiles';
@@ -46,8 +45,6 @@ export default function SettingsTab({ themeMode, onThemeModeChange, onClose }) {
   const { t, langPref } = useI18n();
   const setLangPref = useStore(s => s.setLangPref);
   const wsUrl       = useStore(s => s.wsUrl);
-  const setWsUrl    = useStore(s => s.setWsUrl);
-  const connected   = useStore(s => s.connected);
 
   const executionProfile = useStore(s => s.executionProfile);
   const setExecutionProfile = useStore(s => s.setExecutionProfile);
@@ -60,13 +57,8 @@ export default function SettingsTab({ themeMode, onThemeModeChange, onClose }) {
   const browserTtsWarning = useStore(s => s.browserTtsWarning);
   const rosAudioDebug = useStore(s => s.rosAudioDebug);
 
-  const [wsInput, setWsInput] = useState(wsUrl);
   const detectedLang = detectBrowserLang();
 
-
-  function handleWsSave() {
-    setWsUrl(wsInput.trim());
-  }
 
   const themeOptions = [
     { value: 'light', label: t('settings.theme.light') },
@@ -184,20 +176,11 @@ export default function SettingsTab({ themeMode, onThemeModeChange, onClose }) {
           <div className="sp-ws-row">
             <input
               className="sp-ws-input"
-              value={wsInput}
-              onChange={e => setWsInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleWsSave()}
-              disabled={connected}
+              value={wsUrl}
+              readOnly
               spellCheck={false}
-              placeholder="ws://localhost:9090"
+              placeholder="wss://dashboard.example/ws/admin"
             />
-            <button
-              className="sp-ws-save"
-              onClick={handleWsSave}
-              disabled={connected || wsInput.trim() === wsUrl}
-            >
-              Save
-            </button>
           </div>
         </Row>
       </Section>

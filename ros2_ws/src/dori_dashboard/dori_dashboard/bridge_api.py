@@ -1,0 +1,700 @@
+#!/usr/bin/env python3
+"""
+DORI WebSocket Gateway & Session Manager (bridge_api.py)
+사용자 앱 서빙, QR 페어링, 세션 관리 및 제한된 ROS 프로토콜 게이트웨이를 담당합니다.
+"""
+
+from contextlib import asynccontextmanager
+import asyncio
+import json
+import logging
+import os
+import secrets
+import threading
+import time
+from enum import Enum
+from typing import Dict, Optional, Set
+
+import rclpy
+from rclpy.node import Node
+from rclpy.qos import QoSProfile, DurabilityPolicy
+from std_msgs.msg import Bool, String, Int32
+from std_srvs.srv import Trigger
+from geometry_msgs.msg import Twist
+
+import uvicorn
+from fastapi import (
+    Header,
+    FastAPI,
+    WebSocket,
+    WebSocketDisconnect,
+    HTTPException,
+    Request,
+    Response,
+    Cookie,
+)
+from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+
+try:
+    from .control_contract import CONTROL_MODES, MOVE_TIMEOUT, validate_control
+    from .internal_auth import internal_token, require_internal_token
+except ImportError:  # installed scripts are also executable directly
+    from control_contract import CONTROL_MODES, MOVE_TIMEOUT, validate_control
+    from internal_auth import internal_token, require_internal_token
+
+# ─── Configuration ─────────────────────────────────────────────────────────
+
+PUBLIC_PORT = 3100
+DISPLAY_PORT = 3001
+NONCE_TTL = 30  # QR 갱신 주기 (초)
+NONCE_GRACE = 5  # 스캔 지연 오차 허용 (초)
+GRACE_TIMEOUT = 90  # WS 끊김 후 재연결 유예 시간 (초)
+SESSION_MAX_TIME = 900  # 최대 세션 시간 (15분)
+MAX_WS_MSG_SIZE = 1024 * 50
+
+_DEV_MODE = os.environ.get("DORI_DEV_MODE", "").strip().lower() in ("1", "true", "yes")
+PUBLIC_HOST = "0.0.0.0" if _DEV_MODE else "127.0.0.1"
+
+ALLOWED_ORIGINS = ["https://app.dgist-dori.xyz"]
+if _DEV_MODE:
+    ALLOWED_ORIGINS.append("http://localhost:3100")
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("bridge_api")
+
+# ─── Data Models & States ──────────────────────────────────────────────────
+
+
+class SessionState(Enum):
+    IDLE = "IDLE"
+    ACTIVE = "ACTIVE"
+    GRACE = "GRACE"
+    ENDING = "ENDING"
+
+
+class PairRequest(BaseModel):
+    nonce: str
+    consent: bool
+
+
+ros_node: Optional["BridgeNode"] = None
+
+# ─── ROS 2 Node (Bridge Gateway) ───────────────────────────────────────────
+
+
+class BridgeNode(Node):
+    def __init__(self):
+        super().__init__("bridge_api_node", namespace="/dori")
+        # 하향(ROS -> WS) Subscriptions
+        self.create_subscription(String, "llm/response", self.llm_callback, 10)
+
+        # 상향(WS -> ROS) & 제어용 Publishers
+        self.pub_wake = self.create_publisher(Bool, "stt/wake_word_detected", 10)
+        self.pub_chime = self.create_publisher(String, "hri/audio_cue", 10)
+        self.pub_manual = self.create_publisher(Twist, "/manual/cmd_vel", 10)
+        self.pub_stop = self.create_publisher(Bool, "/emergency_stop", 10)
+        self.pub_mode = self.create_publisher(Int32, "/control_mode_cmd", 10)
+        self._control_lock = threading.RLock()
+        self._move_deadline = 0.0
+        self._move_command = None
+        self._mode = None
+        self._action_state = None
+        latch = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
+        self.create_subscription(Int32, "/system/control_mode", self._on_mode, latch)
+        self.create_subscription(Int32, "/system/action_state", self._on_state, latch)
+        self.create_timer(0.05, self._control_tick)
+        self.pub_cancel = self.create_publisher(Bool, "hri/cancel", 10)
+
+        self.cli_llm_reset = self.create_client(Trigger, "llm/reset")
+        self.cli_bt_clear = self.create_client(Trigger, "bt/clear_session")
+
+    def _on_mode(self, msg):
+        with self._control_lock:
+            self._mode = msg.data
+            if self._move_command is not None and msg.data != CONTROL_MODES["manual"]:
+                self.request_stop()
+
+    def _on_state(self, msg):
+        with self._control_lock:
+            self._action_state = msg.data
+            if self._move_command is not None and msg.data not in (0, 1):
+                self.request_stop()
+
+    def request_stop(self):
+        """Latch the supervisor's highest-priority stop; only an operator resumes."""
+        with self._control_lock:
+            self._move_command = None
+            self._move_deadline = 0.0
+            self._action_state = 4
+            self.pub_stop.publish(Bool(data=True))
+            self.pub_cancel.publish(Bool(data=True))
+
+    def control_action(self, action, params):
+        with self._control_lock:
+            if action == "stop":
+                self.request_stop()
+            elif action == "set_mode":
+                if self._move_command is not None:
+                    self.request_stop()
+                self.pub_mode.publish(Int32(data=CONTROL_MODES[params["mode"]]))
+            elif action == "move":
+                if self._mode != CONTROL_MODES["manual"] or self._action_state not in (0, 1):
+                    raise HTTPException(409, "Manual mode and idle/drive supervisor state required")
+                if not self.pub_manual.get_subscription_count() or not self.pub_stop.get_subscription_count():
+                    raise HTTPException(503, "Supervisor is unavailable")
+                if self.count_publishers("/manual/cmd_vel") > 1:
+                    raise HTTPException(409, "Another manual input publisher is active")
+                cmd = Twist()
+                cmd.linear.x = params["linear_x"]
+                cmd.angular.z = params["angular_z"]
+                self._move_command = cmd
+                self._move_deadline = time.monotonic() + MOVE_TIMEOUT
+                self.pub_manual.publish(cmd)
+
+    def _control_tick(self):
+        # Runs on the ROS thread, independently of HTTP/WS event-loop load.
+        # The downstream drive controller also expires commands after 0.3s
+        # if this entire process crashes.
+        with self._control_lock:
+            if self._move_command is None:
+                return
+            if (time.monotonic() >= self._move_deadline
+                    or self.count_publishers("/manual/cmd_vel") > 1
+                    or not self.pub_manual.get_subscription_count()):
+                self.request_stop()
+                return
+            self.pub_manual.publish(self._move_command)
+
+    def llm_callback(self, msg):
+        try:
+            text = json.loads(msg.data).get("text", "")
+        except ValueError:
+            return
+        if (
+            text
+            and session_manager.state == SessionState.ACTIVE
+            and session_manager.active_ws
+        ):
+            asyncio.run_coroutine_threadsafe(
+                session_manager.active_ws.send_json({"type": "llm_text", "data": text}),
+                loop=session_manager.main_loop,
+            )
+
+    def trigger_pairing_success(self):
+        """페어링 성공 시 웨이크워드 감지 및 차임벨 발생"""
+        self.pub_wake.publish(Bool(data=True))
+        self.pub_chime.publish(String(data="wake_chime"))
+        logger.info("[ROS] Pairing success triggered to HRI")
+
+    async def execute_cleanup(self, timeout_sec: float = 5.0) -> bool:
+        """로봇 정지 및 LLM 대화 기록 초기화를 수행한다."""
+        self.request_stop()
+
+        async def call_ros_service(cli, name):
+            if not cli.service_is_ready():
+                logger.warning(f"Cleanup: {name} service not immediately available")
+                return False
+
+            loop = asyncio.get_running_loop()
+            async_future = loop.create_future()
+            ros_future = cli.call_async(Trigger.Request())
+
+            def on_done(f):
+                loop.call_soon_threadsafe(
+                    lambda: (
+                        async_future.set_result(f.result())
+                        if not async_future.done()
+                        else None
+                    )
+                )
+
+            ros_future.add_done_callback(on_done)
+
+            try:
+                res = await asyncio.wait_for(async_future, timeout=timeout_sec)
+                if not res.success:
+                    logger.warning(f"Cleanup: {name} failed - {res.message}")
+                    return False
+                return True
+            except asyncio.TimeoutError:
+                logger.error(f"Cleanup: {name} service timed out")
+                return False
+            except Exception as e:
+                logger.error(f"Cleanup: {name} error - {e}")
+                return False
+
+        # 3. LLM과 BT 초기화 서비스 동시 실행 및 대기
+        results = await asyncio.gather(
+            call_ros_service(self.cli_llm_reset, "LLM"),
+            call_ros_service(self.cli_bt_clear, "BT"),
+        )
+
+        logger.info("[ROS] Session cleanup completed")
+        # 둘 다 성공했는지 여부 반환 (필요에 따라 엄격도를 조절할 수 있습니다)
+        return all(results)
+
+
+# ─── Core Logic: Nonce & Session Management ────────────────────────────────
+
+
+class NonceManager:
+    def __init__(self):
+        self.nonces: Dict[str, float] = {}
+
+    def generate(self) -> str:
+        nonce = secrets.token_urlsafe(16)
+        # 생성 시간 + TTL + 지연 허용 시간
+        self.nonces[nonce] = time.time() + NONCE_TTL + NONCE_GRACE
+        return nonce
+
+    def validate_and_consume(self, nonce: str) -> bool:
+        self._cleanup()
+        if nonce in self.nonces and self.nonces[nonce] > time.time():
+            del self.nonces[nonce]  # 1회용 소모
+            return True
+        return False
+
+    def _cleanup(self):
+        now = time.time()
+        self.nonces = {k: v for k, v in self.nonces.items() if v > now}
+
+
+class SessionManager:
+    def __init__(self):
+        self.state = SessionState.IDLE
+        self.current_token: Optional[str] = None
+        self.session_expires_at: float = 0
+        self.active_ws: Optional[WebSocket] = None
+        self.display_queues: Set[asyncio.Queue] = set()
+        self.main_loop: Optional[asyncio.AbstractEventLoop] = None
+        self.grace_task: Optional[asyncio.Task] = None
+        self.last_activity = 0.0
+        self._ending_lock = asyncio.Lock()
+        self._pairing_lock = asyncio.Lock()
+        self.session_timer_task: Optional[asyncio.Task] = None
+        self.idle_task: Optional[asyncio.Task] = None
+        self.idle_timeout = 120.0  # 2분 무조작 시 강제 종료
+
+    async def _cancel_session_timers(self):
+        # watcher가 직접 종료를 요청한 경우 자기 자신은 취소하지 않는다.
+        current = asyncio.current_task()
+        tasks = [
+            task
+            for task in (self.grace_task, self.session_timer_task, self.idle_task)
+            if task is not None and task is not current
+        ]
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        self.grace_task = self.session_timer_task = self.idle_task = None
+
+    async def broadcast_display(self, event_type: str, data: dict):
+        payload = f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
+        for q in list(self.display_queues):
+            try:
+                await q.put(payload)
+            except Exception:
+                self.display_queues.discard(q)
+
+    async def start_session(self):
+        await self._cancel_session_timers()
+        nonce_manager.nonces.clear()
+        self.state = SessionState.ACTIVE
+        self.current_token = secrets.token_hex(32)
+        self.session_expires_at = time.time() + SESSION_MAX_TIME
+        self.last_activity = time.monotonic()
+
+        self.session_timer_task = asyncio.create_task(self._max_time_watcher())
+        self.idle_task = asyncio.create_task(self._idle_watcher())
+        await self.broadcast_display("paired", {"status": "ACTIVE"})
+        ros_node.trigger_pairing_success()
+        logger.info("Session ACTIVE")
+        return self.current_token
+
+    async def handle_disconnect(self):
+        if self.state == SessionState.ACTIVE:
+            self.state = SessionState.GRACE
+            self.active_ws = None
+            await self.broadcast_display("state", {"status": "GRACE"})
+            logger.warning("Session GRACE started")
+            self.grace_task = asyncio.create_task(self._grace_timeout())
+
+    async def _grace_timeout(self):
+        await asyncio.sleep(GRACE_TIMEOUT)
+        if self.state == SessionState.GRACE:
+            logger.info("Grace period timeout")
+            await self.end_session()
+
+    async def _max_time_watcher(self):
+        await asyncio.sleep(SESSION_MAX_TIME)
+        logger.info("Session Max Time reached. Forcing end.")
+        await self.end_session()
+
+    async def _idle_watcher(self):
+        while self.state in (SessionState.ACTIVE, SessionState.GRACE):
+            # GRACE 중에는 기존 재연결 유예 시간을 보장한다.
+            if self.state == SessionState.ACTIVE:
+                remaining = self.idle_timeout - (time.monotonic() - self.last_activity)
+                if remaining <= 0:
+                    logger.info("User idle timeout reached.")
+                    await self.end_session()
+                    return
+                await asyncio.sleep(min(remaining, 1.0))
+            else:
+                await asyncio.sleep(1.0)
+
+    async def _retry_cleanup_loop(self):
+        logger.info("Starting background cleanup retry task (5s interval)...")
+        while self.state == SessionState.ENDING:
+            await asyncio.sleep(5.0)
+            logger.info("Retrying session cleanup in background...")
+            if await ros_node.execute_cleanup():
+                self.state = SessionState.IDLE
+                await self.broadcast_display("state", {"status": "IDLE"})
+                logger.info("Background cleanup succeeded.")
+                break
+
+    async def end_session(self, admin_force=False):
+        async with self._ending_lock:  # 재진입 동시 실행 완벽 차단
+            if self.state == SessionState.IDLE:
+                return True
+
+            self.state = SessionState.ENDING
+            self.current_token = None
+            await self._cancel_session_timers()
+            if self.active_ws:
+                try:
+                    await self.active_ws.close(code=1000)
+                except Exception:
+                    pass
+                self.active_ws = None
+
+            # Exponential Backoff 적용된 정리 로직
+            for attempt in range(3):
+                if await ros_node.execute_cleanup():
+                    self.state = SessionState.IDLE
+                    await self.broadcast_display("state", {"status": "IDLE"})
+                    return True
+                logger.warning(f"Cleanup failed, retrying in {2**attempt}s...")
+                await asyncio.sleep(2**attempt)
+
+            if admin_force:
+                logger.error("Admin forced cleanup despite failures.")
+                self.state = SessionState.IDLE
+                await self.broadcast_display("state", {"status": "IDLE"})
+                return True
+
+            logger.error(
+                "Critical: Cleanup failed completely. Starting background retry task."
+            )
+            await self.broadcast_display("state", {"status": "ENDING"})
+
+            asyncio.create_task(self._retry_cleanup_loop())
+            return False
+
+
+nonce_manager = NonceManager()
+session_manager = SessionManager()
+
+
+@asynccontextmanager
+async def public_lifespan(app: FastAPI):
+    global ros_node
+
+    internal_token()  # Refuse direct/uvicorn startup with missing IPC credentials.
+
+    # 1. 앱 시작 시 ROS 2 노드 초기화 및 스핀 스레드 구동
+    if not rclpy.ok():
+        rclpy.init()
+    ros_node = BridgeNode()
+    ros_thread = threading.Thread(target=lambda: rclpy.spin(ros_node), daemon=True)
+    ros_thread.start()
+
+    # 2. 메인 이벤트 루프 확보
+    session_manager.main_loop = asyncio.get_running_loop()
+    yield
+
+    # 3. 앱 종료 시 ROS 2 안전하게 정리
+    if ros_node:
+        if ros_node._move_command is not None:
+            ros_node.request_stop()
+        ros_node.destroy_node()
+    if rclpy.ok():
+        rclpy.shutdown()
+
+
+# ─── FastAPI 1: Public App (Port 3100) ─────────────────────────────────────
+
+app_public = FastAPI(title="DORI App Gateway", lifespan=public_lifespan)
+
+app_public.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app_public.post("/api/pair")
+async def pair_device(req: PairRequest, response: Response):
+    if not req.consent:
+        raise HTTPException(status_code=400, detail="Consent required")
+
+    async with session_manager._pairing_lock:
+        if session_manager.state != SessionState.IDLE:
+            raise HTTPException(
+                status_code=409,
+                detail="Robot is currently in use or cleaning up",
+            )
+
+        if not nonce_manager.validate_and_consume(req.nonce):
+            raise HTTPException(status_code=410, detail="Invalid or expired nonce")
+
+        token = await session_manager.start_session()
+
+    response.set_cookie(
+        key="dori_session",
+        value=token,
+        httponly=True,
+        secure=True,  # LAN 테스트 시 False로 변경 필요
+        samesite="strict",
+        max_age=SESSION_MAX_TIME,
+    )
+    return {"expires_at": session_manager.session_expires_at}
+
+
+@app_public.delete("/api/session")
+async def delete_session(
+    dori_session: Optional[str] = Cookie(None),
+):
+    if (
+        dori_session
+        and session_manager.current_token
+        and secrets.compare_digest(dori_session.encode(), session_manager.current_token.encode())
+    ):
+        ok = await session_manager.end_session()
+        if not ok:
+            raise HTTPException(
+                status_code=503,
+                detail="Session cleanup failed",
+            )
+    return {"status": "ok"}
+
+
+# ─── Internal IPC Endpoints (Called by backend_api.py) ─────────────────────
+
+
+@app_public.websocket("/ws/user")
+async def websocket_user(websocket: WebSocket):
+    # 1. Origin 검증 (Cross-site WS Hijacking 방지)
+    origin = websocket.headers.get("origin")
+    if origin not in ALLOWED_ORIGINS:
+        await websocket.close(code=1008)
+        return
+
+    # 2. 쿠키 기반 세션 토큰 검증
+    cookie_token = websocket.cookies.get("dori_session")
+    if (
+        not cookie_token
+        or not session_manager.current_token
+        or not secrets.compare_digest(cookie_token.encode(), session_manager.current_token.encode())
+    ):
+        await websocket.close(code=1008)
+        return
+
+    await websocket.accept()
+
+    if session_manager.active_ws and session_manager.active_ws is not websocket:
+        try:
+            await session_manager.active_ws.close(code=4000, reason="Replaced")
+        except Exception:
+            pass
+
+    session_manager.active_ws = websocket
+    session_manager.last_activity = time.monotonic()
+
+    if session_manager.state == SessionState.GRACE:
+        session_manager.state = SessionState.ACTIVE
+        if session_manager.grace_task:
+            session_manager.grace_task.cancel()
+        await session_manager.broadcast_display("state", {"status": "ACTIVE"})
+        logger.info("Session Resumed from GRACE")
+
+    try:
+        while True:
+            # 연결 생존 확인은 사용자 활동과 별개다. ASGI에는 프로토콜 ping이
+            # 전달되지 않으므로 클라이언트는 애플리케이션 heartbeat를 보낸다.
+            message = await asyncio.wait_for(websocket.receive(), timeout=15.0)
+            if message["type"] == "websocket.disconnect":
+                raise WebSocketDisconnect(code=message.get("code", 1000))
+            if (
+                websocket is not session_manager.active_ws
+                or session_manager.state != SessionState.ACTIVE
+            ):
+                break
+
+            data = message.get("text")
+            binary = message.get("bytes")
+            size = len(data.encode("utf-8")) if data is not None else len(binary or b"")
+            if size > MAX_WS_MSG_SIZE:
+                logger.warning("WS message exceeds size limit, dropping")
+                continue
+
+            if binary is not None:
+                # 3단계 오디오/카메라 프로토콜 구현 지점. 현재는 연결을 유지하고
+                # 미지원 바이너리를 무시하며, 사용자 활동으로 집계하지 않는다.
+                logger.debug("Unsupported binary WS message, dropping")
+                continue
+            if data is None:
+                continue
+
+            try:
+                payload = json.loads(data)
+            except json.JSONDecodeError:
+                logger.warning("Invalid JSON format in WS, dropping")
+                continue  # 세션을 끊지 않고 해당 메시지만 무시
+
+            if not isinstance(payload, dict):
+                logger.warning("WS JSON payload must be an object, dropping")
+                continue
+
+            # 제한된 자체 프로토콜 처리 (명령어 화이트리스트 필터링)
+            cmd_type = payload.get("type")
+            if cmd_type == "command":
+                action = payload.get("action")
+                if action == "STOP":
+                    ros_node.request_stop()
+                    session_manager.last_activity = time.monotonic()
+                # 상향 메시지(오디오, 카메라 등) 추가 구현 지점
+            elif cmd_type == "heartbeat":
+                pass
+
+    except asyncio.TimeoutError:
+        logger.warning("WS Heartbeat timeout. Network likely dropped.")
+        if websocket is session_manager.active_ws:
+            await session_manager.handle_disconnect()
+    except WebSocketDisconnect:
+        if websocket is session_manager.active_ws:
+            await session_manager.handle_disconnect()
+    except Exception as e:
+        logger.error(f"WS Error: {e}")
+        if websocket is session_manager.active_ws:
+            await session_manager.handle_disconnect()
+
+
+# ─── FastAPI 2: Display Listener (Port 3001, 127.0.0.1 Only) ─────────────────
+
+app_display = FastAPI(title="DORI Display API")
+
+
+async def display_event_generator(q: asyncio.Queue):
+    try:
+        # 최초 연결 시 현재 상태 즉시 전송
+        yield f"event: state\ndata: {json.dumps({'status': session_manager.state.value})}\n\n"
+
+        while True:
+            # 1. 상태가 IDLE이면 Nonce 발급 및 전송 (30초 대기 또는 큐 이벤트 수신)
+            if session_manager.state == SessionState.IDLE:
+                nonce = nonce_manager.generate()
+                yield f"event: qr_update\ndata: {json.dumps({'nonce': nonce, 'ttl': NONCE_TTL})}\n\n"
+
+            try:
+                # 다음 상태 변경 이벤트 대기 (timeout으로 30초 갱신 타이머 역할 병행)
+                msg = await asyncio.wait_for(q.get(), timeout=NONCE_TTL)
+                yield msg
+            except asyncio.TimeoutError:
+                continue  # 30초 경과, 루프 처음으로 돌아가 새 Nonce 생성
+    finally:
+        session_manager.display_queues.discard(q)
+
+
+# ─── Internal IPC Endpoints (Called by backend_api.py) ─────────────────────
+# app_display (Port 3001)에 등록되어 외부(3100) 터널로부터 물리적/포트 단위로 완전히 격리됨
+
+
+@app_display.get("/internal/session")
+async def get_internal_session(x_internal_token: str = Header(None)):
+    """현재 세션 상태를 반환 (내부 호출용)"""
+    require_internal_token(x_internal_token)
+
+    return {
+        "state": session_manager.state.value,
+        "expires_at": session_manager.session_expires_at,
+        "has_active_ws": session_manager.active_ws is not None,
+    }
+
+
+@app_display.delete("/internal/session")
+async def delete_internal_session(x_internal_token: str = Header(None)):
+    """관리자 권한으로 현재 세션을 강제 종료 (내부 호출용)"""
+    require_internal_token(x_internal_token)
+
+    if session_manager.state != SessionState.IDLE:
+        if await session_manager.end_session(admin_force=True):
+            return {
+                "status": "terminated",
+                "message": "Session forcefully ended by admin",
+            }
+        else:
+            return {"status": "error", "message": "Force termination failed"}
+
+    return {"status": "already_idle", "message": "No active session to terminate"}
+
+
+@app_display.post("/internal/control")
+async def internal_control(body: dict, x_internal_token: str = Header(None)):
+    require_internal_token(x_internal_token)
+    if os.environ.get("DORI_CONTROL_EXECUTOR", "dry-run") != "bridge":
+        raise HTTPException(403, "Live control is disabled")
+    action, params = validate_control(body)
+    if ros_node is None:
+        raise HTTPException(503, "ROS bridge is unavailable")
+    ros_node.control_action(action, params)
+    return {"executed": True, "executor": "bridge", "detail": "Published through supervisor"}
+
+
+@app_display.get("/display/events")
+async def display_events(request: Request):
+    """로봇 화면으로 QR Nonce와 세션 상태(Pairing 등)를 실시간 푸시하는 SSE"""
+    q = asyncio.Queue()
+    session_manager.display_queues.add(q)
+    return StreamingResponse(display_event_generator(q), media_type="text/event-stream")
+
+
+# ─── Entrypoint & Runner ───────────────────────────────────────────────────
+
+
+async def run_servers():
+    config_public = uvicorn.Config(
+        app_public,
+        host=PUBLIC_HOST,
+        port=PUBLIC_PORT,
+        log_level="info",
+        ws="websockets",
+        ws_max_size=MAX_WS_MSG_SIZE,
+    )
+    config_display = uvicorn.Config(
+        app_display, host="127.0.0.1", port=DISPLAY_PORT, log_level="warning"
+    )
+
+    server_public = uvicorn.Server(config_public)
+    server_display = uvicorn.Server(config_display)
+
+    # 한 이벤트 루프에서 두 서버를 동시에 비동기로 실행 (상태 및 큐 공유 문제 완전 해결)
+    await asyncio.gather(server_public.serve(), server_display.serve())
+
+
+def main():
+    internal_token()
+    # rclpy.init() 등의 로직은 public_lifespan으로 이동하여 삭제됨
+    logger.info(
+        f"Starting Gateways: Public({PUBLIC_HOST}:{PUBLIC_PORT}), Display(127.0.0.1:{DISPLAY_PORT})"
+    )
+    asyncio.run(run_servers())
+
+
+if __name__ == "__main__":
+    main()

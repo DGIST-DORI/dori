@@ -1,4 +1,6 @@
 fastapi
 uvicorn
+websockets>=12,<16
 python-multipart
 httpx>=0.27,<1
+PyJWT[crypto]>=2.10.1,<3

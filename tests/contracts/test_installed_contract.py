@@ -1,6 +1,8 @@
-"""P0/P2 acceptance on a clean Humble overlay; never executes a ROS node.
+"""Overlay, packaging, launch and interface contracts on a clean Humble install.
 
-This deliberately does not collect the legacy integration suite awaiting P1.
+Validates the package dependency graph, absence of deprecated overlays, installed
+executables, custom message and action serialization, and launch resolution without
+starting any hardware or background nodes.
 """
 
 from graphlib import TopologicalSorter
@@ -246,6 +248,7 @@ def inspect_launch(package, filename, overrides):
 
 @pytest.fixture
 def no_process_launch(monkeypatch, tmp_path):
+    monkeypatch.setenv("DORI_INTERNAL_TOKEN", "test-only-internal-secret-32-characters")
     def forbidden(*args, **kwargs):
         raise AssertionError("A launch test attempted to execute a process")
 
