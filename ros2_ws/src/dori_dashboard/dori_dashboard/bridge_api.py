@@ -17,7 +17,8 @@ from typing import Dict, Optional, Set
 
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Bool, String
+from rclpy.qos import QoSProfile, DurabilityPolicy
+from std_msgs.msg import Bool, String, Int32
 from std_srvs.srv import Trigger
 from geometry_msgs.msg import Twist
 
@@ -36,6 +37,13 @@ from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+try:
+    from .control_contract import CONTROL_MODES, MOVE_TIMEOUT, validate_control
+    from .internal_auth import internal_token, require_internal_token
+except ImportError:  # installed scripts are also executable directly
+    from control_contract import CONTROL_MODES, MOVE_TIMEOUT, validate_control
+    from internal_auth import internal_token, require_internal_token
+
 # ─── Configuration ─────────────────────────────────────────────────────────
 
 PUBLIC_PORT = 3100
@@ -46,7 +54,6 @@ GRACE_TIMEOUT = 90  # WS 끊김 후 재연결 유예 시간 (초)
 SESSION_MAX_TIME = 900  # 최대 세션 시간 (15분)
 MAX_WS_MSG_SIZE = 1024 * 50
 
-_INTERNAL_TOKEN = os.environ.get("DORI_INTERNAL_TOKEN", "default-internal-secret")
 _DEV_MODE = os.environ.get("DORI_DEV_MODE", "").strip().lower() in ("1", "true", "yes")
 PUBLIC_HOST = "0.0.0.0" if _DEV_MODE else "127.0.0.1"
 
@@ -79,18 +86,86 @@ ros_node: Optional["BridgeNode"] = None
 
 class BridgeNode(Node):
     def __init__(self):
-        super().__init__("bridge_api_node")
+        super().__init__("bridge_api_node", namespace="/dori")
         # 하향(ROS -> WS) Subscriptions
         self.create_subscription(String, "llm/response", self.llm_callback, 10)
 
         # 상향(WS -> ROS) & 제어용 Publishers
         self.pub_wake = self.create_publisher(Bool, "stt/wake_word_detected", 10)
         self.pub_chime = self.create_publisher(String, "hri/audio_cue", 10)
-        self.pub_cmd_vel = self.create_publisher(Twist, "cmd_vel", 10)
+        self.pub_manual = self.create_publisher(Twist, "/manual/cmd_vel", 10)
+        self.pub_stop = self.create_publisher(Bool, "/emergency_stop", 10)
+        self.pub_mode = self.create_publisher(Int32, "/control_mode_cmd", 10)
+        self._control_lock = threading.RLock()
+        self._move_deadline = 0.0
+        self._move_command = None
+        self._mode = None
+        self._action_state = None
+        latch = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
+        self.create_subscription(Int32, "/system/control_mode", self._on_mode, latch)
+        self.create_subscription(Int32, "/system/action_state", self._on_state, latch)
+        self.create_timer(0.05, self._control_tick)
         self.pub_cancel = self.create_publisher(Bool, "hri/cancel", 10)
 
         self.cli_llm_reset = self.create_client(Trigger, "llm/reset")
         self.cli_bt_clear = self.create_client(Trigger, "bt/clear_session")
+
+    def _on_mode(self, msg):
+        with self._control_lock:
+            self._mode = msg.data
+            if self._move_command is not None and msg.data != CONTROL_MODES["manual"]:
+                self.request_stop()
+
+    def _on_state(self, msg):
+        with self._control_lock:
+            self._action_state = msg.data
+            if self._move_command is not None and msg.data not in (0, 1):
+                self.request_stop()
+
+    def request_stop(self):
+        """Latch the supervisor's highest-priority stop; only an operator resumes."""
+        with self._control_lock:
+            self._move_command = None
+            self._move_deadline = 0.0
+            self._action_state = 4
+            self.pub_stop.publish(Bool(data=True))
+            self.pub_cancel.publish(Bool(data=True))
+
+    def control_action(self, action, params):
+        with self._control_lock:
+            if action == "stop":
+                self.request_stop()
+            elif action == "set_mode":
+                if self._move_command is not None:
+                    self.request_stop()
+                self.pub_mode.publish(Int32(data=CONTROL_MODES[params["mode"]]))
+            elif action == "move":
+                if self._mode != CONTROL_MODES["manual"] or self._action_state not in (0, 1):
+                    raise HTTPException(409, "Manual mode and idle/drive supervisor state required")
+                if not self.pub_manual.get_subscription_count() or not self.pub_stop.get_subscription_count():
+                    raise HTTPException(503, "Supervisor is unavailable")
+                if self.count_publishers("/manual/cmd_vel") > 1:
+                    raise HTTPException(409, "Another manual input publisher is active")
+                cmd = Twist()
+                cmd.linear.x = params["linear_x"]
+                cmd.angular.z = params["angular_z"]
+                self._move_command = cmd
+                self._move_deadline = time.monotonic() + MOVE_TIMEOUT
+                self.pub_manual.publish(cmd)
+
+    def _control_tick(self):
+        # Runs on the ROS thread, independently of HTTP/WS event-loop load.
+        # The downstream drive controller also expires commands after 0.3s
+        # if this entire process crashes.
+        with self._control_lock:
+            if self._move_command is None:
+                return
+            if (time.monotonic() >= self._move_deadline
+                    or self.count_publishers("/manual/cmd_vel") > 1
+                    or not self.pub_manual.get_subscription_count()):
+                self.request_stop()
+                return
+            self.pub_manual.publish(self._move_command)
 
     def llm_callback(self, msg):
         try:
@@ -115,7 +190,7 @@ class BridgeNode(Node):
 
     async def execute_cleanup(self, timeout_sec: float = 5.0) -> bool:
         """로봇 정지 및 LLM 대화 기록 초기화를 수행한다."""
-        self.pub_cancel.publish(Bool(data=True))
+        self.request_stop()
 
         async def call_ros_service(cli, name):
             if not cli.service_is_ready():
@@ -197,6 +272,7 @@ class SessionManager:
         self.grace_task: Optional[asyncio.Task] = None
         self.last_activity = 0.0
         self._ending_lock = asyncio.Lock()
+        self._pairing_lock = asyncio.Lock()
         self.session_timer_task: Optional[asyncio.Task] = None
         self.idle_task: Optional[asyncio.Task] = None
         self.idle_timeout = 120.0  # 2분 무조작 시 강제 종료
@@ -327,6 +403,8 @@ session_manager = SessionManager()
 async def public_lifespan(app: FastAPI):
     global ros_node
 
+    internal_token()  # Refuse direct/uvicorn startup with missing IPC credentials.
+
     # 1. 앱 시작 시 ROS 2 노드 초기화 및 스핀 스레드 구동
     if not rclpy.ok():
         rclpy.init()
@@ -340,6 +418,8 @@ async def public_lifespan(app: FastAPI):
 
     # 3. 앱 종료 시 ROS 2 안전하게 정리
     if ros_node:
+        if ros_node._move_command is not None:
+            ros_node.request_stop()
         ros_node.destroy_node()
     if rclpy.ok():
         rclpy.shutdown()
@@ -363,16 +443,17 @@ async def pair_device(req: PairRequest, response: Response):
     if not req.consent:
         raise HTTPException(status_code=400, detail="Consent required")
 
-    if session_manager.state != SessionState.IDLE:
-        raise HTTPException(
-            status_code=409,
-            detail="Robot is currently in use or cleaning up",
-        )
+    async with session_manager._pairing_lock:
+        if session_manager.state != SessionState.IDLE:
+            raise HTTPException(
+                status_code=409,
+                detail="Robot is currently in use or cleaning up",
+            )
 
-    if not nonce_manager.validate_and_consume(req.nonce):
-        raise HTTPException(status_code=410, detail="Invalid or expired nonce")
+        if not nonce_manager.validate_and_consume(req.nonce):
+            raise HTTPException(status_code=410, detail="Invalid or expired nonce")
 
-    token = await session_manager.start_session()
+        token = await session_manager.start_session()
 
     response.set_cookie(
         key="dori_session",
@@ -392,7 +473,7 @@ async def delete_session(
     if (
         dori_session
         and session_manager.current_token
-        and secrets.compare_digest(dori_session, session_manager.current_token)
+        and secrets.compare_digest(dori_session.encode(), session_manager.current_token.encode())
     ):
         ok = await session_manager.end_session()
         if not ok:
@@ -419,7 +500,7 @@ async def websocket_user(websocket: WebSocket):
     if (
         not cookie_token
         or not session_manager.current_token
-        or not secrets.compare_digest(cookie_token, session_manager.current_token)
+        or not secrets.compare_digest(cookie_token.encode(), session_manager.current_token.encode())
     ):
         await websocket.close(code=1008)
         return
@@ -485,7 +566,7 @@ async def websocket_user(websocket: WebSocket):
             if cmd_type == "command":
                 action = payload.get("action")
                 if action == "STOP":
-                    ros_node.pub_cancel.publish(Bool(data=True))
+                    ros_node.request_stop()
                     session_manager.last_activity = time.monotonic()
                 # 상향 메시지(오디오, 카메라 등) 추가 구현 지점
             elif cmd_type == "heartbeat":
@@ -537,10 +618,7 @@ async def display_event_generator(q: asyncio.Queue):
 @app_display.get("/internal/session")
 async def get_internal_session(x_internal_token: str = Header(None)):
     """현재 세션 상태를 반환 (내부 호출용)"""
-    if not x_internal_token or not secrets.compare_digest(
-        x_internal_token, _INTERNAL_TOKEN
-    ):
-        raise HTTPException(status_code=403, detail="Invalid internal token")
+    require_internal_token(x_internal_token)
 
     return {
         "state": session_manager.state.value,
@@ -552,10 +630,7 @@ async def get_internal_session(x_internal_token: str = Header(None)):
 @app_display.delete("/internal/session")
 async def delete_internal_session(x_internal_token: str = Header(None)):
     """관리자 권한으로 현재 세션을 강제 종료 (내부 호출용)"""
-    if not x_internal_token or not secrets.compare_digest(
-        x_internal_token, _INTERNAL_TOKEN
-    ):
-        raise HTTPException(status_code=403, detail="Invalid internal token")
+    require_internal_token(x_internal_token)
 
     if session_manager.state != SessionState.IDLE:
         if await session_manager.end_session(admin_force=True):
@@ -567,6 +642,18 @@ async def delete_internal_session(x_internal_token: str = Header(None)):
             return {"status": "error", "message": "Force termination failed"}
 
     return {"status": "already_idle", "message": "No active session to terminate"}
+
+
+@app_display.post("/internal/control")
+async def internal_control(body: dict, x_internal_token: str = Header(None)):
+    require_internal_token(x_internal_token)
+    if os.environ.get("DORI_CONTROL_EXECUTOR", "dry-run") != "bridge":
+        raise HTTPException(403, "Live control is disabled")
+    action, params = validate_control(body)
+    if ros_node is None:
+        raise HTTPException(503, "ROS bridge is unavailable")
+    ros_node.control_action(action, params)
+    return {"executed": True, "executor": "bridge", "detail": "Published through supervisor"}
 
 
 @app_display.get("/display/events")
@@ -600,9 +687,14 @@ async def run_servers():
     await asyncio.gather(server_public.serve(), server_display.serve())
 
 
-if __name__ == "__main__":
+def main():
+    internal_token()
     # rclpy.init() 등의 로직은 public_lifespan으로 이동하여 삭제됨
     logger.info(
         f"Starting Gateways: Public({PUBLIC_HOST}:{PUBLIC_PORT}), Display(127.0.0.1:{DISPLAY_PORT})"
     )
     asyncio.run(run_servers())
+
+
+if __name__ == "__main__":
+    main()

@@ -304,7 +304,7 @@ ros2 launch dori_bringup hardware.launch.py \
 
 마이크 없이 HRI와 브라우저 발화를 사용하려면 같은 명령에 `enable_stt:=false tts_playback_mode:=publish_only`를 추가한다. 이 옵션에서도 실물 구동은 켜진다. 인지는 준비 후 `enable_perception:=true require_user_tracking:=true person_model:=/절대경로/person.pt front_serial:=장치번호`로 선택한다.
 
-대시보드는 3000, 지도 제어는 8080, 사용자 웹은 7070, rosbridge는 9090 포트를 사용한다. Navigation 패널은 `/navigation/` 프록시를 사용한다. 로봇 운영망에서 접근한다.
+대시보드는 3000, 지도 제어는 8080, 사용자 웹은 7070, 사용자 세션 gateway는 3100을 사용한다. 내부 세션 API(3001)와 rosbridge(9090)는 loopback 전용이다. 브라우저는 인증된 대시보드의 `/ws/admin`과 `/navigation/` 프록시로 접근한다. 기동 전 공유 내부 토큰과 인증 설정은 [대시보드 인증 절차](../../web/README.md#access-and-authentication)를 따른다.
 
 **합격기준:** 구성 노드가 종료되지 않고 대시보드·지도·스캔이 표시됨. 출발 전 AMM 40-20을 수행한다.
 
@@ -469,7 +469,7 @@ P1에서 복구할 범위는 합성 LiDAR 매핑/지도 저장, HRI→Nav2→TTA
 | TTA 계수가 학습되지 않음                     | 새 LiDAR stamp, encoder 부호, 제한기 후 입력의 stamp와 0.15초 응답 지연 확인 | 정지·과도 구간의 학습 억제는 정상. 누락/오래된 applied 샘플의 기록·통신 경로 점검 |
 | 지도는 보이나 HRI 목적지 없음                | goals 파일, map_key, 중복 이름, free cell 확인                               | 현재 지도에서 목적지 다시 저장                                                    |
 | 스캔이 반대 방향                             | 실제 장착 방향 및 laser_yaw, 초기 yaw 비교                                   | 측정한 외부 파라미터로 재기동                                                     |
-| 웹 연결만 되고 상태 없음                     | WebSocket 9090, ROS domain, rosapi 프로세스 확인                             | 동일 도메인으로 재연결                                                            |
+| 웹 연결만 되고 상태 없음                     | 대시보드 로그인·`/ws/admin`, ROS domain, rosapi 확인                             | 동일 도메인으로 재연결                                                            |
 | Navigation 프록시 503                        | 로컬 8080 viewer 동작 여부 확인                                              | viewer 원인 해결 후 통합 재기동                                                   |
 | 웹 명령 403                                  | 오래된 세션, CSRF, 다른 origin 여부                                          | 동일 대시보드 주소 새로고침                                                       |
 | API가 HTML 반환                              | 오래된 dashboard 설치 자산/서버 여부                                         | frontend build → ROS build → 재기동                                               |

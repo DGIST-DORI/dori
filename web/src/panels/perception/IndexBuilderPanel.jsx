@@ -1,3 +1,4 @@
+import { apiFetch } from '../../core/api';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import './IndexBuilderPanel.css';
 import { normalizePollLines } from './logUtils';
@@ -51,7 +52,7 @@ function IndexBuilderPanel() {
 
   const fetchIndexInfo = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/index-info`);
+      const res = await apiFetch(`${API}/index-info`);
       if (!res.ok) {
         setIndexInfo(DEFAULT_INDEX_INFO);
         return;
@@ -75,7 +76,7 @@ function IndexBuilderPanel() {
     appendLog(`Starting ${incremental ? 'incremental' : 'full'} index rebuild…`);
 
     try {
-      const res = await fetch(`${API}/build-index`, {
+      const res = await apiFetch(`${API}/build-index`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -92,7 +93,7 @@ function IndexBuilderPanel() {
 
       pollRef.current = setInterval(async () => {
         const currentCursor = cursorRef.current;
-        const r = await fetch(`${API}/build-index/status/${jobId}?cursor=${currentCursor}`);
+        const r = await apiFetch(`${API}/build-index/status/${jobId}?cursor=${currentCursor}`);
         const d = await r.json();
         appendPolledLines(d.new_lines);
         if (typeof d.next_cursor === 'number') {

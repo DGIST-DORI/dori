@@ -1,3 +1,4 @@
+import { apiFetch } from '../../core/api';
 /**
  * DeployStatusPanel.jsx — Deploy pipeline status monitor
  *
@@ -79,7 +80,7 @@ export function DeployStatusPanel({ className = '' }) {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch('/api/deploy/status');
+      const res = await apiFetch('/api/deploy/status');
       if (!res.ok) return;
       const data = await res.json();
       setJob(data);
@@ -104,7 +105,7 @@ export function DeployStatusPanel({ className = '' }) {
     setTrig(true);
     setTrigMsg(null);
     try {
-      const res = await fetch('/api/deploy/trigger', { method: 'POST' });
+      const res = await apiFetch('/api/deploy/trigger', { method: 'POST' });
       const data = await res.json();
       if (res.status === 409) {
         setTrigMsg({ type: 'warn', text: 'Already running' });

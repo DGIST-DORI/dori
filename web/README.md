@@ -47,22 +47,130 @@ If you need to run the dashboard standalone (without the desktop HRI stack):
 ros2 launch dori_dashboard dashboard.launch.py
 ```
 
-## Access
+## Access and authentication
 
-- Dashboard: `http://[Robot IP]:3000` (`backend_api.py` serves port 3000)
-- ROS WebSocket bridge: `ws://[Robot IP]:9090`
+The dashboard binds to `127.0.0.1:3000` in production. Open
+`https://dash.dgist-dori.xyz` through the dashboard tunnel. Both local and remote
+browsers use the same-origin `/ws/admin` proxy; port 9090 is loopback-only.
+The user gateway uses port 3100, and the display/internal API uses loopback port
+3001. Neither 3001 nor 9090 may appear in Cloudflare ingress.
 
-If dashboard startup fails, check whether runtime dependencies are installed in the ROS/Python environment: `fastapi`, `uvicorn`, `python-multipart`.
+Install the root `requirements-runtime.txt` in the ROS Python venv before
+building the dashboard package. It includes `PyJWT[crypto]` for RSA verification.
+The launch uses the repository `.venv/bin/python` when present. Both API scripts
+and their shared modules are included in the installed package.
 
-```text
-# Same machine (robot/local)
-http://localhost:3000
-ws://localhost:9090
+Before starting either API, set `DORI_INTERNAL_TOKEN` to a random secret of at
+least 32 characters in their shared environment (for example, generate one with
+`openssl rand -hex 32`). Missing/short secrets refuse startup, including direct
+script and uvicorn startup. Do not put secrets in source control.
 
-# Another device on same network (remote)
-http://[Robot IP]:3000
-ws://[Robot IP]:9090
+For normal operation, protect the **entire dashboard hostname**, including
+`/api/*`, `/navigation/*`, and `/ws/admin`, with Cloudflare Access. Configure:
+
+- `DORI_CF_TEAM_DOMAIN=https://YOUR-TEAM.cloudflareaccess.com`
+- `DORI_CF_AUDIENCE=<Access application AUD>`
+- `DORI_CF_ROLE_MAP=admin@example.org:admin,operator@example.org:control`
+
+The backend verifies RS256 signatures, issuer, audience, subject, and finite
+expiry. JWKS fetching runs outside the event loop with a three-second timeout
+and cached keys. Unmapped identities have viewer permissions. Cloudflare issues
+the production token; the application does not expose an unauthenticated token
+issuance endpoint. See [Cloudflare JWT validation](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/).
+
+For local fallback, configure a random `DORI_API_JWT_SECRET` of at least 32
+characters, optionally `DORI_API_JWT_ISSUER` and `DORI_API_JWT_AUDIENCE`, and issue
+a token **on the trusted host** using the same environment:
+
+```bash
+.venv/bin/python tools/auth/issue_dashboard_token.py --user operator --role admin --ttl 900
 ```
+
+Paste the result into the login screen. The shared API wrapper uses an HttpOnly,
+SameSite=Strict session cookie (Secure on HTTPS); tokens are never saved in
+localStorage/sessionStorage. The cookie expires within 15 minutes and never
+outlives the source JWT. This also authenticates the navigation iframe. API 401s
+return the UI to login. Logout clears the local session and tickets; Access
+logins additionally use Cloudflare's [logout endpoint](https://developers.cloudflare.com/cloudflare-one/access-controls/access-settings/session-management/).
+
+Static `Access` tokens are disabled unless `DORI_ENABLE_BREAK_GLASS=true` is
+explicitly set alongside `DORI_API_ACCESS_TOKENS=TOKEN=user:admin`. Enable only
+for an incident and remove afterwards. Admin WS connections obtain a 30-second,
+one-use ticket over the authenticated API; long-lived URL tokens are rejected.
+Origins, admin roles, session expiry and logout are checked; disconnecting either
+side cancels the other forwarding task. Authentication sessions/tickets are
+in memory: use one API worker, and expect re-login after a restart.
+
+`DORI_DEV_MODE=true` deliberately exposes the HTTP listeners on the LAN for
+development; it does not expose rosbridge or disable authentication. Prefer
+HTTPS or an SSH port forward when entering a token. For Vite development,
+`/api`, `/navigation`, and `/ws` are proxied to localhost:3000.
+
+## Dashboard control contract
+
+`DORI_CONTROL_EXECUTOR=dry-run` remains the default. Live control requires
+`DORI_CONTROL_EXECUTOR=bridge` in **both** backend and bridge environments.
+The removed `ros2_cli` executor is rejected instead of silently publishing.
+
+- `move`: normalized manual joystick values, **not** SI velocity; `linear_x`
+  is in [-0.8, 0.8], `linear_y` must be 0, and `angular_z` is in [-1, 1].
+  NaN, infinity, booleans and strings are rejected at both API boundaries.
+- The persistent bridge publisher targets `/manual/cmd_vel`, which goes through
+  the supervisor. Move requires manual mode, idle/drive state, a supervisor
+  subscriber, and no other manual publisher (stop the joystick/keyboard input
+  process before this test). Commands must be refreshed within 0.5 seconds.
+- The bridge's ROS-thread watchdog latches `/emergency_stop` when refreshes stop
+  or another manual publisher appears. The downstream drive controller's
+  existing 0.3-second command timeout also stops output if the bridge crashes.
+- Both user WS `STOP` and API `stop` publish `/emergency_stop` plus `/dori/hri/cancel`.
+  The supervisor prevents subsequent manual/auto commands from overriding this
+  latch. A local operator must explicitly resume using the existing emergency-go
+  procedure; the web API does not automatically clear a stop.
+- `set_mode` supports only `manual` (Int32 0) and `auto` (Int32 1), published to
+  `/control_mode_cmd`. `dock`, `idle`, and `safe` are not supervisor control modes.
+- Pairing/LLM/BT traffic uses the actual `/dori` namespace. Low-level hardware
+  input topics retain their existing absolute names.
+
+## Deployment checks and review status (2026-11-03)
+
+The review found session DELETE constant-time comparison, nonce invalidation,
+loopback rosbridge and removal of the 9090 quick tunnel already implemented.
+This revision removes fixed IPC-secret fallback, fixes installed bridge scripts,
+adds CF issuer/expiry checks and nonblocking JWKS, replaces raw control with the
+supervisor/deadman path, and supplies browser login plus one-use WS tickets.
+`DORI_WS_URL` and the old `ws_url` launch option no longer select a raw ROS tunnel.
+
+On the reviewed host, `/etc/cloudflared/config.yml` and the user config contain
+only dashboard:3000, app:3100 and a 404 catch-all. None of 3000, 3001, 3100, 9090
+was listening at inspection. **UFW is not installed.** Running Cloudflare Access
+policy, post-restart port exposure, and physical stopping distance are not yet
+verified by these code tests.
+
+Validation for this revision: 31 related Python tests passed (session/auth,
+control deadman, launch/packaging and documentation), frontend lint/tests/build
+passed, and an isolated colcon build installed both API scripts, shared modules,
+and the console entrypoint. Installed scripts were imported without starting
+servers or ROS nodes. Tests used `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1` because the
+host's ROS `launch_testing` plugin is incompatible with pytest 9; thread-based
+tests ran outside the sandbox after a minimal asyncio example reproduced its
+thread-notification restriction. Existing uvicorn/websockets deprecation
+warnings remain. No live robot motion or production service restart was tested.
+
+Before production acceptance:
+
+1. Rebuild/install `dori_dashboard` with the current frontend, supply the shared
+   IPC secret and actual Access team/AUD/role mapping, and start the dashboard.
+2. Check `ss -ltnp`: 3000/3001/3100/9090 must be loopback in production. Verify
+   `/internal/session` returns 404 on 3100 and raw 9090 is unreachable from LAN.
+3. Validate the active cloudflared ingress as well as the local config. `ws.`
+   must have no route to 9090; `/ws/admin` must reject unauthenticated upgrades.
+4. Apply the host's approved firewall policy. For UFW, install it, preserve
+   existing SSH/Tailscale/ROS management access, and block inbound TCP 3001/9090
+   on non-loopback interfaces. Confirm management ports/subnets before enabling
+   a previously absent firewall; enabling UFW was not part of this code test.
+5. With wheels lifted and an operator at the stop switch, verify manual/auto
+   priority, STOP latch, a lost browser connection, bridge termination, and the
+   measured stopping distance. Keep dry-run until this acceptance is complete.
 
 For broader project context, see the root README: [../README](../README.md).
 
@@ -127,8 +235,8 @@ System panels include `Event Log` and `Topic Publisher`, located at
 
 ### 출력 검증 절차 (공통)
 
-1. 원격 장치(PC/모바일 브라우저)에서 대시보드 접속: `http://[Robot IP]:3000`.
-2. Settings > Connection 에서 WS 연결: `ws://[Robot IP]:9090`.
+1. 원격 장치(PC/모바일 브라우저)에서 대시보드 접속: `https://dash.dgist-dori.xyz`.
+2. Settings > Connection 에서 WS 연결: `wss://dash.dgist-dori.xyz/ws/admin`.
 3. `Execution Profile=Sim` 설정 후 Client Mic/Cam 활성화.
 4. STT Panel에서 mic 녹음 전송 후 `stt/audio_input`(런타임 `/dori/stt/audio_input`) 수신 확인.
 5. Vision Panel에서 프레임 publish 후 `perception/vision/image/compressed`(런타임 `/dori/perception/vision/image/compressed`) 수신 확인.
@@ -150,5 +258,5 @@ System panels include `Event Log` and `Topic Publisher`, located at
 | HTTPS               | 모바일에서 재생이 시작되지 않음     | 원격 접속 URL이 HTTPS인지 확인(모바일 정책상 필요 가능).                                              |
 | User gesture        | 재생 요청은 보냈지만 음성이 무음    | 재생 버튼 탭/클릭 등 사용자 제스처 이후 재시도.                                                       |
 | AudioContext resume | 브라우저 콘솔에 suspended 상태      | 개발자도구에서 `AudioContext` 상태 확인 후 resume 트리거.                                             |
-| WS 연결             | 패널 값/이벤트가 갱신되지 않음      | Settings > Connection 상태 및 `ws://[Robot IP]:9090` 연결 상태 확인.                                  |
+| WS 연결             | 패널 값/이벤트가 갱신되지 않음      | Settings > Connection 상태 및 `wss://dash.dgist-dori.xyz/ws/admin` 연결 상태 확인.                                  |
 | 토픽 수신           | STT/Vision/TTS 경로가 동작하지 않음 | `stt/audio_input`, `perception/vision/image/compressed` 등 토픽 수신 여부를 `ros2 topic echo`로 확인. |

@@ -5,15 +5,18 @@ import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
+import sys
 from unittest.mock import AsyncMock, Mock, patch
 
 from starlette.websockets import WebSocket
+from fastapi import HTTPException, Response
 
 
 BRIDGE_PATH = (
     Path(__file__).resolve().parents[2]
     / "ros2_ws/src/dori_dashboard/dori_dashboard/bridge_api.py"
 )
+sys.path.insert(0, str(BRIDGE_PATH.parent))
 SPEC = importlib.util.spec_from_file_location("bridge_api_under_test", BRIDGE_PATH)
 bridge = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(bridge)
@@ -59,7 +62,7 @@ class BridgeAPITests(unittest.IsolatedAsyncioTestCase):
         self.manager = bridge.SessionManager()
         self.ros = SimpleNamespace(
             trigger_pairing_success=Mock(),
-            pub_cancel=Mock(),
+            request_stop=Mock(),
             execute_cleanup=AsyncMock(return_value=True),
         )
         self.clock = Mock(return_value=100.0)
@@ -111,13 +114,13 @@ class BridgeAPITests(unittest.IsolatedAsyncioTestCase):
                 self.assertIs(self.manager.active_ws, connection.websocket)
                 self.assertEqual(self.manager.last_activity, 100.0)
                 self.assertIsNone(self.manager.grace_task)
-        self.ros.pub_cancel.publish.assert_not_called()
+        self.ros.request_stop.assert_not_called()
         await connection.feed({
             "type": "websocket.receive",
             "text": '{"type": "command", "action": "STOP"}',
         })
-        self.ros.pub_cancel.publish.assert_called_once()
-        self.assertTrue(self.ros.pub_cancel.publish.call_args.args[0].data)
+        self.ros.request_stop.assert_called_once()
+        self.ros.request_stop.assert_called_once_with()
         self.assertEqual(self.manager.last_activity, 110.0)
 
     async def test_idle_watcher_expires_without_incoming_messages(self):
@@ -191,6 +194,19 @@ class BridgeAPITests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.manager.state, bridge.SessionState.ACTIVE)
         self.assertNotIn(self.manager.idle_task, old_tasks)
 
+    async def test_pairing_consumes_all_nonces_and_serializes_competing_requests(self):
+        await self.manager.end_session()
+        with patch.object(bridge, "nonce_manager", bridge.NonceManager()):
+            nonces = [bridge.nonce_manager.generate() for _ in range(3)]
+            results = await asyncio.gather(*(
+                bridge.pair_device(bridge.PairRequest(nonce=nonce, consent=True), Response())
+                for nonce in nonces[:2]
+            ), return_exceptions=True)
+            self.assertEqual(sum(isinstance(result, dict) for result in results), 1)
+            failures = [result for result in results if isinstance(result, HTTPException)]
+            self.assertEqual([result.status_code for result in failures], [409])
+            self.assertEqual(bridge.nonce_manager.nonces, {})
+
     async def test_max_and_grace_watchers_can_end_without_cancelling_themselves(self):
         for timeout in ("SESSION_MAX_TIME", "GRACE_TIMEOUT"):
             with self.subTest(timeout=timeout), patch.object(bridge, timeout, 0):
@@ -218,10 +234,10 @@ class BridgeAPITests(unittest.IsolatedAsyncioTestCase):
             {"bytes": b"x" * (bridge.MAX_WS_MSG_SIZE + 1)},
         ):
             await connection.feed({"type": "websocket.receive", **frame})
-        self.ros.pub_cancel.publish.assert_not_called()
+        self.ros.request_stop.assert_not_called()
         self.assertEqual(self.manager.last_activity, 100.0)
         await connection.feed({"type": "websocket.receive", "text": at_limit})
-        self.ros.pub_cancel.publish.assert_called_once()
+        self.ros.request_stop.assert_called_once()
         self.assertEqual(self.manager.state, bridge.SessionState.ACTIVE)
 
     async def test_public_server_config_limits_messages_at_transport(self):

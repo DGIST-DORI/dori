@@ -1,3 +1,4 @@
+import { apiFetch } from '../../core/api';
 import { useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import './MenuParserPanel.css';
@@ -49,7 +50,7 @@ function MenuParserPanel() {
     files.forEach((f) => fd.append('files', f));
 
     try {
-      const res = await fetch(`${API}/parse-menu`, { method: 'POST', body: fd });
+      const res = await apiFetch(`${API}/parse-menu`, { method: 'POST', body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail ?? res.statusText);
 

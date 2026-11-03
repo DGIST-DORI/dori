@@ -1,3 +1,4 @@
+import { apiFetch } from '../../core/api';
 import { useEffect, useRef, useState } from 'react';
 import './CampusCrawlerPanel.css';
 
@@ -100,7 +101,7 @@ function CampusCrawlerPanel() {
 
   async function pollJobStatus(jobId) {
     try {
-      const res = await fetch(`${API}/crawl-campus/status/${jobId}`);
+      const res = await apiFetch(`${API}/crawl-campus/status/${jobId}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail ?? res.statusText);
 
@@ -150,7 +151,7 @@ function CampusCrawlerPanel() {
     appendLog('Starting campus crawl job…');
 
     try {
-      const res = await fetch(`${API}/crawl-campus`, {
+      const res = await apiFetch(`${API}/crawl-campus`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),

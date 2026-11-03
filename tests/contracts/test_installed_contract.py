@@ -248,6 +248,7 @@ def inspect_launch(package, filename, overrides):
 
 @pytest.fixture
 def no_process_launch(monkeypatch, tmp_path):
+    monkeypatch.setenv("DORI_INTERNAL_TOKEN", "test-only-internal-secret-32-characters")
     def forbidden(*args, **kwargs):
         raise AssertionError("A launch test attempted to execute a process")
 

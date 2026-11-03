@@ -21,9 +21,10 @@ Usage:
   python3 backend_api.py [--port 3000] [--repo-root /path/to/dori] [--web-dir /path/to/web]
 """
 
+from contextlib import asynccontextmanager
 import argparse
+import math
 import asyncio
-import base64
 import hashlib
 import hmac
 import json
@@ -41,12 +42,14 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 import jwt
 from jwt import PyJWKClient
 import secrets
 import websockets
 
 from fastapi import (
+    Cookie,
     Depends,
     FastAPI,
     File,
@@ -57,7 +60,7 @@ from fastapi import (
     UploadFile,
 )
 
-from fastapi import WebSocket, WebSocketDisconnect
+from fastapi import WebSocket
 from fastapi.responses import Response, RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -67,6 +70,13 @@ try:
     from dori_llm.paths import find_repo_root as _shared_find_repo_root
 except Exception:
     _shared_find_repo_root = None
+
+try:
+    from .control_contract import validate_control
+    from .internal_auth import internal_token
+except ImportError:
+    from control_contract import validate_control
+    from internal_auth import internal_token
 
 # ── Path resolution ────────────────────────────────────────────────────────────
 
@@ -136,7 +146,15 @@ _crawl_jobs: dict[str, dict] = {}
 
 # ── App ────────────────────────────────────────────────────────────────────────
 
-app = FastAPI(title="DORI Backend API", version="1.0.0")
+@asynccontextmanager
+async def lifespan(app):
+    internal_token()
+    if _CONTROL_EXECUTOR not in ("dry-run", "bridge"):
+        raise RuntimeError("DORI_CONTROL_EXECUTOR must be dry-run or bridge; ros2_cli was removed")
+    yield
+
+
+app = FastAPI(title="DORI Backend API", version="1.0.0", lifespan=lifespan)
 logger = logging.getLogger(__name__)
 
 _DEFAULT_ALLOWED_ORIGINS = ("https://dash.dgist-dori.xyz",)
@@ -173,7 +191,7 @@ async def enforce_origin_allowlist(request: Request, call_next):
         return await call_next(request)
 
     # 개발 모드일 때 로컬호스트 접근 무조건 허용
-    if _DEV_MODE and ("localhost" in origin or "127.0.0.1" in origin):
+    if _DEV_MODE and urlsplit(origin).hostname in ("localhost", "127.0.0.1", "::1"):
         return await call_next(request)
 
     logger.warning(
@@ -189,9 +207,9 @@ async def enforce_origin_allowlist(request: Request, call_next):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_ALLOWED_ORIGINS,
-    allow_credentials=False,
-    allow_methods=["GET", "POST", "PUT", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Access", "Content-Type", "X-Requested-With"],
 )
 
 # ── AuthN/AuthZ ───────────────────────────────────────────────────────────────
@@ -204,15 +222,27 @@ _ACCESS_ROLE_MAP_RAW = os.environ.get("DORI_API_ACCESS_TOKENS", "").strip()
 
 _CF_TEAM_DOMAIN = os.environ.get(
     "DORI_CF_TEAM_DOMAIN", ""
-).strip()  # 예: https://your-team.cloudflareaccess.com
+).strip().rstrip("/")  # https://your-team.cloudflareaccess.com
 _CF_AUDIENCE = os.environ.get("DORI_CF_AUDIENCE", "").strip()
 _CF_ROLE_MAP_RAW = os.environ.get(
     "DORI_CF_ROLE_MAP", ""
 ).strip()  # 예: admin@dgist.ac.kr:admin,op@dgist.ac.kr:control
 
+if _CF_TEAM_DOMAIN and not re.fullmatch(r"https://[a-zA-Z0-9-]+\.cloudflareaccess\.com", _CF_TEAM_DOMAIN):
+    raise RuntimeError("DORI_CF_TEAM_DOMAIN must be an HTTPS Cloudflare Access team domain")
 _jwks_client = (
-    PyJWKClient(f"{_CF_TEAM_DOMAIN}/cdn-cgi/access/certs") if _CF_TEAM_DOMAIN else None
+    PyJWKClient(f"{_CF_TEAM_DOMAIN}/cdn-cgi/access/certs", timeout=3, lifespan=300)
+    if _CF_TEAM_DOMAIN else None
 )
+_jwks_lock = threading.Lock()
+_cf_verifications = asyncio.Semaphore(4)
+_BREAK_GLASS_ENABLED = os.environ.get("DORI_ENABLE_BREAK_GLASS", "").lower() in ("1", "true", "yes")
+_AUTH_COOKIE = "dori_admin_session"
+_AUTH_SESSION_TTL = 900
+_WS_TICKET_TTL = 30
+_auth_sessions: dict[str, tuple[float, "AuthPrincipal"]] = {}
+_ws_tickets: dict[str, tuple[float, "AuthPrincipal", str]] = {}
+
 
 
 @dataclass(frozen=True)
@@ -220,6 +250,7 @@ class AuthPrincipal:
     user_id: str
     roles: frozenset[str]
     auth_type: str
+    expires_at: float = 0.0
 
 
 def _parse_access_role_map(raw: str) -> dict[str, AuthPrincipal]:
@@ -273,20 +304,33 @@ def _get_cf_roles(email: str) -> frozenset[str]:
     return frozenset({"viewer"})
 
 
+def _token_expiry(payload: dict) -> float:
+    value = payload.get("exp")
+    if type(value) not in (int, float) or not math.isfinite(value) or value <= time.time():
+        raise ValueError("exp must be a finite future NumericDate")
+    return float(value)
+
+
 def _verify_cf_jwt(token: str) -> AuthPrincipal:
     if not _jwks_client or not _CF_AUDIENCE:
         raise HTTPException(401, "Cloudflare Access not configured")
     try:
-        signing_key = _jwks_client.get_signing_key_from_jwt(token)
+        # This entire function runs on a worker, including cache misses and RSA.
+        with _jwks_lock:
+            signing_key = _jwks_client.get_signing_key_from_jwt(token)
         payload = jwt.decode(
-            token, signing_key.key, algorithms=["RS256"], audience=_CF_AUDIENCE
+            token, signing_key.key, algorithms=["RS256"], audience=_CF_AUDIENCE,
+            issuer=_CF_TEAM_DOMAIN, options={"require": ["exp", "iss", "aud", "sub"]},
         )
+        expires_at = _token_expiry(payload)
         email = payload.get("email", "unknown")
+        if not isinstance(email, str):
+            raise ValueError("invalid email")
         return AuthPrincipal(
-            user_id=email, roles=_get_cf_roles(email), auth_type="cf_access"
+            user_id=email, roles=_get_cf_roles(email), auth_type="cf_access", expires_at=expires_at
         )
-    except Exception as e:
-        raise HTTPException(401, f"CF Access token invalid: {str(e)}")
+    except Exception:
+        raise HTTPException(401, "CF Access token invalid") from None
 
 
 def _verify_fallback_jwt(token: str) -> AuthPrincipal:
@@ -319,18 +363,21 @@ def _verify_fallback_jwt(token: str) -> AuthPrincipal:
             roles = frozenset()
 
         return AuthPrincipal(
-            user_id=user_id, roles=roles or frozenset({"viewer"}), auth_type="jwt"
+            user_id=user_id, roles=roles or frozenset({"viewer"}), auth_type="jwt",
+            expires_at=_token_expiry(payload)
         )
-    except Exception as e:
-        raise HTTPException(401, f"Fallback JWT invalid: {str(e)}")
+    except Exception:
+        raise HTTPException(401, "Fallback JWT invalid") from None
 
 
-def _authenticate_request(
-    authorization: str | None, access: str | None, cf_assertion: str | None
+async def _authenticate_request(
+    authorization: str | None, access: str | None, cf_assertion: str | None,
+    session_cookie: str | None = None,
 ) -> AuthPrincipal:
     # 1. Cloudflare Access 헤더 최우선 검증
     if cf_assertion:
-        return _verify_cf_jwt(cf_assertion)
+        async with _cf_verifications:
+            return await asyncio.to_thread(_verify_cf_jwt, cf_assertion)
 
     # 2. LAN 비상용 Bearer 토큰 검증
     if authorization and authorization.startswith(f"{_AUTH_TOKEN_HEADER} "):
@@ -339,11 +386,17 @@ def _authenticate_request(
             return _verify_fallback_jwt(bearer)
 
     # 3. 정적 Access 토큰 검증 (타이밍 공격 방지를 위해 compare_digest 사용)
-    if access:
+    if access and _BREAK_GLASS_ENABLED:
         token = access.strip()
         for valid_token, principal in _ACCESS_ROLE_MAP.items():
-            if secrets.compare_digest(valid_token, token):
+            if secrets.compare_digest(valid_token.encode(), token.encode()):
                 return principal
+
+    if session_cookie and not authorization and not access:
+        record = _auth_sessions.get(session_cookie)
+        if record and record[0] > time.time():
+            return record[1]
+        _auth_sessions.pop(session_cookie, None)
 
     raise HTTPException(
         status_code=401,
@@ -369,13 +422,12 @@ def require_permission(required: Literal["view", "control", "admin"]):
         request: Request,
         authorization: str | None = Header(default=None),
         access: str | None = Header(default=None, alias="Access"),
-        cf_assertion: str | None = Header(
-            default=None, alias="Cf-Access-Jwt-Assertion"
-        ),
+        cf_assertion: str | None = Header(default=None, alias="Cf-Access-Jwt-Assertion"),
+        session_cookie: str | None = Cookie(default=None, alias=_AUTH_COOKIE),
     ) -> AuthPrincipal:
         principal: AuthPrincipal | None = None
         try:
-            principal = _authenticate_request(authorization, access, cf_assertion)
+            principal = await _authenticate_request(authorization, access, cf_assertion, session_cookie)
         except HTTPException:
             _log_auth_event(request, principal=None, required=required, status_code=401)
             raise
@@ -392,6 +444,71 @@ def require_permission(required: Literal["view", "control", "admin"]):
         return principal
 
     return _dependency
+
+
+def _prune_auth_records():
+    now = time.time()
+    for records in (_auth_sessions, _ws_tickets):
+        for key, record in list(records.items()):
+            if record[0] <= now:
+                records.pop(key, None)
+
+
+def _auth_payload(principal):
+    return {"user_id": principal.user_id, "roles": sorted(principal.roles), "auth_type": principal.auth_type}
+
+
+@app.get("/api/auth/session")
+async def auth_session(principal: AuthPrincipal = Depends(require_permission("view"))):
+    return JSONResponse(_auth_payload(principal), headers={"Cache-Control": "no-store"})
+
+
+@app.post("/api/auth/session")
+async def login_session(request: Request, principal: AuthPrincipal = Depends(require_permission("view"))):
+    _prune_auth_records()
+    if len(_auth_sessions) >= 1024:
+        raise HTTPException(503, "Too many login sessions")
+    expiry = min(time.time() + _AUTH_SESSION_TTL, principal.expires_at or float("inf"))
+    # Exchanging an existing cookie must never extend its original lifetime.
+    old = _auth_sessions.pop(request.cookies.get(_AUTH_COOKIE, ""), None)
+    if old:
+        expiry = min(expiry, old[0])
+    token = secrets.token_urlsafe(32)
+    _auth_sessions[token] = (expiry, principal)
+    response = JSONResponse(_auth_payload(principal), headers={"Cache-Control": "no-store"})
+    response.set_cookie(_AUTH_COOKIE, token, httponly=True, secure=request.url.scheme == "https",
+                        samesite="strict", max_age=max(0, int(expiry - time.time())), path="/")
+    return response
+
+
+@app.delete("/api/auth/session")
+async def logout_session(request: Request):
+    cookie = request.cookies.get(_AUTH_COOKIE, "")
+    _auth_sessions.pop(cookie, None)
+    for ticket, record in list(_ws_tickets.items()):
+        if record[2] == cookie:
+            _ws_tickets.pop(ticket, None)
+    response = JSONResponse({
+        "ok": True,
+        "logout_url": "/cdn-cgi/access/logout" if request.headers.get("Cf-Access-Jwt-Assertion") else None,
+    }, headers={"Cache-Control": "no-store"})
+    response.delete_cookie(_AUTH_COOKIE, path="/")
+    return response
+
+
+@app.post("/api/auth/ws-ticket")
+async def issue_ws_ticket(request: Request, principal: AuthPrincipal = Depends(require_permission("admin"))):
+    _prune_auth_records()
+    if len(_ws_tickets) >= 1024:
+        raise HTTPException(429, "Too many outstanding tickets")
+    ticket = secrets.token_urlsafe(32)
+    cookie = request.cookies.get(_AUTH_COOKIE, "")
+    expiry = min(time.time() + _WS_TICKET_TTL, principal.expires_at or float("inf"))
+    if cookie in _auth_sessions:
+        expiry = min(expiry, _auth_sessions[cookie][0])
+    _ws_tickets[ticket] = (expiry, principal, cookie)
+    return JSONResponse({"ticket": ticket, "expires_in": max(0, int(expiry - time.time()))},
+                        headers={"Cache-Control": "no-store"})
 
 
 def _resolve_web_dir() -> Path | None:
@@ -421,9 +538,11 @@ async def navigation_redirect():
 
 @app.api_route("/navigation/{path:path}", methods=["GET", "POST"])
 async def navigation_proxy(
-    path: str, request: Request, _: AuthPrincipal = Depends(require_permission("view"))
+    path: str, request: Request, principal: AuthPrincipal = Depends(require_permission("view"))
 ):
     """Keep map assets, CSRF and control leases on the dashboard origin."""
+    if request.method == "POST" and not _has_permission(principal, "control"):
+        raise HTTPException(403, "Control permission required")
     if path not in (
         "",
         "app.js",
@@ -960,8 +1079,6 @@ async def update_building(
 _CONTROL_EXECUTOR = (
     os.environ.get("DORI_CONTROL_EXECUTOR", "dry-run").strip().lower() or "dry-run"
 )
-_CONTROL_ACTIONS = frozenset({"move", "stop", "set_mode"})
-_CONTROL_MODES = frozenset({"manual", "auto", "dock", "idle", "safe"})
 _CONTROL_RATE_LIMITS = {
     # action -> (max_requests, window_seconds)
     "move": (10, 1.0),
@@ -970,17 +1087,6 @@ _CONTROL_RATE_LIMITS = {
 }
 _control_rate_events: dict[tuple[str, str], list[float]] = {}
 _control_rate_lock = threading.Lock()
-
-
-def _validate_float_range(
-    value, *, field: str, min_value: float, max_value: float
-) -> float:
-    if not isinstance(value, (int, float)):
-        raise HTTPException(400, f"{field} must be a number")
-    normalized = float(value)
-    if normalized < min_value or normalized > max_value:
-        raise HTTPException(400, f"{field} must be in range [{min_value}, {max_value}]")
-    return normalized
 
 
 def _enforce_control_rate_limit(principal: AuthPrincipal, action: str) -> None:
@@ -1005,105 +1111,21 @@ def _enforce_control_rate_limit(principal: AuthPrincipal, action: str) -> None:
 
 
 async def _execute_control_action(action: str, params: dict) -> dict:
-    """
-    Execute a validated control action through a constrained backend interface.
-
-    Default mode is dry-run for safety. To enable ROS2 CLI execution:
-      DORI_CONTROL_EXECUTOR=ros2_cli
-    """
-    if _CONTROL_EXECUTOR != "ros2_cli":
-        return {
-            "executor": _CONTROL_EXECUTOR,
-            "executed": False,
-            "detail": "dry-run mode: validated but not published to ROS network",
-        }
-
-    ros2_exec = shutil.which("ros2")
-    if not ros2_exec:
-        raise HTTPException(
-            status_code=500, detail="ros2 executable not found in system PATH"
-        )
-
-    if action == "move":
-        linear_x = params["linear_x"]
-        linear_y = params["linear_y"]
-        angular_z = params["angular_z"]
-        payload = (
-            "{linear: {x: "
-            + f"{linear_x:.4f}"
-            + ", y: "
-            + f"{linear_y:.4f}"
-            + ", z: 0.0}, "
-            "angular: {x: 0.0, y: 0.0, z: " + f"{angular_z:.4f}" + "}}"
-        )
-        cmd = [
-            ros2_exec,
-            "topic",
-            "pub",
-            "--once",
-            "cmd_vel",
-            "geometry_msgs/msg/Twist",
-            payload,
-        ]
-    elif action == "stop":
-        cmd = [
-            ros2_exec,
-            "topic",
-            "pub",
-            "--once",
-            "cmd_vel",
-            "geometry_msgs/msg/Twist",
-            "{linear: {x: 0.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}",
-        ]
-    elif action == "set_mode":
-        mode = params["mode"]
-        mode_payloads = {
-            "manual": '{data: "manual"}',
-            "auto": '{data: "auto"}',
-            "dock": '{data: "dock"}',
-            "idle": '{data: "idle"}',
-            "safe": '{data: "safe"}',
-        }
-        payload = mode_payloads.get(mode)
-        if payload is None:
-            raise HTTPException(400, "Unsupported mode")
-        cmd = [
-            ros2_exec,
-            "topic",
-            "pub",
-            "--once",
-            "dori/control/mode",  # TODO
-            "std_msgs/msg/String",
-            payload,
-        ]
-    else:
-        raise HTTPException(400, f"Unsupported action: {action}")
-
-    proc = await asyncio.create_subprocess_exec(
-        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-    )
-
+    if _CONTROL_EXECUTOR == "dry-run":
+        return {"executor": "dry-run", "executed": False,
+                "detail": "Validated only; move values are normalized joystick inputs"}
+    if _CONTROL_EXECUTOR != "bridge":
+        raise HTTPException(503, "Unsupported control executor; configure dry-run or bridge")
     try:
-        stdout_bytes, stderr_bytes = await asyncio.wait_for(
-            proc.communicate(), timeout=5.0
-        )
-    except asyncio.TimeoutError:
-        proc.kill()
-        raise HTTPException(502, "control action execution timed out")
-
-    if proc.returncode != 0:
-        stderr_str = stderr_bytes.decode().strip()
-        stdout_str = stdout_bytes.decode().strip()
-        raise HTTPException(
-            status_code=502,
-            detail=f"control action execution failed: {stderr_str or stdout_str or f'exit={proc.returncode}'}",
-        )
-
-    return {
-        "executor": _CONTROL_EXECUTOR,
-        "executed": True,
-        "detail": "published via ros2_cli",
-    }
+        async with httpx.AsyncClient(timeout=2.0, trust_env=False) as client:
+            resp = await client.post(f"{BRIDGE_API_URL}/internal/control",
+                                     headers={"X-Internal-Token": internal_token()},
+                                     json={"action": action, "params": params})
+        if resp.status_code != 200:
+            raise HTTPException(resp.status_code, "Bridge rejected control action")
+        return resp.json()
+    except (httpx.RequestError, RuntimeError):
+        raise HTTPException(503, "Control bridge unavailable") from None
 
 
 @app.post("/api/control/actions")
@@ -1115,39 +1137,7 @@ async def control_actions(
     Public-safe control API for external users.
     Only allowlisted actions are accepted, with strict validation and rate limiting.
     """
-    action = body.get("action")
-    params = body.get("params", {})
-    if not isinstance(action, str):
-        raise HTTPException(400, "action must be a string")
-    if not isinstance(params, dict):
-        raise HTTPException(400, "params must be an object")
-
-    action = action.strip().lower()
-    if action not in _CONTROL_ACTIONS:
-        raise HTTPException(400, f"action must be one of: {sorted(_CONTROL_ACTIONS)}")
-
-    validated: dict = {}
-    if action == "move":
-        validated["linear_x"] = _validate_float_range(
-            params.get("linear_x", 0.0), field="linear_x", min_value=-0.8, max_value=0.8
-        )
-        validated["linear_y"] = _validate_float_range(
-            params.get("linear_y", 0.0), field="linear_y", min_value=-0.8, max_value=0.8
-        )
-        validated["angular_z"] = _validate_float_range(
-            params.get("angular_z", 0.0),
-            field="angular_z",
-            min_value=-1.2,
-            max_value=1.2,
-        )
-    elif action == "set_mode":
-        mode = params.get("mode")
-        if not isinstance(mode, str):
-            raise HTTPException(400, "mode must be a string")
-        mode = mode.strip().lower()
-        if mode not in _CONTROL_MODES:
-            raise HTTPException(400, f"mode must be one of: {sorted(_CONTROL_MODES)}")
-        validated["mode"] = mode
+    action, validated = validate_control(body)
 
     _enforce_control_rate_limit(principal, action)
     exec_result = await _execute_control_action(action, validated)
@@ -1191,18 +1181,17 @@ async def admin_publish(
 # ── /api/admin/sessions (Bridge API 연동) ───────────────────────────────────
 
 BRIDGE_API_URL = "http://127.0.0.1:3001"
-_INTERNAL_TOKEN = os.environ.get("DORI_INTERNAL_TOKEN", "default-internal-secret")
 
 
 @app.get("/api/admin/sessions")
 async def admin_get_sessions(_: AuthPrincipal = Depends(require_permission("admin"))):
     """Get current user session status from bridge_api."""
     try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
+        async with httpx.AsyncClient(timeout=2.0, trust_env=False) as client:
             # 브릿지의 로컬 엔드포인트 호출
             resp = await client.get(
                 f"{BRIDGE_API_URL}/internal/session",
-                headers={"X-Internal-Token": _INTERNAL_TOKEN},
+                headers={"X-Internal-Token": internal_token()},
             )
         return Response(
             content=resp.content,
@@ -1218,10 +1207,10 @@ async def admin_get_sessions(_: AuthPrincipal = Depends(require_permission("admi
 async def admin_delete_session(_: AuthPrincipal = Depends(require_permission("admin"))):
     """Force terminate current user session in bridge_api."""
     try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
+        async with httpx.AsyncClient(timeout=30.0, trust_env=False) as client:
             resp = await client.delete(
                 f"{BRIDGE_API_URL}/internal/session",
-                headers={"X-Internal-Token": _INTERNAL_TOKEN},
+                headers={"X-Internal-Token": internal_token()},
             )
         return Response(
             content=resp.content,
@@ -1235,118 +1224,84 @@ async def admin_delete_session(_: AuthPrincipal = Depends(require_permission("ad
 
 @app.websocket("/ws/admin")
 async def admin_ws_proxy(websocket: WebSocket):
-    # 1. WS 인증 (CF Access 헤더 또는 LAN 비상용 쿼리파라미터)
-    cf_assertion = websocket.headers.get("Cf-Access-Jwt-Assertion")
-    access_query = websocket.query_params.get("access")
-
-    try:
-        principal = _authenticate_request(None, access_query, cf_assertion)
-        if not _has_permission(principal, "admin"):
-            await websocket.close(code=1008, reason="Admin permission required")
-            return
-    except HTTPException as e:
-        await websocket.close(code=1008, reason=str(e.detail))
+    origin = websocket.headers.get("origin", "").rstrip("/")
+    expected = f"{'https' if websocket.url.scheme == 'wss' else 'http'}://{websocket.url.netloc}"
+    if not origin or (origin != expected and origin not in _ALLOWED_ORIGIN_SET):
+        await websocket.close(code=1008, reason="Origin is not allowed")
         return
-
-    await websocket.accept()
-    logger.info(f"Admin WS connected: {principal.user_id}")
-
-    # 2. 로컬 무인증 rosbridge(9090)로 프록시 연결
+    cookie = ""
     try:
-        async with websockets.connect("ws://127.0.0.1:9090") as rosbridge_ws:
+        ticket = websocket.query_params.get("ticket", "")
+        if ticket:
+            record = _ws_tickets.pop(ticket, None)  # consume even on rejected use
+            if not record or record[0] <= time.time():
+                raise HTTPException(401, "Invalid or expired ticket")
+            _, principal, cookie = record
+            if cookie and cookie not in _auth_sessions:
+                raise HTTPException(401, "Login session ended")
+        else:
+            # Cloudflare injects the assertion when its cookie authenticates the
+            # upgrade. Raw long-lived access tokens in the URL are never accepted.
+            principal = await _authenticate_request(None, None, websocket.headers.get("Cf-Access-Jwt-Assertion"))
+        if not _has_permission(principal, "admin"):
+            raise HTTPException(403, "Admin permission required")
+    except HTTPException:
+        await websocket.close(code=1008, reason="Admin authentication required")
+        return
+    await websocket.accept()
+    try:
+        async with websockets.connect("ws://127.0.0.1:9090", max_size=2**20, open_timeout=3) as upstream:
+            async def to_ros():
+                while True:
+                    await upstream.send(await websocket.receive_text())
 
-            async def forward_to_rosbridge():
-                try:
-                    while True:
-                        data = await websocket.receive_text()
-                        await rosbridge_ws.send(data)
-                except WebSocketDisconnect:
-                    pass
-                except Exception as e:
-                    logger.debug(f"WS Client -> ROS error: {e}")
-
-            async def forward_to_client():
-                try:
-                    while True:
-                        data = await rosbridge_ws.recv()
+            async def to_browser():
+                async for data in upstream:
+                    if isinstance(data, bytes):
+                        await websocket.send_bytes(data)
+                    else:
                         await websocket.send_text(data)
-                except websockets.exceptions.ConnectionClosed:
-                    pass
-                except Exception as e:
-                    logger.debug(f"WS ROS -> Client error: {e}")
 
-            # 양방향 중계 시작
-            await asyncio.gather(forward_to_rosbridge(), forward_to_client())
+            async def expiry_watch():
+                deadline = min(time.time() + _AUTH_SESSION_TTL, principal.expires_at or float("inf"))
+                while time.time() < deadline:
+                    if cookie:
+                        record = _auth_sessions.get(cookie)
+                        if not record or record[0] <= time.time():
+                            break
+                    await asyncio.sleep(min(1.0, max(0, deadline - time.time())))
+                await websocket.close(code=1008, reason="Authentication expired")
 
-    except Exception as e:
-        logger.error(f"Failed to connect to local rosbridge: {e}")
+            tasks = [asyncio.create_task(coro()) for coro in (to_ros, to_browser, expiry_watch)]
+            try:
+                await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            finally:
+                for task in tasks:
+                    task.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
+    except Exception:
+        logger.warning("Admin WS upstream disconnected")
+    finally:
         try:
-            await websocket.close(code=1011, reason="Rosbridge unavailable")
-        except:
+            await websocket.close(code=1000)
+        except RuntimeError:
             pass
 
 
-# ── /api/tunnel-url ───────────────────────────────────────────────────────────
-# 터널 WS URL을 반환. 프론트엔드가 외부 접속 시 폴링해서 WS URL 기본값 자동 설정.
-#
-# 우선순위:
-#   1) 환경변수 DORI_WS_URL 이 설정되어 있으면 그 값을 사용 (고정 도메인용)
-#   2) cloudflared 로그 파싱 (trycloudflare.com 임시 터널용, 후순위)
-
-import re as _re
+# ── /api/tunnel-url ──────────────────────────────────────────────────────────
 import os as _os
-
-_CF_LOG_DASHBOARD = Path("/tmp/cloudflared_dashboard.log")
-_CF_LOG_WS = Path("/tmp/cloudflared_ws.log")
-_CF_URL_RE = _re.compile(r"https://[a-z0-9\-]+\.trycloudflare\.com")
-
-# 고정 도메인 환경변수 (dashboard.launch.py 또는 systemd 에서 주입)
-# 예: DORI_DASHBOARD_URL=https://dash.dgist-dori.xyz
-#     DORI_WS_URL=wss://ws.dgist-dori.xyz
-_FIXED_DASHBOARD_URL = _os.environ.get("DORI_DASHBOARD_URL", "").strip()
-_FIXED_WS_URL = _os.environ.get("DORI_WS_URL", "").strip()
-_EXPOSE_ROSBRIDGE_TUNNEL = _os.environ.get(
-    "DORI_EXPOSE_ROSBRIDGE_TUNNEL", ""
-).strip().lower() in ("1", "true", "yes")
-
-
-def _parse_tunnel_url(log_path: Path) -> str | None:
-    """Read a cloudflared log file and return the first trycloudflare URL found."""
-    try:
-        text = log_path.read_text(encoding="utf-8", errors="ignore")
-        match = _CF_URL_RE.search(text)
-        return match.group(0) if match else None
-    except Exception:
-        return None
 
 
 @app.get("/api/tunnel-url")
 async def get_tunnel_url(request: Request):
-    """
-    Return Cloudflare Tunnel public URL for the dashboard and (optionally) rosbridge.
-
-    Response:
-      { "dashboard_url": str|null, "ws_url": str|null, "ready": bool, "ws_exposed": bool }
-
-    Priority:
-      1) DORI_WS_URL / DORI_DASHBOARD_URL env vars (fixed custom domain)
-      2) cloudflared log parsing (trycloudflare.com quick tunnel, fallback)
-
-    ws_url must use wss:// — Cloudflare Tunnel always terminates TLS.
-    """
-    scheme = (
-        "wss"
-        if request.url.scheme == "https" or "trycloudflare" in request.url.netloc
-        else "ws"
-    )
-    default_admin_ws = f"{scheme}://{request.url.netloc}/ws/admin"
-
+    # The browser always upgrades on the authenticated dashboard origin.
+    # Ignore legacy DORI_WS_URL / rosbridge tunnel settings entirely.
+    scheme = "wss" if request.url.scheme == "https" else "ws"
     return {
-        "dashboard_url": _FIXED_DASHBOARD_URL
-        or f"{request.url.scheme}://{request.url.netloc}",
-        "ws_url": _FIXED_WS_URL or default_admin_ws,
+        "dashboard_url": str(request.base_url).rstrip("/"),
+        "ws_url": f"{scheme}://{request.url.netloc}/ws/admin",
         "ready": True,
-        "ws_exposed": False,  # rosbridge(9090)의 외부 직접 노출은 완전히 차단됨
+        "ws_exposed": False,
     }
 
 

@@ -1,3 +1,4 @@
+import { apiFetch } from '../../core/api';
 import { useState, useEffect, useCallback } from 'react';
 import './DocumentBrowserPanel.css';
 
@@ -11,7 +12,7 @@ function DocumentBrowserPanel() {
   const fetchDocs = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/documents`);
+      const res = await apiFetch(`${API}/documents`);
       if (res.ok) setDocs(await res.json());
     } catch { /* ignore */ }
     setLoading(false);
@@ -23,7 +24,7 @@ function DocumentBrowserPanel() {
     async function loadDocs() {
       setLoading(true);
       try {
-        const res = await fetch(`${API}/documents`);
+        const res = await apiFetch(`${API}/documents`);
         if (!cancelled && res.ok) setDocs(await res.json());
       } catch { /* ignore */ }
       if (!cancelled) setLoading(false);

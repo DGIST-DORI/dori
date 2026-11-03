@@ -43,11 +43,14 @@ setup(
         (os.path.join("share", package_name, "launch"), glob("launch/*.py")),
         (
             os.path.join("share", package_name, "scripts"),
-            ["dori_dashboard/backend_api.py"],
+            glob("dori_dashboard/*.py"),
         ),
     ]
     + collect_web_data_files(),
-    install_requires=["setuptools", "fastapi", "uvicorn", "python-multipart"],
+    install_requires=[
+        "setuptools", "fastapi", "uvicorn", "python-multipart",
+        "httpx>=0.27,<1", "websockets>=12,<16", "PyJWT[crypto]>=2.10.1,<3",
+    ],
     zip_safe=True,
     maintainer="ofbt",
     maintainer_email="jaewon1627@gmail.com",
