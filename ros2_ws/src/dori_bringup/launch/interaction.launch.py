@@ -1,4 +1,12 @@
+<<<<<<< Updated upstream
 """Executable HRI behavior tree using Ubuntu 22.04 / Humble's BT.CPP v4 ABI."""
+=======
+<<<<<<< Updated upstream
+"""Executable HRI behavior tree using Ubuntu 22.04 / Humble's BT.CPP v3 ABI."""
+=======
+"""Executable HRI behavior tree using ROS 2 Humble's Nav2-compatible BT.CPP v3."""
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument

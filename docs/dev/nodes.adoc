@@ -150,7 +150,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 *Actions (client)*:: <<actions.adoc#action-dori-llm-query,/llm/query>> (`dori_msgs/action/LLMQuery`), <<actions.adoc#action-dori-tts-speak,/tts/speak>> (`dori_msgs/action/Speak`), <<actions.adoc#action-dori-nav-navigate_to,/nav/navigate_to>> (`dori_msgs/action/Navigate`)
 *Parameters*:: See <<parameters.adoc#param-dori_tree_executor, dori_tree_executor parameters>>
 *Lifecycle*:: unmanaged
-*Dependencies*:: BehaviorTree.CPP v4, `nav2_behavior_tree`, `dori_msgs`
+*Dependencies*:: BehaviorTree.CPP v3 (`behaviortree_cpp_v3`), `nav2_msgs`, `dori_msgs`
 *Failure behavior*:: If action servers are unresponsive, BT action nodes tick failure/recovery branch as defined in tree XML.
 
 *Description*:: Central orchestrator executing the Behavior Tree (`dori_tree.xml`). Coordinates voice interaction, LLM query, TTS speech, and navigation via ROS 2 Action interfaces.

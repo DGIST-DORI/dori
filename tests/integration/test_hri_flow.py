@@ -85,6 +85,8 @@ def flow(tmp_path, request):
                    gesture=gesture, expression=expression, trigger=trigger, emotion=emotion,
                    log=tmp_path/'bt.log')
         assert proc.poll() is None, (tmp_path/'bt.log').read_text()
+        logfile.flush()
+        assert 'BTCPP_format' not in (tmp_path/'bt.log').read_text()
     finally:
         backend.finish = True
         mode.publish(Int32(data=0))

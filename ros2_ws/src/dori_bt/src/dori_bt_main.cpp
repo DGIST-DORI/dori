@@ -4,7 +4,7 @@
 #include "dori_msgs/action/speak.hpp"
 #include <algorithm>
 #include <ament_index_cpp/get_package_share_directory.hpp>
-#include <behaviortree_cpp/bt_factory.h>
+#include <behaviortree_cpp_v3/bt_factory.h>
 #include <chrono>
 #include <cmath>
 #include <deque>
@@ -446,7 +446,7 @@ class DoriTreeExecutor : public rclcpp::Node {
         if (pending_.empty() && (mode_ == "IDLE" || mode_ == "LISTENING"))
             return;
         try {
-            auto result = tree_.tickOnce();
+            auto result = tree_.tickRoot();
             if (result == BT::NodeStatus::FAILURE) {
                 interrupt("ERROR", false);
                 say("요청을 완료하지 못했습니다. 상태를 확인해주세요.");
