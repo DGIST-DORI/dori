@@ -18,7 +18,7 @@ Endpoints:
 
 Usage:
   pip install fastapi uvicorn python-multipart
-  python3 dashboard_api.py [--port 3000] [--repo-root /path/to/dori] [--web-dir /path/to/web]
+  python3 backend_api.py [--port 3000] [--repo-root /path/to/dori] [--web-dir /path/to/web]
 """
 
 import argparse
@@ -1072,7 +1072,7 @@ async def _execute_control_action(action: str, params: dict) -> dict:
             "topic",
             "pub",
             "--once",
-            "dori/control/mode",
+            "dori/control/mode",  # TODO
             "std_msgs/msg/String",
             payload,
         ]

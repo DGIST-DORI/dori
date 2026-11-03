@@ -9,6 +9,7 @@ To enable: ros2 launch dori_dashboard dashboard.launch.py tunnel:=true
 
 import os
 import shutil
+import secrets
 from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
@@ -77,47 +78,34 @@ def _make_tunnel_actions(context, *args, **kwargs):
         name="cloudflared_dashboard",
     )
 
-    ws_tunnel = ExecuteProcess(
-        cmd=[
-            "bash",
-            "-c",
-            "cloudflared tunnel --url http://localhost:9090 2>&1 | "
-            "tee /tmp/cloudflared_ws.log | "
-            r'grep --line-buffered -oP "https://[a-z0-9\-]+\.trycloudflare\.com" | '
-            "while read url; do "
-            '  echo ""; '
-            '  echo "╔══════════════════════════════════════════════════════╗"; '
-            '  echo "║  DORI ROS WebSocket (external)                      ║"; '
-            '  echo "║  Replace ws:// → wss:// when pasting into dashboard ║"; '
-            '  echo "║  $url"; '
-            '  echo "╚══════════════════════════════════════════════════════╝"; '
-            '  echo ""; '
-            "done",
-        ],
-        output="screen",
-        name="cloudflared_ws",
-    )
-
-    return [dashboard_tunnel, ws_tunnel]
+    return [dashboard_tunnel]
 
 
-def _make_api_server_action(context, *args, **kwargs):
+def _make_server_actions(context, *args, **kwargs):
     """OpaqueFunction: backend_api 를 환경변수와 함께 실행."""
     pkg_dir = get_package_share_directory("dori_dashboard")
     web_dir = os.path.join(pkg_dir, "web_current")
     if not os.path.isdir(web_dir):
         web_dir = os.path.join(pkg_dir, "web")
     repo_root = _resolve_repo_root(pkg_dir)
-    backend_api_script = os.path.join(pkg_dir, "scripts", "backend_api.py")
+
+    internal_token = os.environ.get("DORI_INTERNAL_TOKEN")
+    if not internal_token:
+        raise RuntimeError(
+            "DORI_INTERNAL_TOKEN is not set. Launch refused for security."
+        )
 
     dashboard_url = LaunchConfiguration("dashboard_url").perform(context)
     ws_url = LaunchConfiguration("ws_url").perform(context)
 
-    additional_env = {}
+    additional_env = {"DORI_INTERNAL_TOKEN": internal_token}
     if dashboard_url:
         additional_env["DORI_DASHBOARD_URL"] = dashboard_url
     if ws_url:
         additional_env["DORI_WS_URL"] = ws_url
+
+    backend_api_script = os.path.join(pkg_dir, "scripts", "backend_api.py")
+    bridge_api_script = os.path.join(pkg_dir, "scripts", "bridge_api.py")
 
     return [
         ExecuteProcess(
@@ -137,7 +125,16 @@ def _make_api_server_action(context, *args, **kwargs):
             respawn=True,
             respawn_delay=2.0,
             additional_env=additional_env,
-        )
+        ),
+        ExecuteProcess(
+            cmd=["python3", bridge_api_script],
+            output="both",
+            name="bridge_api_server",
+            emulate_tty=True,
+            respawn=True,
+            respawn_delay=2.0,
+            additional_env=additional_env,
+        ),
     ]
 
 
@@ -153,9 +150,6 @@ def generate_launch_description():
             f"'{web_dir}'. Build the frontend (web/dist), install dori_dashboard, and publish the "
             "completed static tree before launching the dashboard."
         )
-
-    repo_root = _resolve_repo_root(pkg_dir)
-    backend_api_script = os.path.join(pkg_dir, "scripts", "backend_api.py")
 
     return LaunchDescription(
         [
@@ -183,13 +177,19 @@ def generate_launch_description():
                 package="rosbridge_server",
                 executable="rosbridge_websocket",
                 name="rosbridge_websocket",
-                parameters=[{"port": 9090}],
+                parameters=[{"port": 9090, "address": "127.0.0.1"}],
+                namespace="/dori",
             ),
-            Node(package="rosapi", executable="rosapi_node", name="rosapi"),
+            Node(
+                package="rosapi",
+                executable="rosapi_node",
+                name="rosapi",
+                namespace="/dori",
+            ),
             # ── Unified dashboard server (frontend + API on port 3000) ────────
             # DORI_DASHBOARD_URL / DORI_WS_URL 환경변수로 고정 도메인 주입
             # backend_api 의 /api/tunnel-url 이 이 값을 1순위로 반환
-            OpaqueFunction(function=_make_api_server_action),
+            OpaqueFunction(function=_make_server_actions),
             # ── Cloudflare Tunnel (optional, default: enabled) ────────────────
             OpaqueFunction(function=_make_tunnel_actions),
         ]

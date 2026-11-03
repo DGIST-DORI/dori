@@ -300,13 +300,13 @@ class LLMNode(Node):
         self.registered = []
         self.create_subscription(
             String,
-            "/dori/nav/locations",
+            "nav/locations",
             self._on_locations,
             QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL),
         )
         self.create_service(
             Trigger,
-            "/dori/llm/reset",
+            "llm/reset",
             self._on_reset_history,
         )
         self.response_pub = self.create_publisher(String, "llm/response", 10)

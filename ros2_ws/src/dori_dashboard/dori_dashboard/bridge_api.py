@@ -80,29 +80,29 @@ class BridgeNode(Node):
     def __init__(self):
         super().__init__("bridge_api_node")
         # 하향(ROS -> WS) Subscriptions
-        self.create_subscription(String, "llm/text", self.llm_callback, 10)
+        self.create_subscription(String, "llm/response", self.llm_callback, 10)
 
         # 상향(WS -> ROS) & 제어용 Publishers
         self.pub_wake = self.create_publisher(Bool, "stt/wake_word_detected", 10)
         self.pub_chime = self.create_publisher(String, "hri/audio_cue", 10)
         self.pub_cmd_vel = self.create_publisher(Twist, "cmd_vel", 10)
-        self.pub_mode = self.create_publisher(String, "control/mode", 10)
-        self.pub_tts_cancel = self.create_publisher(Empty, "tts/cancel", 10)
-        self.pub_nav_cancel = self.create_publisher(
-            GoalID, "navigate_to_pose/_action/cancel", 10
-        )
-        self.pub_stop = self.create_publisher(Twist, "teleop_stop_vel", 10)
+        self.pub_cancel = self.create_publisher(Bool, "hri/cancel", 10)
 
         self.cli_llm_reset = self.create_client(Trigger, "llm/reset")
         self.cli_bt_clear = self.create_client(Trigger, "bt/clear_session")
 
     def llm_callback(self, msg):
-        # 활성 세션이 있으면 WS로 하향 전송
-        if session_manager.state == SessionState.ACTIVE and session_manager.active_ws:
+        try:
+            text = json.loads(msg.data).get("text", "")
+        except ValueError:
+            return
+        if (
+            text
+            and session_manager.state == SessionState.ACTIVE
+            and session_manager.active_ws
+        ):
             asyncio.run_coroutine_threadsafe(
-                session_manager.active_ws.send_json(
-                    {"type": "llm_text", "data": msg.data}
-                ),
+                session_manager.active_ws.send_json({"type": "llm_text", "data": text}),
                 loop=session_manager.main_loop,
             )
 
@@ -114,21 +114,10 @@ class BridgeNode(Node):
 
     async def execute_cleanup(self, timeout_sec: float = 5.0) -> bool:
         """로봇 정지 및 LLM 대화 기록 초기화를 수행한다."""
-        # 1. 로봇 정지 명령
-        self.pub_cmd_vel.publish(Twist())  # 영벡터 (임시)
-        self.pub_mode.publish(
-            String(data="idle")
-        )  # BT 모드를 IDLE로 복귀하여 Nav/행동 제어권 회수
-        self.pub_tts_cancel.publish(Empty())
-        self.pub_stop.publish(Twist())  # 정지 명령
+        self.pub_cancel.publish(Bool(data=True))
 
-        nav_cancel_msg = GoalID()
-        nav_cancel_msg.stamp = self.get_clock().now().to_msg()
-        self.pub_nav_cancel.publish(nav_cancel_msg)
-
-        # 2. 비동기 서비스 호출 헬퍼 함수
         async def call_ros_service(cli, name):
-            if not cli.wait_for_service(timeout_sec=0.1):
+            if not cli.service_is_ready():
                 logger.warning(f"Cleanup: {name} service not immediately available")
                 return False
 
@@ -255,6 +244,17 @@ class SessionManager:
         logger.info("Session Max Time reached. Forcing end.")
         await self.end_session()
 
+    async def _retry_cleanup_loop(self):
+        logger.info("Starting background cleanup retry task (5s interval)...")
+        while self.state == SessionState.ENDING:
+            await asyncio.sleep(5.0)
+            logger.info("Retrying session cleanup in background...")
+            if await ros_node.execute_cleanup():
+                self.state = SessionState.IDLE
+                await self.broadcast_display("state", {"status": "IDLE"})
+                logger.info("Background cleanup succeeded.")
+                break
+
     async def end_session(self, admin_force=False):
         async with self._ending_lock:  # 재진입 동시 실행 완벽 차단
             if self.state == SessionState.IDLE:
@@ -281,10 +281,15 @@ class SessionManager:
             if admin_force:
                 logger.error("Admin forced cleanup despite failures.")
                 self.state = SessionState.IDLE
+                await self.broadcast_display("state", {"status": "IDLE"})
                 return True
 
-            logger.error("Critical: Cleanup failed completely. Robot stuck in ENDING.")
+            logger.error(
+                "Critical: Cleanup failed completely. Starting background retry task."
+            )
             await self.broadcast_display("state", {"status": "ENDING"})
+
+            asyncio.create_task(self._retry_cleanup_loop())
             return False
 
 
@@ -413,8 +418,7 @@ async def websocket_user(websocket: WebSocket):
             if cmd_type == "command":
                 action = payload.get("action")
                 if action == "STOP":
-                    # ros_node.pub_cmd_vel.publish(Twist())
-                    ros_node.pub_stop.publish(Twist())
+                    ros_node.pub_cancel.publish(Bool(data=True))
                 # 상향 메시지(오디오, 카메라 등) 추가 구현 지점
             elif cmd_type == "heartbeat":
                 pass
@@ -494,8 +498,13 @@ async def delete_internal_session(x_internal_token: str = Header(None)):
         raise HTTPException(status_code=403, detail="Invalid internal token")
 
     if session_manager.state != SessionState.IDLE:
-        await session_manager.end_session()
-        return {"status": "terminated", "message": "Session forcefully ended by admin"}
+        if await session_manager.end_session(admin_force=True):
+            return {
+                "status": "terminated",
+                "message": "Session forcefully ended by admin",
+            }
+        else:
+            return {"status": "error", "message": "Force termination failed"}
 
     return {"status": "already_idle", "message": "No active session to terminate"}
 
