@@ -103,7 +103,8 @@ def main():
     import matplotlib.pyplot as plt
     from matplotlib.ticker import MaxNLocator
     speeds = sorted({x["speed_deg_s"] for x in legs})
-    fig, axes = plt.subplots(2, 2, figsize=(10, 7), constrained_layout=True)
+    figure_width = max(10, 2 * len(speeds))
+    fig, axes = plt.subplots(2, 2, figsize=(figure_width, 7), constrained_layout=True)
     panels = [
         ("Error at deceleration end", "Absolute error (deg)", lambda x: abs(x["ramp_end_error_deg"])),
         ("Time after deceleration", "Correction + confirmation (s)", lambda x: x["correction_and_confirmation_s"]),
@@ -119,7 +120,13 @@ def main():
             for j, leg in enumerate(group):
                 ax.scatter(i + (j - (len(group)-1)/2)*0.035, metric(leg),
                            marker="o" if leg["motor"] == 1 else "^",
+<<<<<<< Updated upstream
                            color={10: "#2864b4", 15: "#d7771d", 20: "#27864c", 25: "#8451b2"}[speed], s=35, zorder=3)
+=======
+                           color={10: "#2864b4", 15: "#d7771d", 20: "#27864c", 25: "#8451b2",
+                                  30: "#aa6537", 40: "#b83b59", 50: "#178f9a",
+                                  60: "#626b33"}[speed], s=35, zorder=3)
+>>>>>>> Stashed changes
         ax.set(title=title, ylabel=label, xticks=range(len(speeds)),
                xticklabels=[f"{s:g} deg/s" for s in speeds])
         ax.set_ylim(bottom=0)
@@ -135,7 +142,7 @@ def main():
     fig.savefig(args.output_dir / "comparison.png", dpi=160)
     plt.close(fig)
     if all("correction_count" in x for x in legs):
-        fig, axes = plt.subplots(2, 2, figsize=(10, 7), constrained_layout=True)
+        fig, axes = plt.subplots(2, 2, figsize=(figure_width, 7), constrained_layout=True)
         for motor, row in zip((1, 2), axes):
             for ax, metric, label in zip(row, ("elapsed_s", "correction_count"),
                                          ("Arrival time (s)", "Correction movements")):

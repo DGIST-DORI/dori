@@ -108,7 +108,11 @@ def test_endpoint_gain_changes_only_after_ramp_and_is_bounded():
     assert trial.settling_gain(45, 60, 20) == 60
 
 
+<<<<<<< Updated upstream
 @pytest.mark.parametrize("speed", [15, 20, 25])
+=======
+@pytest.mark.parametrize("speed", [15, 20, 25, 30, 40, 50, 60])
+>>>>>>> Stashed changes
 @pytest.mark.parametrize("distance", [math.pi, -math.pi])
 def test_faster_ramp_preserves_acceleration_and_brakes_at_target(speed, distance):
     duration = trial.trajectory(0, distance, speed)[2]
@@ -130,7 +134,11 @@ def test_twenty_degree_comparison_keeps_the_original_endpoints():
     for start in (2, 6):
         assert [angle for _, _, angle in plan[start:start+4]] == [0, 0, 181.365, 183.101]
     with pytest.raises(ValueError):
+<<<<<<< Updated upstream
         trial.trajectory(1, math.pi, 26)
+=======
+        trial.trajectory(1, math.pi, 61)
+>>>>>>> Stashed changes
 
 
 def test_five_rounds_per_speed_keep_balanced_order_and_both_directions():
@@ -142,6 +150,32 @@ def test_five_rounds_per_speed_keep_balanced_order_and_both_directions():
         assert [angle for _, _, angle in plan[2+i*4:6+i*4]] == [0, 0, 181.365, 183.101]
 
 
+<<<<<<< Updated upstream
+=======
+def test_thirty_and_forty_degree_comparison_repeats_each_speed_five_times():
+    speeds = [30, 40, 40, 30, 40, 30, 30, 40, 40, 30]
+    assert all(speeds.count(s) == 5 for s in (30, 40))
+    plan = trial.comparison_plan(trial.configuration(), [181.365, 183.101], speeds)
+    assert len(plan) == 42
+    for i in range(10):
+        assert [(m.logical, angle) for _, m, angle in plan[2+i*4:6+i*4]] == [
+            (1, 0), (2, 0), (1, 181.365), (2, 183.101)]
+
+
+def test_fifty_and_sixty_degree_trials_keep_acceleration_and_five_rounds_each():
+    speeds = [50, 60, 60, 50, 60, 50, 50, 60, 60, 50]
+    assert all(speeds.count(s) == 5 for s in (50, 60))
+    plan = trial.comparison_plan(trial.configuration(), [181.365, 183.101], speeds)
+    assert len(plan) == 42
+    assert trial.trajectory(0, math.pi, 50)[2] == pytest.approx(6.1)
+    assert trial.trajectory(0, math.pi, 60)[2] == pytest.approx(6.0)
+    # At 20 deg/s^2, a 180-degree move reaches 60 deg/s only at its midpoint.
+    p, v, _ = trial.trajectory(3, math.pi, 60)
+    assert math.degrees(p) == pytest.approx(90)
+    assert math.degrees(v) == pytest.approx(60)
+
+
+>>>>>>> Stashed changes
 def test_correction_count_ignores_noise_and_counts_distinct_restarts():
     noise = [(i/100, 2 + (0.01 if i % 2 else -0.01)) for i in range(100)]
     assert trial.correction_events(noise, 0) == []

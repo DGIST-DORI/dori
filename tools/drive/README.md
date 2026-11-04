@@ -27,7 +27,11 @@ The ROS workspace is `ros2_ws`; maps live at the repository root under `maps`.
 `trial_bldc_180.py --execute --position-kp 45` captures each current logical
 joint angle and moves each wheel +180 degrees sequentially at 15 degrees/s
 with 20 degrees/s² acceleration. `--speed-deg-s 10` selects the earlier speed.
+<<<<<<< Updated upstream
 `--speed-deg-s 20` or `--speed-deg-s 25` selects a faster trial with the same
+=======
+`--speed-deg-s` also accepts 20, 25, 30, 40, 50 and 60 for faster trials with the same
+>>>>>>> Stashed changes
 acceleration, gains, position tolerance and bounded endpoint correction.
 Logical motor 1 is CAN ID 2 with positive direction; logical motor 2 is CAN ID 1
 with negative direction. It uses the repository's MIT ranges and does not send
@@ -93,6 +97,25 @@ This interleaved schedule produces 60 measured one-way moves, five per
 motor, speed and direction. The analysis additionally exports `rounds.csv`
 with each round's times and correction counts, and arrival-time standard
 deviations in `summary.json`. Missing counts in older reports remain unknown.
+<<<<<<< Updated upstream
+=======
+To add five rounds each at 30 and 40 degrees/s, use
+`--compare-speeds 30 40 40 30 40 30 30 40 40 30` with a new output file and
+the same reference and return targets. Keep acceleration at 20 degrees/s²,
+gains, correction counting and arrival criteria unchanged. The moving motor's
+encoder-derived speed limit is the larger of 1 rad/s and 1.5 times the selected
+speed (60, 75 and 90 degrees/s at the 40, 50 and 60-degree/s settings); inactive and held wheels
+retain the 1 rad/s limit. Raw velocity, tracking, temperature and fault checks
+remain unchanged. Use `--baseline-report` with the
+archived 15/20/25 report to combine all five speeds without duplicating trials.
+Repeat `--baseline-report` for multiple archived sources; source file names
+remain attached to each measured leg and round.
+For five rounds each at 50 and 60 degrees/s, use
+`--compare-speeds 50 60 60 50 60 50 50 60 60 50`. With the same 20 degrees/s²
+acceleration, a 180-degree move takes 6.1 seconds at 50 degrees/s and 6.0
+seconds at 60 degrees/s before endpoint correction. The 60-degree/s profile
+is triangular for exactly 180 degrees; it reaches peak speed at the midpoint.
+>>>>>>> Stashed changes
 Use `--compare-speeds 20 20` for two 20-degree/s rounds. The analysis tool's
 `--baseline-report <earlier-comparison.json>` includes the earlier 10/15 data
 and retains each move's source file; plots label the actual test order.

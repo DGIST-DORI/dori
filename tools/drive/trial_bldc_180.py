@@ -95,16 +95,18 @@ def decode(motor, can_id, data):
                 raw_feedback=data.hex())
 
 
-def trajectory(elapsed, distance=math.pi, speed_deg_s=10.0):
+def trajectory(elapsed, distance=math.pi, speed_deg_s=10.0, accel_deg_s2=20.0):
     if not math.isfinite(distance):
         raise ValueError("Trajectory distance must be finite")
     if distance == 0:
         return 0.0, 0.0, 0.0
     direction = 1.0 if distance > 0 else -1.0
     distance = abs(distance)
-    if not math.isfinite(speed_deg_s) or not 0 < speed_deg_s <= 25:
-        raise ValueError("Trial speed must be within 0..25 degrees/s")
-    speed, accel = math.radians(speed_deg_s), math.radians(20)
+    if not math.isfinite(speed_deg_s) or not 0 < speed_deg_s <= 60:
+        raise ValueError("Trial speed must be within 0..60 degrees/s")
+    if not math.isfinite(accel_deg_s2) or not 0 < accel_deg_s2 <= 40:
+        raise ValueError("Acceleration must be within 0..40 degrees/s^2")
+    speed, accel = math.radians(speed_deg_s), math.radians(accel_deg_s2)
     ta = min(speed / accel, math.sqrt(distance / accel))
     speed = accel * ta
     duration = distance / speed + ta
@@ -131,8 +133,8 @@ def motion_plan(motors, round_trip_degrees=None):
 
 
 def comparison_plan(motors, return_degrees, speeds):
-    if not 2 <= len(speeds) <= 15 or any(speed not in (10, 15, 20, 25) for speed in speeds):
-        raise ValueError("Comparison requires two to fifteen rounds at 10, 15, 20 or 25 degrees/s")
+    if not 1 <= len(speeds) <= 15 or any(speed not in (10, 15, 20, 25, 30, 40, 50, 60) for speed in speeds):
+        raise ValueError("Comparison requires one to fifteen rounds at 10, 15, 20, 25, 30, 40, 50 or 60 degrees/s")
     base = motion_plan(motors, return_degrees)
     # Align to the same endpoints before the measured rounds begin.
     plan = [("align", m, angle) for m, angle in zip(motors, return_degrees)]
@@ -368,7 +370,8 @@ def main():
                         help="Ramp to this position gain over one second after each motion ends")
     parser.add_argument("--position-tolerance-deg", type=float, choices=(1.0,), default=1.0,
                         help="Endpoint tolerance is one degree for every motor")
-    parser.add_argument("--speed-deg-s", type=float, choices=(10.0, 15.0, 20.0, 25.0), default=15.0)
+    parser.add_argument("--speed-deg-s", type=float, choices=(10.0, 15.0, 20.0, 25.0, 30.0, 40.0, 50.0, 60.0), default=15.0)
+    parser.add_argument("--accel-deg-s2", type=float, choices=(20.0, 40.0), default=20.0)
     parser.add_argument("--hold-position", action="store_true",
                         help="Continue closed-loop holding after completion until interrupted")
     parser.add_argument("--reference-file", type=Path, help="Resume from previously captured trial zeros")
@@ -376,7 +379,7 @@ def main():
                         help="Continue the unfinished legs of the same motion plan and saved reference")
     parser.add_argument("--round-trip-deg", type=float, nargs=2, metavar=("MOTOR1", "MOTOR2"),
                         help="Move both wheels to the saved zero, then to these relative angles")
-    parser.add_argument("--compare-speeds", type=float, nargs="+", choices=(10.0, 15.0, 20.0, 25.0),
+    parser.add_argument("--compare-speeds", type=float, nargs="+", choices=(10.0, 15.0, 20.0, 25.0, 30.0, 40.0, 50.0, 60.0),
                         help="Run identical round trips in this speed order, preceded by endpoint alignment")
     parser.add_argument("--output", type=Path, default=Path("/tmp/dori_bldc_180_trial.json"))
     args = parser.parse_args()
@@ -465,7 +468,7 @@ def main():
                                for m in motors},
                   settle_kp=args.settle_kp,
                   position_tolerance_deg=args.position_tolerance_deg,
-                  speed_deg_s=args.speed_deg_s, pid=os.getpid(),
+                  speed_deg_s=args.speed_deg_s, accel_deg_s2=args.accel_deg_s2, pid=os.getpid(),
                   comparison_speeds=args.compare_speeds, legs=[],
                   correction_definition=dict(minimum_movement_deg=0.2, stop_window_s=0.5,
                                              stopped_span_deg=0.03, reversal_is_new=True,
@@ -543,7 +546,7 @@ def main():
                 now = time.monotonic()
                 elapsed = now - started
                 dt, last_update = now - last_update, now
-                displacement, velocity, duration = trajectory(elapsed, distance, leg_speed)
+                displacement, velocity, duration = trajectory(elapsed, distance, leg_speed, args.accel_deg_s2)
                 goals[active.logical] = leg_start + displacement
                 if args.settle_kp is not None:
                     gains[active.logical] = settling_gain(report["position_kp"][active.logical],
@@ -556,8 +559,15 @@ def main():
                     delta = state["position"] - reference[m.logical]
                     if not math.radians(-5) <= delta <= math.radians(185):
                         raise RuntimeError(f"Motor {m.logical} left authorized interval")
-                    if abs(trial.measured_velocity(m.logical)) > 1.0 or abs(state["velocity"]) > 3.0:
-                        raise RuntimeError(f"Motor {m.logical} exceeded trial speed threshold")
+                    # Keep the existing limit through 30 deg/s; the requested
+                    # Faster trials permit at most 1.5 times requested speed.
+                    speed_limit = max(1.0, 1.5 * math.radians(leg_speed)) if m == active else 1.0
+                    measured_speed = abs(trial.measured_velocity(m.logical))
+                    if measured_speed > speed_limit or abs(state["velocity"]) > 3.0:
+                        raise RuntimeError(f"Motor {m.logical} exceeded trial speed threshold: "
+                                           f"measured={math.degrees(measured_speed):.3f} deg/s, "
+                                           f"limit={math.degrees(speed_limit):.3f} deg/s, "
+                                           f"raw={math.degrees(state['velocity']):.3f} deg/s")
                     if abs(goals[m.logical] - state["position"]) > math.radians(25):
                         raise RuntimeError(f"Motor {m.logical} not following the position ramp")
                     corrections[m.logical] = endpoint_integral(
@@ -585,7 +595,7 @@ def main():
                                               reference[active.logical], started, time.monotonic(),
                                               math.degrees(leg_start-reference[active.logical]),
                                               target_deg, duration, leg_speed)
-                        report["legs"].append(dict(phase=phase, **metrics))
+                        report["legs"].append(dict(phase=phase, accel_deg_s2=args.accel_deg_s2, **metrics))
                         print(f"REACHED {phase} motor {active.logical}: {relative:.2f} deg", flush=True)
                         if args.compare_speeds:
                             print("METRICS " + json.dumps({k: v for k, v in metrics.items()
