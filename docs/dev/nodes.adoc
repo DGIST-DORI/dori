@@ -210,8 +210,8 @@ This document is the SSOT for ROS2 node details in the current workspace.
 *Actions (server)*:: <<actions.adoc#action-dori-tts-speak,/tts/speak>> (`dori_msgs/action/Speak`)
 *Parameters*:: See <<parameters.adoc#param-tts_node, tts_node parameters>>
 *Lifecycle*:: unmanaged
-*Dependencies*:: Google Cloud TTS, gTTS, pyttsx3 engine, audio output device
-*Failure behavior*:: On synthesis failure, marks action as failed and logs error so Behavior Tree can recover.
+*Dependencies*:: Google Cloud TTS SDK and credentials, gTTS fallback, mpg123, audio output device
+*Failure behavior*:: Google Cloud initialization/request errors or local usage limits fall back to gTTS with a log message. If synthesis/playback still fails, marks the action as failed so Behavior Tree can recover.
 
 *Description*:: Synthesizes text to speech. Acts as an Action Server for `Speak` actions from the Behavior Tree, and also supports direct text synthesis via `/tts/text` for dashboard and manual testing.
 

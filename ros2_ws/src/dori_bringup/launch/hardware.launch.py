@@ -193,7 +193,7 @@ def generate_launch_description():
         whisper_model="small",
         whisper_device="cpu",
         tts_playback_mode="local_only",
-        tts_engine="gtts",
+        tts_engine="gcp",
         use_external_llm="false",
         llm_model="gemini-2.5-flash",
         knowledge_file="",

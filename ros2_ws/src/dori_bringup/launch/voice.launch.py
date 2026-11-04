@@ -27,7 +27,7 @@ def generate_launch_description():
         whisper_device="cpu",
         wake_word=custom_wake_words,
         stt_audio_input_mode="microphone",
-        tts_engine="gtts",
+        tts_engine="gcp",
         tts_language="ko",
         tts_playback_mode="local_only",
         sfx_base_path="",
