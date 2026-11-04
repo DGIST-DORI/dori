@@ -237,8 +237,8 @@ This document is the SSOT for ROS2 parameter details in the current workspace.
 | knowledge_file | string | `""` | file path | - | Knowledge JSON path.
 | rag_index_dir | string | `""` | directory path | - | RAG index directory.
 | use_external_llm | bool | false | true/false | - | Use external API model.
-| model_name | string | `gemini-2.5-flash` | provider model id | - | External model identifier.
-| api_key | string | `""` | secret string | - | External API key.
+| model_name | string | `gemini-3.5-flash-lite` | provider model id | - | External model identifier.
+| api_key | string | `""` | secret string | - | External API key. For Gemini, falls back to `GEMINI_API_KEY`, then `GOOGLE_API_KEY` in the process environment.
 | rag_top_k | int | 3 | >=1 | - | Number of retrieved chunks.
 | action_name | string | `llm/query` | action path | - | Action server name for LLMQuery requests.
 |===
