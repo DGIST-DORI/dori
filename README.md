@@ -163,9 +163,11 @@ If using external LLM features, install the LLM requirements:
 cd web
 npm ci
 npm run build
+npm run build:visitor
 cd ..
 
-# 2. Build ROS 2 workspace
+# 2. Build with only /opt/ros/humble as the underlay, using the project venv.
+unset AMENT_PREFIX_PATH COLCON_PREFIX_PATH CMAKE_PREFIX_PATH PYTHONPATH LD_LIBRARY_PATH
 source /opt/ros/humble/setup.bash
 source .venv/bin/activate
 export PYTHONNOUSERSITE=1
@@ -177,6 +179,15 @@ python -m colcon build --symlink-install --parallel-workers 2 \
 source install/local_setup.bash
 cd ..
 ```
+
+Humble colcon requires the legacy setuptools `develop` options. The runtime
+constraints pin setuptools 79.0.1; do not upgrade it to 80 or later in this venv.
+If `error: option --uninstall not recognized` appears, run
+`.venv/bin/python -m pip install -c constraints-robot.txt 'setuptools>=70.3.0,<80'`
+and repeat the build block above. Existing build artifacts need not be deleted for
+this error. Clearing inherited ROS overlay paths before building prevents
+duplicate-underlay warnings caused by sourcing `~/ros2_ws` and this workspace
+together. `--allow-overriding` does not repair that environment mix-up.
 
 ---
 

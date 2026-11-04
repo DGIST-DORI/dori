@@ -1,6 +1,20 @@
 #!/usr/bin/env bash
 set -eo pipefail
 DORI_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Check before moving artifacts or invoking colcon's legacy develop cleanup.
+PYTHONNOUSERSITE=1 PYTHONPATH= "$DORI_ROOT/.venv/bin/python" - <<'PY'
+import sys
+from importlib.metadata import version
+from packaging.version import Version
+
+installed = Version(version('setuptools'))
+if not Version('70.3.0') <= installed < Version('80'):
+    sys.exit(
+        f'Unsupported setuptools {installed} for Humble colcon. '
+        'From the repository root, run: '
+        '.venv/bin/python -m pip install -c constraints-robot.txt "setuptools>=70.3.0,<80"'
+    )
+PY
 if [[ "${1:-}" == --clean ]]; then
     shift
     # Package identities and generated DDS types cannot share an old overlay.

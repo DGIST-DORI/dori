@@ -1,6 +1,8 @@
 # Humble cv_bridge and Ubuntu binary modules use the NumPy 1 ABI.
 numpy==1.24.4
 scipy==1.10.1
+# colcon-core's legacy develop flags were removed in setuptools 80.
+setuptools==79.0.1
 opencv-python<4.12
 opencv-contrib-python<4.12
 opencv-python-headless<4.12

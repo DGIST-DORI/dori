@@ -88,6 +88,8 @@ sudo apt-get install -y python3.10-venv python3-pip python3-rosdep \
   python3-pil libportaudio2 portaudio19-dev ffmpeg mpg123 can-utils \
   nlohmann-json3-dev ros-humble-navigation2 ros-humble-nav2-bringup \
   ros-humble-cartographer-ros ros-humble-rosbridge-server
+# 빌드할 작업공간이나 ~/ros2_ws를 underlay로 함께 사용하지 않는다.
+unset AMENT_PREFIX_PATH COLCON_PREFIX_PATH CMAKE_PREFIX_PATH PYTHONPATH LD_LIBRARY_PATH
 source /opt/ros/humble/setup.bash
 # rosdep를 처음 설정하는 장치에서만 수행
 if [ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]; then sudo rosdep init; fi
@@ -97,7 +99,7 @@ rosdep install --from-paths ros2_ws/src --ignore-src --rosdistro humble -y
 # 설치와 실행 모두 사용자 패키지(~/.local)를 제외한다.
 export PYTHONNOUSERSITE=1
 .venv/bin/python -m pip install -r requirements-runtime.txt
-(cd web && npm ci && npm run lint && npm run build)
+(cd web && npm ci && npm run lint && npm run build && npm run build:visitor)
 source .venv/bin/activate
 (cd ros2_ws && python -m colcon build --symlink-install --parallel-workers 2 \
   --cmake-args -DBUILD_TESTING=ON \
@@ -106,6 +108,11 @@ source .venv/bin/activate
 ```
 
 웹을 먼저 빌드해야 대시보드 설치에 최신 자산이 포함된다. 다른 PC의 `.venv`나 ROS build/install을 복사해 사용하지 않는다. RealSense SDK를 설치하지 않은 환경에서는 기존 CMake 정책에 따라 네이티브 카메라 실행 파일이 생략될 수 있다. 실제 C++ 카메라 사용 전 SDK 설치·재빌드·장치 시험을 수행한다.
+
+Humble colcon은 기존 `setup.py develop --editable/--uninstall` 옵션을 사용하므로
+setuptools는 `constraints-robot.txt`의 79.0.1을 유지한다. `option --uninstall not recognized`가
+나오면 저장소 루트에서 `.venv/bin/python -m pip install -c constraints-robot.txt 'setuptools>=70.3.0,<80'`을
+실행하고 다시 빌드한다. 이 오류만으로 build/install을 삭제할 필요는 없다.
 
 **합격기준:** ROS 21개 패키지 빌드 및 웹 lint/build 성공. 마이크 사용 전 AMM 20-20, 실물 기동 전 AMM 20-30을 추가 수행한다.
 
