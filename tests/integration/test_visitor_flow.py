@@ -40,6 +40,7 @@ async def run_flow(tmp_path):
     manager = bridge.SessionManager()
     manager.main_loop = asyncio.get_running_loop()
     follow_requests = []
+    stt_requests = []
     def synthesize(_self, _text):
         path = tmp_path / 'reply.mp3'
         path.write_bytes(b'test-mp3')
@@ -50,6 +51,7 @@ async def run_flow(tmp_path):
         publisher = probe.create_publisher(String, 'stt/visitor_result', 10)
         def transcribe(message):
             request = json.loads(message.data)
+            stt_requests.append(request['request_id'])
             publisher.publish(String(data=json.dumps({'request_id': request['request_id'], 'event': 'stt_result', 'text': 'hello'})))
         probe.create_subscription(String, 'stt/audio_input', transcribe, 10)
         def stt_reset(_request, response):
@@ -91,6 +93,15 @@ async def run_flow(tmp_path):
             await until(lambda: not node.voice.draining)
             assert not node.voice.media
             assert manager.state == bridge.SessionState.ACTIVE
+            audio_count = len(stt_requests)
+            node.voice.start_text({'text': '안녕하세요'})
+            await until(lambda: bool(node.voice.media))
+            assert len(stt_requests) == audio_count
+            assert any(call.args[0] == {'type': 'user_text', 'data': '안녕하세요'}
+                       for call in manager.active_ws.send_json.call_args_list)
+            node.voice.playback({'id': node.voice.audio_id, 'status': 'ended'})
+            await until(lambda: not node.voice.draining)
+            assert llm.conversation_history[-1]['user'] == '안녕하세요'
             assert await manager.end_session()
             assert manager.state == bridge.SessionState.IDLE
             assert not llm.conversation_history

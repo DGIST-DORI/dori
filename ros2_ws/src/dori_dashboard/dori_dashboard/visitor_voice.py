@@ -13,6 +13,14 @@ from std_msgs.msg import String
 from unique_identifier_msgs.msg import UUID
 
 MAX_AUDIO_BYTES = 320044
+MAX_TEXT_CHARS = 1000
+
+
+def validate_text(data):
+    text = data.get('text')
+    if not isinstance(text, str) or not text.strip() or len(text) > MAX_TEXT_CHARS:
+        raise ValueError('메시지를 1~1,000자 이내로 입력해 주세요.')
+    return text.strip()
 
 
 def validate_audio(data):
@@ -111,12 +119,19 @@ class VisitorVoice:
 
     def start(self, payload):
         audio = validate_audio(payload)
+        self._start_turn(audio=audio)
+
+    def start_text(self, payload):
+        self._start_turn(text=validate_text(payload))
+
+    def _start_turn(self, audio=None, text=None):
         if self.draining:
-            raise ValueError('Previous voice turn is still running')
-        if not self.llm.server_is_ready() or not self.tts.server_is_ready() or not self.audio_pub.get_subscription_count():
-            raise ValueError('Voice services unavailable')
+            raise ValueError('이전 답변을 처리 중입니다. 잠시 후 보내 주세요.')
+        if (not self.llm.server_is_ready() or not self.tts.server_is_ready()
+                or (audio is not None and not self.audio_pub.get_subscription_count())):
+            raise ValueError('대화 서비스가 아직 준비되지 않았습니다.')
         self.turn = secrets.token_hex(16)
-        self.task = asyncio.create_task(self._run(self.turn, audio))
+        self.task = asyncio.create_task(self._run(self.turn, audio=audio, text=text))
 
     def cancel(self):
         self.turn = None
@@ -163,20 +178,24 @@ class VisitorVoice:
             raise ValueError('Voice request canceled or failed')
         return result.result
 
-    async def _run(self, turn, audio):
+    async def _run(self, turn, audio=None, text=None):
         try:
             if turn != self.turn:
                 return
-            self.stt_waiter = asyncio.get_running_loop().create_future()
-            self.audio_pub.publish(String(data=json.dumps({**audio, 'request_id': turn, 'created_at': time.time()})))
-            audio.clear()
-            await self.emit(turn, 'robot_state', status='TRANSCRIBING')
-            result = await asyncio.wait_for(self.stt_waiter, 45)
-            if result.get('event') != 'stt_result' or not result.get('text'):
-                raise ValueError('Speech unclear; please try again')
-            await self.emit(turn, 'stt_text', data=result['text'])
+            if audio is not None:
+                self.stt_waiter = asyncio.get_running_loop().create_future()
+                self.audio_pub.publish(String(data=json.dumps({**audio, 'request_id': turn, 'created_at': time.time()})))
+                audio.clear()
+                await self.emit(turn, 'robot_state', status='TRANSCRIBING')
+                result = await asyncio.wait_for(self.stt_waiter, 45)
+                if result.get('event') != 'stt_result' or not result.get('text'):
+                    raise ValueError('Speech unclear; please try again')
+                text = result['text']
+                await self.emit(turn, 'stt_text', data=text)
+            else:
+                await self.emit(turn, 'user_text', data=text)
             await self.emit(turn, 'robot_state', status='THINKING')
-            answer = await self._action(turn, self.llm, LLMQuery.Goal(text=result['text'], location_context=''))
+            answer = await self._action(turn, self.llm, LLMQuery.Goal(text=text, location_context=''))
             if answer.intent in ('error', 'canceled') or not answer.response_text:
                 raise ValueError('Unable to generate an answer')
             if answer.intent in ('navigation', 'follow'):
@@ -190,8 +209,9 @@ class VisitorVoice:
         except asyncio.CancelledError:
             pass
         except Exception:
-            await self.emit(turn, 'error', code='voice_failed', message='음성 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.')
+            await self.emit(turn, 'error', code='voice_failed', message='대화 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.')
         finally:
+            self.stt_waiter = None
             self.media.clear()
             self.audio_id = None
             await self.emit(turn, 'robot_state', status='READY')

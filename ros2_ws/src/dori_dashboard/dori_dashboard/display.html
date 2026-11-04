@@ -8,4 +8,5 @@ function update(event){state=JSON.parse(event.data).status;qr.hidden=true;status
 stream.addEventListener('state',update);stream.addEventListener('paired',update);
 stream.addEventListener('qr_update',event=>{if(state==='IDLE'){qr.src='/display/qr/'+encodeURIComponent(JSON.parse(event.data).nonce);qr.hidden=false}});
 stream.onerror=()=>{qr.hidden=true;status.textContent='연결 상태를 확인하고 있습니다'};
+qr.onerror=()=>{qr.hidden=true;status.textContent='새 QR을 준비하고 있습니다. 잠시 기다려 주세요.'};
 </script></html>

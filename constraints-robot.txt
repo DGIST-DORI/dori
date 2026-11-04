@@ -6,3 +6,7 @@ setuptools==79.0.1
 opencv-python<4.12
 opencv-contrib-python<4.12
 opencv-python-headless<4.12
+# gTTS 2.5 requires click < 8.2; Hub 2.x's CLI requires click >= 8.4.
+# The pre-1.0 Hub API supports faster-whisper's model download interface.
+click>=7.1,<8.2
+huggingface-hub>=0.21,<1

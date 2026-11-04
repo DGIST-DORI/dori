@@ -1935,15 +1935,29 @@ if WEB_DIR:
             return {"Cache-Control": "public, max-age=3600"}
         return {"Cache-Control": "public, max-age=300"}
 
+    def _resolve_static_path(requested_path: Path) -> Path:
+        if requested_path.is_absolute() or ".." in requested_path.parts:
+            raise HTTPException(404, "Not Found")
+        target = (WEB_DIR / requested_path).resolve()
+        # colcon --symlink-install links installed assets back to web/dist.
+        # Permit only the same relative build artifact, not arbitrary symlinks
+        # into the repository or other files outside the served tree.
+        build_root = (REPO_ROOT / "web" / "dist").resolve()
+        linked_build_file = (
+            target.is_relative_to(build_root)
+            and target == (build_root / requested_path).resolve()
+        )
+        if not (target.is_relative_to(WEB_DIR.resolve()) or linked_build_file):
+            raise HTTPException(404, "Not Found")
+        return target
+
     @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_spa(full_path: str):
-        target = (WEB_DIR / full_path).resolve()
-        if not target.is_relative_to(WEB_DIR.resolve()):
-            raise HTTPException(404, "Not Found")
+        requested_path = Path(full_path)
+        target = _resolve_static_path(requested_path)
         if full_path.startswith("api/"):
             raise HTTPException(404, "Unknown API")
 
-        requested_path = Path(full_path)
         if target.is_file():
             return _FileResponse(
                 str(target), headers=_static_cache_headers(requested_path)
@@ -1959,7 +1973,7 @@ if WEB_DIR:
         if not requested_path.suffix:
             index_path = Path("index.html")
             return _FileResponse(
-                str(WEB_DIR / index_path), headers=_static_cache_headers(index_path)
+                str(_resolve_static_path(index_path)), headers=_static_cache_headers(index_path)
             )
 
         raise HTTPException(404, "Not Found")

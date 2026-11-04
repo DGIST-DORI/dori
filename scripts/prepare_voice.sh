@@ -3,13 +3,22 @@
 set -eo pipefail
 export PYTHONNOUSERSITE=1
 DORI_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-"$DORI_ROOT/.venv/bin/python" -m pip install -c "$DORI_ROOT/constraints-robot.txt" 'numpy==1.24.4' 'scipy==1.10.1' 'openwakeword>=0.6,<0.7' 'faster-whisper>=1,<2'
+topic_only=false
+case "${1:-}" in
+    --topic-only) topic_only=true; shift ;;
+esac
+[[ $# == 0 ]] || { echo 'Usage: prepare_voice.sh [--topic-only]' >&2; exit 2; }
+dependencies=('numpy==1.24.4' 'scipy==1.10.1' 'faster-whisper>=1,<2' 'gTTS>=2.5,<3')
+if [[ "$topic_only" == false ]]; then dependencies+=('openwakeword>=0.6,<0.7'); fi
 mkdir -p "$DORI_ROOT/.state/voice"
-"$DORI_ROOT/.venv/bin/python" - "$DORI_ROOT/.state/voice/whisper-small" <<'PY'
+export HF_HOME="$DORI_ROOT/.state/voice/huggingface"
+"$DORI_ROOT/.venv/bin/python" -m pip install -c "$DORI_ROOT/constraints-robot.txt" "${dependencies[@]}"
+"$DORI_ROOT/.venv/bin/python" - "$DORI_ROOT/.state/voice/whisper-small" "$topic_only" <<'PY'
 import sys
-import openwakeword
 from faster_whisper.utils import download_model
-openwakeword.utils.download_models(model_names=['hey_mycroft'])
+if sys.argv[2] != 'true':
+    import openwakeword
+    openwakeword.utils.download_models(model_names=['hey_mycroft'])
 download_model('small', output_dir=sys.argv[1])
 print('Voice assets ready:', sys.argv[1])
 PY

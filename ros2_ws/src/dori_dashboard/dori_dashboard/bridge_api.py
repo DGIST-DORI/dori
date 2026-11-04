@@ -4,12 +4,13 @@ DORI WebSocket Gateway & Session Manager (bridge_api.py)
 사용자 앱 서빙, QR 페어링, 세션 관리 및 제한된 ROS 프로토콜 게이트웨이를 담당합니다.
 """
 
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 import asyncio
 import json
 import logging
 import os
 import secrets
+import signal
 import threading
 import time
 from urllib.parse import urlsplit
@@ -21,6 +22,7 @@ from typing import Dict, Optional, Set
 
 import rclpy
 from rclpy.node import Node
+from rclpy.signals import SignalHandlerOptions
 from rclpy.qos import QoSProfile, DurabilityPolicy
 from std_msgs.msg import Bool, String, Int32
 from std_srvs.srv import Trigger
@@ -58,6 +60,7 @@ DISPLAY_PORT = 3001
 NONCE_TTL = 30  # QR 갱신 주기 (초)
 NONCE_GRACE = 5  # 스캔 지연 오차 허용 (초)
 GRACE_TIMEOUT = 90  # WS 끊김 후 재연결 유예 시간 (초)
+PAIR_CLAIM_TTL = 120  # Time to review consent after scanning a live QR.
 SESSION_MAX_TIME = 900  # 최대 세션 시간 (15분)
 MAX_WS_MSG_SIZE = 450000
 
@@ -85,8 +88,12 @@ class SessionState(Enum):
     ENDING = "ENDING"
 
 
-class PairRequest(BaseModel):
+class PairClaimRequest(BaseModel):
     nonce: str = Field(min_length=1, max_length=64)
+
+
+class PairRequest(BaseModel):
+    nonce: Optional[str] = Field(default=None, min_length=1, max_length=64)
     consent: bool
 
 
@@ -275,9 +282,12 @@ class NonceManager:
         self.nonces[nonce] = time.time() + NONCE_TTL + NONCE_GRACE
         return nonce
 
-    def validate_and_consume(self, nonce: str) -> bool:
+    def is_valid(self, nonce: str) -> bool:
         self._cleanup()
-        if nonce in self.nonces and self.nonces[nonce] > time.time():
+        return nonce in self.nonces and self.nonces[nonce] > time.time()
+
+    def validate_and_consume(self, nonce: str) -> bool:
+        if self.is_valid(nonce):
             del self.nonces[nonce]  # 1회용 소모
             return True
         return False
@@ -285,6 +295,31 @@ class NonceManager:
     def _cleanup(self):
         now = time.time()
         self.nonces = {k: v for k, v in self.nonces.items() if v > now}
+
+
+class PairClaimManager:
+    """Short-lived, browser-bound scan proofs; no robot session or consent yet."""
+    def __init__(self):
+        self.claims: Dict[str, tuple[str, float]] = {}
+
+    def expires_at(self, token):
+        now = time.time()
+        self.claims = {key: claim for key, claim in self.claims.items() if claim[1] > now}
+        claim = self.claims.get(token) if isinstance(token, str) else None
+        return claim[1] if claim else None
+
+    def issue(self, nonce, existing=None):
+        expiry = self.expires_at(existing)
+        if expiry and self.claims[existing][0] == nonce:
+            return existing, expiry  # Retrying the same scan must not extend it.
+        if isinstance(existing, str):
+            self.claims.pop(existing, None)
+        if len(self.claims) >= 128:
+            raise HTTPException(429, "Too many pending scans")
+        token = secrets.token_urlsafe(32)
+        expiry = time.time() + PAIR_CLAIM_TTL
+        self.claims[token] = (nonce, expiry)
+        return token, expiry
 
 
 class SessionManager:
@@ -328,6 +363,7 @@ class SessionManager:
     async def start_session(self):
         await self._cancel_session_timers()
         nonce_manager.nonces.clear()
+        pair_claim_manager.claims.clear()
         self.state = SessionState.ACTIVE
         self.current_token = secrets.token_hex(32)
         self.session_expires_at = time.time() + SESSION_MAX_TIME
@@ -422,6 +458,7 @@ class SessionManager:
 
 
 nonce_manager = NonceManager()
+pair_claim_manager = PairClaimManager()
 session_manager = SessionManager()
 
 
@@ -433,7 +470,8 @@ async def public_lifespan(app: FastAPI):
 
     # 1. 앱 시작 시 ROS 2 노드 초기화 및 스핀 스레드 구동
     if not rclpy.ok():
-        rclpy.init()
+        # Uvicorn owns process shutdown; ROS must not replace its handlers.
+        rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
     ros_node = BridgeNode()
     ros_thread = threading.Thread(target=lambda: rclpy.spin(ros_node), daemon=True)
     ros_thread.start()
@@ -473,9 +511,9 @@ pair_attempts = deque()
 
 @app_public.middleware("http")
 async def public_boundary(request: Request, call_next):
-    if request.url.path in ("/api/pair", "/api/session") and request.method in ("POST", "DELETE") and request.headers.get("origin") not in ALLOWED_ORIGINS:
+    if request.url.path in ("/api/pair", "/api/pair/claim", "/api/session") and request.method in ("POST", "DELETE") and request.headers.get("origin") not in ALLOWED_ORIGINS:
         return Response(status_code=403)
-    if request.method == "POST" and request.url.path == "/api/pair":
+    if request.method == "POST" and request.url.path in ("/api/pair", "/api/pair/claim"):
         now = time.monotonic()
         while pair_attempts and pair_attempts[0] <= now - 60:
             pair_attempts.popleft()
@@ -532,8 +570,35 @@ async def session_audio(audio_key: str, dori_session: Optional[str] = Cookie(Non
     return Response(audio, media_type="audio/mpeg", headers={"Cache-Control": "no-store"})
 
 
+def claim_info(expiry):
+    return {"expires_at": expiry, "expires_in": max(0, expiry - time.time())}
+
+
+@app_public.post("/api/pair/claim")
+async def claim_pairing(req: PairClaimRequest, response: Response,
+                        dori_pair_claim: Optional[str] = Cookie(None)):
+    async with session_manager._pairing_lock:
+        if session_manager.state != SessionState.IDLE:
+            raise HTTPException(409, "Robot is currently in use or cleaning up")
+        if not nonce_manager.is_valid(req.nonce):
+            raise HTTPException(410, "Invalid or expired nonce")
+        token, expiry = pair_claim_manager.issue(req.nonce, dori_pair_claim)
+    response.set_cookie("dori_pair_claim", token, httponly=True, secure=True,
+                        samesite="strict", max_age=max(1, int(expiry - time.time())))
+    return claim_info(expiry)
+
+
+@app_public.get("/api/pair/claim")
+async def pairing_claim_status(dori_pair_claim: Optional[str] = Cookie(None)):
+    expiry = pair_claim_manager.expires_at(dori_pair_claim)
+    if not expiry:
+        raise HTTPException(410, "Scan confirmation expired")
+    return claim_info(expiry)
+
+
 @app_public.post("/api/pair")
-async def pair_device(req: PairRequest, response: Response):
+async def pair_device(req: PairRequest, response: Response,
+                      dori_pair_claim: Optional[str] = Cookie(None)):
     if not req.consent:
         raise HTTPException(status_code=400, detail="Consent required")
 
@@ -544,13 +609,17 @@ async def pair_device(req: PairRequest, response: Response):
                 detail="Robot is currently in use or cleaning up",
             )
 
-        if not nonce_manager.validate_and_consume(req.nonce):
+        # Validate before readiness checks, but consume only on success. A 503
+        # must not turn a retry into a misleading 410. Accept legacy direct QR
+        # requests as well as the browser-bound scan proof from the consent page.
+        if not (pair_claim_manager.expires_at(dori_pair_claim) or nonce_manager.is_valid(req.nonce)):
             raise HTTPException(status_code=410, detail="Invalid or expired nonce")
 
         if not await ros_node.prepare_visitor():
             raise HTTPException(503, "Visitor voice profile unavailable or still draining")
         token = await session_manager.start_session()
 
+    response.delete_cookie("dori_pair_claim", secure=True, httponly=True, samesite="strict")
     response.set_cookie(
         key="dori_session",
         value=token,
@@ -678,6 +747,12 @@ async def websocket_user(websocket: WebSocket):
                     session_manager.last_activity = time.monotonic()
                 except ValueError as exc:
                     await websocket.send_json({"type": "error", "code": "audio_rejected", "message": str(exc)})
+            elif cmd_type == "text":
+                try:
+                    ros_node.voice.start_text(payload)
+                    session_manager.last_activity = time.monotonic()
+                except ValueError as exc:
+                    await websocket.send_json({"type": "error", "code": "text_rejected", "message": str(exc)})
             elif cmd_type == "playback":
                 ros_node.voice.playback(payload)
             elif cmd_type == "end":
@@ -711,13 +786,17 @@ async def display_event_generator(q: asyncio.Queue):
 
         while True:
             # 1. 상태가 IDLE이면 Nonce 발급 및 전송 (30초 대기 또는 큐 이벤트 수신)
+            refresh_in = NONCE_TTL
             if session_manager.state == SessionState.IDLE:
                 nonce = nonce_manager.generate()
-                yield f"event: qr_update\ndata: {json.dumps({'nonce': nonce, 'ttl': NONCE_TTL})}\n\n"
+                # All displays follow the same rotation deadline, including
+                # clients connecting near the end of the current QR's lifetime.
+                refresh_in = max(0.1, nonce_manager.generated_at + NONCE_TTL - time.time())
+                yield f"event: qr_update\ndata: {json.dumps({'nonce': nonce, 'ttl': refresh_in})}\n\n"
 
             try:
                 # 다음 상태 변경 이벤트 대기 (timeout으로 30초 갱신 타이머 역할 병행)
-                msg = await asyncio.wait_for(q.get(), timeout=NONCE_TTL)
+                msg = await asyncio.wait_for(q.get(), timeout=refresh_in)
                 yield msg
             except asyncio.TimeoutError:
                 continue  # 30초 경과, 루프 처음으로 돌아가 새 Nonce 생성
@@ -775,7 +854,8 @@ async def display_events(request: Request):
     """로봇 화면으로 QR Nonce와 세션 상태(Pairing 등)를 실시간 푸시하는 SSE"""
     q = asyncio.Queue(maxsize=8)
     session_manager.display_queues.add(q)
-    return StreamingResponse(display_event_generator(q), media_type="text/event-stream")
+    return StreamingResponse(display_event_generator(q), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
 
 @app_display.get("/display/qr/{nonce}")
@@ -792,28 +872,42 @@ async def qr_image(nonce: str):
 
 @app_display.get("/display")
 async def display_page():
-    return FileResponse(Path(__file__).with_name("display.html"))
+    return FileResponse(Path(__file__).with_name("display.html"), headers={"Cache-Control": "no-store"})
 
 
-def mount_visitor_assets():
-    directory = Path(os.environ.get("DORI_VISITOR_WEB_DIR", Path(__file__).parents[4] / "web/dist-visitor"))
+def mount_visitor_assets(application=None, directory=None):
+    application = app_public if application is None else application
+    directory = Path(directory) if directory is not None else Path(os.environ.get("DORI_VISITOR_WEB_DIR", Path(__file__).parents[4] / "web/dist-visitor"))
     if (directory / "assets").is_dir():
-        app_public.mount("/assets", StaticFiles(directory=directory / "assets"), name="visitor-assets")
+        # colcon --symlink-install links each asset back to web/dist-visitor.
+        # This is a trusted build directory, never a user upload directory.
+        application.mount("/assets", StaticFiles(directory=directory / "assets", follow_symlink=True), name="visitor-assets")
     async def recorder():
         return FileResponse(directory / "recorder.js", media_type="text/javascript")
-    app_public.add_api_route("/recorder.js", recorder, methods=["GET"])
+    application.add_api_route("/recorder.js", recorder, methods=["GET"])
     async def index():
         if not (directory / "index.html").is_file():
             raise HTTPException(503, "Build visitor app first")
         return FileResponse(directory / "index.html")
-    app_public.add_api_route("/", index, methods=["GET"])
-    app_public.add_api_route("/p", index, methods=["GET"])
+    application.add_api_route("/", index, methods=["GET"])
+    application.add_api_route("/p", index, methods=["GET"])
 
 
 mount_visitor_assets()
 
 
 # ─── Entrypoint & Runner ───────────────────────────────────────────────────
+
+
+class GatewayServer(uvicorn.Server):
+    """Both listeners share one process-level signal handler in run_servers."""
+
+    def install_signal_handlers(self):
+        pass  # Uvicorn < 0.29.
+
+    @contextmanager
+    def capture_signals(self):
+        yield  # Uvicorn >= 0.29.
 
 
 async def run_servers():
@@ -826,16 +920,30 @@ async def run_servers():
         ws_max_size=MAX_WS_MSG_SIZE,
         ssl_certfile=os.environ.get("DORI_VISITOR_TLS_CERT"),
         ssl_keyfile=os.environ.get("DORI_VISITOR_TLS_KEY"),
+        timeout_graceful_shutdown=5,
     )
     config_display = uvicorn.Config(
-        app_display, host="127.0.0.1", port=DISPLAY_PORT, log_level="warning"
+        app_display, host="127.0.0.1", port=DISPLAY_PORT, log_level="warning",
+        timeout_graceful_shutdown=5,
     )
 
-    server_public = uvicorn.Server(config_public)
-    server_display = uvicorn.Server(config_display)
+    servers = (GatewayServer(config_public), GatewayServer(config_display))
+
+    def stop_servers(signum, frame):
+        for server in servers:
+            if server.should_exit and signum == signal.SIGINT:
+                server.force_exit = True
+            server.should_exit = True
 
     # 한 이벤트 루프에서 두 서버를 동시에 비동기로 실행 (상태 및 큐 공유 문제 완전 해결)
-    await asyncio.gather(server_public.serve(), server_display.serve())
+    # Per-server handlers otherwise compete, leaving one listener alive after
+    # SIGTERM. Bound draining also lets an open display SSE close on restart.
+    previous = {sig: signal.signal(sig, stop_servers) for sig in (signal.SIGINT, signal.SIGTERM)}
+    try:
+        await asyncio.gather(*(server.serve() for server in servers))
+    finally:
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
 
 
 def main():

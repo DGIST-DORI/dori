@@ -3,6 +3,7 @@ import asyncio
 import base64
 import io
 import json
+import tempfile
 import wave
 from pathlib import Path
 from types import SimpleNamespace
@@ -15,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'ros2_ws/src/dori_d
 for package in ('dori_hri', 'dori_llm'):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'ros2_ws/src' / package))
 import bridge_api as bridge
-from visitor_voice import VisitorVoice, validate_audio
+from visitor_voice import VisitorVoice, validate_audio, validate_text, MAX_TEXT_CHARS
 
 
 def wav_payload(seconds=1, rate=16000):
@@ -28,6 +29,13 @@ def wav_payload(seconds=1, rate=16000):
 
 
 class AudioValidationTests(TestCase):
+    def test_text_must_be_a_bounded_nonblank_string(self):
+        self.assertEqual(validate_text({'text': '  안녕하세요\n  '}), '안녕하세요')
+        self.assertEqual(validate_text({'text': '가' * MAX_TEXT_CHARS}), '가' * MAX_TEXT_CHARS)
+        for value in (None, '', ' \n\t ', 123, [], {}, '가' * (MAX_TEXT_CHARS + 1)):
+            with self.subTest(value_type=type(value).__name__):
+                with self.assertRaises(ValueError): validate_text({'text': value})
+
     def test_valid_and_invalid_audio(self):
         self.assertEqual(validate_audio(wav_payload(10))['sample_rate'], 16000)
         for payload in [wav_payload(.1), wav_payload(10.1), wav_payload(1, 48000),
@@ -40,6 +48,55 @@ class AudioValidationTests(TestCase):
         with self.assertRaises(ValueError): validate_audio(payload)
 
 
+class VisitorAssetsTests(IsolatedAsyncioTestCase):
+    async def test_gateway_leaves_shutdown_signals_with_uvicorn(self):
+        manager = bridge.SessionManager()
+        node = Mock(_move_command=None)
+        with patch.object(bridge, 'session_manager', manager), \
+             patch.object(bridge, 'ros_node', None), \
+             patch.object(bridge, 'internal_token'), \
+             patch.object(bridge, 'BridgeNode', return_value=node), \
+             patch.object(bridge.threading, 'Thread'), \
+             patch.object(bridge.rclpy, 'ok', side_effect=[False, True]), \
+             patch.object(bridge.rclpy, 'init') as initialize, \
+             patch.object(bridge.rclpy, 'shutdown'):
+            async with bridge.public_lifespan(bridge.app_public):
+                initialize.assert_called_once_with(signal_handler_options=bridge.SignalHandlerOptions.NO)
+        node.destroy_node.assert_called_once()
+
+    async def test_colcon_symlink_install_serves_assets_without_path_escape(self):
+        from fastapi import FastAPI
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / 'web' / 'dist-visitor'
+            installed = root / 'install' / 'visitor_web'
+            for directory in (source / 'assets', installed / 'assets'):
+                directory.mkdir(parents=True)
+            files = {
+                'index.html': '<script type="module" src="/assets/app.js"></script>',
+                'recorder.js': '/* audio worklet */',
+                'assets/app.js': 'document.body.textContent = "DORI";',
+                'assets/app.css': 'body { color: green; }',
+            }
+            for name, content in files.items():
+                (source / name).write_text(content)
+                (installed / name).symlink_to(source / name)
+            (installed / 'private.txt').write_text('must not be served')
+
+            app = FastAPI()
+            bridge.mount_visitor_assets(app, installed)
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
+                for url, name in (('/p', 'index.html'), ('/recorder.js', 'recorder.js'),
+                                  ('/assets/app.js', 'assets/app.js'), ('/assets/app.css', 'assets/app.css')):
+                    response = await client.get(url)
+                    self.assertEqual(response.status_code, 200, url)
+                    self.assertEqual(response.text, files[name])
+                self.assertIn('javascript', (await client.get('/assets/app.js')).headers['content-type'])
+                self.assertEqual((await client.get('/assets/missing.js')).status_code, 404)
+                self.assertEqual((await client.get('/assets/%2e%2e/private.txt')).status_code, 404)
+
+
 class VisitorHTTPTests(IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.manager = bridge.SessionManager()
@@ -49,6 +106,7 @@ class VisitorHTTPTests(IsolatedAsyncioTestCase):
                                     voice=SimpleNamespace(media={'key': b'mp3'}))
         self.patches = [patch.object(bridge, 'session_manager', self.manager),
                         patch.object(bridge, 'nonce_manager', bridge.NonceManager()),
+                        patch.object(bridge, 'pair_claim_manager', bridge.PairClaimManager()),
                         patch.object(bridge, 'ros_node', self.node)]
         for p in self.patches: p.start()
         bridge.pair_attempts.clear()
@@ -98,6 +156,92 @@ class VisitorHTTPTests(IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 503)
         self.assertNotIn('set-cookie', response.headers)
 
+    async def test_readiness_failure_does_not_consume_qr(self):
+        self.node.prepare_visitor.return_value = False
+        nonce = bridge.nonce_manager.generate()
+        for _ in range(2):
+            response = await self.client.post('/api/pair', json={'nonce': nonce, 'consent': True})
+            self.assertEqual(response.status_code, 503)
+            self.assertTrue(bridge.nonce_manager.is_valid(nonce))
+        self.node.prepare_visitor.return_value = True
+        response = await self.client.post('/api/pair', json={'nonce': nonce, 'consent': True})
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(bridge.nonce_manager.is_valid(nonce))
+
+    async def test_scan_claim_survives_qr_rotation_and_failed_readiness(self):
+        clock = Mock(return_value=bridge.time.time())
+        with patch.object(bridge, 'time', SimpleNamespace(time=clock, monotonic=bridge.time.monotonic)):
+            nonce = bridge.nonce_manager.generate()
+            response = await self.client.post('/api/pair/claim', json={'nonce': nonce})
+            self.assertEqual(response.status_code, 200)
+            for flag in ('secure', 'httponly', 'samesite=strict'):
+                self.assertIn(flag, response.headers['set-cookie'].lower())
+            self.node.prepare_visitor.assert_not_awaited()
+            self.node.trigger_pairing_success.assert_not_called()
+            self.assertEqual(self.manager.state, bridge.SessionState.IDLE)
+            self.assertIsNone(self.manager.current_token)
+            clock.return_value += bridge.NONCE_TTL + bridge.NONCE_GRACE + 1
+            bridge.nonce_manager.generate()
+            self.assertFalse(bridge.nonce_manager.is_valid(nonce))
+            self.assertEqual((await self.client.get('/api/pair/claim')).status_code, 200)
+            self.assertEqual((await self.client.post('/api/pair', json={'consent': False})).status_code, 400)
+            self.node.prepare_visitor.return_value = False
+            for _ in range(2):
+                self.assertEqual((await self.client.post('/api/pair', json={'consent': True})).status_code, 503)
+            self.node.prepare_visitor.return_value = True
+            self.assertEqual((await self.client.post('/api/pair', json={'consent': True})).status_code, 200)
+            self.assertEqual(bridge.pair_claim_manager.claims, {})
+            self.assertEqual(self.manager.state, bridge.SessionState.ACTIVE)
+
+    async def test_claim_expiry_is_not_extended_by_reload(self):
+        clock = Mock(return_value=bridge.time.time())
+        with patch.object(bridge, 'time', SimpleNamespace(time=clock, monotonic=bridge.time.monotonic)):
+            nonce = bridge.nonce_manager.generate()
+            first = await self.client.post('/api/pair/claim', json={'nonce': nonce})
+            expiry = first.json()['expires_at']
+            clock.return_value += 10
+            repeated = await self.client.post('/api/pair/claim', json={'nonce': nonce})
+            self.assertEqual(repeated.json()['expires_at'], expiry)
+            clock.return_value = expiry + 1
+            self.assertEqual((await self.client.get('/api/pair/claim')).status_code, 410)
+            self.assertEqual((await self.client.post('/api/pair', json={'consent': True})).status_code, 410)
+            self.node.prepare_visitor.assert_not_awaited()
+
+    async def test_claim_requires_valid_qr_origin_and_rate_budget(self):
+        self.assertEqual((await self.client.post('/api/pair/claim', json={'nonce': 'expired'})).status_code, 410)
+        nonce = bridge.nonce_manager.generate()
+        response = await self.client.post('/api/pair/claim', json={'nonce': nonce}, headers={'Origin': 'https://evil.example'})
+        self.assertEqual(response.status_code, 403)
+        bridge.pair_attempts.extend([bridge.time.monotonic()] * 30)
+        self.assertEqual((await self.client.post('/api/pair/claim', json={'nonce': nonce})).status_code, 429)
+
+    async def test_rescanning_a_new_qr_replaces_the_previous_claim(self):
+        clock = Mock(return_value=bridge.time.time())
+        with patch.object(bridge, 'time', SimpleNamespace(time=clock, monotonic=bridge.time.monotonic)):
+            first = await self.client.post('/api/pair/claim', json={'nonce': bridge.nonce_manager.generate()})
+            old_token = self.client.cookies.get('dori_pair_claim')
+            clock.return_value += bridge.NONCE_TTL + 1
+            second = await self.client.post('/api/pair/claim', json={'nonce': bridge.nonce_manager.generate()})
+            self.assertEqual(second.status_code, 200)
+            self.assertGreater(second.json()['expires_at'], first.json()['expires_at'])
+            self.assertNotEqual(self.client.cookies.get('dori_pair_claim'), old_token)
+            self.assertIsNone(bridge.pair_claim_manager.expires_at(old_token))
+            self.node.prepare_visitor.assert_not_awaited()
+
+    async def test_competing_claims_admit_only_one_visitor(self):
+        nonce = bridge.nonce_manager.generate()
+        tokens = []
+        for _ in range(2):
+            response = bridge.Response()
+            await bridge.claim_pairing(bridge.PairClaimRequest(nonce=nonce), response)
+            tokens.append(response.headers['set-cookie'].split(';')[0].split('=', 1)[1])
+        results = await asyncio.gather(*(
+            bridge.pair_device(bridge.PairRequest(consent=True), bridge.Response(), token)
+            for token in tokens
+        ), return_exceptions=True)
+        self.assertEqual(sum(isinstance(value, dict) for value in results), 1)
+        self.assertEqual([value.status_code for value in results if isinstance(value, bridge.HTTPException)], [409])
+
     async def test_admin_cannot_bypass_failed_cleanup(self):
         await self.manager.start_session()
         self.node.execute_cleanup.return_value = False
@@ -131,6 +275,40 @@ class VoiceTurnTests(IsolatedAsyncioTestCase):
         self.voice.cancel()
         await self.voice.task
         self.voice.audio_pub.publish.assert_not_called()
+
+    async def test_text_skips_stt_and_shares_reply_and_motion_restrictions(self):
+        self.voice.audio_pub.get_subscription_count.return_value = 0
+        self.voice._action = AsyncMock(side_effect=[
+            SimpleNamespace(intent='navigation', response_text='Go to library'),
+            SimpleNamespace(success=True),
+        ])
+        self.voice.start_text({'text': '  도서관으로 안내해 주세요  '})
+        with self.assertRaises(ValueError): self.voice.start_text({'text': 'second'})
+        with self.assertRaises(ValueError): self.voice.start(wav_payload())
+        await self.voice.task
+        self.voice.audio_pub.publish.assert_not_called()
+        events = [call.args[0] for call in self.manager.active_ws.send_json.call_args_list]
+        self.assertEqual(events[0], {'type': 'user_text', 'data': '도서관으로 안내해 주세요'})
+        self.assertNotIn('stt_text', [event['type'] for event in events])
+        reply = next(event['data'] for event in events if event['type'] == 'llm_text')
+        self.assertIn('이동 안내와 추종은 아직 지원하지 않아요', reply)
+        calls = self.voice._action.call_args_list
+        self.assertEqual(calls[0].args[2].text, '도서관으로 안내해 주세요')
+        self.assertEqual(calls[1].args[2].text, reply)
+        self.assertTrue(calls[1].kwargs['remote'])
+        self.assertEqual(events[-1], {'type': 'robot_state', 'status': 'READY'})
+
+    async def test_text_cannot_overlap_audio_and_cancel_prevents_dispatch(self):
+        self.voice.start(wav_payload())
+        with self.assertRaises(ValueError): self.voice.start_text({'text': 'hello'})
+        self.voice.cancel()
+        await self.voice.task
+        self.voice._action = AsyncMock()
+        self.voice.start_text({'text': 'not delivered'})
+        self.voice.cancel()
+        await self.voice.task
+        self.voice._action.assert_not_awaited()
+        self.manager.active_ws.send_json.assert_not_awaited()
 
     async def test_stale_stt_and_audio_are_discarded(self):
         self.voice.turn = 'new'

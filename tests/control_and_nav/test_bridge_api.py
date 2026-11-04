@@ -2,6 +2,8 @@
 
 import asyncio
 import importlib.util
+import json
+import signal
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
@@ -57,6 +59,53 @@ class ASGIConnection:
         assert not self.task.done()
 
 
+class DisplayRotationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_late_display_uses_remaining_rotation_time(self):
+        clock = Mock(return_value=1000.0)
+        manager = bridge.SessionManager()
+        nonces = bridge.NonceManager()
+        with patch.object(bridge, 'session_manager', manager), patch.object(bridge, 'nonce_manager', nonces), patch.object(bridge, 'time', SimpleNamespace(time=clock, monotonic=bridge.time.monotonic)):
+            nonces.generate()
+            clock.return_value += bridge.NONCE_TTL - 2
+            stream = bridge.display_event_generator(asyncio.Queue())
+            await anext(stream)  # Initial state.
+            event = await anext(stream)
+            self.assertIn('"ttl": 2.0', event)
+            await stream.aclose()
+
+
+class GatewayShutdownTests(unittest.IsolatedAsyncioTestCase):
+    async def test_sigterm_stops_both_listeners_and_restores_handler(self):
+        listeners = []
+
+        class Listener:
+            def __init__(self, config):
+                self.config = config
+                self.should_exit = False
+                self.stopped = False
+                listeners.append(self)
+
+            async def serve(self):
+                while not self.should_exit:
+                    await asyncio.sleep(0)
+                self.stopped = True
+
+        previous = signal.getsignal(signal.SIGTERM)
+        with patch.object(bridge, 'GatewayServer', Listener):
+            task = asyncio.create_task(bridge.run_servers())
+            try:
+                await asyncio.sleep(0)
+                signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)
+                await asyncio.wait_for(task, timeout=1)
+            finally:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+        self.assertEqual(len(listeners), 2)
+        self.assertTrue(all(server.stopped for server in listeners))
+        self.assertTrue(all(0 < server.config.timeout_graceful_shutdown <= 5 for server in listeners))
+        self.assertIs(signal.getsignal(signal.SIGTERM), previous)
+
+
 class BridgeAPITests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.manager = bridge.SessionManager()
@@ -65,7 +114,7 @@ class BridgeAPITests(unittest.IsolatedAsyncioTestCase):
             prepare_visitor=AsyncMock(return_value=True),
             request_stop=Mock(),
             cancel_visitor=Mock(),
-            voice=SimpleNamespace(start=Mock(), playback=Mock(), media={}),
+            voice=SimpleNamespace(start=Mock(), start_text=Mock(), playback=Mock(), media={}),
             execute_cleanup=AsyncMock(return_value=True),
         )
         self.clock = Mock(return_value=100.0)
@@ -127,6 +176,22 @@ class BridgeAPITests(unittest.IsolatedAsyncioTestCase):
         })
         self.ros.cancel_visitor.assert_called_once()
         self.ros.cancel_visitor.assert_called_once_with()
+        self.assertEqual(self.manager.last_activity, 110.0)
+
+    async def test_text_dispatch_counts_only_accepted_messages_as_activity(self):
+        connection = await self.connect()
+        self.clock.return_value = 110.0
+        self.ros.voice.start_text.side_effect = ValueError('Message rejected')
+        await connection.feed({'type': 'websocket.receive', 'text': json.dumps({'type': 'text', 'text': ''})})
+        error = json.loads((await connection.outgoing.get())['text'])
+        self.assertEqual(error['code'], 'text_rejected')
+        self.assertEqual(self.manager.last_activity, 100.0)
+        self.assertEqual(self.manager.state, bridge.SessionState.ACTIVE)
+        self.ros.voice.start_text.side_effect = None
+        payload = {'type': 'text', 'text': '캠퍼스가 궁금해요'}
+        await connection.feed({'type': 'websocket.receive', 'text': json.dumps(payload)})
+        self.ros.voice.start_text.assert_called_with(payload)
+        self.ros.voice.start.assert_not_called()
         self.assertEqual(self.manager.last_activity, 110.0)
 
     async def test_idle_watcher_expires_without_incoming_messages(self):
@@ -247,7 +312,7 @@ class BridgeAPITests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.manager.state, bridge.SessionState.ACTIVE)
 
     async def test_public_server_config_limits_messages_at_transport(self):
-        with patch.object(bridge.uvicorn, "Server") as server:
+        with patch.object(bridge, "GatewayServer") as server:
             server.return_value.serve = AsyncMock()
             await bridge.run_servers()
         config = server.call_args_list[0].args[0]
