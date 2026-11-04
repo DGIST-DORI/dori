@@ -80,3 +80,71 @@ def test_installed_scripts_include_bridge_and_shared_modules(monkeypatch):
     assert {'backend_api.py', 'bridge_api.py', 'control_contract.py', 'internal_auth.py'} <= {Path(path).name for path in files}
     assert all(Path(path).is_file() for path in files)
     assert 'PyJWT[crypto]>=2.10.1,<3' in setup.call_args.kwargs['install_requires']
+
+
+def test_navigation_viewer_starts_by_default_on_loopback(monkeypatch, tmp_path):
+    from launch.actions import DeclareLaunchArgument
+    from xml.etree import ElementTree
+
+    module = load_launch(monkeypatch)
+    context = LaunchContext()
+    (tmp_path / 'web').mkdir()
+    monkeypatch.setattr(module, 'get_package_share_directory', lambda _: str(tmp_path))
+    description = module.generate_launch_description()
+    for action in description.entities:
+        if isinstance(action, DeclareLaunchArgument):
+            action.execute(context)
+    assert context.launch_configurations['enable_navigation_viewer'] == 'true'
+    monkeypatch.setattr(module, 'get_package_share_directory', lambda _: str(PACKAGE))
+    node_factory = Mock(wraps=Node)
+    monkeypatch.setattr(module, 'Node', node_factory)
+    actions = module._make_navigation_viewer_actions(context)
+    assert len(actions) == 1
+    config = node_factory.call_args.kwargs
+    assert config['package'] == 'dori_navigation'
+    assert config['executable'] == 'web_viewer.py'
+    options = dict(zip(config['arguments'][::2], config['arguments'][1::2]))
+    assert options == {
+        '--host': '127.0.0.1', '--port': '8080', '--user-port': '0',
+        '--mode': 'auto', '--goals-file': str(ROOT / 'maps/web_goals.json'),
+    }
+    assert config['respawn'] is True
+    assert config['respawn_delay'] == 2.0
+    assert config['additional_env']['DORI_WS'] == str(ROOT)
+    manifest = ElementTree.parse(PACKAGE / 'package.xml').getroot()
+    assert 'dori_navigation' in [entry.text for entry in manifest.findall('exec_depend')]
+
+
+def test_external_viewer_disables_dashboard_owner(monkeypatch):
+    module = load_launch(monkeypatch)
+    context = LaunchContext()
+    context.launch_configurations['enable_navigation_viewer'] = 'false'
+    node_factory = Mock()
+    monkeypatch.setattr(module, 'Node', node_factory)
+    assert module._make_navigation_viewer_actions(context) == []
+    node_factory.assert_not_called()
+
+
+def test_hardware_launch_keeps_exactly_one_viewer(monkeypatch):
+    from launch.actions import DeclareLaunchArgument
+
+    path = ROOT / 'ros2_ws/src/dori_bringup/launch/hardware.launch.py'
+    spec = importlib.util.spec_from_file_location('hardware_viewer_ownership', path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    monkeypatch.setattr(module, 'get_package_share_directory',
+                        lambda name: str(ROOT / 'ros2_ws/src' / name))
+    context = LaunchContext()
+    context.launch_configurations['map'] = str(ROOT / 'maps/live_navigation_20261023_1938.yaml')
+    for action in module.generate_launch_description().entities:
+        if isinstance(action, DeclareLaunchArgument):
+            action.execute(context)
+    includes = Mock(wraps=module.include)
+    monkeypatch.setattr(module, 'include', includes)
+    actions = module.setup(context)
+    includes.assert_any_call('dori_dashboard', 'dashboard.launch.py',
+                             {'enable_navigation_viewer': 'false'})
+    viewers = [action for action in actions if isinstance(action, Node)
+               and perform_substitutions(context, normalize_to_list_of_substitutions(
+                   action.node_executable)) == 'web_viewer.py']
+    assert len(viewers) == 1

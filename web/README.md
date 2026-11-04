@@ -19,7 +19,11 @@ web build. For package migrations, follow the clean-overlay procedure in AMM 20-
 
 ## Launch
 
-The development launch below starts desktop HRI, not physical navigation.
+The development launch below starts desktop HRI and the dashboard map backend,
+not physical navigation. The map backend starts automatically with the dashboard
+and restarts after an unexpected exit. It listens only on `127.0.0.1:8080`; it
+does not open the standalone user port or start hardware/Nav2. Without a running
+robot/map source, the panel connects in monitor mode and waits for data.
 For hardware + Nav2 + map viewer + HRI, use `dori_bringup hardware.launch.py`
 with the device preparation and arguments in AMM 40-10.
 
@@ -46,6 +50,17 @@ If you need to run the dashboard standalone (without the desktop HRI stack):
 ```bash
 ros2 launch dori_dashboard dashboard.launch.py
 ```
+
+If a separately managed viewer already owns port 8080, launch the dashboard with
+`enable_navigation_viewer:=false`. The integrated `hardware.launch.py` sets this
+automatically because it supplies its own navigation-mode viewer. Stop a desktop
+dashboard session before switching to the full hardware launch.
+
+After installing this update, remove the temporary recovery viewer before the
+next normal dashboard launch: `systemctl --user stop dori-navigation-viewer.service`
+(only if that temporary service is running). The dashboard launch then owns the
+viewer lifecycle. This follows the dashboard's existing startup mechanism; it
+does not install a new boot service for the dashboard itself.
 
 ## Access and authentication
 
@@ -89,7 +104,7 @@ a token **on the trusted host** using the same environment:
 Paste the result into the login screen. The shared API wrapper uses an HttpOnly,
 SameSite=Strict session cookie (Secure on HTTPS); tokens are never saved in
 localStorage/sessionStorage. The cookie expires within 15 minutes and never
-outlives the source JWT. This also authenticates the navigation iframe. API 401s
+outlives the source JWT. This also authenticates the navigation panel requests. API 401s
 return the UI to login. Logout clears the local session and tickets; Access
 logins additionally use Cloudflare's [logout endpoint](https://developers.cloudflare.com/cloudflare-one/access-controls/access-settings/session-management/).
 
@@ -107,6 +122,51 @@ HTTPS or an SSH port forward when entering a token. For Vite development,
 `/api`, `/navigation`, and `/ws` are proxied to localhost:3000.
 
 ## Dashboard control contract
+
+### Navigation panel
+
+`Navigation → Map → Robot Map & Navigation` renders a native React canvas and
+controls. The existing `/navigation/api/{session,state,map.png,command}` proxy
+continues to connect to the navigation web viewer on loopback port 8080. Run the
+hardware/navigation stack for live data; starting the dashboard alone starts the
+viewer in auto-detection mode, but does not start Nav2. The standalone
+`/navigation/` viewer remains available.
+
+The panel supports map pan/zoom, robot follow, initial pose and goal direction,
+named destination editing, AUTO stop, and sensor/drive diagnostics. Narrow panels
+and mobile screens stack the controls below the map. Viewer accounts can inspect
+data; control, deploy, and admin roles can use the command controls, matching the
+backend permission policy.
+
+State polling runs 200ms after each response. A 1.5-second gap disables motion
+controls; upstream failures and stale ROS snapshots are displayed. Map images
+refresh on version changes. Server/coordinate-system changes clear pending pose
+selections. Commands are never automatically replayed on reconnect.
+
+Each mounted panel has its own control client ID. Only the owning client sends
+heartbeats. Closing/minimizing the panel ends polling and heartbeat; the existing
+server lease expires after 10 seconds and stops AUTO. Use **AUTO 정지** for an
+explicit stop before closing; ESC sends that same request only while focus is
+inside this panel. This retains the navigation stop behavior, separate from the
+dashboard's emergency-stop latch. Reopening never automatically acquires control.
+
+Frontend regression checks: `npm test`, `npm run lint`, and `npm run build`.
+Navigation client tests cover permissions, stale state, ownership/heartbeat,
+restart, HTTP failures and cleanup; geometry tests cover rotated map origins,
+coordinate conversion, cursor-anchored zoom and pose input. Physical driving and
+stopping still require the hardware acceptance checks below.
+
+For the browser regression, start Vite on loopback port 5178, install Playwright
+and its Chromium browser in your test environment, then run
+`node tests/navigation.browser.mjs` from `web`. Set `PLAYWRIGHT_MODULE` to an
+external Playwright module path if it is not installed locally, and
+`PLAYWRIGHT_BROWSERS_PATH` if using a custom browser cache. `NAV_TEST_URL` can
+override the Vite URL. The test intercepts all API calls with fixtures and never
+sends robot commands. It checks pose selection, destination CRUD, scoped ESC,
+map caching, resizing/mobile, ownership, reconnect, cleanup and authentication.
+Desktop/mobile screenshots are written under `/tmp/dori-navigation-*.png`.
+
+### Manual control
 
 `DORI_CONTROL_EXECUTOR=dry-run` remains the default. Live control requires
 `DORI_CONTROL_EXECUTOR=bridge` in **both** backend and bridge environments.
