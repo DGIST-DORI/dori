@@ -46,6 +46,7 @@ from std_srvs.srv import Trigger
 from dori_msgs.action import Speak
 
 from dori_core.db_manager import TTSDatabaseManager
+from dori_hri.tts_speech import GCP_VOICES, speech_language, speech_ssml, spoken_text
 
 try:
     from gtts import gTTS
@@ -440,38 +441,30 @@ class TTSNode(Node):
 
     # --- Synthesis Logic (재생 로직 분리) ---
     def _speak_with_waterfall(self, text: str):
-        char_count = len(text)
+        voices = GCP_VOICES[speech_language(text, self.language)]
         today = datetime.now().strftime("%Y-%m-%d")
         current_usage = self.db.get_usage(today)  # DB 읽기
 
         try:
-            if current_usage["neural2"] + char_count <= self.limits["neural2"]:
-                path = self._synthesize_gcp(text, "ko-KR-Neural2-A")
-                self.db.add_usage(today, "neural2", char_count)  # DB 쓰기
-                return path, "neural2"
+            for tier, voice_name in voices.items():
+                # SSML markup counts toward the provider's character limits.
+                char_count = len(speech_ssml(text, voice_name))
+                if current_usage[tier] + char_count <= self.limits[tier]:
+                    path = self._synthesize_gcp(text, voice_name)
+                    self.db.add_usage(today, tier, char_count)
+                    return path, tier
 
-            elif current_usage["wavenet"] + char_count <= self.limits["wavenet"]:
-                path = self._synthesize_gcp(text, "ko-KR-Wavenet-A")
-                self.db.add_usage(today, "wavenet", char_count)
-                return path, "wavenet"
-
-            elif current_usage["standard"] + char_count <= self.limits["standard"]:
-                path = self._synthesize_gcp(text, "ko-KR-Standard-A")
-                self.db.add_usage(today, "standard", char_count)
-                return path, "standard"
-
-            else:
-                self.get_logger().warn("GCP Limits reached. Fallback to gTTS")
-                return self._synthesize_gtts(text), "gtts"
+            self.get_logger().warn("GCP Limits reached. Fallback to gTTS")
+            return self._synthesize_gtts(text), "gtts"
 
         except Exception as e:
             self.get_logger().error(f"GCP Fallback triggered: {e}")
             return self._synthesize_gtts(text), "gtts"
 
     def _synthesize_gcp(self, text: str, voice_name: str) -> str:
-        synthesis_input = texttospeech.SynthesisInput(text=text)
+        synthesis_input = texttospeech.SynthesisInput(ssml=speech_ssml(text, voice_name))
         voice = texttospeech.VoiceSelectionParams(
-            language_code="ko-KR", name=voice_name
+            language_code="-".join(voice_name.split("-")[:2]), name=voice_name
         )
         audio_config = texttospeech.AudioConfig(
             audio_encoding=texttospeech.AudioEncoding.MP3
@@ -486,10 +479,12 @@ class TTSNode(Node):
             return fp.name
 
     def _synthesize_gtts(self, text: str) -> str:
+        language = speech_language(text, self.language)
         with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as fp:
             tmp = fp.name
         try:
-            gTTS(text=text, lang=self.language, slow=False, timeout=(3, 10)).save(tmp)
+            gTTS(text=spoken_text(text, language), lang=language.split("-")[0],
+                 slow=False, timeout=(3, 10)).save(tmp)
             return tmp
         except Exception:
             self._cleanup_temp_file(tmp)
@@ -545,6 +540,10 @@ class TTSNode(Node):
 
     def _publish_audio_event(self, event_type: str, payload: dict):
         # Always publish output metadata; browsers suppress local_only playback.
+        if event_type in ("tts_text", "remote_audio"):
+            language = speech_language(payload.get("text", ""), self.language)
+            payload = {**payload, "language": language,
+                       "speech_text": spoken_text(payload.get("text", ""), language)}
         msg = String()
         msg.data = json.dumps(
             {

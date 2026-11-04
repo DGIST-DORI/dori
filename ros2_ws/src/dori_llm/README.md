@@ -6,9 +6,11 @@ The node uses the `google-genai` SDK (`client.models.generate_content`) with
 the current RAG/location context as `system_instruction` and the last three
 conversation turns plus the current question as `contents`. The node owns the
 history, so `llm/reset` clears the next request's conversation context too.
-Greetings, thanks, and destination guidance are handled locally.
+All conversation, including greetings and thanks, uses the LLM when available.
+Destination guidance stays local and only selects registered destinations.
 
-From the repository root, install the optional dependencies:
+The standard build installs the Gemini SDK from `requirements-runtime.txt`.
+From the repository root, install optional RAG/other-provider dependencies:
 
 ```bash
 .venv/bin/python -m pip install -c constraints-robot.txt -r ros2_ws/src/dori_llm/requirements.txt
@@ -24,7 +26,7 @@ ros2 launch dori_bringup voice.launch.py \
   use_external_llm:=true llm_model:=gemini-3.5-flash-lite
 ```
 
-`hardware.launch.py` accepts the same `use_external_llm` and `llm_model`
+`bringup.launch.py` and `hardware.launch.py` accept the same `use_external_llm` and `llm_model`
 arguments. For only the LLM node:
 
 ```bash
@@ -41,11 +43,19 @@ environment configuration. `.env` files are not loaded automatically, and the
 Google Cloud TTS JSON credential is not a Gemini API key. Restart the node after
 changing credentials or the model.
 
-`use_external_llm` defaults to `false`. On successful initialization the node logs
+`use_external_llm` defaults to `true` in the node and all three launch entrypoints.
+To deliberately use only local responses, launch with `use_external_llm:=false`.
+On successful initialization the node logs
 `Gemini client ready: <model>`; this confirms client creation, not API access.
-Missing dependencies/credentials disable the external client and retain local
-KB responses. API failures or empty model output are logged and return the
-localized fallback response.
+Missing dependencies/credentials disable the external client, log a warning and
+retain local KB responses. API failures or empty model output return a localized
+service-unavailable message. Gemini requests have a 20-second HTTP timeout and
+one attempt; successful generation logs the model and elapsed time.
+
+Vector retrieval is optional: missing FAISS/embedding dependencies are logged
+once per node lifetime and do not prevent Gemini conversation. Restart the node
+after installing them or updating the index. Missing structured campus data
+does not supply demo opening hours or coordinates to the model.
 
 ### Model selection (reviewed 2026-11-05)
 

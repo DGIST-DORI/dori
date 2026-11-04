@@ -36,7 +36,8 @@ async def run_flow(tmp_path):
                 raise AssertionError('ROS condition timed out')
             await asyncio.sleep(.05)
 
-    rclpy.init(args=['--ros-args', '-r', '__ns:=/dori', '-p', 'playback_mode:=publish_only'])
+    rclpy.init(args=['--ros-args', '-r', '__ns:=/dori', '-p', 'playback_mode:=publish_only',
+                    '-p', 'use_external_llm:=false'])
     manager = bridge.SessionManager()
     manager.main_loop = asyncio.get_running_loop()
     follow_requests = []
@@ -68,7 +69,7 @@ async def run_flow(tmp_path):
         worker = threading.Thread(target=executor.spin, daemon=True)
         worker.start()
         log = (tmp_path / 'bt.log').open('w')
-        bt = subprocess.Popen(['ros2', 'run', 'dori_bt', 'dori_tree_executor', '--ros-args', '-r', '__ns:=/dori', '-p', 'visitor_mode:=true'], stdout=log, stderr=subprocess.STDOUT)
+        bt = subprocess.Popen(['ros2', 'run', 'dori_bt', 'dori_tree_executor', '--ros-args', '-r', '__ns:=/dori', '-p', 'visitor_mode:=true'], stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
         try:
             await until(lambda: node.cli_stt_reset.service_is_ready() and node.cli_visitor_ready.service_is_ready() and node.cli_tts_reset.service_is_ready() and node.cli_llm_reset.service_is_ready() and node.cli_bt_clear.service_is_ready() and node.voice.llm.server_is_ready() and node.voice.tts.server_is_ready() and node.voice.audio_pub.get_subscription_count())
             assert await node.prepare_visitor()
@@ -111,10 +112,10 @@ async def run_flow(tmp_path):
             node.cancel_visitor()
             await manager._cancel_session_timers()
             if bt.poll() is None:
-                bt.send_signal(signal.SIGINT)
+                os.killpg(bt.pid, signal.SIGINT)
                 try: bt.wait(timeout=4)
                 except subprocess.TimeoutExpired:
-                    bt.kill()
+                    os.killpg(bt.pid, signal.SIGKILL)
                     bt.wait(timeout=2)
             executor.shutdown(timeout_sec=3)
             worker.join(timeout=3)

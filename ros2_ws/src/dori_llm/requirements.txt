@@ -6,5 +6,5 @@ faiss-cpu>=1.7.4
 sentence-transformers>=2.2.2
 
 # Optional external LLM providers (selected by model_name)
-google-genai>=1.0.0
+google-genai>=1.75.0,<2
 anthropic>=0.34.0

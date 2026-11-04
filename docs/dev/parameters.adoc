@@ -236,7 +236,7 @@ This document is the SSOT for ROS2 parameter details in the current workspace.
 | Name | Type | Default | Range/Enum | Unit | Description
 | knowledge_file | string | `""` | file path | - | Knowledge JSON path.
 | rag_index_dir | string | `""` | directory path | - | RAG index directory.
-| use_external_llm | bool | false | true/false | - | Use external API model.
+| use_external_llm | bool | true | true/false | - | Use external API model. Set false explicitly for local-only responses.
 | model_name | string | `gemini-3.5-flash-lite` | provider model id | - | External model identifier.
 | api_key | string | `""` | secret string | - | External API key. For Gemini, falls back to `GEMINI_API_KEY`, then `GOOGLE_API_KEY` in the process environment.
 | rag_top_k | int | 3 | >=1 | - | Number of retrieved chunks.
@@ -256,7 +256,7 @@ This document is the SSOT for ROS2 parameter details in the current workspace.
 |===
 | Name | Type | Default | Range/Enum | Unit | Description
 | tts_engine | string | `gcp` | `gcp/auto/gtts` | - | `gcp` and `auto` prefer Google Cloud TTS; initialization/request errors or local usage limits fall back to gTTS.
-| language | string | `ko` | locale code | - | Speech language.
+| language | string | `ko` | `ko/en` (locale forms accepted) | - | Fallback for text without Hangul or Latin letters. Korean-containing utterances use `ko-KR`; Latin-only utterances use `en-US`, including Cloud, gTTS and browser playback.
 | speech_rate | int | 150 | >0 | - | Speech rate (engine-dependent).
 | volume | double | 0.9 | [0,1] | - | Playback volume.
 | playback_mode | string | `local_and_publish` | `local_only/publish_only/local_and_publish` | - | Local playback/publish routing policy.

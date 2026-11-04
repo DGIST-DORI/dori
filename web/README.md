@@ -477,6 +477,23 @@ synthesizes MP3 and waits for `tts/remote_playback` acknowledgment (90-second
 limit). It never plays visitor answers on the robot speaker. Wake chimes remain
 local. The existing `tts/speak` and legacy `publish_only` behavior are preserved.
 
+TTS selects the voice for each reply: Korean-containing text uses `ko-KR`,
+Latin-only text uses `en-US`, and numbers/punctuation use the node's `language`
+fallback (default `ko`). This ko/en policy also applies to gTTS and dashboard
+browser speech; it does not split mixed-language replies into separate voices.
+Cloud TTS uses the matching Neural2, WaveNet or Standard voice and applies
+SSML IPA `ˈdɔːri` to `DORI`/`Dori` and `diːˈdʒist` to `DGIST`
+(with /dʒ/ and stress on the second syllable). Matching is
+case-insensitive and supports Korean particles without changing larger Latin
+words or identifiers. In Korean replies only these names switch to an
+English voice of the same tier for its English phonemes and stress.
+gTTS and browser speech use best-effort `Dory` / `dee jist` (English) and
+`도리` / `디지스트` (Korean)
+because they do not provide portable IPA control. Displayed conversation text
+stays unchanged; audio events add `language` and `speech_text` metadata.
+See Google's [SSML reference](https://docs.cloud.google.com/text-to-speech/docs/ssml)
+and [supported phonemes](https://docs.cloud.google.com/text-to-speech/docs/phonemes).
+
 GRACE cancels work immediately and retains history for up to 90 seconds.
 Reconnection never resumes canceled work. Session expiry is 15 minutes.
 ENDING revokes the cookie and waits for actual in-flight action completion;

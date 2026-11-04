@@ -18,7 +18,7 @@ def generate_launch_description():
     defaults = dict(
         namespace="/dori",
         enable_stt="true",
-        use_external_llm="false",
+        use_external_llm="true",
         knowledge_file="",
         rag_index_dir="",
         llm_model="gemini-3.5-flash-lite",

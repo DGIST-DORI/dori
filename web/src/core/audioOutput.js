@@ -79,7 +79,8 @@ export function createAudioOutputRouter({ mode, executionProfile, addLog, setAct
       let event;
       try { event = typeof payload === 'string' ? JSON.parse(payload) : payload; } catch { return; }
       if (event?.event_type !== 'tts_text' || event.playback_mode === 'local_only') return;
-      tts.speak({ payload: event.text, messageId: event.timestamp, source: '/dori/tts/audio_event' });
+      tts.speak({ payload: event.text, messageId: event.timestamp,
+        lang: event.language, speechText: event.speech_text, source: '/dori/tts/audio_event' });
     });
 
     cleanups.push(() => {

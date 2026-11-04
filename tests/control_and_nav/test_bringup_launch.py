@@ -51,6 +51,8 @@ def test_default_starts_app_gateway_and_voice_without_local_stt(bringup, monkeyp
     context, includes = describe(bringup)
     assert set(includes) == {"voice.launch.py", "interaction.launch.py", "dashboard.launch.py"}
     assert includes["voice.launch.py"]["enable_stt"] == "false"
+    assert includes["voice.launch.py"]["use_external_llm"] == "true"
+    assert includes["voice.launch.py"]["llm_model"] == "gemini-3.5-flash-lite"
     assert includes["voice.launch.py"]["stt_audio_input_mode"] == "topic"
     assert includes["interaction.launch.py"]["visitor_mode"] == "true"
     assert context.environment["DORI_VISITOR_STT"] == "azure"
@@ -150,3 +152,12 @@ def test_preflight_reports_setup_action_without_provider_secrets(bringup, monkey
 def test_whisper_preflight_rejects_missing_model(bringup, tmp_path):
     with pytest.raises(RuntimeError, match="prepare_voice.sh --topic-only"):
         bringup.check_visitor(LaunchContext(), ROOT, "whisper", str(tmp_path))
+
+
+@pytest.mark.parametrize("mode,child", [("desktop", "voice.launch.py"), ("real", "hardware.launch.py")])
+@pytest.mark.parametrize("enabled", ["true", "false"])
+def test_llm_settings_are_forwarded_to_desktop_and_hardware(bringup, monkeypatch, mode, child, enabled):
+    monkeypatch.setattr(bringup, "check_visitor", Mock())
+    _, includes = describe(bringup, dori_mode=mode, use_external_llm=enabled, llm_model="gemini-test")
+    assert includes[child]["use_external_llm"] == enabled
+    assert includes[child]["llm_model"] == "gemini-test"

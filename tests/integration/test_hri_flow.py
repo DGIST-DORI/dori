@@ -30,7 +30,8 @@ from .test_action_flow import Backend, wait
 @pytest.fixture
 def flow(tmp_path, request):
     assert os.getenv('ROS_DOMAIN_ID') == '96' and os.getenv('ROS_LOCALHOST_ONLY') == '1'
-    rclpy.init(args=['--ros-args', '-r', '__ns:=/dori', '-p', 'playback_mode:=publish_only'])
+    rclpy.init(args=['--ros-args', '-r', '__ns:=/dori', '-p', 'playback_mode:=publish_only',
+                    '-p', 'use_external_llm:=false'])
     backend, adapter, named, llm, tts = Backend(), Nav2Adapter(), NamedGoalAdapter(), LLMNode(), TTSNode()
     emotion = EmotionPublisherNode()
     probe = Node('hri_probe')
@@ -91,7 +92,7 @@ def flow(tmp_path, request):
         backend.finish = True
         mode.publish(Int32(data=0))
         if proc.poll() is None:
-            proc.send_signal(signal.SIGINT)
+            os.killpg(proc.pid, signal.SIGINT)
         try:
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:

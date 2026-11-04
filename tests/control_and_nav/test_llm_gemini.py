@@ -8,7 +8,7 @@ from unittest.mock import Mock
 import google
 import pytest
 
-from dori_llm.llm_node import LLMNode
+from dori_llm.llm_node import CampusKnowledgeBase, LLMNode, VectorRetriever
 
 
 @pytest.fixture
@@ -52,7 +52,10 @@ def test_gemini_credential_precedence(
     monkeypatch.setenv("GEMINI_API_KEY", gemini)
     monkeypatch.setenv("GOOGLE_API_KEY", google_key)
     backend.node._init_llm_client(parameter)
-    backend.sdk.Client.assert_called_once_with(api_key=expected)
+    backend.sdk.Client.assert_called_once_with(
+        api_key=expected,
+        http_options={"timeout": 20000, "retry_options": {"attempts": 1}},
+    )
     assert backend.node.llm_type == "gemini"
     assert backend.node.use_external
 
@@ -142,7 +145,7 @@ def test_empty_response_uses_localized_fallback(backend, text):
     node = backend.node
     node._init_llm_client("test-key")
     backend.generate.return_value.text = text
-    assert node._call_llm_with_context("질문", "", "") == node._localized("no_understand")
+    assert node._call_llm_with_context("질문", "", "") == node._localized("llm_unavailable")
     backend.logger.warn.assert_called_once()
     backend.logger.error.assert_not_called()
 
@@ -152,5 +155,54 @@ def test_api_error_is_logged_and_returns_fallback(backend):
     node._init_llm_client("test-key")
     node.current_language = "en"
     backend.generate.side_effect = RuntimeError("quota exhausted")
-    assert node._call_llm_with_context("question", "", "") == node._localized("no_understand")
+    assert node._call_llm_with_context("question", "", "") == node._localized("llm_unavailable")
     assert "quota exhausted" in backend.logger.error.call_args.args[0]
+
+
+@pytest.mark.parametrize("text", [
+    "안녕하세요", "안녕, 내 이름을 기억해줘", "고마워, 아까 내 이름 기억해?",
+    "Hello, can you remember my name?", "Thanks, how can you help me?",
+])
+def test_conversation_including_greetings_and_thanks_reaches_llm(backend, text):
+    node = backend.node
+    node._init_llm_client("test-key")
+    node.rag_top_k = 3
+    node.kb = SimpleNamespace(search_faq=Mock(return_value=None), search_location=Mock(return_value=None))
+    node.retriever = SimpleNamespace(search=Mock(return_value=[]), format_context=Mock(return_value=""))
+    result = node._generate_response(text, "")
+    assert result["text"] == "도서관은 E8에 있습니다."
+    assert result["target"] == ""
+    assert backend.generate.call_args.kwargs["contents"][-1]["parts"][0]["text"] == text
+
+
+def test_navigation_remains_bound_to_registered_goals_without_llm(backend):
+    node = backend.node
+    node._init_llm_client("test-key")
+    node.registered = [{"id": "lobby", "name": "로비"}]
+    assert node._generate_response("로비로 데려다줘", "")["target"] == "lobby"
+    assert node._generate_response("없는 건물로 데려다줘", "")["target"] == ""
+    backend.generate.assert_not_called()
+
+
+@pytest.mark.parametrize("text,intent", [("안녕하세요", "greeting"), ("감사합니다", "thanks")])
+def test_explicit_offline_mode_preserves_local_social_responses(backend, text, intent):
+    node = backend.node
+    node.use_external = False
+    assert node._generate_response(text, "")["text"] == node._localized(intent)
+    backend.generate.assert_not_called()
+
+
+def test_missing_index_is_only_attempted_once(tmp_path):
+    logger = Mock()
+    retriever = VectorRetriever(str(tmp_path), logger)
+    retriever.index_dir = str(tmp_path / "missing")
+    assert retriever.search("first") == []
+    assert retriever.search("second") == []
+    logger.warn.assert_called_once()
+
+
+def test_missing_knowledge_does_not_invent_hours_or_coordinates():
+    kb = object.__new__(CampusKnowledgeBase)
+    kb._init_defaults()
+    assert kb.search_location("도서관") is None
+    assert kb.search_faq("운영시간") is None

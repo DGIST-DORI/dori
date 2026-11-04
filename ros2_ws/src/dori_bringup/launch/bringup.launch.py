@@ -97,6 +97,8 @@ def setup(context):
                             "tts_playback_mode",
                             "tts_engine",
                             "whisper_model",
+                            "use_external_llm",
+                            "llm_model",
                             "require_user_tracking",
                         )
                     },
@@ -117,6 +119,8 @@ def setup(context):
                     "tts_playback_mode",
                     "tts_engine",
                     "whisper_model",
+                    "use_external_llm",
+                    "llm_model",
                 )
             },
         ),
@@ -153,6 +157,8 @@ def generate_launch_description():
         tts_playback_mode="local_only",
         tts_engine="gcp",
         whisper_model="",
+        use_external_llm="true",
+        llm_model="gemini-3.5-flash-lite",
         require_user_tracking="false",
     )
     choices = {
@@ -160,6 +166,7 @@ def generate_launch_description():
         "visitor_mode": ["true", "false"],
         "visitor_stt": ["azure", "whisper"],
         "enable_stt": ["auto", "true", "false"],
+        "use_external_llm": ["true", "false"],
         "stt_audio_input_mode": ["auto", "microphone", "topic"],
     }
     return LaunchDescription(

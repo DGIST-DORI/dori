@@ -7,6 +7,7 @@ import json
 import os
 import re
 import threading
+import time
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
 from rclpy.qos import QoSProfile, DurabilityPolicy
@@ -64,23 +65,9 @@ class CampusKnowledgeBase:
             self._init_defaults()
 
     def _init_defaults(self):
-        """Fallback knowledge used when no JSON file is provided."""
-        self.locations = {
-            "library": Location(
-                name="도서관",
-                description="중앙도서관입니다. 24시간 운영하며 열람실과 그룹스터디룸이 있습니다.",
-                coordinates=(37.5, 127.0),
-                keywords=["도서관", "책", "공부", "열람실", "library"],
-            ),
-            "cafeteria": Location(
-                name="학생식당",
-                description="학생식당입니다. 조식 8-9시, 중식 11:30-13:30, 석식 17:30-19:00 운영합니다.",
-                coordinates=(37.51, 127.01),
-                keywords=["식당", "밥", "식사", "cafeteria", "먹"],
-            ),
-        }
+        """Keep missing campus data unknown instead of supplying demo facts."""
+        self.locations = {}
         self.faqs = {
-            "운영시간": "저는 평일 오전 9시부터 오후 6시까지 캠퍼스 투어를 제공합니다.",
             "기능": "캠퍼스 안내, 길 찾기, 건물 정보 제공 등을 할 수 있습니다.",
         }
 
@@ -155,8 +142,13 @@ class VectorRetriever:
             self.index_dir = str(resolved) if resolved.exists() else index_dir
         self.logger = logger
         self._retriever = None  # lazy init
+        self._load_attempted = False
 
     def _load(self):
+        # Missing optional dependencies should not be retried on every utterance.
+        if self._load_attempted:
+            return
+        self._load_attempted = True
         if not self.index_dir or not Path(self.index_dir).exists():
             if self.logger:
                 self.logger.warn(
@@ -258,7 +250,7 @@ class LLMNode(Node):
         # Parameters
         self.declare_parameter("knowledge_file", "")
         self.declare_parameter("rag_index_dir", "")
-        self.declare_parameter("use_external_llm", False)
+        self.declare_parameter("use_external_llm", True)
         self.declare_parameter("model_name", "gemini-3.5-flash-lite")
         self.declare_parameter("api_key", "")
         self.declare_parameter("rag_top_k", 3)
@@ -281,7 +273,7 @@ class LLMNode(Node):
         # Log RAG status on startup
         if self.retriever.is_available:
             self.get_logger().info(
-                f"RAG vector search ENABLED (index: {self.retriever.index_dir})"
+                f"RAG index found; retriever loads on first query: {self.retriever.index_dir}"
             )
         else:
             self.get_logger().warn(
@@ -296,6 +288,11 @@ class LLMNode(Node):
         self.llm_type = None
         if self.use_external:
             self._init_llm_client(api_key)
+        if not self.use_external:
+            self.get_logger().warn(
+                "External LLM DISABLED; using local responses only. "
+                "Enable use_external_llm and configure provider credentials, then restart."
+            )
 
         self.registered = []
         self.create_subscription(
@@ -432,12 +429,13 @@ class LLMNode(Node):
         intent = IntentClassifier.classify(user_text)
         self.get_logger().info(f"Classified Intent: {intent}")
 
-        if intent == "greeting":
-            return {"intent": intent, "text": self._localized("greeting"), "target": ""}
-        if intent == "thanks":
-            return {"intent": intent, "text": self._localized("thanks"), "target": ""}
         if intent == "navigation":
             return self._handle_navigation(user_text)
+        # With the LLM enabled, greetings and thanks may contain a question or
+        # refer to earlier turns. Let the model answer the complete utterance.
+        if not self.use_external or not self.llm_client:
+            if intent in ("greeting", "thanks"):
+                return {"intent": intent, "text": self._localized(intent), "target": ""}
 
         # RAG 처리 등 일반 응답
         response_text = self._handle_with_rag(user_text, location_context)
@@ -481,7 +479,10 @@ class LLMNode(Node):
                     raise ValueError(
                         "Set GEMINI_API_KEY, GOOGLE_API_KEY, or the api_key ROS parameter"
                     )
-                self.llm_client = genai.Client(api_key=resolved_key)
+                self.llm_client = genai.Client(
+                    api_key=resolved_key,
+                    http_options={"timeout": 20000, "retry_options": {"attempts": 1}},
+                )
                 self.llm_type = "gemini"
                 self.get_logger().info(f"Gemini client ready: {self.model_name}")
 
@@ -565,6 +566,7 @@ class LLMNode(Node):
     ) -> str:
         system_prompt = self._build_system_prompt(context, location_context)
         messages = self._build_messages(user_text)
+        started = time.monotonic()
         try:
             if self.llm_type == "gemini":
                 # History is owned by the node so llm/reset also clears Gemini's context.
@@ -582,6 +584,10 @@ class LLMNode(Node):
                 )
                 response_text = (resp.text or "").strip()
                 if response_text:
+                    self.get_logger().info(
+                        f"LLM response generated: {self.model_name} "
+                        f"({time.monotonic() - started:.2f}s)"
+                    )
                     return response_text
                 self.get_logger().warn("Gemini returned no text; using fallback response")
 
@@ -605,7 +611,7 @@ class LLMNode(Node):
 
         except Exception as e:
             self.get_logger().error(f"LLM call failed: {e}")
-        return self._localized("no_understand")
+        return self._localized("llm_unavailable")
 
     def _build_system_prompt(self, context: str, location_context: str) -> str:
         location_hint = (
@@ -654,6 +660,10 @@ class LLMNode(Node):
             "no_understand": {
                 "ko": "죄송합니다. 이해하지 못했습니다. 다시 말씀해주시겠어요?",
                 "en": "Sorry, I didn't understand. Could you please repeat?",
+            },
+            "llm_unavailable": {
+                "ko": "죄송합니다. 지금 대화 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+                "en": "Sorry, I can't reach the conversation service right now. Please try again shortly.",
             },
         }
         lang = "ko" if self.current_language == "ko" else "en"
