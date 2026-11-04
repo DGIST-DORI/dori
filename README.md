@@ -47,7 +47,7 @@ sudo apt install -y git build-essential python3.10-venv python3-pip python3-rosd
   ros-humble-rosbridge-server
 ```
 
-Ensure Node.js (version 22 recommended) and npm are installed for building dashboard web assets.
+Ensure Node.js (22.12+ recommended) and npm are installed for building both the dashboard and visitor app.
 
 ### 2. Clone Repository & Import Dependencies
 
@@ -86,7 +86,10 @@ for artifact in src/third_party/BehaviorTree.CPP build/behaviortree_cpp install/
 done
 ```
 
-Set up a virtual environment inheriting system site-packages (required for ROS Python bindings):
+The default build in step 5 creates `.venv` with system site-packages (required
+for ROS Python bindings) and installs `requirements-runtime.txt`, including the
+Azure Speech SDK for the visitor app. To prepare Python dependencies before
+building, for example for the optional local voice setup below:
 
 ```bash
 /usr/bin/python3 -m venv --system-site-packages .venv
@@ -94,9 +97,11 @@ export PYTHONNOUSERSITE=1
 .venv/bin/python -m pip install -r requirements-runtime.txt
 ```
 
-### 3-1. Prepare Voice Assets (STT / openWakeWord & Whisper)
+### 3-1. (Optional) Prepare Local Robot Voice Assets
 
-DORI uses openWakeWord (`hey_mycroft` / custom wake word) and faster-whisper (`small` model) for speech recognition:
+The smartphone visitor app uses Azure Speech by default and does not need
+openWakeWord or Whisper models. For local robot microphone input, DORI uses
+openWakeWord and faster-whisper (`small` model):
 
 ```bash
 .venv/bin/python -m pip install -c constraints-robot.txt 'openwakeword>=0.6,<0.7' 'faster-whisper>=1,<2'
@@ -110,7 +115,8 @@ print('Voice assets ready.')
 PYVOICE
 ```
 
-_(Alternatively, use the helper script under tools/voice if available)_
+Alternatively, use `scripts/prepare_voice.sh`. For visitor input using local
+Whisper, use `scripts/prepare_voice.sh --topic-only`.
 
 ### 3-2. (Optional) Download Perception & Vision Models
 
@@ -135,7 +141,25 @@ ros2_ws/src/dori_perception/models/face_landmarker.task
 .venv/bin/python -m pip install -c constraints-robot.txt -r ros2_ws/src/dori_perception/requirements.txt
 ```
 
-### 4. Set Cloud TTS Credentials & Optional LLM API Keys
+### 4. Configure Visitor Speech, TTS & Optional LLM API Keys
+
+The default build prepares the visitor app and its SDKs. Cloud credentials are
+runtime settings and only need to be configured once per machine.
+
+For the default Azure visitor STT provider, store these values from your Azure
+Speech F0 resource in `.state/voice/azure.env` (ignored by Git):
+
+```dotenv
+AZURE_SPEECH_KEY=your_speech_resource_key
+AZURE_SPEECH_REGION=your_resource_region
+AZURE_SPEECH_TIER=F0
+```
+
+Create the parent directory with `mkdir -p .state/voice` and restrict the file
+with `chmod 600 .state/voice/azure.env`. The launcher reads it automatically;
+use `DORI_AZURE_ENV_FILE` for another location. No shell exports are needed for
+these file values. See the [visitor setup guide](web/README.md#visitor-voice-app-app-host)
+for provider configuration and local Whisper mode.
 
 DORI uses Google Cloud Text-to-Speech by default (`tts_engine:=gcp`). The SDK is
 included in `requirements-runtime.txt`. Enable the Cloud Text-to-Speech API and
@@ -193,35 +217,33 @@ for direct node invocation and model tradeoffs.
 
 ### 5. Build
 
-> **Note:** The web dashboard frontend must be built before building ROS packages so that the compiled assets are packaged into `dori_dashboard`.
+Run the standard build from the repository root:
 
 ```bash
-# 1. Build frontend dashboard assets
-cd web
-npm ci
-npm run build
-npm run build:visitor
-cd ..
-
-# 2. Build with only /opt/ros/humble as the underlay, using the project venv.
-unset AMENT_PREFIX_PATH COLCON_PREFIX_PATH CMAKE_PREFIX_PATH PYTHONPATH LD_LIBRARY_PATH
-source /opt/ros/humble/setup.bash
-source .venv/bin/activate
-export PYTHONNOUSERSITE=1
-cd ros2_ws
-python -m colcon build --symlink-install --parallel-workers 2 \
-  --cmake-args -DBUILD_TESTING=ON \
-  -DPython3_EXECUTABLE="$VIRTUAL_ENV/bin/python" \
-  -DPYTHON_EXECUTABLE="$VIRTUAL_ENV/bin/python"
-source install/local_setup.bash
-cd ..
+scripts/build.sh
 ```
+
+This prepares the dashboard and smartphone visitor app together:
+
+1. Create `.venv` if needed and install/update the constrained Python runtime
+   dependencies, including Azure Speech and Google Cloud TTS.
+2. Run `npm ci --include=dev`, then build both `web/dist` and `web/dist-visitor`.
+3. Build ROS packages with the project venv and a clean Humble underlay.
+   `dori_dashboard` packages both web apps and the visitor gateway.
+
+No separate visitor build or Azure SDK installation is required. The build does
+not start servers or require cloud credentials. Network access is needed when
+dependencies are not cached. `scripts/build.sh --clean` archives the previous
+ROS build/install/log directories before rebuilding; additional arguments are
+forwarded to `colcon build`. For example, `scripts/build.sh --packages-select
+dori_dashboard` refreshes both web apps and their ROS package after an initial
+full build.
 
 Humble colcon requires the legacy setuptools `develop` options. The runtime
 constraints pin setuptools 79.0.1; do not upgrade it to 80 or later in this venv.
-If `error: option --uninstall not recognized` appears, run
-`.venv/bin/python -m pip install -c constraints-robot.txt 'setuptools>=70.3.0,<80'`
-and repeat the build block above. Existing build artifacts need not be deleted for
+The build installs this compatible version before invoking colcon. If
+`error: option --uninstall not recognized` appears after a manual colcon build,
+rerun `scripts/build.sh`; existing build artifacts need not be deleted for
 this error. Clearing inherited ROS overlay paths before building prevents
 duplicate-underlay warnings caused by sourcing `~/ros2_ws` and this workspace
 together. `--allow-overriding` does not repair that environment mix-up.
@@ -244,12 +266,43 @@ export ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}"
 export PYTHONNOUSERSITE=1
 ```
 
-### Desktop / Simulation Mode (without Actuators)
+### Smartphone Visitor App + Dashboard
 
-Run desktop HRI with or without the dashboard on a development PC:
+After building and configuring the credentials above, start both apps from the
+repository root:
 
 ```bash
-# Desktop HRI + Dashboard (Default)
+# Shared secret for the dashboard and visitor gateway; keep it private.
+export DORI_INTERNAL_TOKEN="$(openssl rand -hex 32)"
+scripts/start_visitor.sh
+```
+
+The launcher sets up the ROS environment, selects `visitor_mode:=true`, and
+uses Azure STT in the gateway with local microphone STT disabled. No additional
+visitor flags or build steps are needed. Stop any existing desktop/dashboard
+session before starting it.
+
+Open `http://127.0.0.1:3001/display` on the robot screen and scan its QR code
+with the phone. The public app uses `https://app.dgist-dori.xyz` through the
+configured tunnel to loopback port 3100; the dashboard uses port 3000. See
+[access and authentication](web/README.md#access-and-authentication) for dashboard
+authentication and tunnel setup.
+
+Building makes both apps available; the launch profile selects who owns voice
+input. The local robot profile below uses the robot microphone and has
+`visitor_mode:=false`, so smartphone pairing returns 503 ("voice service not
+ready") even if the dashboard is running. Use `scripts/start_visitor.sh` for
+phone conversations. This profile keeps visitor speech from triggering robot
+movement.
+
+### Local Robot Microphone / Simulation Mode (without Actuators)
+
+After preparing the optional local voice assets in step 3-1, run desktop HRI
+with or without the dashboard on a development PC. Set `DORI_INTERNAL_TOKEN`
+as above when starting the dashboard:
+
+```bash
+# Local robot microphone HRI + Dashboard
 ros2 launch dori_bringup bringup_dev.launch.py
 
 # Desktop HRI without Dashboard

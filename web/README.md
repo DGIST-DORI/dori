@@ -339,8 +339,10 @@ System panels include `Event Log` and `Topic Publisher`, located at
 
 ## Visitor voice app (app. host)
 
-The mobile visitor app is separate from the developer dashboard. Build it with
-`npm run build:visitor`; `npm run test:visitor` tests its PCM/WAV encoder.
+The mobile visitor app has its own frontend alongside the developer dashboard.
+The standard `scripts/build.sh` installs runtime dependencies (including Azure
+Speech), builds both frontends, and packages them with ROS. No separate visitor
+build is required; `npm run test:visitor` tests its PCM/WAV encoder.
 `dist-visitor` installs into `share/dori_dashboard/visitor_web` when rebuilding
 `dori_dashboard`. The regular dashboard build and authentication are unchanged.
 The existing `control` role and the `operator` alias both permit operator actions.
@@ -350,10 +352,8 @@ wake-triggered following, local STT intents, gestures and automatic patrols;
 visitor utterances cannot dispatch navigation. For a desktop session:
 
 ```bash
-# Install runtime dependencies and configure the private F0 settings below.
-.venv/bin/python -m pip install -r requirements-runtime.txt
-# Rebuild visitor assets and dori_dashboard before launching this branch.
-(cd web && npm run build:visitor)
+# Build both apps and ROS packages; configure the private F0 settings below once.
+scripts/build.sh
 # Stop any existing bringup_dev session first, then:
 scripts/start_visitor.sh
 ```
