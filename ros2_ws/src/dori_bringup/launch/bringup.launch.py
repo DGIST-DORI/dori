@@ -40,6 +40,7 @@ def setup(context):
                             "enable_dashboard",
                             "enable_perception",
                             "tts_playback_mode",
+                            "tts_engine",
                             "whisper_model",
                             "require_user_tracking",
                         )
@@ -59,6 +60,7 @@ def setup(context):
                     "stt_audio_input_mode",
                     "enable_stt",
                     "tts_playback_mode",
+                    "tts_engine",
                     "whisper_model",
                 )
             },
@@ -93,6 +95,7 @@ def generate_launch_description():
         enable_dashboard="false",
         enable_perception="false",
         tts_playback_mode="local_only",
+        tts_engine="gcp",
         whisper_model="small",
         require_user_tracking="false",
     )

@@ -255,7 +255,7 @@ This document is the SSOT for ROS2 parameter details in the current workspace.
 [cols="1,1,1,1,1,3",options="header"]
 |===
 | Name | Type | Default | Range/Enum | Unit | Description
-| tts_engine | string | `gtts` | `gtts/pyttsx3` | - | TTS backend engine.
+| tts_engine | string | `gcp` | `gcp/auto/gtts` | - | `gcp` and `auto` prefer Google Cloud TTS; initialization/request errors or local usage limits fall back to gTTS.
 | language | string | `ko` | locale code | - | Speech language.
 | speech_rate | int | 150 | >0 | - | Speech rate (engine-dependent).
 | volume | double | 0.9 | [0,1] | - | Playback volume.

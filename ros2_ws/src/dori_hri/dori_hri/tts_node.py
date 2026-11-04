@@ -4,7 +4,7 @@ Text-to-speech playback with speaking state management using Google Cloud TTS an
 
 Engines (priority order):
   1. Google Cloud TTS (Neural2 -> WaveNet -> Standard)
-  2. gTTS     - online (requires internet), fallback when Cloud TTS limits are reached
+  2. gTTS     - online fallback on Cloud TTS initialization/request errors or usage limits
 
 Actions:
   tts/speak        (Speak)  - Action server for speech synthesis and playback
@@ -56,8 +56,6 @@ except ImportError:
 
 try:
     from google.cloud import texttospeech
-    from google.api_core.exceptions import ResourceExhausted
-
     GCP_TTS_AVAILABLE = True
 except ImportError:
     GCP_TTS_AVAILABLE = False
@@ -69,7 +67,7 @@ class TTSNode(Node):
 
         # Parameters
         self.declare_parameter("language", "ko")
-        self.declare_parameter("tts_engine", "gtts")
+        self.declare_parameter("tts_engine", "gcp")
         self.declare_parameter("speech_rate", 150)
         self.declare_parameter("volume", 0.9)
         self.declare_parameter("topics.speaking_pub", "tts/speaking")
@@ -185,19 +183,34 @@ class TTSNode(Node):
         if not GTTS_AVAILABLE:
             raise RuntimeError("gTTS engine required for fallback")
 
-        if GCP_TTS_AVAILABLE and self.get_parameter("tts_engine").value in (
-            "gcp",
-            "auto",
-        ):
+        engine = self.get_parameter("tts_engine").value
+        if engine in ("gcp", "auto"):
+            if not GCP_TTS_AVAILABLE:
+                self.get_logger().warning(
+                    "Google Cloud TTS SDK unavailable; falling back to gTTS. "
+                    "Install google-cloud-texttospeech in the runtime Python environment."
+                )
+                return
             try:
-                self.gcp_client = texttospeech.TextToSpeechClient()
+                # Explicit ADC environment settings take precedence over the DORI key.
+                key_file = Path.home() / ".config/dori/google-cloud-tts.json"
+                if not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS") and key_file.is_file():
+                    self.gcp_client = texttospeech.TextToSpeechClient.from_service_account_file(
+                        str(key_file)
+                    )
+                else:
+                    self.gcp_client = texttospeech.TextToSpeechClient()
                 self.db = TTSDatabaseManager("tts_usage.db")  # DB 매니저 연동
                 self.get_logger().info("Google Cloud TTS engine & DB ready")
             except Exception as e:
-                self.get_logger().error(f"Failed to init GCP TTS client: {e}")
+                self.get_logger().error(
+                    f"Failed to init GCP TTS client; falling back to gTTS: {e}. "
+                    "Set GOOGLE_APPLICATION_CREDENTIALS or place the service-account JSON "
+                    "at ~/.config/dori/google-cloud-tts.json."
+                )
                 self.gcp_client = None
         else:
-            self.gcp_client = None
+            self.get_logger().info(f"Using gTTS (tts_engine={engine})")
 
     # --- Action Server Callbacks ---
     def goal_callback(self, goal_request):

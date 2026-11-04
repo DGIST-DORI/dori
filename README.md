@@ -135,11 +135,36 @@ ros2_ws/src/dori_perception/models/face_landmarker.task
 .venv/bin/python -m pip install -c constraints-robot.txt -r ros2_ws/src/dori_perception/requirements.txt
 ```
 
-### 4. Set Environment & API Keys (Optional)
+### 4. Set Cloud TTS Credentials & Optional LLM API Keys
 
-DORI works out-of-the-box with local rule-based intent classification and offline guidance without any external API keys.
+DORI uses Google Cloud Text-to-Speech by default (`tts_engine:=gcp`). The SDK is
+included in `requirements-runtime.txt`. Enable the Cloud Text-to-Speech API and
+billing in the service account's Google Cloud project, then store the downloaded
+service-account JSON outside the repository:
 
-If using external LLM providers (e.g. Gemini) or cloud services:
+```bash
+install -d -m 700 "$HOME/.config/dori"
+install -m 600 /absolute/path/to/downloaded-key.json "$HOME/.config/dori/google-cloud-tts.json"
+```
+
+The TTS node automatically reads this file for the user running ROS. To use a
+different file, set `GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/key.json`
+in the launch environment; this takes precedence over the DORI default path.
+If neither is provided, the Google client uses Application Default Credentials.
+See [Google Cloud authentication](https://docs.cloud.google.com/text-to-speech/docs/authentication).
+Do not commit the JSON or paste its contents into logs or chat.
+
+Restart the TTS node after changing credentials or `tts_engine`. A successful
+initialization logs `Google Cloud TTS engine & DB ready`; the first synthesis
+also verifies API access. Initialization/request errors or the local daily usage
+limits fall back to gTTS and log the reason. To explicitly use gTTS, launch with
+`tts_engine:=gtts`. `tts_playback_mode:=publish_only` retains browser speech for
+local requests.
+
+Local rule-based intent classification and destination guidance do not require
+external LLM API keys.
+
+If using external LLM providers (e.g. Gemini):
 
 ```bash
 # Optional: external LLM providers (Gemini)

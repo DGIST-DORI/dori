@@ -38,7 +38,7 @@ def check(map_file, voice=False):
                 errors.append(f'Executable missing: {package}/{executable}')
         except LookupError:
             errors.append('Package missing: '+package)
-    for module in ('rclpy','dori_msgs.action','dori_msgs.msg','fastapi','uvicorn','httpx','PIL','scipy','serial','gtts'):
+    for module in ('rclpy','dori_msgs.action','dori_msgs.msg','fastapi','uvicorn','httpx','PIL','scipy','serial','gtts','google.cloud.texttospeech'):
         try:
             importlib.import_module(module)
         except Exception as exc:

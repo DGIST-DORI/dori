@@ -161,7 +161,7 @@ done
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 외부 LLM/RAG     | `dori_llm/requirements.txt`를 constraints와 함께 설치; 지식 파일/색인 및 제공자 API 키 준비; `use_external_llm:=true`, `llm_model:=...`, `knowledge_file:=...`, `rag_index_dir:=...` |
 | 기본 LLM         | 키 없이 규칙 기반 QA와 등록 목적지 안내 사용. 임의 KB 좌표를 주행 목적지로 사용하지 않음                                                                                             |
-| 로봇 스피커 TTS  | 기본 `tts_engine:=gtts`, `tts_playback_mode:=local_only`; 인터넷과 mpg123 출력 장치 필요. GCP TTS는 SDK·자격증명 별도 준비                                                           |
+| 로봇 스피커 TTS  | 기본 `tts_engine:=gcp`, `tts_playback_mode:=local_only`; Google Cloud SDK는 runtime requirements에 포함. 서비스 계정 인증, 인터넷, mpg123 출력 장치 필요. Cloud 오류/사용량 제한 시 gTTS 대체 |
 | 브라우저 TTS     | `tts_playback_mode:=publish_only`; 대시보드 ROS 연결 및 사용자 터치/키 입력으로 브라우저 음성 허용                                                                                   |
 | 카메라/사람 추적 | 아래 vision 의존성 설치, RealSense 장치/SDK 및 YOLO 모델 준비. `enable_perception:=true person_model:=/절대경로/model.pt`                                                            |
 | 두 번째 카메라   | `enable_rear_camera:=true front_serial:=... rear_serial:=...`; 서로 다른 장치 serial 필수. 기본은 전방 한 대                                                                         |
@@ -170,6 +170,15 @@ done
 | 표정             | `enable_expression:=true face_model_path:=/절대경로/face_landmarker.task`                                                                                                            |
 | 랜드마크         | `enable_landmark:=true landmark_model:=/절대경로/model.pt`; 인지 결과는 LLM 설명 문맥용이며 지도 위치를 덮어쓰지 않음                                                                |
 | 마이크 반환 감시 | 실제 접점/입력 장치가 `/dori/hri/mic_attached`를 발행할 때 `require_mic_return:=true`                                                                                                |
+
+Google Cloud TTS를 사용하려면 서비스 계정의 프로젝트에서 Cloud Text-to-Speech API와 결제를 활성화하고, 발급받은 키를 저장소 밖에 보관한다.
+
+```bash
+install -d -m 700 "$HOME/.config/dori"
+install -m 600 /절대경로/발급받은키.json "$HOME/.config/dori/google-cloud-tts.json"
+```
+
+TTS 노드는 위 파일을 자동으로 읽는다. 다른 위치를 쓰려면 실행 터미널에서 `export GOOGLE_APPLICATION_CREDENTIALS=/절대경로/키.json`으로 지정한다. 명시한 환경변수가 기본 파일보다 우선하고, 둘 다 없으면 Google ADC를 사용한다. JSON 내용은 저장소나 로그에 남기지 않는다. 키/엔진 변경 후 노드를 재시작하고 `Google Cloud TTS engine & DB ready` 로그와 첫 합성 성공을 확인한다. 인증 또는 합성 실패 시 gTTS로 대체하며 이유를 로그에 남긴다. 명시적으로 gTTS를 쓰려면 `tts_engine:=gtts`를 전달한다.
 
 마이크용 모델은 명시적으로 준비한다. 기본 openWakeWord `hey_mycroft`와 Whisper small을 사용하며 Porcupine `.ppn`을 이 설정에 넣지 않는다.
 

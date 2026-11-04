@@ -8,7 +8,7 @@ case "${1:-}" in
     --topic-only) topic_only=true; shift ;;
 esac
 [[ $# == 0 ]] || { echo 'Usage: prepare_voice.sh [--topic-only]' >&2; exit 2; }
-dependencies=('numpy==1.24.4' 'scipy==1.10.1' 'faster-whisper>=1,<2' 'gTTS>=2.5,<3')
+dependencies=('numpy==1.24.4' 'scipy==1.10.1' 'faster-whisper>=1,<2' 'google-cloud-texttospeech>=2.34,<3' 'gTTS>=2.5,<3')
 if [[ "$topic_only" == false ]]; then dependencies+=('openwakeword>=0.6,<0.7'); fi
 mkdir -p "$DORI_ROOT/.state/voice"
 export HF_HOME="$DORI_ROOT/.state/voice/huggingface"
