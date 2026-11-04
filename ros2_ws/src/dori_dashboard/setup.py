@@ -53,6 +53,7 @@ setup(
     install_requires=[
         "qrcode>=7.4,<9", "setuptools", "fastapi", "uvicorn", "python-multipart",
         "httpx>=0.27,<1", "websockets>=12,<16", "PyJWT[crypto]>=2.10.1,<3",
+        "azure-cognitiveservices-speech==1.53.0",
     ],
     zip_safe=True,
     maintainer="ofbt",

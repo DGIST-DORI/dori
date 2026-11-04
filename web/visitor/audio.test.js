@@ -17,6 +17,7 @@ test('long recording is capped at ten seconds and clipped to PCM range', () => {
 });
 
 import { SpeechEndpoint, Microphone } from './audio.js';
+import { PcmChunks, StreamingMicrophone } from './audio.js';
 
 function signal(rate, seconds, amplitude = 0.08) {
   return Float32Array.from({ length: Math.round(rate * seconds) }, (_, i) => amplitude * Math.sin(2 * Math.PI * 220 * i / rate));
@@ -95,6 +96,52 @@ test('microphone auto-submits once, releases resources and ignores stale message
     assert.equal(microphone.context, null);
   } finally {
     microphone.cancel();
+    for (const [key, descriptor] of originals) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key];
+    }
+  }
+});
+
+for (const rate of [16000, 44100, 48000]) {
+  test(`streamed PCM keeps duration across 128-frame messages at ${rate}Hz`, () => {
+    const output = [], encoder = new PcmChunks(rate, pcm => output.push(pcm));
+    const samples = signal(rate, 1.05);
+    for (let i = 0; i < samples.length; i += 128) encoder.push(samples.subarray(i, i + 128));
+    encoder.flush();
+    assert.equal(output.length, 11);
+    assert.equal(output.slice(0, 10).every(pcm => pcm.length === 3200), true);
+    assert.equal(output.reduce((size, pcm) => size + pcm.length, 0), 33600);
+    assert.notEqual(Buffer.from(output[0].subarray(0, 4)).toString(), 'RIFF');
+  });
+}
+
+test('Azure capture keeps streaming through long silence until server cancellation', async t => {
+  const track = { stop: t.mock.fn() };
+  const source = { connect() {}, disconnect: t.mock.fn() };
+  const context = { sampleRate: 16000, resume: async () => {}, audioWorklet: { addModule: async () => {} },
+    createMediaStreamSource: () => source, close: t.mock.fn(async () => {}) };
+  const node = { port: {}, connect() {}, disconnect: t.mock.fn() };
+  const originals = ['navigator', 'AudioContext', 'AudioWorkletNode'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]);
+  Object.defineProperty(globalThis, 'navigator', { configurable: true,
+    value: { mediaDevices: { getUserMedia: async () => ({ getTracks: () => [track] }) } } });
+  globalThis.AudioContext = function () { return context; };
+  globalThis.AudioWorkletNode = function () { return node; };
+  const mic = new StreamingMicrophone(), chunks = [], limit = t.mock.fn();
+  try {
+    await mic.start(pcm => chunks.push(pcm), limit);
+    node.port.onmessage({ data: signal(16000, .5) });
+    node.port.onmessage({ data: new Float32Array(16000 * 2) });
+    node.port.onmessage({ data: signal(16000, .5) });
+    assert.equal(chunks.length, 30);
+    assert.equal(limit.mock.callCount(), 0);
+    assert.equal(track.stop.mock.callCount(), 0);
+    mic.cancel(); // stt_closed from Azure takes this path, without flushing more input.
+    node.port.onmessage({ data: signal(16000, 1) });
+    assert.equal(chunks.length, 30);
+    assert.equal(track.stop.mock.callCount(), 1);
+    assert.equal(context.close.mock.callCount(), 1);
+  } finally {
+    mic.cancel();
     for (const [key, descriptor] of originals) {
       if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key];
     }

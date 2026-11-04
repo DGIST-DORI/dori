@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Microphone, encodeWav, toBase64 } from './audio';
+import { Microphone, StreamingMicrophone, encodeWav, toBase64 } from './audio';
 import { confirmPairingScan, pairingError } from './pairing';
 import doriLogo from '../src/assets/logo/logo-full.svg';
 import './style.css';
@@ -25,14 +25,38 @@ export default function App() {
   const [claimSeconds, setClaimSeconds] = useState(0);
   const [audioUrl, setAudioUrl] = useState(''), [needsPlay, setNeedsPlay] = useState(false);
   const ws = useRef(null), audio = useRef(null), microphone = useRef(new Microphone());
+  const provider = useRef('whisper'), streamTurn = useRef(null);
   const retry = useRef(null), heartbeat = useRef(null), wake = useRef(null), audioId = useRef(null);
   const closed = useRef(false), capture = useRef(false), reconnectStarted = useRef(0);
   const send = data => { if (ws.current?.readyState === WebSocket.OPEN) { ws.current.send(JSON.stringify(data)); return true; } return false; };
   const stopMedia = () => {
+    streamTurn.current = null;
     capture.current = false; microphone.current.cancel(); setRecording(false);
     audio.current?.pause(); audio.current?.removeAttribute('src'); audio.current?.load();
     audioId.current = null; setAudioUrl(''); setNeedsPlay(false);
   };
+  function abortStream(message) {
+    const turn = streamTurn.current;
+    if (turn) send({ type: 'stt_cancel', id: turn.id });
+    streamTurn.current = null; capture.current = false;
+    microphone.current.cancel(); setRecording(false); setStatus('READY');
+    if (message) setError(message);
+  }
+  function flushStream() {
+    const turn = streamTurn.current;
+    if (!turn?.ready) return;
+    if (ws.current?.readyState !== WebSocket.OPEN || ws.current.bufferedAmount > 128 * 1024) {
+      abortStream('음성 전송이 지연되고 있습니다. 연결을 확인하고 다시 말씀해 주세요.'); return;
+    }
+    for (const pcm of turn.pending.splice(0)) {
+      if (!send({ type: 'stt_chunk', id: turn.id, seq: turn.seq++, audio_b64: toBase64(pcm) })) {
+        abortStream('연결이 끊겼습니다. 다시 연결한 뒤 말씀해 주세요.'); return;
+      }
+    }
+    if (turn.ended && !turn.endSent) {
+      turn.endSent = true; send({ type: 'stt_end', id: turn.id, seq: turn.seq });
+    }
+  }
   const playback = result => {
     if (audioId.current) send({ type: 'playback', id: audioId.current, status: result });
     if (result !== 'ended') setError('음성을 재생하지 못했습니다. 답변은 화면에서 확인해 주세요.');
@@ -52,6 +76,13 @@ export default function App() {
   }
   function finish() {
     if (!capture.current) return;
+    if (streamTurn.current) {
+      if (!streamTurn.current.started) { abortStream(); return; }
+      microphone.current.finish();
+      capture.current = false; setRecording(false); setStatus('TRANSCRIBING');
+      if (streamTurn.current) { streamTurn.current.ended = true; flushStream(); }
+      return;
+    }
     capture.current = false; setRecording(false);
     try {
       const audio_b64 = microphone.current.finish();
@@ -63,6 +94,27 @@ export default function App() {
     if (capture.current) { finish(); return; }
     if (pendingText.current !== null || phase !== 'active' || status !== 'READY') return;
     unlock(); setError(''); capture.current = true; setRecording(true);
+    if (provider.current === 'azure') {
+      const turn = { id: crypto.randomUUID(), seq: 0, pending: [], ready: false, ended: false };
+      streamTurn.current = turn;
+      microphone.current = new StreamingMicrophone();
+      try {
+        const started = await microphone.current.start(pcm => {
+          if (streamTurn.current !== turn) return;
+          turn.pending.push(pcm);
+          if (turn.pending.length > 20) abortStream('음성 연결이 지연되고 있습니다. 잠시 후 다시 말씀해 주세요.');
+          else flushStream();
+        }, finish);
+        if (!started || streamTurn.current !== turn) return;
+        turn.started = true;
+        if (!send({ type: 'stt_start', id: turn.id, format: 'pcm16', sample_rate: 16000, channels: 1 }))
+          abortStream('연결이 끊겼습니다. 다시 연결한 뒤 말씀해 주세요.');
+      } catch {
+        if (streamTurn.current === turn) abortStream('마이크를 사용할 수 없습니다. 브라우저의 마이크 권한을 확인해 주세요.');
+      }
+      return;
+    }
+    microphone.current = new Microphone();
     try { if (!await microphone.current.start(finish)) setRecording(false); }
     catch { capture.current = false; setRecording(false); setError('마이크를 사용할 수 없습니다. 브라우저의 마이크 권한을 확인한 뒤 다시 시도해 주세요.'); }
   }
@@ -96,7 +148,16 @@ export default function App() {
       clearInterval(heartbeat.current); heartbeat.current = setInterval(() => send({ type: 'heartbeat' }), 5000);
     };
     socket.onmessage = ({ data }) => {
+      if (ws.current !== socket || closed.current) return;
       const message = JSON.parse(data);
+      if (message.stt_provider) provider.current = message.stt_provider;
+      if (message.type === 'stt_ready' && message.id === streamTurn.current?.id) {
+        streamTurn.current.ready = true; flushStream();
+      }
+      if (message.type === 'stt_closed' && message.id === streamTurn.current?.id) {
+        streamTurn.current = null; capture.current = false;
+        microphone.current.cancel(); setRecording(false); setStatus('TRANSCRIBING');
+      }
       if (message.type === 'robot_state') setStatus(message.status);
       if (['stt_text', 'user_text', 'llm_text'].includes(message.type)) setMessages(old => [...old, { who: message.type === 'llm_text' ? 'DORI' : '나', text: message.data }].slice(-40));
       if (message.type === 'user_text') {
@@ -108,7 +169,7 @@ export default function App() {
         audioId.current = message.id; setAudioUrl(message.url); audio.current.src = message.url;
         audio.current.play().catch(() => setNeedsPlay(true));
       }
-      if (message.type === 'error') { pendingText.current = null; setError(message.message); setStatus('READY'); }
+      if (message.type === 'error') { if (streamTurn.current) abortStream(); pendingText.current = null; setError(message.message); setStatus('READY'); }
     };
     socket.onclose = async event => {
       if (ws.current !== socket || closed.current) return;
@@ -184,11 +245,11 @@ export default function App() {
       if (result.error) rejectScan(result.error); else acceptScan(result.value);
     });
     const visibility = () => {
-      if (document.hidden) { capture.current = false; microphone.current.cancel(); setRecording(false); if (audioId.current) { audio.current?.pause(); playback('canceled'); } wake.current?.release(); }
+      if (document.hidden) { if (streamTurn.current) abortStream(); capture.current = false; microphone.current.cancel(); setRecording(false); if (audioId.current) { audio.current?.pause(); playback('canceled'); } wake.current?.release(); }
       else if (ws.current?.readyState === WebSocket.OPEN) acquireWake();
     };
     document.addEventListener('visibilitychange', visibility);
-    return () => { disposed = true; closed.current = true; clearTimeout(retry.current); clearInterval(heartbeat.current); ws.current?.close(); mic.cancel(); wake.current?.release(); document.removeEventListener('visibilitychange', visibility); };
+    return () => { disposed = true; closed.current = true; clearTimeout(retry.current); clearInterval(heartbeat.current); ws.current?.close(); mic.cancel(); microphone.current.cancel(); wake.current?.release(); document.removeEventListener('visibilitychange', visibility); };
     // Connection lifecycle is owned by refs; renders must not reopen the socket.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -196,7 +257,7 @@ export default function App() {
     <header><a href="/" aria-label="DORI 홈"><img src={doriLogo} alt="DORI" className="brand-logo" /></a><span>DGIST CAMPUS COMPANION</span></header>
     <audio ref={audio} onEnded={() => playback('ended')} onError={() => { if (audioId.current) playback('failed'); }} />
     {['loading', 'pair', 'pairing'].includes(phase) && <section className="welcome"><div className="orb">안녕!</div><p className="eyebrow">처음 만나는 캠퍼스, 함께 알아가요</p><h1>반가워요.<br/>저는 DORI예요.</h1><p>캠퍼스에 대해 궁금한 이야기를<br/>스마트폰으로 편하게 물어보세요.</p>
-      <div className="consent"><p>마이크는 말하기 버튼을 눌렀을 때만 사용합니다. 음성과 입력한 텍스트는 답변 생성에 사용하며 서버에 녹음을 저장하지 않습니다. 답변 생성·음성 합성에는 외부 서비스가 사용될 수 있습니다. 대화 기록은 연결 종료 시 초기화합니다.</p><label><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} />음성·텍스트 처리 안내를 확인하고 동의합니다.</label></div>
+      <div className="consent"><p>마이크는 말하기 버튼을 눌렀을 때만 사용합니다. 음성 인식에는 Microsoft Azure Speech가 사용될 수 있으며, 음성이 해당 서비스로 전송됩니다. 음성과 입력한 텍스트는 답변 생성에 사용하며 DORI 서버에 녹음을 저장하지 않습니다. 답변 생성·음성 합성에도 외부 서비스가 사용될 수 있습니다. 대화 기록은 연결 종료 시 초기화합니다.</p><label><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} />음성·텍스트 처리 안내를 확인하고 동의합니다.</label></div>
       <button className="primary" disabled={scanState !== 'ready' || !consent || phase !== 'pair'} onClick={pair}>{phase === 'pairing' ? '연결 중…' : 'DORI와 연결하기'}</button>{scanState === 'checking' && <p className="hint" role="status">QR을 확인하고 있어요…</p>}
       {scanState === 'ready' && <p className="hint">QR 확인 완료 · 연결 가능 시간 {Math.floor(claimSeconds / 60)}:{String(claimSeconds % 60).padStart(2, '0')}</p>}
       {scanState === 'expired' && <p className="hint">QR 화면의 새 코드를 스캔해 주세요. 이 페이지를 새로고침해도 시간이 연장되지는 않습니다.</p>}

@@ -7,6 +7,7 @@ const server=http.createServer(async(req,res)=>{try{const path=req.url.split('?'
 const browser=await chromium.launch({headless:true,args:['--no-sandbox','--use-fake-ui-for-media-stream','--use-fake-device-for-media-stream']});
 const context=await browser.newContext({viewport:{width:390,height:844},permissions:['microphone']});
 let paired=false, claimed=false, failPreparation=true, failText=true, claimCalls=0, sent=[];
+let sttProvider='whisper', streamMode='automatic', activeStream=null;
 await context.addInitScript(() => {
  window.microphoneRequests=0;
  const original=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
@@ -42,7 +43,27 @@ await context.route('**/*',async route=>{const url=new URL(route.request().url()
  if(url.pathname==='/api/audio/test')return route.fulfill({body:wave,contentType:'audio/wav'});
  return route.continue();
 });
-await context.routeWebSocket('**/ws/user',ws=>{ws.send(JSON.stringify({type:'robot_state',status:'READY'}));ws.onMessage(raw=>{const msg=JSON.parse(raw);sent.push(msg);
+await context.routeWebSocket('**/ws/user',ws=>{ws.send(JSON.stringify({type:'robot_state',status:'READY',stt_provider:sttProvider}));ws.onMessage(raw=>{const msg=JSON.parse(raw);sent.push(msg);
+ const streamReply=()=>{
+   ws.send(JSON.stringify({type:'stt_closed',id:activeStream.id,reason:'azure_final'}));
+   if(streamMode==='error')ws.send(JSON.stringify({type:'error',code:'stt_failed',message:'음성 인식 연결을 다시 시도해 주세요.'}));
+   else {ws.send(JSON.stringify({type:'stt_text',data:'Azure로 인식한 질문'}));ws.send(JSON.stringify({type:'llm_text',data:'Azure 음성으로 받은 답변'}));}
+   ws.send(JSON.stringify({type:'robot_state',status:'READY'}));activeStream=null;
+ };
+ if(msg.type==='stt_start'){
+   assert.equal(msg.format,'pcm16');assert.equal(msg.sample_rate,16000);
+   activeStream={id:msg.id,seq:0};
+   ws.send(JSON.stringify({type:'stt_closed',id:'old-stream-id',reason:'azure_final'}));
+   ws.send(JSON.stringify({type:'stt_ready',id:msg.id}));
+ }
+ if(msg.type==='stt_chunk'&&activeStream){
+   assert.equal(msg.id,activeStream.id);assert.equal(msg.seq,activeStream.seq++);
+   const pcm=Buffer.from(msg.audio_b64,'base64');assert.ok(pcm.length>0&&pcm.length<=3200);assert.equal(pcm.length%2,0);
+   assert.notEqual(pcm.subarray(0,4).toString(),'RIFF');
+   if(activeStream.seq>=30&&['automatic','error'].includes(streamMode))streamReply();
+ }
+ if(msg.type==='stt_end'&&activeStream){assert.equal(msg.seq,activeStream.seq);streamReply();}
+ if(msg.type==='stt_cancel')activeStream=null;
  if(msg.type==='ptt_audio'){assert.equal(msg.sample_rate,16000);assert.ok(Buffer.from(msg.audio_b64,'base64').length>16044);ws.send(JSON.stringify({type:'stt_text',data:'캠퍼스가 궁금해요'}));ws.send(JSON.stringify({type:'llm_text',data:'DGIST 캠퍼스를 소개할게요.'}));ws.send(JSON.stringify({type:'robot_state',status:'SPEAKING'}));ws.send(JSON.stringify({type:'tts_audio',id:'test',url:'/api/audio/test'}));}
  if(msg.type==='text'){
    assert.equal(msg.text,'도서관에 대해 알려 주세요');
@@ -53,7 +74,7 @@ await context.routeWebSocket('**/ws/user',ws=>{ws.send(JSON.stringify({type:'rob
    ws.send(JSON.stringify({type:'tts_audio',id:'test',url:'/api/audio/test'}));
  }
  if(msg.type==='playback'&&msg.status==='ended')ws.send(JSON.stringify({type:'robot_state',status:'READY'}));
- if(msg.type==='command')ws.send(JSON.stringify({type:'robot_state',status:'READY'}));
+ if(msg.type==='command'){activeStream=null;ws.send(JSON.stringify({type:'robot_state',status:'READY'}));}
 });});
 const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
 try{
@@ -117,6 +138,31 @@ try{
  await page.getByRole('button',{name:'눌러서 말하기'}).click();
  await page.getByRole('alert').filter({hasText:'음성이 감지되지 않았습니다.'}).waitFor({timeout:7000});
  assert.equal(sent.filter(m=>m.type==='ptt_audio').length,before+1,'silence must not be submitted');
+ sttProvider='azure';await page.reload();
+ await page.getByRole('heading',{name:'무엇이 궁금하세요?'}).waitFor();
+ await page.evaluate(()=>{window.testSpeechEndpoint='speech';});
+ const oldUploads=sent.filter(m=>m.type==='ptt_audio').length;
+ await page.getByRole('button',{name:'눌러서 말하기'}).click();
+ await page.waitForTimeout(2100);
+ assert.equal(await page.getByRole('button',{name:'말하기 마치기'}).isVisible(),true,'Azure capture must survive more than 800ms of silence and a stale close event');
+ await page.getByText('Azure 음성으로 받은 답변').waitFor();
+ assert.equal(sent.filter(m=>m.type==='ptt_audio').length,oldUploads);
+ const automaticId=sent.filter(m=>m.type==='stt_start').at(-1).id;
+ assert.equal(sent.some(m=>m.type==='stt_end'&&m.id===automaticId),false,'service endpoint stops capture without a second manual submission');
+ const frames=sent.filter(m=>m.type==='stt_chunk').length;
+ await page.waitForTimeout(350);assert.equal(sent.filter(m=>m.type==='stt_chunk').length,frames);
+ streamMode='error';await page.getByRole('button',{name:'눌러서 말하기'}).click();
+ await page.getByRole('alert').filter({hasText:'음성 인식 연결을 다시 시도해 주세요.'}).waitFor();
+ assert.equal(await page.getByRole('button',{name:'눌러서 말하기'}).isEnabled(),true);
+ streamMode='manual';await page.getByRole('button',{name:'눌러서 말하기'}).click();await page.waitForTimeout(450);
+ await page.getByRole('button',{name:'말하기 마치기'}).click();
+ await page.getByRole('heading',{name:'무엇이 궁금하세요?'}).waitFor();
+ assert.ok(sent.some(m=>m.type==='stt_end'));
+ streamMode='cancel';await page.getByRole('button',{name:'눌러서 말하기'}).click();await page.waitForTimeout(350);
+ await page.getByRole('button',{name:'현재 작업 취소'}).click();
+ const stoppedFrames=sent.filter(m=>m.type==='stt_chunk').length;
+ await page.waitForTimeout(350);assert.equal(sent.filter(m=>m.type==='stt_chunk').length,stoppedFrames);
+ assert.equal(await page.getByRole('button',{name:'눌러서 말하기'}).isEnabled(),true);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  await page.screenshot({path:'/tmp/dori-visitor-mobile.png'});
  await page.getByRole('button',{name:'현재 작업 취소'}).click();assert.ok(sent.some(m=>m.action==='STOP'));
@@ -129,5 +175,5 @@ try{
  await page.clock.fastForward(121000);
  await page.getByText(/이 페이지를 새로고침해도/).waitFor();
  assert.equal(await page.getByRole('button',{name:'DORI와 연결하기'}).isEnabled(),false);
- console.log('PASS: official logo, QR expiry/retry, text without microphone access, IME and Shift+Enter, rejected draft retry, WAV microphone, automatic speech endpoint, silence rejection, playback, STOP, end, mobile layout');
+ console.log('PASS: pairing, text, legacy WAV, Azure PCM streaming, silence tolerance, stale stream events, service endpoint, error recovery, manual finish, cancellation, playback, mobile layout');
 }finally{await browser.close();server.close();}

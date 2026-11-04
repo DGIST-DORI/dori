@@ -194,6 +194,17 @@ class BridgeAPITests(unittest.IsolatedAsyncioTestCase):
         self.ros.voice.start.assert_not_called()
         self.assertEqual(self.manager.last_activity, 110.0)
 
+    async def test_azure_frames_follow_authenticated_socket_ownership(self):
+        for name in ('start_stream', 'stream_audio', 'finish_stream', 'cancel_stream'):
+            setattr(self.ros.voice, name, Mock())
+        self.ros.voice.provider = 'azure'
+        connection = await self.connect()
+        for kind, method in (('stt_start', 'start_stream'), ('stt_chunk', 'stream_audio'),
+                             ('stt_end', 'finish_stream'), ('stt_cancel', 'cancel_stream')):
+            payload = {'type': kind, 'id': 'a' * 32}
+            await connection.feed({'type': 'websocket.receive', 'text': json.dumps(payload)})
+            getattr(self.ros.voice, method).assert_called_once_with(payload)
+
     async def test_idle_watcher_expires_without_incoming_messages(self):
         connection = await self.connect()
         idle_task = self.manager.idle_task

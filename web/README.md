@@ -350,23 +350,38 @@ wake-triggered following, local STT intents, gestures and automatic patrols;
 visitor utterances cannot dispatch navigation. For a desktop session:
 
 ```bash
-# One-time network/model preparation (phone input needs no wake-word model).
-scripts/prepare_voice.sh --topic-only
+# Install runtime dependencies and configure the private F0 settings below.
+.venv/bin/python -m pip install -r requirements-runtime.txt
+# Rebuild visitor assets and dori_dashboard before launching this branch.
+(cd web && npm run build:visitor)
 # Stop any existing bringup_dev session first, then:
 scripts/start_visitor.sh
 ```
 
-`start_visitor.sh` selects `visitor_mode:=true`, `stt_audio_input_mode:=topic`
-and the prepared `.state/voice/whisper-small` model. The development launch keeps
+`start_visitor.sh` now defaults to `DORI_VISITOR_STT=azure`, selects
+`visitor_mode:=true` and disables the local Whisper STT node (`enable_stt:=false`).
+Azure recognition runs in the visitor gateway. The launcher checks the SDK and
+local F0 settings before starting ROS. Build the updated `dori_dashboard` package
+using the repository's build workflow; building the frontend alone is insufficient.
+The development launch keeps
 its original defaults (visitor mode off, robot microphone input); simply enabling
 the dashboard does not select the visitor profile.
 
+To explicitly use the previous local provider, first run
+`scripts/prepare_voice.sh --topic-only`, then
+`DORI_VISITOR_STT=whisper scripts/start_visitor.sh`. There is no automatic cloud
+retry, paid-tier upgrade or fallback to another recognition provider.
+
 The normal dashboard authentication variables, a random `DORI_INTERNAL_TOKEN`
-and prepared Whisper models remain required. To use the real hardware profile,
+remain required; Azure visitor mode does not require a Whisper model. Azure keys
+stay in `.state/voice/azure.env`, or the file named by `DORI_AZURE_ENV_FILE` (see
+the F0 configuration below). The file is read as data and never sourced as shell.
+To use the legacy local STT with the real hardware profile,
 pass `visitor_mode:=true stt_audio_input_mode:=topic` to `hardware.launch.py`
 alongside its required map and hardware settings. Do not start duplicate HRI
 nodes. Pairing returns 503 unless `bt/visitor_ready` confirms the voice-only
-profile and STT, BT, LLM and TTS cleanup succeeds. Starting the dashboard alone does
+profile and BT, LLM and TTS cleanup succeeds. Local STT mode also requires its
+STT reset; Azure mode drains its own per-turn stream instead. Starting the dashboard alone does
 not activate or stop physical hardware.
 
 Open `http://127.0.0.1:3001/display` on the robot screen. QR codes are rendered
@@ -400,7 +415,17 @@ an exact Origin check. Supported input messages:
 
 - `heartbeat` every 5 seconds; it does not extend the 120-second idle deadline.
 - `ptt_audio` with `audio_b64`, `format: "wav_pcm16"`, `sample_rate: 16000`,
-  `channels: 1`; 0.5–10 seconds, one outstanding turn, 450,000-byte WS limit.
+  `channels: 1`; legacy Whisper mode only, 0.5–10 seconds, one outstanding turn,
+  450,000-byte WS limit.
+- `stt_start` with a fresh `id` (16–64 letters/digits/underscore/hyphen),
+  `format: "pcm16"`, `sample_rate: 16000`, `channels: 1`; Azure mode only.
+  Wait for `stt_ready` with the same ID before sending audio.
+- `stt_chunk` with the same `id`, consecutive integer `seq` starting at 0, and
+  `audio_b64`: raw little-endian PCM16, **no WAV header**. The browser sends
+  100 ms / 3200-byte chunks; the gateway accepts at most 8000 bytes per frame and
+  320000 bytes per turn. Stale IDs cannot feed or finish another turn.
+- `stt_end` with `id` and the next `seq` closes input on manual finish or the
+  ten-second capture limit; `stt_cancel` with `id` discards that turn.
 - `text` with `text`: a nonblank string of at most 1,000 characters. The gateway
   trims surrounding whitespace, echoes accepted input as `user_text`, skips STT,
   and uses the same LLM and remote TTS actions as microphone input. Audio and text
@@ -412,6 +437,10 @@ an exact Origin check. Supported input messages:
 
 Outputs are `robot_state` (READY/TRANSCRIBING/THINKING/SPEAKING), `stt_text`, `user_text`,
 `llm_text`, `tts_audio` (id and authenticated URL), `command_result`, and `error`.
+The initial READY snapshot includes `stt_provider`. Azure additionally sends
+`stt_ready` and `stt_closed` with the client stream ID. On `stt_closed`, the app
+stops its microphone immediately; the server still drains buffered final segments
+before emitting one `stt_text` and starting the existing LLM/TTS actions.
 `GET /api/session` permits page reload recovery. MP3 URLs are unpredictable,
 require the active cookie, have no-store caching, and expire after playback or
 cancellation. Pairing uses a global limit of 30 attempts/minute, intentionally
@@ -423,17 +452,27 @@ Send with the button or Enter; Shift+Enter inserts a newline and IME composition
 does not send. Drafts remain until the server accepts them, survive a transient
 connection loss, and are cleared with the conversation when the session ends.
 
-Phone recording stops automatically after 800 ms of silence following speech;
-the finish button remains available. Recordings retain 200 ms of edge padding,
-are limited to ten seconds, and silence-only captures stop locally after five
-seconds without submitting a turn. The app distinguishes recording from STT
-processing. Visitor transcription uses local Silero filtering, greedy decoding,
+In Azure mode, the phone streams while the user speaks and **waits for Azure's
+first final result or NoMatch to stop recording**. There is no 800 ms client
+silence cutoff and no custom server segmentation-silence override. AtStart
+language identification selects Korean or English per turn; within-sentence
+mixing remains a known limitation. The finish button and ten-second overall
+capture limit remain available. Three seconds without PCM frames is a transport
+failure, not a speech-silence decision; silent microphone frames continue flowing.
+The gateway allows eight seconds to drain final results after input closes.
+STOP, backgrounding and disconnect cancel capture and prevent late text from
+starting a reply. The browser limits queued audio and fails visibly on congestion.
+The consent screen discloses transmission to Microsoft Azure Speech.
+
+In the explicitly selected legacy Whisper mode, the previous 800 ms local
+endpoint, 200 ms edge padding and local silence rejection are retained. Local
+visitor transcription uses Silero filtering, greedy decoding,
 and `visitor_min_confidence=0.4` for short utterances; the robot STT threshold
 remains `min_confidence=0.55`. No-speech segments are still rejected. Recognition
 failures (`stt_unclear`, `stt_failed`, `stt_timeout`), reply failures and playback
 failures have separate messages, and the app returns to READY for retry.
 
-The gateway assigns per-turn request IDs to STT JSON and uses ROS action UUIDs
+The gateway assigns per-turn request IDs to local STT JSON and uses ROS action UUIDs
 for LLM/TTS work; it never adds a ROS session ID. Visitor STT replies use
 `stt/visitor_result`, separate from the BT's `stt/result`. `tts/speak_remote`
 synthesizes MP3 and waits for `tts/remote_playback` acknowledgment (90-second
@@ -467,5 +506,240 @@ An optional desktop Chromium smoke test is retained at
 run it from the repository root using `node tests/browser/visitor.spec.mjs`.
 Set `DORI_PLAYWRIGHT_MODULE` to a Playwright module path if installed outside the
 repository. The test starts a local static server, mocks the API/WebSocket,
-uses a fake microphone, and checks consent, pairing, WAV capture, playback
-acknowledgment, STOP, end and mobile-width layout. It does not contact the robot.
+uses a fake microphone, and checks consent, pairing, legacy WAV capture, Azure PCM
+streaming through a long silence, service endpoint events, stale IDs, manual
+finish, recognition-error recovery, playback, STOP, end and mobile-width layout.
+It does not contact the robot or Azure.
+
+Azure app integration verification (2026-11-05): 53 gateway/visitor tests,
+9 native-session lifecycle tests, 16 frontend tests, one isolated ROS visitor
+integration test (domain 96), ESLint, the visitor bundle
+and the `dori_dashboard` overlay build passed. The Chromium smoke test exercised
+Azure mode with real browser audio capture and mocked service events, including
+continued recording through more than 800 ms of silence and recovery after a
+recognition error. The production Azure session also recognized the Korean
+paused question and English question using the actual F0 resource. A further
+in-memory ASGI WebSocket check streamed both samples through the authenticated
+gateway and verified one complete STT text handed to LLM/TTS actions; those
+downstream actions were mocked, so it did not call reply-generation APIs.
+Local reports are `.state/voice/azure-app-module-live.json` and
+`.state/voice/azure-app-websocket-live.json`. These checks did not restart the
+public service or validate a physical phone's microphone/network/autoplay.
+
+### Azure Speech F0 evaluation
+
+`tools/voice/evaluate_azure.py` evaluates cloud STT independently of the running
+visitor app. It streams 16 kHz mono PCM16 in 100 ms chunks at capture speed,
+collects interim and final results, and records language and latency evidence.
+It does not select the app's provider or start any ROS nodes.
+
+The selected approach is **Azure-controlled endpoint detection**. By default,
+`--endpoint-mode azure` keeps sending microphone-equivalent audio until Azure
+emits its first final result (or NoMatch), then closes input and drains any
+remaining results. There is no client 800 ms silence cutoff in this mode.
+The default 5000 ms appended silence is only a bounded test observation window;
+reaching the input limit is reported as `azure_endpoint_timeouts`, not successful
+Azure endpoint detection. Reports also flag `speech_truncated` if the service
+stops input before the labeled end of speech in the source file.
+
+The app integration uses the same endpoint ownership with live PCM streaming.
+Azure segmentation can still split a speaker's pause; a
+service endpoint is not a guarantee that the user has finished their whole turn.
+
+The [Azure pricing page](https://azure.microsoft.com/en-us/pricing/details/speech/)
+lists five audio hours of real-time STT per month for Free F0. This allowance is
+shared by standard and custom STT; batch transcription is excluded. Create a
+**Speech resource with pricing tier F0** in Azure Portal, then copy its key and
+region from **Keys and Endpoint** into the local settings file below. A paid S0
+resource is not equivalent to an F0 resource with unused free allowance.
+
+The evaluator requires an explicit `AZURE_SPEECH_TIER=F0`, sends one request at a
+time, limits each run to 120 audio seconds including appended silence, and stops
+on the first service error. It does not create resources or upgrade tiers.
+The tier setting is an operator declaration: a Speech API key alone does not
+verify the actual Azure pricing tier or remaining monthly allowance. Confirm
+F0 in the portal before supplying a key.
+
+Install the optional tools in this checkout's environment:
+
+```bash
+/usr/bin/python3 -m venv .venv
+.venv/bin/python -m pip install -c constraints-robot.txt -r tools/voice/requirements-azure.txt
+mkdir -p .state/voice
+```
+
+Store these values in `.state/voice/azure.env` (ignored by Git, mode `0600`):
+
+```dotenv
+AZURE_SPEECH_KEY=your-resource-key
+AZURE_SPEECH_REGION=your-resource-region
+AZURE_SPEECH_TIER=F0
+```
+
+The key is read as data, never sourced as a shell script or included in command
+arguments, reports or browser code. Environment variables override file values.
+`--env-file` selects an existing private settings file. No Azure subscription
+or credential is needed for `--dry-run` or offline unit tests.
+
+For the initial smoke test, generate synthetic speech and validate its budget:
+
+```bash
+.venv/bin/python tools/voice/prepare_stt_smoke.py
+.venv/bin/python tools/voice/evaluate_azure.py \
+  --manifest .state/voice/stt-smoke/manifest.json --dry-run
+.venv/bin/python tools/voice/evaluate_azure.py \
+  --manifest .state/voice/stt-smoke/manifest.json \
+  --output .state/voice/azure-first-run.json
+```
+
+Sample generation uses gTTS and ffmpeg for fixed public test phrases. It refuses
+to overwrite an existing corpus; choose a new `--output-dir` for another set.
+The corpus covers a short Korean greeting, Korean and English questions, mixed
+speech, a pause within a sentence, silence and low background noise. Synthetic
+speech-end labels are energy estimates and are not production latency evidence.
+
+Language identification uses **AtStart**, with `ko-KR` and `en-US` as candidates
+for each new utterance. `--languages ko-KR en-US ja-JP zh-CN` changes the candidate
+set (up to four distinct base languages). Recognition streams continuously, but
+the **Continuous Language Identification** paid add-on is not enabled. AtStart
+chooses one language per request, so mixed-language sentences are a deliberate
+limitation test. Even continuous language identification does not identify
+language changes word by word within one sentence according to
+[Microsoft's language identification guide](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/language-identification).
+
+For representative phone recordings, use a manifest with relative WAV paths:
+
+```json
+[
+  {
+    "id": "phone-ko-short",
+    "audio": "phone-ko-short.wav",
+    "reference": "안녕",
+    "speech_end_seconds": 0.85,
+    "expected_languages": ["ko"],
+    "source": "phone_human_labeled"
+  }
+]
+```
+
+Recordings must be 0.5–10 seconds, matching the visitor app. Label the actual end
+of speech in the source audio for `speech_end_seconds`; omit it if unknown.
+For silence, use an empty reference and omit the speech-end label.
+
+Reports distinguish session startup, first text, final text after speech ends,
+PCM pacing lag, character error rate (ignoring case, spaces and punctuation),
+language mismatch and silence false positives. A final emitted only after the
+input stream is closed is recorded as forced and cannot count as successful
+natural endpoint detection. Earlier finals during a sentence are counted
+separately, because an app could otherwise cut the user off too early.
+
+`speech_end_to_final_ms` measures natural endpoints only.
+`speech_end_to_text_ms` also measures complete results flushed by closing the
+input stream; `completion_trigger` distinguishes `natural` from `input_close`.
+`input_close_to_text_ms` isolates the wait after close, while
+`speech_end_to_input_close_ms` includes the client's silence wait. These are
+timing measurements, not accuracy checks: inspect CER and the transcript too.
+The SDK's `session_started_ms` is a local recognition-session event, not proof
+that the network connection or service is ready.
+
+The following commands reproduce the **historical comparison**, which kept
+feeding the full file and tail even after Azure emitted an initial final result:
+
+```bash
+.venv/bin/python tools/voice/evaluate_azure.py \
+  --manifest .state/voice/stt-smoke/manifest.json --endpoint-mode input-close --tail-ms 5000 --repeats 2 \
+  --output .state/voice/azure-baseline-500ms.json
+.venv/bin/python tools/voice/evaluate_azure.py \
+  --manifest .state/voice/stt-smoke/manifest.json --endpoint-mode input-close --tail-ms 600 --repeats 3 \
+  --output .state/voice/azure-client-endpoint-800ms.json
+```
+
+The generated speech WAVs already contain 200 ms of trailing silence, so the
+600 ms appended tail closes input about 800 ms after their labeled speech end.
+This simulated the app's endpoint timing; it did not run the browser's detector.
+The 800 ms approach was subsequently rejected in favor of Azure endpointing.
+For other recordings, inspect their existing trailing silence before using the
+same setting. The 5000 ms tail leaves enough time to observe the service's
+at-start language identification and natural finals before forcing EOF.
+
+P50/P95 exclude missing finals and unlabeled speech ends; always inspect their
+counts and the sample source. Natural and input-close latency summaries are
+separate. `--repeats 2` fits this corpus with the default 5000 ms tail within the
+120-second run budget. A 0.5–1.5 second finalization target is a test objective,
+not a measured promise. CLI exit code 0 means requests completed, not that
+recognition quality passed. Reports and audio remain under ignored `.state`.
+
+Run the offline tests without Azure calls:
+
+```bash
+.venv/bin/python -m unittest discover -s tests/control_and_nav -p test_azure_evaluation.py
+```
+
+The app integration provides streaming microphone transport, session cancellation,
+final-text UI and cloud STT consent. This evaluator does not deploy that switch.
+Actual phone accuracy, timing and autoplay still need physical-device validation.
+
+#### Live F0 smoke results — 2026-11-04 UTC
+
+Tested from this ARM64 host against `koreacentral`, SDK 1.53.0, declared F0,
+AtStart with `ko-KR` / `en-US`, 100 ms PCM chunks and 500 ms server segmentation.
+The seven synthetic samples above were replayed twice with a 5000 ms tail and
+three times with a 600 ms tail. All 35 requests completed without service errors.
+An earlier one-request diagnostic exposed an evaluator bug reading Python SDK
+cancellation fields; the handler now uses `event.cancellation_details.reason`
+and `.code`, with EOF/error regression coverage in the 14 offline tests.
+
+The table includes only the four single-language speech samples (three Korean,
+one English) per repetition. Latency starts at the synthetic labeled speech end
+and includes the client's silence wait. It excludes phone capture/transport,
+LLM processing and speech synthesis. Exact matches ignore case, punctuation
+and whitespace.
+
+| Measurement | Server endpoint, 2 repetitions | Close input after 800 ms, 3 repetitions |
+| --- | ---: | ---: |
+| Single-language transcript and language matches | 8/8 | 12/12 |
+| Speech-end to complete text, P50 | 3371 ms | 1307 ms |
+| Speech-end to complete text, P95 | 4602 ms | 1640 ms |
+| Range | 2401–4612 ms | 978–1733 ms |
+| Complete text within 1500 ms | 0/8 | 8/12 |
+| Silence/noise false positives | 0/4 | 0/6 |
+| Mixed-language exact matches | 0/2 | 0/3 |
+
+The mixed sample consistently returned only `도서관에 가려면?`, omitting
+`should I turn left?` (normalized CER 0.682). Candidate-language selection
+worked for separate Korean/English utterances; within-utterance language mixing
+did not. Languages beyond these two candidates remain untested.
+
+All speech results in the 800 ms experiment arrived after EOF. It demonstrated
+lower latency when a client already knew the speech-end boundary, but did not
+validate detection of pauses or hesitation. The paused Korean sample returned
+two finalized segments; forwarding the first would lose the question. Collect
+**all** buffered final segments until session completion after closing input.
+This configuration did not demonstrate useful interim text while speaking.
+
+The current decision is to wait for Azure endpoint detection; the 800 ms client
+experiment is retained only as historical evidence. Its results do not meet a
+strict P95 <1500 ms target or establish phone accuracy. The
+repeated synthetic corpus is too small to establish production percentiles.
+Real phone speech, network variation and conversation completion still need
+validation. No app provider or running service was changed by this evaluation.
+
+Local evidence (ignored by Git): `.state/voice/azure-baseline-500ms.json`,
+`.state/voice/azure-client-endpoint-800ms.json` and
+`.state/voice/azure-comparison.json`. The comparison records per-sample results
+and WAV hashes. About 168.6 seconds of PCM were sent including the initial
+diagnostic; this is not a measurement of Azure billed usage or remaining quota.
+
+#### Azure-controlled endpoint follow-up — 2026-11-05 KST
+
+After the 800 ms client cutoff was rejected, the default evaluator behavior was
+changed to stop input on Azure's first final/NoMatch event. A new one-pass run
+(`.state/voice/azure-service-endpoint.json`) completed all seven requests without
+errors or observation-window timeouts. Five speech samples closed on an Azure
+final, and silence/noise closed on NoMatch. All four single-language speech
+samples retained the full reference text; the mixed sample still lost English.
+Speech-end to complete text for the four single-language samples ranged from
+2411 to 4571 ms. The paused sample received its second segment after input was
+closed, confirming that buffered results must be drained. None of these short
+samples was truncated before its labeled end; this does not establish tolerance
+of longer hesitation. Offline endpoint/error tests: 18 passed.

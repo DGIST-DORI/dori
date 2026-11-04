@@ -19,3 +19,4 @@ pyserial==3.5
 
 # Local robot display QR generation (no external QR service).
 qrcode>=7.4,<9
+azure-cognitiveservices-speech==1.53.0
