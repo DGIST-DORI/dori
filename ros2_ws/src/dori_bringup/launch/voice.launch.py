@@ -21,7 +21,7 @@ def generate_launch_description():
         use_external_llm="false",
         knowledge_file="",
         rag_index_dir="",
-        llm_model="gemini-2.5-flash",
+        llm_model="gemini-3.5-flash-lite",
         rag_top_k="3",
         whisper_model="small",
         whisper_device="cpu",

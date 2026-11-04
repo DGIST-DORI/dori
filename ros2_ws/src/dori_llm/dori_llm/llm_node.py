@@ -259,7 +259,7 @@ class LLMNode(Node):
         self.declare_parameter("knowledge_file", "")
         self.declare_parameter("rag_index_dir", "")
         self.declare_parameter("use_external_llm", False)
-        self.declare_parameter("model_name", "gemini-2.5-flash")
+        self.declare_parameter("model_name", "gemini-3.5-flash-lite")
         self.declare_parameter("api_key", "")
         self.declare_parameter("rag_top_k", 3)
         self.declare_parameter("action_name", "llm/query")
@@ -472,12 +472,17 @@ class LLMNode(Node):
             if "gemini" in self.model_name.lower():
                 import google.genai as genai
 
-                client = genai.Client(
-                    api_key=api_key or os.environ.get("GEMINI_API_KEY", "")
+                resolved_key = (
+                    api_key
+                    or os.environ.get("GEMINI_API_KEY")
+                    or os.environ.get("GOOGLE_API_KEY")
                 )
-                self.llm_client = client
+                if not resolved_key:
+                    raise ValueError(
+                        "Set GEMINI_API_KEY, GOOGLE_API_KEY, or the api_key ROS parameter"
+                    )
+                self.llm_client = genai.Client(api_key=resolved_key)
                 self.llm_type = "gemini"
-                self._gemini_model_name = self.model_name
                 self.get_logger().info(f"Gemini client ready: {self.model_name}")
 
             elif "claude" in self.model_name.lower():
@@ -562,22 +567,23 @@ class LLMNode(Node):
         messages = self._build_messages(user_text)
         try:
             if self.llm_type == "gemini":
-                full_history = [
+                # History is owned by the node so llm/reset also clears Gemini's context.
+                contents = [
                     {
-                        "role": "user",
-                        "parts": [system_prompt + "\n\n" + messages[0]["content"]],
-                    },
+                        "role": "model" if m["role"] == "assistant" else "user",
+                        "parts": [{"text": m["content"]}],
+                    }
+                    for m in messages
                 ]
-                for m in messages[1:]:
-                    full_history.append(
-                        {
-                            "role": "model" if m["role"] == "assistant" else "user",
-                            "parts": [m["content"]],
-                        }
-                    )
-                chat = self.llm_client.start_chat(history=full_history[:-1])
-                resp = chat.send_message(full_history[-1]["parts"][0])
-                return resp.text.strip()
+                resp = self.llm_client.models.generate_content(
+                    model=self.model_name,
+                    contents=contents,
+                    config={"system_instruction": system_prompt},
+                )
+                response_text = (resp.text or "").strip()
+                if response_text:
+                    return response_text
+                self.get_logger().warn("Gemini returned no text; using fallback response")
 
             elif self.llm_type == "claude":
                 resp = self.llm_client.messages.create(

@@ -164,13 +164,11 @@ local requests.
 Local rule-based intent classification and destination guidance do not require
 external LLM API keys.
 
-If using external LLM providers (e.g. Gemini):
+For Gemini, create a key in [Google AI Studio](https://aistudio.google.com/apikey)
+and export it in the shell that starts ROS:
 
 ```bash
-# Optional: external LLM providers (Gemini)
-echo 'export GEMINI_API_KEY="your_key_here"' >> ~/.bashrc
-
-source ~/.bashrc
+export GEMINI_API_KEY="your_key_here"
 ```
 
 If using external LLM features, install the LLM requirements:
@@ -178,6 +176,20 @@ If using external LLM features, install the LLM requirements:
 ```bash
 .venv/bin/python -m pip install -c constraints-robot.txt -r ros2_ws/src/dori_llm/requirements.txt
 ```
+
+After building and sourcing the workspace, enable the external LLM explicitly:
+
+```bash
+ros2 launch dori_bringup voice.launch.py \
+  use_external_llm:=true llm_model:=gemini-3.5-flash-lite
+```
+
+You can persist the export in `~/.bashrc`; a service must receive the variable in
+its own environment. DORI does not automatically load `.env` files. The node uses
+the `api_key` ROS parameter first, then `GEMINI_API_KEY`, then `GOOGLE_API_KEY`.
+The Cloud TTS service-account JSON above is separate from the Gemini API key.
+See [LLM configuration and model selection](ros2_ws/src/dori_llm/README.md#external-llm-gemini)
+for direct node invocation and model tradeoffs.
 
 ### 5. Build
 
