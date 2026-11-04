@@ -10,7 +10,22 @@ let paired=false, claimed=false, failPreparation=true, failText=true, claimCalls
 await context.addInitScript(() => {
  window.microphoneRequests=0;
  const original=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
- navigator.mediaDevices.getUserMedia=(...args)=>{window.microphoneRequests++;return original(...args)};
+ navigator.mediaDevices.getUserMedia=async (...args)=>{
+   window.microphoneRequests++;
+   if(!window.testSpeechEndpoint)return original(...args);
+   const audio=new AudioContext(), source=audio.createOscillator(), gain=audio.createGain();
+   const destination=audio.createMediaStreamDestination();
+   source.frequency.value=220;gain.gain.value=0;
+   source.connect(gain);gain.connect(destination);source.start();await audio.resume();
+   if(window.testSpeechEndpoint==='speech'){
+     gain.gain.setValueAtTime(.08,audio.currentTime+.15);
+     gain.gain.setValueAtTime(0,audio.currentTime+.75);
+   }
+   for(const track of destination.stream.getTracks()){
+     const stop=track.stop.bind(track);track.stop=()=>{stop();audio.close();};
+   }
+   return destination.stream;
+ };
 });
 const wave=Buffer.alloc(32044);wave.write('RIFF');wave.writeUInt32LE(32036,4);wave.write('WAVEfmt ',8);wave.writeUInt32LE(16,16);wave.writeUInt16LE(1,20);wave.writeUInt16LE(1,22);wave.writeUInt32LE(16000,24);wave.writeUInt32LE(32000,28);wave.writeUInt16LE(2,32);wave.writeUInt16LE(16,34);wave.write('data',36);wave.writeUInt32LE(32000,40);
 await context.route('**/*',async route=>{const url=new URL(route.request().url());
@@ -87,6 +102,21 @@ try{
  await page.getByText('DGIST 캠퍼스를 소개할게요.').waitFor();
  await page.waitForTimeout(1600);
  assert.ok(sent.some(m=>m.type==='playback'&&m.status==='ended'));
+ await page.getByRole('heading',{name:'무엇이 궁금하세요?'}).waitFor();
+ const before=sent.filter(m=>m.type==='ptt_audio').length;
+ await page.evaluate(()=>{window.testSpeechEndpoint='speech';});
+ const started=Date.now();
+ await page.getByRole('button',{name:'눌러서 말하기'}).click();
+ await page.getByRole('heading',{name:'DORI가 답하고 있어요'}).waitFor({timeout:5000});
+ assert.ok(Date.now()-started<5000,'automatic endpoint must not wait for the ten-second limit');
+ assert.equal(sent.filter(m=>m.type==='ptt_audio').length,before+1);
+ const recorded=Buffer.from(sent.filter(m=>m.type==='ptt_audio').at(-1).audio_b64,'base64');
+ assert.ok(recorded.length<40044,'trailing silence must be trimmed');
+ await page.getByRole('heading',{name:'무엇이 궁금하세요?'}).waitFor();
+ await page.evaluate(()=>{window.testSpeechEndpoint='silence';});
+ await page.getByRole('button',{name:'눌러서 말하기'}).click();
+ await page.getByRole('alert').filter({hasText:'음성이 감지되지 않았습니다.'}).waitFor({timeout:7000});
+ assert.equal(sent.filter(m=>m.type==='ptt_audio').length,before+1,'silence must not be submitted');
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  await page.screenshot({path:'/tmp/dori-visitor-mobile.png'});
  await page.getByRole('button',{name:'현재 작업 취소'}).click();assert.ok(sent.some(m=>m.action==='STOP'));
@@ -99,5 +129,5 @@ try{
  await page.clock.fastForward(121000);
  await page.getByText(/이 페이지를 새로고침해도/).waitFor();
  assert.equal(await page.getByRole('button',{name:'DORI와 연결하기'}).isEnabled(),false);
- console.log('PASS: official logo, QR expiry/retry, text without microphone access, IME and Shift+Enter, rejected draft retry, WAV microphone, playback, STOP, end, mobile layout');
+ console.log('PASS: official logo, QR expiry/retry, text without microphone access, IME and Shift+Enter, rejected draft retry, WAV microphone, automatic speech endpoint, silence rejection, playback, STOP, end, mobile layout');
 }finally{await browser.close();server.close();}

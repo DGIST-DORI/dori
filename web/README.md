@@ -423,6 +423,16 @@ Send with the button or Enter; Shift+Enter inserts a newline and IME composition
 does not send. Drafts remain until the server accepts them, survive a transient
 connection loss, and are cleared with the conversation when the session ends.
 
+Phone recording stops automatically after 800 ms of silence following speech;
+the finish button remains available. Recordings retain 200 ms of edge padding,
+are limited to ten seconds, and silence-only captures stop locally after five
+seconds without submitting a turn. The app distinguishes recording from STT
+processing. Visitor transcription uses local Silero filtering, greedy decoding,
+and `visitor_min_confidence=0.4` for short utterances; the robot STT threshold
+remains `min_confidence=0.55`. No-speech segments are still rejected. Recognition
+failures (`stt_unclear`, `stt_failed`, `stt_timeout`), reply failures and playback
+failures have separate messages, and the app returns to READY for retry.
+
 The gateway assigns per-turn request IDs to STT JSON and uses ROS action UUIDs
 for LLM/TTS work; it never adds a ROS session ID. Visitor STT replies use
 `stt/visitor_result`, separate from the BT's `stt/result`. `tts/speak_remote`

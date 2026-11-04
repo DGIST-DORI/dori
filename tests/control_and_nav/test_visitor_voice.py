@@ -390,6 +390,9 @@ class RemoteTTSTests(TestCase):
             def audio_event(kind, data):
                 self.assertEqual(kind, 'remote_audio')
                 self.assertEqual(base64.b64decode(data['audio_b64']), b'synthesized-mp3')
+                self.assertEqual(data['text'], goal.request.text)
+                self.assertEqual(data['output'], 'phone')
+                self.assertEqual(data['audio_bytes'], len(b'synthesized-mp3'))
                 goal.succeed.assert_not_called()
                 TTSNode._on_remote_playback(node, SimpleNamespace(data=json.dumps({'id': data['id'], 'status': 'ended'})))
             node._publish_audio_event = audio_event

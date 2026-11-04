@@ -245,6 +245,8 @@ class TTSNode(Node):
         try:
             self._publish_audio_event("remote_audio", {
                 "id": audio_id, "audio_b64": base64.b64encode(audio).decode(),
+                "text": goal_handle.request.text, "output": "phone",
+                "audio_bytes": len(audio),
             })
             deadline = time.monotonic() + 90
             while rclpy.ok() and time.monotonic() < deadline:

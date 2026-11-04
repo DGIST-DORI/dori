@@ -19,6 +19,8 @@ import {
 import { floatingPanelsSlice } from './floatingPanels';
 import { i18nSlice } from './i18nSlice';
 import { AUDIO_OUTPUT_MODES, EXECUTION_PROFILES } from './topicProfiles';
+import { describeTtsEvent } from './ttsEventLog';
+import { describeHriEvent, readManagerState } from './hriEventLog';
 
 const FACE_KEYS = ['U', 'R', 'F', 'D', 'L', 'B'];
 const FACE_COLORS = Object.freeze({
@@ -251,7 +253,7 @@ export const useStore = create((set, get) => ({
   },
   rosBindingEpoch: 0,
 
-  setConnected: (v) => set({ connected: v }),
+  setConnected: (v) => set({ connected: v, ...(!v ? { _hriLogSnapshots: {} } : {}) }),
   setWsUrl: (v) => {
     if (v === getDefaultWsUrl()) set({ wsUrl: v });
   },
@@ -322,6 +324,7 @@ export const useStore = create((set, get) => ({
   hriStateElapsed: 0,
   hriTargetId: null,
   hriLocationContext: '',
+  hriStatus: {},
 
   // ── Conversation ────────────────────────────────────────────────────────
   lastSttText: '',
@@ -362,6 +365,15 @@ export const useStore = create((set, get) => ({
   // ── Event Log ────────────────────────────────────────────────────────────
   // Each entry: { id, ts, tag, text, raw? }
   log: [],
+  _hriLogSnapshots: {},
+
+  recordHriEvent: (source, payload, raw) => {
+    const { _hriLogSnapshots, addLog } = get();
+    const event = describeHriEvent(source, _hriLogSnapshots[source], payload);
+    set({ _hriLogSnapshots: { ..._hriLogSnapshots, [source]: event.snapshot } });
+    const tag = ['expression', 'emotion'].includes(source) ? LOG_TAGS.EXPR : LOG_TAGS.STATE;
+    if (event.message) addLog(tag, event.message, raw);
+  },
 
   // ── Topic Publisher Status ───────────────────────────────────────────────
   isPublishing: false,
@@ -450,23 +462,28 @@ export const useStore = create((set, get) => ({
       switch (topic) {
 
         case '/dori/hri/manager_state': {
-          const isObj = parsed && typeof parsed === 'object';
-          const stateStr = isObj ? (parsed.state || 'IDLE') : (typeof parsed === 'string' ? parsed : String(payload || 'IDLE'));
-          const elapsed = isObj ? (parsed.state_elapsed_sec ?? 0) : 0;
-          const targetId = isObj ? (parsed.target_id ?? null) : null;
-          const locContext = isObj ? (parsed.location_context || '') : '';
+          const state = readManagerState(parsed);
           set({
-            hriState: stateStr,
-            hriStateElapsed: elapsed,
-            hriTargetId: targetId,
-            hriLocationContext: locContext,
+            hriState: state.state,
+            hriStateElapsed: state.state_elapsed_sec,
+            hriTargetId: state.target_id ?? null,
+            hriLocationContext: state.location_context || '',
           });
           // Auto-update emotion from state (only if not overriding)
           if (!get()._emotionOverride) {
-            const nextEmotion = resolveEmotionFromState(stateStr);
+            const nextEmotion = resolveEmotionFromState(state.state);
             set({ emotion: nextEmotion, emotionSource: 'state' });
           }
-          addLog(LOG_TAGS.STATE, `manager_state: state=${stateStr} elapsed=${elapsed.toFixed(1)}s`, rawVal);
+          get().recordHriEvent('manager_state', state, rawVal);
+          break;
+        }
+
+        case '/dori/hri/status': {
+          if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            throw new Error('hri/status requires an object');
+          }
+          set({ hriStatus: parsed });
+          get().recordHriEvent('status', parsed, rawVal);
           break;
         }
 
@@ -493,9 +510,10 @@ export const useStore = create((set, get) => ({
         }
 
         case '/dori/tts/audio_event': {
-          if (parsed?.event_type === 'tts_text') {
-            set({ lastTtsText: parsed.text });
-            addLog(LOG_TAGS.TTS, `speak: "${parsed.text}"`, rawVal);
+          const event = describeTtsEvent(parsed);
+          if (event) {
+            if (event.text) set({ lastTtsText: event.text });
+            addLog(LOG_TAGS.TTS, event.message, event.raw);
           }
           break;
         }
@@ -542,7 +560,7 @@ export const useStore = create((set, get) => ({
         case '/dori/hri/expression': {
           const expr = parsed?.expression || 'NEUTRAL';
           set({ expression: expr });
-          if (expr !== 'NEUTRAL') addLog(LOG_TAGS.EXPR, expr, rawVal);
+          get().recordHriEvent('expression', { expression: expr }, rawVal);
           break;
         }
 
@@ -553,13 +571,13 @@ export const useStore = create((set, get) => ({
           // 2) Without override, accept only valid ROS emotion keys.
           // 3) Invalid/missing ROS emotion falls back to HRI-state derived emotion.
           if (_emotionOverride) {
-            addLog(LOG_TAGS.EXPR, `emotion ignored (manual override active): ${_emotionOverride}`, rawVal);
+            get().recordHriEvent('emotion', { emotion: _emotionOverride, source: 'override' }, rawVal);
             break;
           }
 
           const { emotion, source } = resolveROSOrStateEmotion(parsed, hriState);
           set({ emotion, emotionSource: source });
-          addLog(LOG_TAGS.EXPR, `emotion: ${emotion} [${source}]`, rawVal);
+          get().recordHriEvent('emotion', { emotion, source }, rawVal);
           break;
         }
 

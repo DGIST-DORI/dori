@@ -16,6 +16,12 @@ MAX_AUDIO_BYTES = 320044
 MAX_TEXT_CHARS = 1000
 
 
+class VoiceTurnError(ValueError):
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+
+
 def validate_text(data):
     text = data.get('text')
     if not isinstance(text, str) or not text.strip() or len(text) > MAX_TEXT_CHARS:
@@ -179,6 +185,7 @@ class VisitorVoice:
         return result.result
 
     async def _run(self, turn, audio=None, text=None):
+        stage = 'stt' if audio is not None else 'llm'
         try:
             if turn != self.turn:
                 return
@@ -187,13 +194,19 @@ class VisitorVoice:
                 self.audio_pub.publish(String(data=json.dumps({**audio, 'request_id': turn, 'created_at': time.time()})))
                 audio.clear()
                 await self.emit(turn, 'robot_state', status='TRANSCRIBING')
-                result = await asyncio.wait_for(self.stt_waiter, 45)
+                try:
+                    result = await asyncio.wait_for(self.stt_waiter, 45)
+                except asyncio.TimeoutError as exc:
+                    raise VoiceTurnError('stt_timeout', '음성 인식 시간이 초과되었습니다. 짧게 다시 말씀하시거나 텍스트로 보내 주세요.') from exc
+                if result.get('event') == 'stt_error':
+                    raise VoiceTurnError('stt_failed', '음성을 처리하지 못했습니다. 다시 녹음하거나 텍스트로 보내 주세요.')
                 if result.get('event') != 'stt_result' or not result.get('text'):
-                    raise ValueError('Speech unclear; please try again')
+                    raise VoiceTurnError('stt_unclear', '말씀을 정확히 알아듣지 못했어요. 마이크 가까이에서 다시 말씀하시거나 텍스트로 보내 주세요.')
                 text = result['text']
                 await self.emit(turn, 'stt_text', data=text)
             else:
                 await self.emit(turn, 'user_text', data=text)
+            stage = 'llm'
             await self.emit(turn, 'robot_state', status='THINKING')
             answer = await self._action(turn, self.llm, LLMQuery.Goal(text=text, location_context=''))
             if answer.intent in ('error', 'canceled') or not answer.response_text:
@@ -202,14 +215,23 @@ class VisitorVoice:
                 answer.response_text = '현재 스마트폰 연결에서는 캠퍼스에 관한 대화만 가능합니다. 이동 안내와 추종은 아직 지원하지 않아요.'
             # Intents are deliberately never dispatched to robot motion in visitor v1.
             await self.emit(turn, 'llm_text', data=answer.response_text)
+            stage = 'tts'
             await self.emit(turn, 'robot_state', status='SPEAKING')
             spoken = await self._action(turn, self.tts, Speak.Goal(text=answer.response_text), remote=True)
             if not spoken.success:
                 raise ValueError('Phone playback failed')
         except asyncio.CancelledError:
             pass
-        except Exception:
-            await self.emit(turn, 'error', code='voice_failed', message='대화 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.')
+        except Exception as exc:
+            self.node.get_logger().warning(f"Visitor turn failed at {stage}: {type(exc).__name__}")
+            messages = {
+                'stt': '음성을 처리하지 못했습니다. 다시 녹음하거나 텍스트로 보내 주세요.',
+                'llm': '답변을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.',
+                'tts': '답변 음성을 재생하지 못했습니다. 답변은 화면에서 확인해 주세요.',
+            }
+            code = exc.code if isinstance(exc, VoiceTurnError) else f'{stage}_failed'
+            message = str(exc) if isinstance(exc, VoiceTurnError) else messages[stage]
+            await self.emit(turn, 'error', code=code, message=message)
         finally:
             self.stt_waiter = None
             self.media.clear()

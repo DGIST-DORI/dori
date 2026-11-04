@@ -77,6 +77,8 @@ class STTNode(Node):
         self.declare_parameter("topics.wake_word_pub", "stt/wake_word_detected")
         self.declare_parameter("topics.result_pub", "stt/result")
         self.declare_parameter("min_confidence", 0.55)
+        # Phone turns cannot dispatch motion and short greetings score lower.
+        self.declare_parameter("visitor_min_confidence", 0.4)
         self.declare_parameter("topics.tts_speaking_sub", "tts/speaking")
         self.declare_parameter("topics.audio_input_sub", "stt/audio_input")
         self.declare_parameter("audio_input_mode", "microphone")
@@ -89,6 +91,7 @@ class STTNode(Node):
         self.vad_threshold = self.get_parameter("vad_threshold").value
         self.vad_silence_sec = self.get_parameter("silence_duration").value
         self.min_confidence = float(self.get_parameter("min_confidence").value)
+        self.visitor_min_confidence = float(self.get_parameter("visitor_min_confidence").value)
 
         wake_word_topic = self.get_parameter("topics.wake_word_pub").value
         result_topic = self.get_parameter("topics.result_pub").value
@@ -245,23 +248,25 @@ class STTNode(Node):
             self.get_logger().error(f"Audio callback error: {e}")
 
     def _on_audio_input_topic(self, msg: String):
-        if self.dori_speaking:
-            return
         if self.audio_input_mode != "topic":
             return
+        request_id = None
         try:
             import base64
 
             payload = json.loads(msg.data)
+            request_id = payload.get("request_id")
             if payload.get("request_id") and payload.get("created_at", 0) < self._input_epoch:
                 return  # Queued audio predating session cleanup.
+            if self.dori_speaking:
+                self._publish_stt_error(request_id, "stt_busy")
+                return
             fmt = payload.get("format")
             if fmt != "wav_pcm16":
-                self.get_logger().warn(f"Unsupported audio format: {fmt}")
-                return
+                raise ValueError(f"Unsupported audio format: {fmt}")
             audio_b64 = payload.get("audio_b64")
             if not audio_b64:
-                return
+                raise ValueError("Missing audio")
             if not isinstance(audio_b64, str) or len(audio_b64) > 500000:
                 raise ValueError("Audio message exceeds 10 seconds")
             wav_bytes = base64.b64decode(audio_b64, validate=True)
@@ -269,21 +274,27 @@ class STTNode(Node):
                 sr = wf.getframerate()
                 ch = wf.getnchannels()
                 width = wf.getsampwidth()
-                raw = wf.readframes(wf.getnframes())
-            if sr != SAMPLE_RATE or ch != 1 or width != 2:
-                self.get_logger().warn(
-                    f"Audio spec mismatch (sr={sr}, ch={ch}, width={width * 8}bit). "
-                    f"Expected {SAMPLE_RATE}Hz mono 16-bit PCM."
-                )
-                return
+                frames = wf.getnframes()
+                raw = wf.readframes(frames)
+            if sr != SAMPLE_RATE or ch != 1 or width != 2 or len(raw) != frames * 2:
+                raise ValueError("Expected complete 16000Hz mono 16-bit PCM")
             audio = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
             if not MIN_SPEECH_SEC <= len(audio) / SAMPLE_RATE <= MAX_BUFFER_SEC:
                 raise ValueError("Audio duration must be 0.5 to 10 seconds")
             self.buffer = [audio]
-            self._transcribe(request_id=payload.get("request_id"))
-            self.buffer.clear()
+            self._transcribe(request_id=request_id)
         except Exception as e:
             self.get_logger().error(f"Audio topic decode/transcribe failed: {e}")
+            self._publish_stt_error(request_id, "stt_invalid_audio")
+        finally:
+            self.buffer.clear()
+
+    def _publish_stt_error(self, request_id, code):
+        if request_id:
+            self.visitor_result_pub.publish(String(data=json.dumps({
+                "request_id": request_id, "event": "stt_error", "code": code,
+                "text": "", "timestamp": time.time(),
+            })))
 
     # Audio processing (timer callback)
     def _process_audio(self):
@@ -352,6 +363,7 @@ class STTNode(Node):
     def _transcribe(self, request_id=None):
         if not self.buffer:
             self.get_logger().warn("Empty buffer — skipping transcription")
+            self._publish_stt_error(request_id, "stt_invalid_audio")
             return
 
         try:
@@ -360,13 +372,21 @@ class STTNode(Node):
                 f"Transcribing {len(audio) / SAMPLE_RATE:.2f}s audio..."
             )
 
+            started = time.monotonic()
+            visitor = bool(request_id)
             segments_gen, info = self.whisper.transcribe(
                 audio,
                 language=None,
-                vad_filter=False,
-                beam_size=5,
+                vad_filter=visitor,
+                vad_parameters={"min_silence_duration_ms": 300, "speech_pad_ms": 200},
+                beam_size=1 if visitor else 5,
+                **({"temperature": 0.0, "condition_on_previous_text": False,
+                    "without_timestamps": True} if visitor else {}),
             )
             segments = list(segments_gen)
+            if visitor:
+                # A relaxed text confidence threshold must not admit silence.
+                segments = [seg for seg in segments if getattr(seg, "no_speech_prob", 0.0) < 0.6]
             text = "".join(seg.text for seg in segments).strip()
 
             logprobs = [
@@ -381,7 +401,8 @@ class STTNode(Node):
             )
 
             normalized_text = text.strip()
-            is_low_conf = confidence < self.min_confidence
+            threshold = self.visitor_min_confidence if visitor else self.min_confidence
+            is_low_conf = confidence < threshold
             is_empty = not normalized_text
 
             payload = {
@@ -400,7 +421,7 @@ class STTNode(Node):
                 self.get_logger().info("Empty transcription result")
             elif is_low_conf:
                 self.get_logger().info(
-                    f'[{info.language}] low confidence (conf={confidence:.2f} < {self.min_confidence:.2f}) "{normalized_text}"'
+                    f'[{info.language}] low confidence (conf={confidence:.2f} < {threshold:.2f}) "{normalized_text}"'
                 )
             else:
                 self.get_logger().info(
@@ -415,9 +436,11 @@ class STTNode(Node):
                 self.visitor_result_pub.publish(msg)
             else:
                 self.result_pub.publish(msg)
+            self.get_logger().info(f"Transcription completed in {time.monotonic() - started:.2f}s")
 
         except Exception as e:
             self.get_logger().error(f"Transcription failed: {e}")
+            self._publish_stt_error(request_id, "stt_failed")
 
     # Cleanup
     def destroy_node(self):

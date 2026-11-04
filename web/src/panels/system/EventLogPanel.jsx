@@ -3,7 +3,7 @@
  * Real-time event log panel.
  *
  * Toolbar:
- *   Row 1 — Presets : VOICE · PERCEPTION · HRI · NAV · NOISY
+ *   Row 1 — Presets : VOICE · PERCEPTION · HRI · NAV · SYSTEM
  *   Row 2 — Tags    : ALL · STATE · WAKE · STT · …
  *   Row 3 — Actions : search · pause · clear
  *
@@ -53,10 +53,10 @@ const PRESETS = [
     tags: new Set([LOG_TAGS.NAV, LOG_TAGS.STATE]),
   },
   {
-    id: 'NOISY',
-    label: 'NOISY',
-    title: 'SYS · STATE',
-    tags: new Set([LOG_TAGS.SYS, LOG_TAGS.STATE]),
+    id: 'SYSTEM',
+    label: 'SYSTEM',
+    title: 'SYS',
+    tags: new Set([LOG_TAGS.SYS]),
   },
 ];
 
@@ -199,14 +199,14 @@ function EventLogPanel() {
           />
           <button
             className={`el-action-btn ${paused ? 'active' : ''}`}
-            onClick={() => setPaused(p => { setFrozenLog(p ? [] : log); return !p; })}
-            title="Pause auto-scroll"
+            onClick={() => { setFrozenLog(paused ? [] : log); setPaused(!paused); }}
+            title="Freeze log view (collection continues)"
           >
             {paused ? '▶ resume' : '⏸ pause'}
           </button>
           <button
             className="el-action-btn danger"
-            onClick={clearLog}
+            onClick={() => { clearLog(); setFrozenLog([]); setExpanded(null); }}
             title="Clear log"
           >
             ✕ clear
@@ -220,6 +220,9 @@ function EventLogPanel() {
         {!isAllMode && (
           <span className="el-count dim"> / {displayLog.length} total</span>
         )}
+        <span className="el-count dim" title="Repeated state, expression and emotion snapshots are omitted. Changes and explicit commands are recorded. Live values remain available in State Monitor.">
+          · STATE/EXPR: changes only
+        </span>
         {paused && <span className="el-paused-badge">PAUSED</span>}
       </div>
 

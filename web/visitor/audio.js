@@ -19,44 +19,100 @@ export function toBase64(bytes) {
   return btoa(string);
 }
 
+// Measure audio time, not wall time: AudioWorklet messages can arrive in batches.
+export class SpeechEndpoint {
+  constructor(rate) {
+    this.rate = rate;
+    this.window = Math.round(rate * 0.02);
+    this.samples = this.count = this.sum = this.squares = this.voiced = 0;
+    this.firstVoice = null; this.lastVoice = 0; this.hasSpeech = false;
+    this.noise = 0.002; this.reason = null;
+  }
+  push(samples) {
+    if (this.reason) return this.reason;
+    for (const sample of samples) {
+      this.samples++; this.count++; this.sum += sample; this.squares += sample * sample;
+      if (this.count < this.window) continue;
+      // Ignore DC offset; only changing microphone energy counts as speech.
+      const rms = Math.sqrt(Math.max(0, this.squares / this.count - (this.sum / this.count) ** 2));
+      this.count = this.sum = this.squares = 0;
+      if (rms > Math.max(0.008, this.noise * 3)) {
+        this.firstVoice ??= this.samples - this.window;
+        this.lastVoice = this.samples;
+        this.voiced += this.window;
+        this.hasSpeech ||= this.voiced >= this.rate * 0.12;
+      } else {
+        this.noise = 0.95 * this.noise + 0.05 * rms;
+        if (!this.hasSpeech && this.samples - this.lastVoice >= this.rate * 0.3) {
+          this.voiced = 0; this.firstVoice = null;
+        }
+      }
+      if (this.hasSpeech && this.samples - this.lastVoice >= this.rate * 0.8) this.reason = 'speech_end';
+      else if (!this.hasSpeech && this.samples >= this.rate * 5) this.reason = 'no_speech';
+      else if (this.samples >= this.rate * 10) this.reason = 'limit';
+      if (this.reason) return this.reason;
+    }
+    return null;
+  }
+  trim(samples) {
+    const start = Math.max(0, (this.firstVoice ?? 0) - Math.round(this.rate * 0.2));
+    const end = Math.min(samples.length, Math.max(start + Math.ceil(this.rate * 0.5), this.lastVoice + Math.round(this.rate * 0.2)));
+    return samples.subarray(start, end);
+  }
+}
+
 export class Microphone {
   constructor() { this.sequence = 0; }
-  async start(onLimit) {
-    const seq = ++this.sequence;
+  async start(onComplete) {
+    this.cancel();
+    const seq = this.sequence;
     if (!navigator.mediaDevices?.getUserMedia) throw new Error('HTTPS 연결에서 마이크를 사용할 수 있습니다.');
     const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }, video: false });
     if (seq !== this.sequence) { stream.getTracks().forEach(t => t.stop()); return false; }
     this.stream = stream;
     try {
-      this.context = new AudioContext();
-      await this.context.resume();
-      await this.context.audioWorklet.addModule('/recorder.js');
+      const context = new AudioContext();
+      this.context = context;
+      await context.resume();
+      if (seq !== this.sequence) return false;
+      await context.audioWorklet.addModule('/recorder.js');
       if (seq !== this.sequence) return false;
       this.chunks = []; this.length = 0;
+      this.endpoint = new SpeechEndpoint(this.context.sampleRate);
+      let completed = false;
+      const complete = () => {
+        if (seq !== this.sequence || completed) return;
+        completed = true; onComplete();
+      };
       this.node = new AudioWorkletNode(this.context, 'dori-recorder');
       this.node.port.onmessage = ({ data }) => {
-        if (seq !== this.sequence) return;
+        if (seq !== this.sequence || completed) return;
         this.chunks.push(data); this.length += data.length;
-        if (this.length >= this.context.sampleRate * 10) onLimit();
+        if (this.endpoint.push(data)) complete();
       };
       this.source = this.context.createMediaStreamSource(stream);
       this.source.connect(this.node); this.node.connect(this.context.destination);
-      this.timer = setTimeout(onLimit, 10000);
+      this.timer = setTimeout(complete, 10000);
       return true;
-    } catch (error) { this.cancel(); throw error; }
+    } catch (error) {
+      if (seq !== this.sequence) return false;
+      this.cancel(); throw error;
+    }
   }
   finish() {
     const rate = this.context?.sampleRate || 16000;
     const samples = new Float32Array(this.length || 0); let offset = 0;
     for (const chunk of this.chunks || []) { samples.set(chunk, offset); offset += chunk.length; }
+    const endpoint = this.endpoint;
     this.cancel();
     if (samples.length < rate * 0.5) throw new Error('0.5초 이상 말씀해 주세요.');
-    return toBase64(encodeWav(samples, rate));
+    if (!endpoint?.hasSpeech) throw new Error('음성이 감지되지 않았습니다. 마이크 가까이에서 다시 말씀해 주세요.');
+    return toBase64(encodeWav(endpoint.trim(samples), rate));
   }
   cancel() {
     this.sequence++; clearTimeout(this.timer);
     this.stream?.getTracks().forEach(t => t.stop()); this.source?.disconnect(); this.node?.disconnect();
     this.context?.close().catch(() => {});
-    this.stream = this.source = this.node = this.context = null; this.chunks = []; this.length = 0;
+    this.stream = this.source = this.node = this.context = this.endpoint = null; this.chunks = []; this.length = 0;
   }
 }
