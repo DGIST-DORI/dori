@@ -1,496 +1,393 @@
 #!/usr/bin/env python3
-"""
-DORI Campus Guide Robot - Knowledge Base Index Builder
-
-Chunks data/campus/processed/*.txt files, embeds them with a lightweight
-multilingual sentence-transformer, and saves a FAISS index + metadata.
-
-Designed for NVIDIA Jetson Orin Nano Super (8GB).
-Embedding model: paraphrase-multilingual-MiniLM-L12-v2 (~120 MB, CPU/GPU)
-
-Usage:
-    # First time or full rebuild
-    python3 build_index.py --docs ./data/campus/processed --output ./data/campus/indexed
-
-    # Tune embedding/build memory usage
-    python3 build_index.py --docs ./data/campus/processed --output ./data/campus/indexed --batch-size 8 --chunk-batch-size 256
-
-    # Incremental: only re-embed changed/new files
-    python3 build_index.py --docs ./data/campus/processed --output ./data/campus/indexed --incremental
-
-    # After adding new menu files
-    python3 build_index.py --docs ./data/campus/processed/cafeteria --output ./data/campus/indexed --incremental
-
-Install:
-    pip install sentence-transformers faiss-cpu numpy
-    # On Jetson with CUDA: pip install faiss-gpu  (optional, minor speedup for build)
-"""
-
+"""Build validated, immutable RAG generations from source-backed documents."""
 import argparse
-import hashlib
+from contextlib import contextmanager
+from collections import Counter
+import fcntl
 import json
-import os
 import math
-import sys
-import time
+import os
+import re
 from pathlib import Path
+import sys
+import uuid
 
 import numpy as np
 
-# Configuration
+# Also support direct invocation by the dashboard and CLI.
+if not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from dori_llm.corpus import atomic_write, available, digest, expired, read_document, sync_directory, utc_now
+from dori_llm.index_store import (
+    INDEX_FILE, META_FILE, HASH_FILE, MANIFEST_FILE, active_directory, read_manifest,
+)
+from dori_llm.paths import find_repo_root
 
-EMBED_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"  # 120 MB, KO/EN bilingual
-CHUNK_SIZE = 300  # characters per chunk (shorter = more precise retrieval)
-CHUNK_OVERLAP = 60  # overlap to avoid cutting mid-sentence
-INDEX_FILE = "index.faiss"
-META_FILE = "metadata.json"  # chunk text + source info
-HASH_FILE = "file_hashes.json"  # for incremental updates
+EMBED_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+EMBED_REVISION = "e8f8c211226b894fcb81acc59f3b34ba3efd5f42"
+CHUNK_SIZE = 300
+CHUNK_OVERLAP = 60
+SIGNATURE = {"model": EMBED_MODEL, "revision": EMBED_REVISION,
+             "chunker": "sections-token-offsets-v2", "overlap_tokens": 20,
+             "retrieval": "dense-bm25-rrf-v1", "min_score": 0.35,
+             "lexical_min_coverage": 0.35, "lexical_relative_cutoff": 0.35,
+             "normalize_embeddings": True}
 
 
-# Chunking
-
-
-def chunk_text(
-    text: str, size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP
-) -> list[str]:
-    """
-    Split text into overlapping character-level chunks.
-    Tries to break at newlines first to avoid mid-sentence splits.
-    """
-    if size <= 0:
-        raise ValueError("size must be > 0")
-    if overlap >= size:
-        overlap = size - 1
-
-    chunks = []
-    start = 0
+def chunk_text(text, size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
+    """Legacy character helper; production builds use token_chunks instead."""
+    if size <= 0 or not 0 <= overlap < size:
+        raise ValueError("Require size > 0 and 0 <= overlap < size")
+    chunks, start = [], 0
     while start < len(text):
         end = min(start + size, len(text))
-
-        # Try to break at a newline within the last 60 chars of the window
-        if end < len(text):
-            break_pos = text.rfind("\n", start + size - 60, end)
-            if break_pos > start:
-                end = break_pos + 1
-
-        chunk = text[start:end].strip()
-        if chunk:
-            chunks.append(chunk)
-
-        if end >= len(text):
+        if text[start:end].strip():
+            chunks.append(text[start:end].strip())
+        if end == len(text):
             break
-
-        next_start = max(start + 1, end - overlap)
-        start = next_start
-
+        start = end - overlap
     return chunks
 
 
-def load_documents(docs_dir: Path) -> list[dict]:
-    """
-    Recursively load all .txt files under docs_dir.
-    Returns list of {source, source_key, text} dicts.
-    """
-    docs_dir = docs_dir.resolve()
-    docs = []
-    for path in sorted(docs_dir.rglob("*.txt")):
+def token_chunks(text, model, title=""):
+    """Keep explicit source sections apart and repeat their headings in long sections."""
+    for section in re.split(r"(?=^## )", text, flags=re.MULTILINE):
+        if not section.strip():
+            continue
+        heading = section.splitlines()[0][3:] if section.startswith("## ") else ""
+        prefix = f"{title} / {heading}" if heading else title
+        yield from _token_windows(section, model, prefix)
+
+
+def _token_windows(text, model, title):
+    """Use tokenizer offsets so Korean and long lines are never silently truncated."""
+    tokenizer = model.tokenizer
+    # Titles are useful to disambiguate isolated table cells; bound their budget.
+    title_offsets = tokenizer(title, add_special_tokens=False, return_offsets_mapping=True, verbose=False)["offset_mapping"]
+    if len(title_offsets) > 24:
+        title = title[:title_offsets[23][1]]
+    prefix = title.strip() + "\n" if title.strip() else ""
+    reserved = len(tokenizer(prefix, add_special_tokens=False)["input_ids"])
+    budget = model.max_seq_length - tokenizer.num_special_tokens_to_add(False) - reserved - 2
+    if budget <= 20:
+        raise ValueError("Embedding model token budget is too small")
+    offsets = tokenizer(text, add_special_tokens=False, return_offsets_mapping=True, verbose=False)["offset_mapping"]
+    start = 0
+    while start < len(offsets):
+        end = min(start + budget, len(offsets))
+        value = prefix + text[offsets[start][0]:offsets[end - 1][1]].strip()
+        if len(tokenizer(value)["input_ids"]) > model.max_seq_length:
+            raise ValueError("Chunk exceeds embedding token budget")
+        yield value
+        if end == len(offsets):
+            break
+        start = end - 20
+
+
+def load_documents(docs_dir):
+    root = Path(docs_dir).resolve()
+    if not root.is_dir():
+        raise ValueError(f"Document root does not exist: {root}")
+    return [read_document(p, root) for p in sorted(root.rglob("*.txt"))]
+
+
+def file_hash(path):
+    return digest(Path(path).read_bytes())
+
+
+@contextmanager
+def build_lock(output):
+    output.mkdir(parents=True, exist_ok=True)
+    with (output / ".build.lock").open("a") as lock:
         try:
-            text = path.read_text(encoding="utf-8").strip()
-            if text:
-                docs.append(
-                    {
-                        "source": str(path),  # user-visible path
-                        "source_key": path.relative_to(
-                            docs_dir
-                        ).as_posix(),  # canonical internal key
-                        "text": text,
-                    }
-                )
-        except Exception as e:
-            print(f"  [WARN] Could not read {path}: {e}")
-    return docs
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RuntimeError("Another index build is already running") from None
+        try:
+            yield
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
 
 
-def file_hash(path: str) -> str:
-    """MD5 hash of file content for change detection."""
-    return hashlib.md5(Path(path).read_bytes()).hexdigest()
+def load_model():
+    import torch
+    from sentence_transformers import SentenceTransformer
+    torch.set_num_threads(min(2, os.cpu_count() or 1))
+    cache = os.getenv("DORI_RAG_MODEL_CACHE", str(find_repo_root() / ".state/rag/models"))
+    options = dict(revision=EMBED_REVISION, device="cpu", cache_folder=cache, trust_remote_code=False)
+    try:
+        return SentenceTransformer(EMBED_MODEL, local_files_only=True, **options)
+    except OSError:
+        return SentenceTransformer(EMBED_MODEL, **options)
 
 
-# Index builder
+def lexical_tokens(text):
+    tokens = []
+    for word in re.findall(r"[a-z0-9]+|[가-힣]+", text.lower()):
+        if re.search(r"[가-힣]", word) and len(word) > 1:
+            # Korean particles do not require a heavy morphological analyzer.
+            tokens.extend(word[i:i + 2] for i in range(len(word) - 1))
+        else:
+            tokens.append(word)
+    return tokens
+
+
+def lexical_scores(metadata, query, with_coverage=False):
+    documents = [Counter(lexical_tokens(m["text"])) for m in metadata]
+    lengths = [sum(d.values()) for d in documents]
+    average = sum(lengths) / max(len(lengths), 1) or 1
+    scores = [0.] * len(documents)
+    coverage = [0.] * len(documents)
+    total_weight = 0.
+    for term in set(lexical_tokens(query)):
+        frequency = sum(term in doc for doc in documents)
+        inverse = math.log(1 + (len(documents) - frequency + .5) / (frequency + .5))
+        total_weight += inverse
+        for i, doc in enumerate(documents):
+            count = doc[term]
+            scores[i] += inverse * count * 2.2 / (count + 1.2 * (.25 + .75 * lengths[i] / average))
+            if count:
+                coverage[i] += inverse
+    coverage = [value / (total_weight or 1) for value in coverage]
+    return (scores, coverage) if with_coverage else scores
+
+
+def search_index(index, metadata, model, query, top_k=3, min_score=0.35):
+    if not isinstance(top_k, int) or top_k < 1:
+        raise ValueError("top_k must be positive")
+    if not query.strip() or not index.ntotal:
+        return []
+    vector = np.asarray(model.encode([query], normalize_embeddings=True,
+                                    convert_to_numpy=True), dtype="float32")
+    scores, indices = index.search(vector, index.ntotal)
+    lexical, coverage = lexical_scores(metadata, query, with_coverage=True)
+    lexical_order = sorted(range(len(metadata)), key=lambda i: lexical[i], reverse=True)
+    strongest = max(lexical, default=0)
+    lexical_rank = {i: rank for rank, i in enumerate(lexical_order, 1)
+                    if lexical[i] > 0 and lexical[i] >= .35 * strongest and coverage[i] >= .35}
+    candidates = []
+    for rank, (score, idx) in enumerate(zip(scores[0], indices[0]), 1):
+        if idx >= 0 and float(score) >= min_score:
+            # Reciprocal rank fusion preserves semantic matching across languages,
+            # while exact names, room IDs and Korean term fragments refine the order.
+            fusion = 1 / (60 + rank)
+            if int(idx) in lexical_rank:
+                fusion += 1 / (60 + lexical_rank[int(idx)])
+            candidates.append((fusion, float(score), int(idx)))
+    candidates.sort(reverse=True)
+    results, seen = [], set()
+    for _, score, idx in candidates:
+        entry = metadata[int(idx)]
+        if not available(entry) or entry["text"] in seen:
+            continue
+        seen.add(entry["text"])
+        results.append({**entry, "score": float(score)})
+        if len(results) >= top_k:
+            break
+    return results
 
 
 class IndexBuilder:
-    def __init__(self, output_dir: Path):
-        self.output_dir = output_dir
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-
-        self.index_path = output_dir / INDEX_FILE
-        self.meta_path = output_dir / META_FILE
-        self.hash_path = output_dir / HASH_FILE
-
-        self._model = None  # lazy load
+    def __init__(self, output_dir, model=None):
+        self.output_dir = Path(output_dir)
+        self._model = model
         self._index = None
-        self._meta = []  # list of {source, chunk_id, text}
-        self._hashes = {}  # {filepath: md5}
-
-    # Model (lazy)
+        self._meta = []
+        self._hashes = {}
+        self.generation = None
 
     def _get_model(self):
         if self._model is None:
-            print(f"Loading embedding model: {EMBED_MODEL} ...")
-            t0 = time.time()
-            from sentence_transformers import SentenceTransformer
-
-            self._model = SentenceTransformer(EMBED_MODEL)
-            print(f"  Model loaded in {time.time()-t0:.1f}s")
+            print(f"Loading pinned CPU embedding model: {EMBED_MODEL}@{EMBED_REVISION}", flush=True)
+            self._model = load_model()
         return self._model
 
-    # Embed
+    def _embed(self, texts, batch_size):
+        return np.asarray(self._get_model().encode(
+            texts, batch_size=batch_size, normalize_embeddings=True,
+            convert_to_numpy=True, show_progress_bar=False), dtype="float32")
 
-    def _embed(self, texts: list[str], batch_size: int) -> np.ndarray:
+    def build(self, docs_dir, incremental=False, batch_size=8, chunk_batch_size=256,
+              evaluation=None, publish=True):
+        try:
+            if batch_size <= 0 or chunk_batch_size <= 0:
+                raise ValueError("Batch sizes must be positive")
+            with build_lock(self.output_dir):
+                return self._build(Path(docs_dir).resolve(), incremental, batch_size,
+                                   chunk_batch_size, evaluation, publish)
+        except Exception as exc:
+            print(f"[ERROR] Build aborted; active generation unchanged: {exc}", flush=True)
+            return False
+
+    def _build(self, root, incremental, batch_size, chunk_batch_size, evaluation, publish):
+        import faiss
+        documents = load_documents(root)
+        if not documents and not incremental:
+            raise ValueError("No source documents found; refusing an empty full rebuild")
+        excluded = [d["source_key"] for d in documents if expired(d)]
+        docs = [d for d in documents if not expired(d)]
+        current = active_directory(self.output_dir)
+        self._index, self._meta, self._hashes = None, [], {}
+        old_meta, old_hashes, old_index = [], {}, None
+        if incremental and (current / INDEX_FILE).exists():
+            if not (current / MANIFEST_FILE).exists():
+                raise ValueError("Legacy index has no build manifest; run one full rebuild without --incremental")
+            manifest = read_manifest(current)
+            if manifest["signature"] != SIGNATURE or manifest["corpus_root"] != str(root):
+                raise ValueError("Model/chunker/document root changed; a full rebuild is required")
+            old_index = faiss.read_index(str(current / INDEX_FILE))
+            old_meta = json.loads((current / META_FILE).read_text(encoding="utf-8"))
+            old_hashes = json.loads((current / HASH_FILE).read_text(encoding="utf-8"))
+            if old_index.ntotal != len(old_meta):
+                raise ValueError("Index/metadata count mismatch")
         model = self._get_model()
-        return model.encode(
-            texts,
-            batch_size=batch_size,
-            show_progress_bar=len(texts) > 50,
-            normalize_embeddings=True,  # cosine similarity via dot product
-            convert_to_numpy=True,
-        ).astype("float32")
-
-    # Load existing index
-
-    def _load_existing(self):
-        import faiss
-
-        try:
-            if self.index_path.exists() and self.meta_path.exists():
-                self._index = faiss.read_index(str(self.index_path))
-                self._meta = json.loads(self.meta_path.read_text())
-                print(
-                    f"  Loaded existing index: {self._index.ntotal} vectors, "
-                    f"{len(self._meta)} chunks"
-                )
-            if self.hash_path.exists():
-                self._hashes = json.loads(self.hash_path.read_text())
-        except Exception as e:
-            raise RuntimeError(f"existing index/meta load failed: {e}") from e
-
-    @staticmethod
-    def _meta_source_key(meta: dict, docs_dir: Path) -> str:
-        """Resolve canonical source_key from metadata (backward compatible)."""
-        if "source_key" in meta and meta["source_key"]:
-            return meta["source_key"]
-
-        source = meta.get("source")
-        if not source:
-            return ""
-
-        src_path = Path(source)
-        if not src_path.is_absolute():
-            src_path = (Path.cwd() / src_path).resolve()
-        else:
-            src_path = src_path.resolve()
-
-        try:
-            return src_path.relative_to(docs_dir).as_posix()
-        except ValueError:
-            return str(source)
-
-    def _migrate_hashes(self, docs_dir: Path, docs: list[dict]) -> None:
-        """
-        Migrate legacy file_hashes keys (absolute/legacy path) to source_key.
-        Unknown keys are preserved as-is.
-        """
-        if not self._hashes:
-            return
-
-        alias_to_key = {}
+        dimension = model.get_sentence_embedding_dimension()
+        self._index = faiss.IndexFlatIP(dimension)
+        if old_index is not None and old_index.d != dimension:
+            raise ValueError("Embedding dimension changed; a full rebuild is required")
+        existing = {d["source_key"]: d["fingerprint"] for d in docs}
+        unchanged = {key for key, value in existing.items() if old_hashes.get(key) == value}
+        keep = [i for i, meta in enumerate(old_meta) if meta["source_key"] in unchanged]
+        if keep:
+            vectors = np.stack([old_index.reconstruct(i) for i in keep]).astype("float32")
+            self._index.add(vectors)
+            self._meta.extend(old_meta[i] for i in keep)
+        pending = []
         for doc in docs:
-            source = doc["source"]
-            source_key = doc["source_key"]
-            src_path = Path(source)
-
-            alias_to_key[source_key] = source_key
-            alias_to_key[source] = source_key
-            alias_to_key[str(src_path)] = source_key
-            alias_to_key[str(src_path.resolve())] = source_key
-            alias_to_key[str((docs_dir / source_key).resolve())] = source_key
-
-        migrated = {}
-        for old_key, h in self._hashes.items():
-            new_key = alias_to_key.get(old_key)
-            if new_key is None:
-                old_path = Path(old_key)
-                if old_path.is_absolute():
-                    try:
-                        new_key = old_path.resolve().relative_to(docs_dir).as_posix()
-                    except ValueError:
-                        new_key = None
-            migrated[new_key or old_key] = h
-
-        self._hashes = migrated
-
-    # Build / rebuild
-
-    def build(
-        self,
-        docs_dir: Path,
-        incremental: bool = False,
-        batch_size: int = 16,
-        chunk_batch_size: int = 512,
-    ) -> bool:
-        import faiss
-
-        print(f"\n{'Incremental' if incremental else 'Full'} index build")
-        print(f"  Docs dir : {docs_dir}")
-        print(f"  Output   : {self.output_dir}")
-
-        docs = load_documents(docs_dir)
-        if not docs:
-            print("[ERROR] No .txt files found.")
-            return False
-
-        docs_dir = docs_dir.resolve()
-        if incremental:
-            try:
-                self._load_existing()
-                self._migrate_hashes(docs_dir, docs)
-            except Exception as e:
-                print(f"[ERROR] {e}")
-                return False
-
-        # Determine which files need (re-)indexing
-        to_index = []
-        for doc in docs:
-            h = file_hash(doc["source"])
-            if incremental and self._hashes.get(doc["source_key"]) == h:
-                continue  # unchanged
-            to_index.append((doc, h))
-
-        if not to_index and incremental:
-            print("  All files up-to-date. Nothing to do.")
-            # Keep summary format identical so downstream parsers can reuse regex.
-            if self._index is None:
-                print("[ERROR] Existing index is not loaded in incremental mode.")
-                return False
-            total_vectors = self._index.ntotal
-            total_chunks = len(self._meta)
-            print(f"\nDone.")
-            print(f"  Total vectors : {total_vectors}")
-            print(f"  Total chunks  : {total_chunks}")
-            print(f"  Index saved   : {self.index_path}")
-            return True
-
-        print(f"  Files to index: {len(to_index)} / {len(docs)}")
-
-        # If incremental, remove old chunks for files being re-indexed
-        if incremental and self._meta:
-            stale_sources = {doc["source_key"] for doc, _ in to_index}
-            keep_idx = [
-                i
-                for i, m in enumerate(self._meta)
-                if self._meta_source_key(m, docs_dir) not in stale_sources
-            ]
-            if keep_idx:
-                # Rebuild a fresh index from kept vectors
-                dim = self._index.d
-                old_vecs = np.zeros((len(keep_idx), dim), dtype="float32")
-                for new_i, old_i in enumerate(keep_idx):
-                    self._index.reconstruct(old_i, old_vecs[new_i])
-                new_index = faiss.IndexFlatIP(dim)
-                if keep_idx:
-                    new_index.add(old_vecs)
-                self._index = new_index
-                self._meta = [self._meta[i] for i in keep_idx]
-            else:
-                dim = self._embed(["test"], batch_size=1).shape[1]
-                self._index = faiss.IndexFlatIP(dim)
-                self._meta = []
-
-        # Chunk new/changed files
-        all_chunks = []
-        chunk_metas = []
-        for doc, h in to_index:
-            chunks = chunk_text(doc["text"])
-            for i, chunk in enumerate(chunks):
-                all_chunks.append(chunk)
-                chunk_metas.append(
-                    {
-                        "source": doc["source"],
-                        "source_key": doc["source_key"],
-                        "chunk_id": i,
-                        "text": chunk,
-                    }
-                )
-            self._hashes[doc["source_key"]] = h
-            print(f"  Chunked {Path(doc['source']).name}: {len(chunks)} chunks")
-
-        if not all_chunks:
-            print("[ERROR] No chunks to embed.")
-            return False
-
-        # Embed in chunks to reduce peak memory
-        print(
-            f"  Embedding {len(all_chunks)} chunks (encoder batch={batch_size}, stream batch={chunk_batch_size}) ..."
-        )
-        t0 = time.time()
-        total_batches = math.ceil(len(all_chunks) / chunk_batch_size)
-        for batch_idx, start in enumerate(
-            range(0, len(all_chunks), chunk_batch_size), start=1
-        ):
-            end = min(start + chunk_batch_size, len(all_chunks))
-            chunk_batch = all_chunks[start:end]
-            meta_batch = chunk_metas[start:end]
-
-            try:
-                vecs = self._embed(chunk_batch, batch_size=batch_size)
-            except Exception as e:
-                print(
-                    f"[ERROR] Embedding failed for batch {batch_idx}/{total_batches}: {e}"
-                )
-                return False
-
-            if self._index is None:
-                dim = vecs.shape[1]
-                self._index = faiss.IndexFlatIP(
-                    dim
-                )  # inner product = cosine (normalized)
-
-            self._index.add(vecs)
-            self._meta.extend(meta_batch)
-
-            print(
-                f"    [Embed] Batch {batch_idx}/{total_batches} | "
-                f"+{len(vecs)} vectors | cumulative={self._index.ntotal}"
-            )
-
-        print(f"  Embedded in {time.time()-t0:.1f}s")
-
-        # Save
-        try:
-            faiss.write_index(self._index, str(self.index_path))
-            self.meta_path.write_text(
-                json.dumps(self._meta, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
-            self.hash_path.write_text(
-                json.dumps(self._hashes, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
-        except Exception as e:
-            print(f"[ERROR] Failed to save index/metadata: {e}")
-            return False
-
-        print(f"\nDone.")
-        print(f"  Total vectors : {self._index.ntotal}")
-        print(f"  Total chunks  : {len(self._meta)}")
-        print(f"  Index saved   : {self.index_path}")
+            if doc["source_key"] in unchanged:
+                continue
+            title = " / ".join(filter(None, (doc.get("title"), doc.get("title_en"))))
+            for chunk_id, text in enumerate(token_chunks(doc["text"], model, title)):
+                pending.append({key: value for key, value in doc.items()
+                                if key in ("source", "source_key", "source_url", "source_file", "title",
+                                           "fetched_at", "parsed_at", "valid_from", "valid_until", "text_sha256")}
+                               | {"chunk_id": chunk_id, "text": text})
+        for start in range(0, len(pending), chunk_batch_size):
+            batch = pending[start:start + chunk_batch_size]
+            vectors = self._embed([m["text"] for m in batch], batch_size)
+            if vectors.shape != (len(batch), dimension) or not np.isfinite(vectors).all():
+                raise ValueError("Invalid embedding shape or nonfinite vector")
+            if not np.allclose(np.linalg.norm(vectors, axis=1), 1, atol=.01):
+                raise ValueError("Embeddings must be normalized")
+            self._index.add(vectors)
+            self._meta.extend(batch)
+            print(f"[Embed] {self._index.ntotal} vectors", flush=True)
+        self._hashes = existing
+        if self._index.ntotal != len(self._meta):
+            raise ValueError("Index/metadata count mismatch")
+        # Re-read the source snapshot before publishing: concurrent ingestion must
+        # never mark partially updated content as a successful build.
+        snapshot = {d["source_key"]: d["fingerprint"] for d in documents}
+        if snapshot != {d["source_key"]: d["fingerprint"] for d in load_documents(root)}:
+            raise ValueError("Documents changed during build; retry after ingestion finishes")
+        checks = []
+        if evaluation:
+            cases = json.loads(Path(evaluation).read_text(encoding="utf-8"))
+            if not isinstance(cases, list) or not cases:
+                raise ValueError("Evaluation must contain a nonempty list of cases")
+            for case in cases:
+                hits = search_index(self._index, self._meta, model, case["query"],
+                                    top_k=case.get("top_k", 3), min_score=case.get("min_score", .35))
+                expected = case.get("source_key")
+                passed = (not hits if expected is None else any(
+                    h["source_key"] == expected and case.get("contains", "") in h["text"] for h in hits))
+                checks.append({"query": case["query"], "passed": passed,
+                               "sources": [h["source_key"] for h in hits]})
+            if not all(c["passed"] for c in checks):
+                raise ValueError("Retrieval checks failed: " + json.dumps(checks, ensure_ascii=False))
+        self.generation = uuid.uuid4().hex
+        target = self.output_dir / "generations" / self.generation
+        target.mkdir(parents=True)
+        faiss.write_index(self._index, str(target / INDEX_FILE))
+        with (target / INDEX_FILE).open("rb") as stream:
+            os.fsync(stream.fileno())
+        for name, payload in ((META_FILE, self._meta), (HASH_FILE, self._hashes)):
+            atomic_write(target / name, json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
+        manifest = {"schema_version": 1, "generation": self.generation, "built_at": utc_now(),
+                    "signature": SIGNATURE, "corpus_root": str(root), "dimension": dimension,
+                    "total_vectors": self._index.ntotal, "total_docs": len(docs),
+                    "reused_chunks": len(keep), "embedded_chunks": len(pending),
+                    "removed_sources": sorted(set(old_hashes) - set(existing)),
+                    "expired_sources": excluded, "evaluation": checks,
+                    "checksums": {name: digest((target / name).read_bytes())
+                                  for name in (INDEX_FILE, META_FILE, HASH_FILE)}}
+        atomic_write(target / MANIFEST_FILE, json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
+        read_manifest(target)
+        reloaded = faiss.read_index(str(target / INDEX_FILE))
+        if reloaded.ntotal != len(self._meta) or reloaded.d != dimension:
+            raise ValueError("Saved index validation failed")
+        sync_directory(target.parent)
+        if publish:
+            atomic_write(self.output_dir / "CURRENT", self.generation + "\n")
+        print(f"Done. Generation: {self.generation} ({'active' if publish else 'staged'})")
+        print(f"  Total vectors : {self._index.ntotal}\n  Total chunks  : {len(self._meta)}")
+        print(f"  Index saved   : {target / INDEX_FILE}")
         return True
 
 
-# Retriever (used by llm_node.py)
-
-
 class Retriever:
-    """
-    Lightweight retriever for use inside llm_node.py.
-
-    Usage:
-        from build_index import Retriever
-        retriever = Retriever("./data/campus/indexed")
-        results = retriever.search("오늘 학생식당 점심", top_k=3)
-        for r in results:
-            print(r['score'], r['source'], r['text'])
-    """
-
-    def __init__(self, index_dir: str):
+    def __init__(self, index_dir, model=None):
         import faiss
-        from sentence_transformers import SentenceTransformer
+        directory = active_directory(index_dir)
+        manifest = read_manifest(directory)
+        if manifest["signature"] != SIGNATURE:
+            raise ValueError("Embedding configuration differs from index; rebuild required")
+        self._index = faiss.read_index(str(directory / INDEX_FILE))
+        self._meta = json.loads((directory / META_FILE).read_text(encoding="utf-8"))
+        if self._index.ntotal != len(self._meta) or self._index.d != manifest["dimension"]:
+            raise ValueError("Index/metadata dimensions or counts differ")
+        self._model = model if model is not None else load_model()
+        if self._model.get_sentence_embedding_dimension() != self._index.d:
+            raise ValueError("Model/index dimension mismatch")
+        self.generation = manifest["generation"]
 
-        index_dir = Path(index_dir)
-        self._index = faiss.read_index(str(index_dir / INDEX_FILE))
-        self._meta = json.loads((index_dir / META_FILE).read_text())
-        self._model = SentenceTransformer(EMBED_MODEL)
-        print(f"[Retriever] Loaded index: {self._index.ntotal} vectors")
-
-    def search(self, query: str, top_k: int = 3) -> list[dict]:
-        """
-        Return top_k most relevant chunks for the query.
-        Each result: {score, source, chunk_id, text}
-        """
-        vec = self._model.encode(
-            [query], normalize_embeddings=True, convert_to_numpy=True
-        ).astype("float32")
-
-        scores, indices = self._index.search(vec, top_k)
-
-        results = []
-        for score, idx in zip(scores[0], indices[0]):
-            if idx < 0:  # FAISS returns -1 for empty slots
-                continue
-            meta = self._meta[idx]
-            results.append(
-                {
-                    "score": float(score),
-                    "source": meta["source"],
-                    "chunk_id": meta["chunk_id"],
-                    "text": meta["text"],
-                }
-            )
-        return results
+    def search(self, query, top_k=3, min_score=.35):
+        return search_index(self._index, self._meta, self._model, query, top_k, min_score)
 
 
-# CLI
+def activate_generation(output, generation):
+    """Activate/roll back an existing validated generation without rewriting it."""
+    import faiss
+    output = Path(output)
+    if not re.fullmatch(r"[a-zA-Z0-9_-]+", generation):
+        raise ValueError("Invalid generation ID")
+    with build_lock(output):
+        target = output / "generations" / generation
+        manifest = read_manifest(target)
+        if manifest["signature"] != SIGNATURE:
+            raise ValueError("Generation uses a different embedding configuration")
+        metadata = json.loads((target / META_FILE).read_text(encoding="utf-8"))
+        vectors = faiss.read_index(str(target / INDEX_FILE))
+        if vectors.ntotal != len(metadata) or vectors.d != manifest["dimension"]:
+            raise ValueError("Index/metadata dimensions or counts differ")
+        if any(not case["passed"] for case in manifest["evaluation"]):
+            raise ValueError("Generation failed retrieval evaluation")
+        atomic_write(output / "CURRENT", generation + "\n")
+    print(f"Activated generation: {generation}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="DORI RAG Index Builder")
-    parser.add_argument(
-        "--docs",
-        required=True,  # TODO: default="./data/campus/processed",
-        help="Directory containing .txt document files",
-    )
-    parser.add_argument(
-        "--output",
-        default="./data/campus/indexed",
-        help="Directory to save FAISS index + metadata",
-    )
-    parser.add_argument(
-        "--incremental",
-        action="store_true",
-        help="Only re-embed changed/new files (faster updates)",
-    )
-    parser.add_argument(
-        "--batch-size",
-        type=int,
-        default=int(os.getenv("DORI_EMBED_BATCH_SIZE", "16")),
-        help="Embedding model batch size (env: DORI_EMBED_BATCH_SIZE, default: 16)",
-    )
-    parser.add_argument(
-        "--chunk-batch-size",
-        type=int,
-        default=int(os.getenv("DORI_CHUNK_BATCH_SIZE", "512")),
-        help="Chunks per streaming embed/add pass (env: DORI_CHUNK_BATCH_SIZE, default: 512)",
-    )
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--docs")
+    parser.add_argument("--output", default="./data/campus/indexed")
+    parser.add_argument("--incremental", action="store_true", help="Sync changes AND deletions within the same corpus root")
+    parser.add_argument("--batch-size", type=int, default=int(os.getenv("DORI_EMBED_BATCH_SIZE", "8")))
+    parser.add_argument("--chunk-batch-size", type=int, default=int(os.getenv("DORI_CHUNK_BATCH_SIZE", "256")))
+    parser.add_argument("--evaluation", help="JSON retrieval cases; failures leave the active index untouched")
+    parser.add_argument("--stage-only", action="store_true", help="Validate/save without changing CURRENT")
+    parser.add_argument("--activate", metavar="GENERATION", help="Activate or roll back a previously validated generation")
     args = parser.parse_args()
-
-    if args.batch_size <= 0:
-        raise ValueError("--batch-size must be > 0")
-    if args.chunk_batch_size <= 0:
-        raise ValueError("--chunk-batch-size must be > 0")
-
-    builder = IndexBuilder(Path(args.output))
-    try:
-        ok = builder.build(
-            Path(args.docs),
-            incremental=args.incremental,
-            batch_size=args.batch_size,
-            chunk_batch_size=args.chunk_batch_size,
-        )
-    except Exception as e:
-        print(f"[ERROR] Unexpected build failure: {e}")
-        ok = False
-
-    sys.exit(0 if ok else 1)
+    if args.activate:
+        if args.docs or args.incremental or args.stage_only:
+            parser.error("--activate cannot be combined with build options")
+        activate_generation(args.output, args.activate)
+        return 0
+    if not args.docs:
+        parser.error("--docs is required for building")
+    ok = IndexBuilder(args.output).build(args.docs, args.incremental, args.batch_size,
+                                        args.chunk_batch_size, args.evaluation, not args.stage_only)
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

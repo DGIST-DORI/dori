@@ -1,95 +1,58 @@
-[복지시설]
-출처: https://www.dgist.ac.kr/college/sub04_01_03.do
-
-DGIST 복지시설
-
-DGIST는 구성원들의 건강 증진과 복지 향상을 위해 종합체육관을 운영하고 있습니다. 종합체육관은 다양한 스포츠 및 문화 활동을 지원하는 현대적인 시설을 갖추고 있습니다.
-
-종합체육관 시설 현황:
-
-1층:
-*   **수영장**: 836.77㎡ 규모로 성인풀(6레인/25M)과 유아풀 1개를 갖추고 있습니다.
-*   **피트니스**: 689.02㎡ 규모에 런닝머신 20대, 싸이클 8대 외 30여종의 운동기구 및 체내분석기를 보유하고 있습니다.
-*   **G·X룸**: 98㎡ 규모의 1실이 있으며 요가, 필라테스, 줌바 등 다양한 G·X 프로그램을 운영합니다.
-*   **스쿼시장/스트레칭룸**: 스쿼시장 1면과 전면 거울이 설치된 스트레칭룸 1면이 있습니다.
-*   **실내체육관**: 1,078㎡ 규모로 무대, 경기장, 관람석 277석을 갖추고 있으며 농구, 배구, 배드민턴 등의 경기 및 대관이 가능합니다.
-
-2층:
-*   **골프연습장**: 432.26㎡ 규모로 스크린룸 2실, 스크린연습타석 5개, 모니터타석 6개를 포함합니다.
-*   **회의실 등**: 30인 규모의 회의실 2실과 12인 규모의 귀빈실 1실이 있어 세미나 및 회의에 활용됩니다.
-*   **동아리실**: 36인실 1실과 12인실 3실, 총 4개의 동아리실을 운영하고 있습니다.
-
-3층:
-*   **강사실**: 23㎡ 규모의 1실이 있습니다.
-*   **음악연습실**: 63㎡ 규모의 중형연습실 1실과 각 29㎡ 규모의 소형연습실 7실이 있습니다.
-
-이용 신청 안내:
-
-*   **월 등록 (강습)**: 수영, 아쿠아로빅, 요가, 줌바 등의 강습은 매월 접수일에 안내데스크에서 등록할 수 있습니다. 재등록 회원은 매월 20일, 신규회원은 매월 24일에 접수합니다.
-*   **상시 등록**: 헬스, 테니스, 골프는 상시 등록이 가능합니다.
-*   **대관 신청**: 실내체육관, 실외테니스장 등의 시설은 DGIST 구성원은 안내데스크 문의 후 이용 일정 중복 확인을 통해 신청할 수 있으며, 외부인은 별도 문의가 필요합니다.
-
-이용 시설 안내:
-
-*   **수영장**: 평일 06:00~23:00, 토요일 07:00~17:00, 일요일(1, 3주) 및 공휴일 09:00~17:00 운영합니다. 수영강습은 주 5회(월~금) 진행되며, 자유수영은 토, 일 및 평일 지정 시간대에 가능합니다. 이용료는 홈페이지 [자료실]을 참조하십시오.
-*   **헬스장**: 평일 06:00~23:00, 토요일 07:00~17:00, 일요일(1, 3주) 및 공휴일 09:00~17:00 운영합니다. 개인PT는 안내데스크에 문의하시고, 이용료는 홈페이지 [자료실]을 참조하십시오. 헬스복이 제공됩니다.
-*   **골프연습장**: 평일 06:00~23:00, 토요일 09:00~17:00 운영하며, 일요일은 휴관입니다. 레슨은 월, 화, 목, 금 오전 11:00~13:00, 오후 15:00~18:00, 19:00~22:30에 진행되며, 수요일은 필드레슨입니다. 이용료는 홈페이지 [자료실]을 참조하십시오.
-*   **실외테니스장**: 평일 07:00~12:00, 18:00~22:30, 토요일 09:00~17:00 운영하며, 일요일은 휴관입니다. 이 외 시간 이용은 별도 문의 바랍니다. 레슨은 월, 화, 목, 금 오전 07:00~12:00, 오후 18:00~22:00에 진행되며, 수요일은 휴강입니다. 이용료는 홈페이지 [자료실]을 참조하십시오.
-*   **실내체육관**: 평일 06:00~23:00, 토요일 07:00~17:00, 일요일(1, 3주) 및 공휴일 09:00~17:00 운영합니다.
-
-기타사항:
-*   강습표 및 기타 월 운영일정은 스포츠센터 홈페이지 [공지사항]을 참조하십시오.
-*   이용료는 스포츠센터 홈페이지 [자료실]을 참조하십시오.
-*   DGIST 구성원 이용요금은 안내데스크에 별도 문의 바랍니다.
-*   매주 2, 4, 5주 일요일은 스포츠센터 휴관일입니다.
-
-시설이용 및 대관 문의: 스포츠센터 안내데스크 053-720-7900, 7906
-
----
-
-[Welfare Facilities]
-Source: https://www.dgist.ac.kr/college/sub04_01_03.do
-
-DGIST Welfare Facilities
-
-DGIST operates an Integrated Sports Center to promote the health and welfare of its members. The Sports Center is equipped with modern facilities supporting various sports and cultural activities.
-
-Integrated Sports Center Facilities Status:
-
-1st Floor:
-*   **Swimming Pool**: With an area of 836.77㎡, it features an adult pool (6 lanes/25m) and one toddler pool.
-*   **Fitness Center**: Spanning 689.02㎡, it houses 20 treadmills, 8 cycles, approximately 30 other exercise machines, and a body composition analyzer.
-*   **G·X Room**: There is 1 room (98㎡) that hosts various G·X programs such as Yoga, Pilates, and Zumba.
-*   **Squash Court/Stretching Room**: Includes 1 squash court and 1 stretching room equipped with a full-length mirror.
-*   **Indoor Gymnasium**: Covering 1,078㎡, it features a stage, court, and 277 spectator seats, suitable for sports like basketball, volleyball, badminton, and facility rentals.
-
-2nd Floor:
-*   **Golf Practice Range**: An area of 432.26㎡, including 2 screen rooms, 5 screen practice bays, and 6 monitor bays.
-*   **Meeting Rooms, etc.**: Two meeting rooms (for 30 people each) and one VIP room (for 12 people) are available for seminars and meetings.
-*   **Club Rooms**: A total of 4 club rooms are operated, with 1 room for 36 people and 3 rooms for 12 people each.
-
-3rd Floor:
-*   **Instructor's Room**: There is 1 room, 23㎡ in size.
-*   **Music Practice Rooms**: Comprises 1 medium practice room (63㎡) and 7 small practice rooms (29㎡ each).
-
-Application Guide:
-
-*   **Monthly Registration (Classes)**: Registration for classes such as swimming, aqua aerobics, yoga, and Zumba can be done at the information desk on monthly registration days. Re-registration for existing members is on the 20th of every month, and new member registration is on the 24th of every month.
-*   **Ongoing Registration**: Registration for health, tennis, and golf is available year-round.
-*   **Facility Rental**: For facilities like the indoor gymnasium and outdoor tennis court, DGIST members can apply after inquiring at the information desk to check for schedule conflicts. External visitors need to make a separate inquiry.
-
-Facility Usage Information:
-
-*   **Swimming Pool**: Operates on weekdays from 06:00 to 23:00, Saturdays from 07:00 to 17:00, and on 1st, 3rd Sundays and public holidays from 09:00 to 17:00. Swimming lessons are held 5 times a week (Mon-Fri), and free swimming is available on Saturdays, Sundays, and designated weekday hours. Please refer to the [Resource Room] section on the website for fees.
-*   **Fitness Center**: Operates on weekdays from 06:00 to 23:00, Saturdays from 07:00 to 17:00, and on 1st, 3rd Sundays and public holidays from 09:00 to 17:00. For personal training (PT), please inquire at the information desk. Fees can be found in the [Resource Room] on the website. Workout clothes are provided.
-*   **Golf Practice Range**: Operates on weekdays from 06:00 to 23:00 and Saturdays from 09:00 to 17:00; it is closed on Sundays. Lessons are available on Monday, Tuesday, Thursday, and Friday at 11:00-13:00, 15:00-18:00, and 19:00-22:30. Wednesday is for field lessons. Please refer to the [Resource Room] section on the website for fees.
-*   **Outdoor Tennis Court**: Operates on weekdays from 07:00-12:00 and 18:00-22:30, and Saturdays from 09:00-17:00; it is closed on Sundays. For usage outside these hours, please make a separate inquiry. Lessons are held on Monday, Tuesday, Thursday, and Friday from 07:00-12:00 and 18:00-22:00; Wednesday lessons are suspended. Please refer to the [Resource Room] section on the website for fees.
-*   **Indoor Gymnasium**: Operates on weekdays from 06:00 to 23:00, Saturdays from 07:00 to 17:00, and on 1st, 3rd Sundays and public holidays from 09:00 to 17:00.
-
-Other Information:
-*   Please refer to the [Notices] section of the Sports Center website for class schedules and other monthly operating schedules.
-*   For usage fees, please refer to the [Resource Room] section of the Sports Center website.
-*   DGIST members should inquire separately at the information desk regarding their usage fees.
-*   The Sports Center is closed on the 2nd, 4th, and 5th Sundays of every month.
-
-For inquiries regarding facility usage and rentals: Sports Center Information Desk 053-720-7900, 7906
+## 종합체육관 전경 및 로비
+## 종합체육관 시설현황
+층 | 용도 | 면적 | 구성
+1층 | 수영장 | 836.77m 2 | 성인풀(6레인/25M), 유아풀 1개
+1층 | 피트니스 | 689.02m 2 | 런닝머신 20대, 싸이클 8대 외 30여종 및 체내분석기 보유
+1층 | G·X룸 | 689.02m 2 | G·X룸 1실(98㎡) 요가, 필라테스, 줌바 등
+1층 | 스쿼시장/스트레칭룸 | 689.02m 2 | 스쿼시장 1면, 스트레칭룸 1면(전면 거울 설치)
+1층 | 실내체육관 | 1,078m 2 | 무대, 경기장, 관람석 277석 농구, 배구, 배드민턴, 대관 등
+2층 | 골프연습장 | 432.26m 2 | 스크린룸(2실),스크린연습타석(5타석), 모니터타석(6타석)
+2층 | 회의실 등 | 30인/실(2실) | 회의실(30인) 2실, 귀빈실(12인) 1실 세미나 및 회의 등
+2층 | 동아리실 | 36인/실(1실) 12인/실(3실) | 동아리실 4실
+3층 | 강사실 음악연습실 |  | 강사실 1실(23㎡), 중형연습실 1실(63㎡), 소형연습실 7실(각 29㎡)
+## 이용신청 안내
+스포츠센터 내방 후 월 접수일에 안내데스크에서 등록
+등록접수일
+월 등록(강습)
+수영, 아쿠아로빅, 요가, 줌바
+재등록 회원 : 매월 20일 / 신규회원 : 매월 24일
+상시등록 : 헬스, 테니스, 골프
+대관신청
+대관 이용 가능 시설 : 실내체육관, 실외테니스장
+DGIST 구성원
+이용일정 중복 확인(안내데스크 문의)
+외부인 : 안내데스크 문의
+체육시설 대관 신청
+## 이용신청 안내
+DGIST 구성원 및 외부 지역 주민
+## 이용시설 안내
+## 수영장
+운영시간 : 평일 06:00~23:00 / 토요일 07:00~17:00 / 일요일(1, 3주), 공휴일 09:00~17:00
+수영강습 : 주 5회(월~금)
+자유수영 : 토, 일, 평일 지정 시간대(월 시간표 홈페이지 참조)
+이용료 : 홈페이지 [자료실] 참조
+## 헬스장
+운영 시간 : 평일 06:00~23:00 / 토요일 07:00~17:00 / 일요일(1, 3주), 공휴일 09:00~17:00
+개인PT : 안내데스크 문의
+이용료 : 홈페이지 [자료실] 참조
+헬스복 제공
+## 골프연습장
+운영시간 : 평일 06:00~23:00 / 토요일 09:00~17:00 / 일요일 : 휴관
+레슨시간 : 월,화,목,금 / 수요일 필드레슨 / 오전 11:00~13:00, 오후 15:00~18:00, 19:00~22:30
+이용료 : 홈페이지 [자료실] 참조
+## 실외테니스장
+운영시간 : 평일 07:00~12:00, 18:00~22:30 / 토요일 09:00~17:00 / 일요일 : 휴관
+이 외 시간이용은 별도 문의
+레슨시간 : 월,화,목,금 / 수요일 휴강 (오전 07:00~12:00, 오후 18:00~22:00)
+이용료 : 홈페이지 [자료실] 참조
+## 실내체육관
+운영시간 : 평일 06:00 ~ 23:00 / 토요일 07:00 ~ 17:00 / 일요일(1, 3주), 공휴일 09:00 ~ 17:00
+## 기타사항
+강습표 및 기타 월 운영일정 : 스포츠센터 홈페이지 [공지사항] 참조
+이용료 : 스포츠센터 홈페이지 [자료실] 참조
+DGIST 구성원 이용요금은 안내데스크 별도 문의
+매주 2,4,5주 일요일은 스포츠센터 휴관
+시설이용 및 대관 문의
+스포츠센터 안내데스크 053-720-7900, 7906
+DGIST 스포츠센터 홈페이지
+바로가기

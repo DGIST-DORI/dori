@@ -1,0 +1,18 @@
+{
+  "kind": "web",
+  "doc_id": "dgist_directions",
+  "category": "intro",
+  "title": "찾아오시는 길",
+  "title_en": "Directions to DGIST",
+  "extractor_version": "source-sections-v2",
+  "source_url": "https://www.dgist.ac.kr/kor/sub01_03_01.do",
+  "requested_url": "https://www.dgist.ac.kr/kor/sub01_03_01.do",
+  "fetched_at": "2026-11-04T20:48:16+00:00",
+  "valid_until": "2026-12-04T20:48:16+00:00",
+  "raw_snapshot": "raw/dgist_directions/354e81e6d10409a77ee3ff4e50fcb642b317d3c17d32903f4dc5084a20ed348b",
+  "etag": null,
+  "last_modified": null,
+  "content_sha256": "d48b9d4f50f81bcaf42d4061964ef4e98423d33fa2ee2b96154ee2da1ffa02a3",
+  "schema_version": 1,
+  "text_sha256": "ee64b5280b8fa2f80f5ce5df5f43858fb62606313146c68c6056653200832dc3"
+}

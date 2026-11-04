@@ -37,7 +37,7 @@ function LogPane({ lines }) {
 function CampusCrawlerPanel() {
   const [status, setStatus] = useState('idle');
   const [log, setLog] = useState([]);
-  const [noLlm, setNoLlm] = useState(false);
+  const [noLlm, setNoLlm] = useState(true);
   const [delay, setDelay] = useState(0.8);
   const [urlsPath, setUrlsPath] = useState('');
   const [outputDir, setOutputDir] = useState('data/campus');
@@ -196,7 +196,7 @@ function CampusCrawlerPanel() {
             checked={noLlm}
             onChange={(e) => setNoLlm(e.target.checked)}
           />
-          <span>No LLM (save raw fallback text only)</span>
+          <span>Source text only (skip optional AI review summaries)</span>
         </label>
 
         <div className="km-crawler-grid">

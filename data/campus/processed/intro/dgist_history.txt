@@ -1,237 +1,104 @@
-[학교 연혁]
-출처: https://www.dgist.ac.kr/kor/sub01_02_04.do
-
-DGIST의 주요 연혁은 다음과 같습니다.
-
-2024년
+20주년 기념 홈페이지
+혁신으로 세상을 바꾸는 융복합 대학,
+DGIST HISTORY
+## 2026
+03.10. 디지스트기술지주 공동대표이사 선임
+02.23. DGIST 기술경영전문대학원 첫 개강
+## 2025
+12.09. ‘2025 Nature Conference’ 개최
+09.21. ‘2025 세계공학교육포럼 및 공과대학장 세계대회(WEEF-GEDC 2025)’ 개최
+08.21. DGIST 융합인재교육원 개원
+06.20. 2026 QS 세계대학평가 ‘교수 1인당 논문 피인용수’ 부문 세계 4위, 국내 1위 달성
+04.21. DGIST 기술경영전문대학원 설립
+03.13. DGIST 공학전문대학원 개원
+## 2024
 09.07 DGIST 창립 20주년
 05.14 THE 신흥대학평가 국내 3위, 세계 33위 달성
 04.04 DGIST 센소리움연구소 개소식
-
-2023년
+## 2023
 12.01 제5대 총장 이건우 박사 취임
-06.28 QS 세계대학평가 첫 진입 (국내 종합 9위, "교수 1인당 피인용도" 세계 7위)
-
-2022년
+06.28 QS 세계대학평가 첫 진입(국내 종합 9위, "교수 1인당 피인용도" 세계 7위)
+## 2022
 02.28 학사조직 명칭 개편
-
-2020년
+## 2020
 12.31 기술출자 기업 설립 누적 19개사
 07.01 발명장려유공 단체부분 '대통령 표창' 수상
-
-2019년
-06.14 2019년도 환경정보공개 최우수기관 수상 (환경부)
+## 2019
+06.14 2019년도 환경정보공개 최우수기관수상(환경부)
 04.01 제4대 총장 국양 박사 취임
-
-2018년
+## 2018
 06.29 R&R 재정립 방안 발표 및 협약 체결
 05.02 DGIST Innovation 2034 혁신선포
-02.07 제1회 융복합대학 기초학부 학위수여식 (첫 학사 졸업자 96명 배출)
-
-2017년
+02.07 제1회 융복합대학 기초학부 학위수여식(첫 학사 졸업자 96명 배출)
+## 2017
 08. 기술출자(연구소)기업 누적 14개사 설립
-03.01 제3대 총장 손상혁 박사 취임
-
-2016년
+03.01 제 3대 총장 손상혁 박사 취임
+## 2016
 12.16 기술출자(연구소)기업 누적 13개사 설립
 11.10 초일류 연구인프라 센터 개소
-10.19 웰에이징연구센터 개소
-10.19 기술출자(연구소) 기업 누적 12개사 설립
+10.19 웰에이징연구센터 개소 기술출자(연구소) 기업 누적 12개사 설립
 04.19 핵심단백질자원센터 개소
 02.19 학위수여식
-
-2015년
-12.30 2015년도 기관평가 국무총리 단체표창 (2년 연속)
+## 2015
+12.30 2015년도 기관평가 국무총리 단체표창(2년 연속)
 07.14 2015년도 미래부 기관평가 결과 ‘우수’
-04.01 DGIST 융합연구원 설립 (승격 개편)
+04.01 DGIST 융합연구원 설립(승격 개편)
 03.02 제2회 학사과정 입학식
 02.26 제2대 총장 신성철 박사 취임
 02.13 학위수여식
-
-2014년
+## 2014
 12.30 2014년도 기관평가 부문 국무총리 단체표창
 12.10 기술출자(연구소)기업 누적 9개사 설립
-12.04 한국뇌연구원 준공식 (1단계)
+12.04 한국뇌연구원 준공식(1단계)
 09.16 창립 10주년 기념식
 06.13 학사캠퍼스 준공식
 03.03 제1회 학부생 입학식
-
-2013년
+## 2013
 10.25 뇌대사체학 연구센터 개소
 06.28 설립 후 첫 기술출자기업 3개사 설립
 06.11 웰니스융합연구센터 개소
 05.22 비슬융합정원 오픈
 02.15 제1회 학위수여식
-
-2012년
+## 2012
 10.30 CPS(사이버물리시스템)글로벌센터 개소
 10.08 기초과학연구원 식물노화ㆍ수명연구단 유치
 07.16 DGIST-LBNL공동연구센터 개소
 05.02 DGIST VISION 2020 선포식 및 학사캠퍼스 기공식
 03.02 DGIST 2012학년도 대학원 입학식
 01.31 학위과정 건설 1단계 준공 (기숙사 1개동, 산학협력관)
-
-2011년
+## 2011
 10.14 DGIST 부설 한국뇌연구원 설립
 07.07 DGIST 차세대융복합연구센터 준공식 개최
 03.02 제1회 석박사 학위과정 입학식
 02.25 초대총장 신성철 박사 취임
-
-2010년
+## 2010
 12.10 DGIST 연구동 준공식 개최
-11.22 DGIST 신청사 입주 (완료)
-
-2009년
+11.22 DGIST 신청사 입주(완료)
+## 2009
 12.28 DGIST 차세대융복합연구센터 기공식 개최
 05.08 DGIST 비전 및 UI 선포식 개최
-05.01 학위과정 기본계획 수립 (교육과학기술부)
-
-2008년
-12.14 대구경북과학기술원법 시행령 시행 (대통령령 제21162호)
+05.01 학위과정 기본계획 수립(교육과학기술부)
+## 2008
+12.14 대구경북과학기술원법 시행령 시행(대통령령 제21162호)
 10.31 연구원건설 기공식
 10.01 학위과정 설립준비위원회 개최
 07.21 학위과정 설치계획(안) 제 16회 임시이사회 의결
-06.13 대구경북과학기술원법 공포 (법률 제 9108호)
-
-2007년
-09.03 제2대 이인선 원장 선임
-
-2006년
-02.22 대구테크노파크 성서벤처공장 실험동 입주 (디스플레이, 나노신소재, BT 분야, 임대면적 2,476㎡)
-
-2005년
-12.27 DGIST 설립 총괄 기본계획(안) 승인 (이사회) (설립규모: 부지 330,579㎡, 건축 99,174㎡, 인원 170명(~09년))
+06.13 대구경북과학기술원법 공포(법률 제 9108호)
+## 2007
+09.03 제2대 이인선원장 선임
+## 2006
+02.22 대구테크노파크 성서벤처공장 실험동 입주 디스플레이, 나노신소재, BT, 임대면적 2.476㎡
+## 2005
+12.27 DGIST 설립 총괄 기본계획(안)승인(이사회) 설립규모 : 부지 330,579㎡, 건축 99,174㎡ , 인원 170명(~09년)
 06.13 "기본계획 수립용역" 최종발표회 개최
-05.18 "기본계획 수립용역" 최종보고서(시안) 제출
-03.28 연구원 입지 결정 (대구 현풍)
-
-2004년
+05.18 "기본계획 수립용역" 최종보고서(시안)제출
+03.28 연구원 입지 결정(대구 현풍)
+## 2004
 11.19 연구원 "기본계획 수립용역" 추진 (STEP-TNO-MIT 컨소시엄 수행)
 09.07 재단법인 설립 등기
-09.03 정규석 초대 원장 선임
-07. 재단법인 이사회 구성 (이사장 윤종용 등 13인)
-04. 재단법인 설립위원 위촉 (경상현 전 정통부장관 등 5명)
-03.09 대구경북과학기술연구원법 시행령 제정 (대통령령 제 18308호, 2004.3.9)
-
-2003년
-12.11 대구경북과학기술연구원법 제정 (법률 제 6996호, 2003.12.11)
-
----
-
-[DGIST History]
-Source: https://www.dgist.ac.kr/kor/sub01_02_04.do
-
-The main history of DGIST is as follows:
-
-2024
-Sep 07: 20th Anniversary of DGIST's Founding
-May 14: Achieved 3rd place domestically and 33rd worldwide in THE Young University Rankings
-Apr 04: Opening ceremony of DGIST Sensorium Research Institute
-
-2023
-Dec 01: Dr. Kun-woo Lee inaugurated as the 5th President
-Jun 28: First entry into QS World University Rankings (9th overall domestically, 7th worldwide for "Citations per Faculty")
-
-2022
-Feb 28: Reorganization of academic structure names
-
-2020
-Dec 31: Accumulated 19 spin-off companies established through technology transfer
-Jul 01: Awarded 'Presidential Commendation' in the group category for promoting inventions
-
-2019
-Jun 14: Awarded 'Best Institution for Environmental Information Disclosure' in 2019 (Ministry of Environment)
-Apr 01: Dr. Yang Kuk inaugurated as the 4th President
-
-2018
-Jun 29: Announcement of R&R re-establishment plan and signing of agreement
-May 02: Declaration of DGIST Innovation 2034
-Feb 07: 1st Commencement Ceremony for Undergraduate Basic Division of Convergence College (96 first bachelor's graduates produced)
-
-2017
-Aug: Accumulated 14 spin-off companies (research institutes) established through technology transfer
-Mar 01: Dr. Sang-Hyuk Son inaugurated as the 3rd President
-
-2016
-Dec 16: Accumulated 13 spin-off companies (research institutes) established through technology transfer
-Nov 10: Opening of World-Class Research Infrastructure Center
-Oct 19: Opening of Well-Aging Research Center
-Oct 19: Accumulated 12 spin-off companies (research institutes) established through technology transfer
-Apr 19: Opening of Core Protein Resources Center
-Feb 19: Degree Conferment Ceremony
-
-2015
-Dec 30: Prime Minister's Group Commendation for Institutional Evaluation in 2015 (2nd consecutive year)
-Jul 14: Achieved 'Excellent' in the Ministry of Future Planning's institutional evaluation for 2015
-Apr 01: Establishment of DGIST Convergence Research Institute (promoted and reorganized)
-Mar 02: 2nd Undergraduate Admission Ceremony
-Feb 26: Dr. Shin Sung-Chul inaugurated as the 2nd President
-Feb 13: Degree Conferment Ceremony
-
-2014
-Dec 30: Prime Minister's Group Commendation for Institutional Evaluation in 2014
-Dec 10: Accumulated 9 spin-off companies (research institutes) established through technology transfer
-Dec 04: Completion ceremony of Korea Brain Research Institute (Phase 1)
-Sep 16: 10th Anniversary Ceremony of Foundation
-Jun 13: Completion ceremony of Undergraduate Campus
-Mar 03: 1st Undergraduate Admission Ceremony
-
-2013
-Oct 25: Opening of Brain Metabolomics Research Center
-Jun 28: First 3 spin-off companies established after foundation
-Jun 11: Opening of Wellness Convergence Research Center
-May 22: Opening of Biseul Convergence Garden
-Feb 15: 1st Degree Conferment Ceremony
-
-2012
-Oct 30: Opening of CPS (Cyber-Physical Systems) Global Center
-Oct 08: Attracted IBS Center for Plant Aging Research
-Jul 16: Opening of DGIST-LBNL Joint Research Center
-May 02: Declaration of DGIST VISION 2020 and groundbreaking ceremony for Undergraduate Campus
-Mar 02: DGIST 2012 Graduate School Admission Ceremony
-Jan 31: Phase 1 completion of degree program construction (1 dormitory building, Industry-Academia Cooperation Hall)
-
-2011
-Oct 14: Establishment of Korea Brain Research Institute affiliated with DGIST
-Jul 07: Holding of DGIST Next-Generation Convergence Research Center Completion Ceremony
-Mar 02: 1st Master's and Doctoral Degree Program Admission Ceremony
-Feb 25: Dr. Shin Sung-Chul inaugurated as the 1st President
-
-2010
-Dec 10: Holding of DGIST Research Building Completion Ceremony
-Nov 22: Relocation to new DGIST building completed
-
-2009
-Dec 28: Holding of DGIST Next-Generation Convergence Research Center Groundbreaking Ceremony
-May 08: Holding of DGIST Vision and UI Declaration Ceremony
-May 01: Establishment of basic plan for degree programs (Ministry of Education, Science and Technology)
-
-2008
-Dec 14: Enforcement of Enforcement Decree of DGIST Act (Presidential Decree No. 21162)
-Oct 31: Research Institute construction groundbreaking ceremony
-Oct 01: Holding of Degree Program Establishment Preparatory Committee
-Jul 21: Resolution of Degree Program Establishment Plan (Draft) at the 16th Interim Board Meeting
-Jun 13: Promulgation of DGIST Act (Law No. 9108)
-
-2007
-Sep 03: Lee In-Seon appointed as the 2nd Director
-
-2006
-Feb 22: Relocated to Daegu Technopark Seongseo Venture Factory Experiment Building (for Display, Nano New Materials, BT fields, leased area 2,476㎡)
-
-2005
-Dec 27: Approval of DGIST Establishment Master Plan (Draft) (Board of Directors) (Establishment scale: site 330,579㎡, construction 99,174㎡, personnel 170 (~2009))
-Jun 13: Holding of "Basic Plan Establishment Service" final presentation
-May 18: Submission of "Basic Plan Establishment Service" final report (draft)
-Mar 28: Decision on research institute location (Hyunpung, Daegu)
-
-2004
-Nov 19: Promotion of research institute "Basic Plan Establishment Service" (conducted by STEP-TNO-MIT consortium)
-Sep 07: Registration of Foundation establishment
-Sep 03: Chung Kyu-Suk appointed as the 1st Director
-Jul: Formation of Foundation Board of Directors (13 members including Chairman Yoon Jong-Yong)
-Apr: Appointment of Foundation Establishment Committee members (5 members including former Minister of Information and Communication, Kyung Sang-Hyun)
-Mar 09: Enactment of Enforcement Decree of Daegu Gyeongbuk Institute of Science and Technology Act (Presidential Decree No. 18308, 2004.3.9)
-
-2003
-Dec 11: Enactment of Daegu Gyeongbuk Institute of Science and Technology Act (Law No. 6996, 2003.12.11)
+09.03 정규석 초대원장 선임
+07. 재단법인 이사회 구성(이사장 윤종용등 13인)
+04. 재단법인 설립위원 위촉(경상현 전 정통부장관 등 5명)
+03.09 대구경북과학기술연구원법 시행령 제정(대통령령 제 18308호, 2004.3.9)
+## 2003
+12.11 대구경북과학기술연구원법 제정(법률 제 6996호,2003.12.11)

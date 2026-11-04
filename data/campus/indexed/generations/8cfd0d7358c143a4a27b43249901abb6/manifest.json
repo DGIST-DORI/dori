@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "generation": "8cfd0d7358c143a4a27b43249901abb6",
+  "built_at": "2026-11-04T20:48:42+00:00",
+  "signature": {
+    "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+    "revision": "e8f8c211226b894fcb81acc59f3b34ba3efd5f42",
+    "chunker": "sections-token-offsets-v2",
+    "overlap_tokens": 20,
+    "retrieval": "dense-bm25-rrf-v1",
+    "min_score": 0.35,
+    "lexical_min_coverage": 0.35,
+    "lexical_relative_cutoff": 0.35,
+    "normalize_embeddings": true
+  },
+  "corpus_root": "/home/dori/dori/data/campus/processed",
+  "dimension": 384,
+  "total_vectors": 105,
+  "total_docs": 5,
+  "reused_chunks": 0,
+  "embedded_chunks": 105,
+  "removed_sources": [],
+  "expired_sources": [],
+  "evaluation": [
+    {
+      "query": "디지스트 주소가 어디야?",
+      "passed": true,
+      "sources": [
+        "intro/dgist_directions.txt",
+        "intro/dgist_directions.txt",
+        "intro/dgist_directions.txt"
+      ]
+    },
+    {
+      "query": "What is the address of DGIST?",
+      "passed": true,
+      "sources": [
+        "intro/dgist_directions.txt",
+        "intro/dgist_directions.txt",
+        "intro/dgist_history.txt"
+      ]
+    },
+    {
+      "query": "SL Corporation 이충곤 강의실은 어디에 있나요?",
+      "passed": true,
+      "sources": [
+        "facility/facility_edu.txt",
+        "facility/facility_welfare.txt",
+        "facility/facility_research.txt"
+      ]
+    },
+    {
+      "query": "수영장 평일 운영시간은?",
+      "passed": true,
+      "sources": [
+        "facility/facility_welfare.txt",
+        "facility/facility_welfare.txt",
+        "facility/facility_welfare.txt"
+      ]
+    },
+    {
+      "query": "When is the swimming pool open on weekdays?",
+      "passed": true,
+      "sources": [
+        "facility/facility_welfare.txt",
+        "facility/facility_welfare.txt",
+        "facility/facility_welfare.txt"
+      ]
+    },
+    {
+      "query": "노벨상 실험실은 어느 호실인가요?",
+      "passed": true,
+      "sources": [
+        "facility/facility_research.txt",
+        "facility/facility_research.txt",
+        "facility/facility_research.txt"
+      ]
+    },
+    {
+      "query": "Where is the Nobel Prize laboratory?",
+      "passed": true,
+      "sources": [
+        "facility/facility_research.txt",
+        "facility/facility_research.txt",
+        "facility/facility_research.txt"
+      ]
+    },
+    {
+      "query": "DGIST 기술경영전문대학원은 언제 첫 개강했나요?",
+      "passed": true,
+      "sources": [
+        "intro/dgist_history.txt",
+        "intro/dgist_history.txt",
+        "intro/dgist_history.txt"
+      ]
+    },
+    {
+      "query": "How do I reset a Python list?",
+      "passed": true,
+      "sources": []
+    },
+    {
+      "query": "What is bitcoin price right now?",
+      "passed": true,
+      "sources": []
+    }
+  ],
+  "checksums": {
+    "index.faiss": "7d57a6ca771df8fb2fd94b1e47dd6a11580eda7a25437ebdfd644a473dcf1192",
+    "metadata.json": "8642080a2a21d634131d9b272d4b7c0b598159b7b3c7ed029a90c9e1f7b25394",
+    "file_hashes.json": "3cf42db6fcc66a86030fd97a5ec0aa980c862cfede0733f4a8199db543bf5b24"
+  }
+}

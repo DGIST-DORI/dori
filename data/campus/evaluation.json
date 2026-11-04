@@ -1,0 +1,12 @@
+[
+  {"query": "디지스트 주소가 어디야?", "source_key": "intro/dgist_directions.txt", "contains": "333"},
+  {"query": "What is the address of DGIST?", "source_key": "intro/dgist_directions.txt", "contains": "333"},
+  {"query": "SL Corporation 이충곤 강의실은 어디에 있나요?", "source_key": "facility/facility_edu.txt", "contains": "E7 G01"},
+  {"query": "수영장 평일 운영시간은?", "source_key": "facility/facility_welfare.txt", "contains": "06:00~23:00"},
+  {"query": "When is the swimming pool open on weekdays?", "source_key": "facility/facility_welfare.txt", "contains": "06:00~23:00"},
+  {"query": "노벨상 실험실은 어느 호실인가요?", "source_key": "facility/facility_research.txt", "contains": "E2-215"},
+  {"query": "Where is the Nobel Prize laboratory?", "source_key": "facility/facility_research.txt", "contains": "E2-215"},
+  {"query": "DGIST 기술경영전문대학원은 언제 첫 개강했나요?", "source_key": "intro/dgist_history.txt", "contains": "02.23"},
+  {"query": "How do I reset a Python list?", "source_key": null},
+  {"query": "What is bitcoin price right now?", "source_key": null}
+]

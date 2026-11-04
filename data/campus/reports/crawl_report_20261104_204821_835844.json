@@ -1,0 +1,111 @@
+{
+  "report_version": "1.0",
+  "started_at": "2026-11-04T20:48:12.349181+00:00",
+  "finished_at": "2026-11-04T20:48:21.835844+00:00",
+  "duration_sec": 9.487,
+  "options": {
+    "no_llm": true,
+    "delay": 1.5,
+    "retries": 3,
+    "timeout": 15,
+    "urls": null,
+    "output": "/home/dori/dori/data/campus"
+  },
+  "summary": {
+    "input_url_count": 5,
+    "success_count": 5,
+    "failure_count": 0
+  },
+  "urls": [
+    {
+      "url": "https://www.dgist.ac.kr/kor/sub01_02_04.do",
+      "doc_id": "dgist_history",
+      "category": "intro",
+      "status": {
+        "fetch": "success",
+        "extract": "success",
+        "llm": "skipped",
+        "fallback_used": false,
+        "overall": "success"
+      },
+      "error": null,
+      "outputs": {
+        "raw_txt": "/home/dori/dori/data/campus/raw/dgist_history.txt",
+        "indexed_json": null,
+        "processed_txt": "/home/dori/dori/data/campus/processed/intro/dgist_history.txt"
+      }
+    },
+    {
+      "url": "https://www.dgist.ac.kr/kor/sub01_03_01.do",
+      "doc_id": "dgist_directions",
+      "category": "intro",
+      "status": {
+        "fetch": "success",
+        "extract": "success",
+        "llm": "skipped",
+        "fallback_used": false,
+        "overall": "success"
+      },
+      "error": null,
+      "outputs": {
+        "raw_txt": "/home/dori/dori/data/campus/raw/dgist_directions.txt",
+        "indexed_json": null,
+        "processed_txt": "/home/dori/dori/data/campus/processed/intro/dgist_directions.txt"
+      }
+    },
+    {
+      "url": "https://www.dgist.ac.kr/college/sub04_01_01.do",
+      "doc_id": "facility_edu",
+      "category": "facility",
+      "status": {
+        "fetch": "success",
+        "extract": "success",
+        "llm": "skipped",
+        "fallback_used": false,
+        "overall": "success"
+      },
+      "error": null,
+      "outputs": {
+        "raw_txt": "/home/dori/dori/data/campus/raw/facility_edu.txt",
+        "indexed_json": null,
+        "processed_txt": "/home/dori/dori/data/campus/processed/facility/facility_edu.txt"
+      }
+    },
+    {
+      "url": "https://www.dgist.ac.kr/college/sub04_01_02.do",
+      "doc_id": "facility_research",
+      "category": "facility",
+      "status": {
+        "fetch": "success",
+        "extract": "success",
+        "llm": "skipped",
+        "fallback_used": false,
+        "overall": "success"
+      },
+      "error": null,
+      "outputs": {
+        "raw_txt": "/home/dori/dori/data/campus/raw/facility_research.txt",
+        "indexed_json": null,
+        "processed_txt": "/home/dori/dori/data/campus/processed/facility/facility_research.txt"
+      }
+    },
+    {
+      "url": "https://www.dgist.ac.kr/college/sub04_01_03.do",
+      "doc_id": "facility_welfare",
+      "category": "facility",
+      "status": {
+        "fetch": "success",
+        "extract": "success",
+        "llm": "skipped",
+        "fallback_used": false,
+        "overall": "success"
+      },
+      "error": null,
+      "outputs": {
+        "raw_txt": "/home/dori/dori/data/campus/raw/facility_welfare.txt",
+        "indexed_json": null,
+        "processed_txt": "/home/dori/dori/data/campus/processed/facility/facility_welfare.txt"
+      }
+    }
+  ]
+}

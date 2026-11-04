@@ -282,6 +282,10 @@ External LLM conversation is enabled by default (`use_external_llm:=true`), usin
 `gemini-3.5-flash-lite`. Set `GEMINI_API_KEY` in the launch environment; the standard
 build installs its SDK. Use `use_external_llm:=false` for local-only responses or
 `llm_model:=...` to select another model. See [LLM setup](ros2_ws/src/dori_llm/README.md).
+For campus-document RAG, install `.venv/bin/python -s -m pip install -r requirements-rag.txt`
+and run `scripts/refresh_knowledge.sh`. This collects official source records,
+validates retrieval, and atomically activates a new index; failed refreshes keep
+the previous index. See the [RAG workflow](ros2_ws/src/dori_llm/README.md#source-backed-rag-pipeline).
 It defaults to desktop mode, `enable_dashboard:=true`, `visitor_mode:=true`, and
 Azure STT in the gateway. Local microphone STT is disabled automatically. The
 launch checks the SDK and F0 settings using the gateway's Python before starting

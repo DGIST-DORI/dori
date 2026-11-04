@@ -1,0 +1,18 @@
+{
+  "kind": "web",
+  "doc_id": "facility_welfare",
+  "category": "facility",
+  "title": "복지시설",
+  "title_en": "Welfare Facilities",
+  "extractor_version": "source-sections-v2",
+  "source_url": "https://www.dgist.ac.kr/college/sub04_01_03.do",
+  "requested_url": "https://www.dgist.ac.kr/college/sub04_01_03.do",
+  "fetched_at": "2026-11-04T20:48:21+00:00",
+  "valid_until": "2026-12-04T20:48:21+00:00",
+  "raw_snapshot": "raw/facility_welfare/ceae2420bd618d7ea9a567d2ef8504cac1b1b1d2d11d75528a582e59842231bc",
+  "etag": null,
+  "last_modified": null,
+  "content_sha256": "8238bd7ae5528b336a2dbaa15a7d56c22b56f74f83d81c1784e52458181bdda3",
+  "schema_version": 1,
+  "text_sha256": "368eb279ba14db4f41c28f1d0efd547428e9f6f53276c8b0bd9a6fdf44187569"
+}

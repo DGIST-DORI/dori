@@ -18,8 +18,14 @@ import html
 import json
 import re
 import zipfile
-from datetime import datetime
+import sys
+import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "ros2_ws/src/dori_llm"))
+from dori_llm.corpus import atomic_write, digest, utc_now, write_document
 
 # Shared helpers
 
@@ -40,60 +46,54 @@ def clean(text: str) -> str:
     return html.unescape(text).strip()
 
 
-def parse_date_from_value(val: str) -> str:
-    """Try to parse various date string formats into YYYY-MM-DD."""
+def parse_date_from_value(val: str, year=None) -> str:
+    """Require an explicit year; never silently relabel an old menu as this year's."""
     val = val.strip()
-    # 2026.3.9
-    m = re.match(r"(\d{4})\.(\d{1,2})\.(\d{1,2})", val)
+    m = re.search(r"(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})", val)
     if m:
-        return f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
-    # 03월 09일 or 3월9일
-    m = re.search(r"(\d{1,2})월\s*(\d{1,2})일?", val)
-    if m:
-        year = datetime.now().year
-        return f"{year}-{int(m.group(1)):02d}-{int(m.group(2)):02d}"
-    # 3/9
-    m = re.match(r"(\d{1,2})/(\d{1,2})", val)
-    if m:
-        year = datetime.now().year
-        return f"{year}-{int(m.group(1)):02d}-{int(m.group(2)):02d}"
-    return val
+        return datetime(*map(int, m.groups())).date().isoformat()
+    if re.fullmatch(r"\d{5}(?:\.0)?", val):
+        return (datetime(1899, 12, 30) + timedelta(days=int(float(val)))).date().isoformat()
+    m = re.search(r"(\d{1,2})(?:월\s*|/)(\d{1,2})", val)
+    if m and year:
+        return datetime(int(year), *map(int, m.groups())).date().isoformat()
+    raise ValueError(f"Menu date is ambiguous: {val!r}; include YYYY in the filename or pass --year")
 
 
 # XLSX parser (shared string + sheet XML approach)
 
 
+NS = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+
+
 def _load_shared_strings(z: zipfile.ZipFile) -> list[str]:
-    with z.open("xl/sharedStrings.xml") as f:
-        ss_xml = f.read().decode("utf-8")
-    si_blocks = re.findall(r"<x:si>(.*?)</x:si>", ss_xml, re.DOTALL)
-    result = []
-    for block in si_blocks:
-        texts = re.findall(r"<x:t[^>]*>([^<]*)</x:t>", block)
-        result.append(clean("".join(texts)))
-    return result
+    if "xl/sharedStrings.xml" not in z.namelist():
+        return []
+    root = ET.fromstring(z.read("xl/sharedStrings.xml"))
+    return [clean("".join(t.text or "" for t in item.findall(".//m:t", NS)))
+            for item in root.findall("m:si", NS)]
 
 
-def _parse_sheet_rows(
-    z: zipfile.ZipFile, sheet_path: str, shared: list[str]
-) -> dict[str, dict[str, str]]:
-    """Return {row_num: {col_letter: cell_value}} for string-typed cells."""
-    with z.open(sheet_path) as f:
-        sheet_xml = f.read().decode("utf-8")
-    row_map: dict[str, dict[str, str]] = {}
-    rows = re.findall(r'<x:row r="(\d+)"[^>]*>(.*?)</x:row>', sheet_xml, re.DOTALL)
-    for row_num, row_content in rows:
-        cells = re.findall(
-            r'<x:c r="([A-Z]+\d+)"[^>]*t="s"[^>]*>.*?<x:v>(\d+)</x:v>',
-            row_content,
-            re.DOTALL,
-        )
-        if cells:
-            row_map[row_num] = {col_letter(ref): shared[int(idx)] for ref, idx in cells}
-    return row_map
+def _parse_sheet_rows(z, sheet_path, shared):
+    root = ET.fromstring(z.read(sheet_path))
+    rows = {}
+    for row in root.findall(".//m:row", NS):
+        values = {}
+        for cell in row.findall("m:c", NS):
+            kind = cell.get("t")
+            value = cell.find("m:v", NS)
+            if kind == "inlineStr":
+                text = "".join(t.text or "" for t in cell.findall(".//m:t", NS))
+            elif value is not None and value.text is not None:
+                text = shared[int(value.text)] if kind == "s" else value.text
+            else:
+                continue
+            values[col_letter(cell.attrib["r"])] = clean(text)
+        rows[row.attrib["r"]] = values
+    return rows
 
 
-def parse_student_cafeteria_xlsx(filepath: str) -> dict:
+def parse_student_cafeteria_xlsx(filepath: str, year=None) -> dict:
     """
     Parse 학생식당 xlsx.
     Sheet1 = Korean, Sheet2 = English.
@@ -120,9 +120,9 @@ def parse_student_cafeteria_xlsx(filepath: str) -> dict:
             day: {"lunch_ilpum": [], "lunch_jeongsik": [], "dinner": []}
             for day in DAYS_EN
         },
-        "hours": {"lunch": "11:30-13:00", "dinner": "17:30-18:40"},
+        "hours": {},
         "note": "",
-        "parsed_at": datetime.now().isoformat(),
+        "parsed_at": utc_now(),
     }
 
     col_map = COL_TO_DAY_IDX  # D->0 … H->4
@@ -135,7 +135,7 @@ def parse_student_cafeteria_xlsx(filepath: str) -> dict:
         if lang == "ko" and "7" in rows:
             for col, val in rows["7"].items():
                 if col in col_map:
-                    result["week_dates"].append(parse_date_from_value(val))
+                    result["week_dates"].append(parse_date_from_value(val, year))
 
         # Lunch ilpum rows 8-11, jeongsik rows 12-17, dinner rows 18-23
         sections = [
@@ -172,7 +172,7 @@ def parse_student_cafeteria_xlsx(filepath: str) -> dict:
     return result
 
 
-def parse_staff_cafeteria_xlsx(filepath: str) -> dict:
+def parse_staff_cafeteria_xlsx(filepath: str, year=None) -> dict:
     """
     Parse 교직원식당 xlsx.
     Sheet1 = Korean (lunch rows 7-13 only — no dinner data)
@@ -190,9 +190,9 @@ def parse_staff_cafeteria_xlsx(filepath: str) -> dict:
         "week_dates": [],
         "meals": {day: {"lunch": [], "dinner": []} for day in DAYS_KO},
         "meals_en": {day: {"lunch": [], "dinner": []} for day in DAYS_EN},
-        "hours": {"lunch": "11:30-13:00", "dinner": "17:30-19:00"},
+        "hours": {},
         "note": "",
-        "parsed_at": datetime.now().isoformat(),
+        "parsed_at": utc_now(),
     }
 
     col_map = COL_TO_DAY_IDX_STAFF  # B->0 … F->4
@@ -208,7 +208,7 @@ def parse_staff_cafeteria_xlsx(filepath: str) -> dict:
     if "6" in rows_ko:
         for col, val in rows_ko["6"].items():
             if col in col_map:
-                result["week_dates"].append(parse_date_from_value(val))
+                result["week_dates"].append(parse_date_from_value(val, year))
 
     # KO lunch: sheet1 rows 7-13
     for r in range(7, 14):
@@ -246,7 +246,7 @@ def parse_staff_cafeteria_xlsx(filepath: str) -> dict:
 # PDF parser (연구동식당)
 
 
-def parse_rnd_cafeteria_pdf(filepath: str) -> dict:
+def parse_rnd_cafeteria_pdf(filepath: str, year=None) -> dict:
     """
     Parse 연구동식당 PDF using pdfplumber.
     Page 1 = Korean, Page 2 = English.
@@ -291,9 +291,9 @@ def parse_rnd_cafeteria_pdf(filepath: str) -> dict:
             }
             for day in DAYS_EN
         },
-        "hours": {"lunch": "11:30-13:00", "dinner": "18:00-19:00"},
+        "hours": {},
         "note": "",
-        "parsed_at": datetime.now().isoformat(),
+        "parsed_at": utc_now(),
     }
 
     # Map first-column keyword -> meal key
@@ -329,7 +329,7 @@ def parse_rnd_cafeteria_pdf(filepath: str) -> dict:
     def extract_page(page, days: list[str], meals_key: str, populate_dates: bool):
         table = page.extract_table()
         if not table:
-            return
+            raise ValueError("No readable menu table found in PDF")
         for row in table:
             if not row or all(c is None or str(c).strip() == "" for c in row):
                 continue
@@ -345,7 +345,7 @@ def parse_rnd_cafeteria_pdf(filepath: str) -> dict:
                 date_found = False
                 for c in cells[1:6]:
                     if re.search(r"\d{1,2}월", c):
-                        result["week_dates"].append(parse_date_from_value(c))
+                        result["week_dates"].append(parse_date_from_value(c, year))
                         date_found = True
                 if date_found:
                     continue
@@ -382,8 +382,10 @@ def to_json(data: dict, out_dir: Path):
     week_tag = data["week_dates"][0] if data["week_dates"] else "unknown"
     fname = f"{data['cafeteria_id']}_menu_{week_tag}.json"
     out_path = out_dir / fname
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    text_path = out_path.with_suffix(".txt")
+    if text_path.exists():
+        data = {**data, "schema_version": 1, "kind": "menu", "text_sha256": digest(text_path.read_bytes())}
+    atomic_write(out_path, json.dumps(data, ensure_ascii=False, indent=2))
     print(f"  [JSON] saved -> {out_path}")
     return out_path
 
@@ -402,9 +404,8 @@ def to_txt(data: dict, out_dir: Path):
 
     # Korean section
     lines.append(f"[{data['cafeteria_ko']}] 주간 메뉴 ({date_str})")
-    lines.append(
-        f"운영시간: " + ", ".join(f"{k} {v}" for k, v in data["hours"].items())
-    )
+    if data["hours"]:
+        lines.append("운영시간: " + ", ".join(f"{k} {v}" for k, v in data["hours"].items()))
     lines.append("")
 
     days_ko = [d for d in DAYS_KO if d in data["meals"]]
@@ -427,7 +428,8 @@ def to_txt(data: dict, out_dir: Path):
     # English section
     lines.append("")
     lines.append(f"[{data['cafeteria_en']}] Weekly Menu ({date_str})")
-    lines.append(f"Hours: " + ", ".join(f"{k} {v}" for k, v in data["hours"].items()))
+    if data["hours"]:
+        lines.append("Hours: " + ", ".join(f"{k} {v}" for k, v in data["hours"].items()))
     lines.append("")
 
     days_en = [d for d in DAYS_EN if d in data["meals_en"]]
@@ -450,8 +452,8 @@ def to_txt(data: dict, out_dir: Path):
     if data.get("note"):
         lines.append(f"* {data['note']}")
 
-    with open(out_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines))
+    record = {**data, "kind": "menu", "title": f"{data['cafeteria_ko']} {week_tag}"}
+    write_document(out_path, "\n".join(lines), record)
     print(f"  [TXT]  saved -> {out_path}")
     return out_path
 
@@ -477,29 +479,39 @@ def detect_cafeteria_type(filepath: Path) -> str:
     return "unknown"
 
 
-def parse_file(filepath: Path) -> dict | None:
+def parse_file(filepath: Path, year=None) -> dict | None:
     ctype = detect_cafeteria_type(filepath)
     suffix = filepath.suffix.lower()
 
     print(f"Parsing [{ctype}] {filepath.name} ...")
 
-    if ctype == "student" and suffix == ".xlsx":
-        return parse_student_cafeteria_xlsx(str(filepath))
-    elif ctype == "staff" and suffix == ".xlsx":
-        return parse_staff_cafeteria_xlsx(str(filepath))
-    elif ctype == "rnd" and suffix == ".pdf":
-        return parse_rnd_cafeteria_pdf(str(filepath))
-    else:
-        print(
-            f"  [WARN] Unrecognized combination: type={ctype}, ext={suffix} — skipped."
-        )
-        return None
+    if year is None:
+        match = re.search(r"(?<!\d)((?:19|20)\d{2})(?!\d)", filepath.name)
+        year = int(match.group(1)) if match else None
+    parsers = {("student", ".xlsx"): parse_student_cafeteria_xlsx,
+               ("staff", ".xlsx"): parse_staff_cafeteria_xlsx,
+               ("rnd", ".pdf"): parse_rnd_cafeteria_pdf}
+    parser = parsers.get((ctype, suffix))
+    if parser is None:
+        raise ValueError(f"Unrecognized cafeteria/file type: {ctype} {suffix}")
+    data = parser(str(filepath), year=year)
+    dates = [datetime.fromisoformat(value).date() for value in data["week_dates"]]
+    if len(dates) != 5 or len(set(dates)) != 5 or any(d.weekday() != i for i, d in enumerate(dates)):
+        raise ValueError("Menu must have five ordered Monday–Friday dates")
+    if (dates[-1] - dates[0]).days != 4 or not any(items for meals in data["meals"].values() for items in meals.values()):
+        raise ValueError("Menu is empty or dates span more than one week")
+    data["source_file"] = filepath.name
+    data["source_sha256"] = digest(filepath.read_bytes())
+    zone = ZoneInfo("Asia/Seoul")
+    data["valid_from"] = datetime.combine(dates[0], datetime.min.time(), zone).isoformat()
+    data["valid_until"] = datetime.combine(dates[-1] + timedelta(days=1), datetime.min.time(), zone).isoformat()
+    return data
 
 
 # CLI entry point
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description="DORI Cafeteria Menu Parser")
     parser.add_argument(
         "--input",
@@ -511,7 +523,8 @@ def main():
         default="./data/campus/processed/cafeteria",
         help="Output directory for JSON + TXT files",
     )
-    args = parser.parse_args()
+    parser.add_argument("--year", type=int, help="Year for source dates without a year")
+    args = parser.parse_args(argv)
 
     input_path = Path(args.input)
     out_dir = Path(args.output)
@@ -524,22 +537,27 @@ def main():
         files = [input_path]
     else:
         print(f"[ERROR] Input path not found: {input_path}")
-        return
+        return 1
 
     if not files:
         print("[ERROR] No .xlsx or .pdf files found.")
-        return
+        return 1
 
     results = []
+    failed = 0
     for f in files:
-        data = parse_file(f)
-        if data:
-            to_json(data, out_dir)
+        try:
+            data = parse_file(f, year=args.year)
             to_txt(data, out_dir)
+            print(f"  [JSON] saved -> {out_dir / (data['cafeteria_id'] + '_menu_' + data['week_dates'][0] + '.json')}")
             results.append(data)
+        except Exception as exc:
+            failed += 1
+            print(f"[ERROR] {f.name}: {exc}")
 
     print(f"\nDone. Parsed {len(results)} file(s) -> {out_dir}")
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

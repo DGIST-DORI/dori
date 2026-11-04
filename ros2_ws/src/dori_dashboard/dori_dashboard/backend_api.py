@@ -619,13 +619,10 @@ async def parse_menu(
             )
             continue
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-            tmp.write(await upload.read())
-            tmp_path = tmp.name
-
-        # Rename to match original filename so parser can detect cafeteria type
-        named_path = Path(tmp_path).parent / upload.filename
-        os.rename(tmp_path, named_path)
+        # Keep the original basename for detection, isolated from other uploads.
+        temporary = tempfile.TemporaryDirectory(prefix="dori-menu-")
+        named_path = Path(temporary.name) / Path(upload.filename.replace("\\", "/")).name
+        named_path.write_bytes(await upload.read())
 
         try:
             result = subprocess.run(
@@ -663,7 +660,7 @@ async def parse_menu(
         except Exception as e:
             results.append({"filename": upload.filename, "ok": False, "error": str(e)})
         finally:
-            named_path.unlink(missing_ok=True)
+            temporary.cleanup()
 
     return {"results": results}
 
@@ -695,6 +692,9 @@ def _run_build_index(
         cmd.extend(["--batch-size", str(batch_size)])
     if chunk_batch_size is not None:
         cmd.extend(["--chunk-batch-size", str(chunk_batch_size)])
+    evaluation = REPO_ROOT / "data/campus/evaluation.json"
+    if evaluation.is_file():
+        cmd.extend(["--evaluation", str(evaluation)])
 
     try:
         proc = subprocess.Popen(
@@ -858,11 +858,13 @@ def _resolve_repo_internal_path(
 def _build_crawl_command(body: dict) -> list[str]:
     cmd = [sys.executable, str(CRAWLER_SCRIPT)]
 
-    no_llm = body.get("no_llm", False)
+    no_llm = body.get("no_llm", True)
     if not isinstance(no_llm, bool):
         raise HTTPException(400, "no_llm must be a boolean")
     if no_llm:
         cmd.append("--no-llm")
+    else:
+        cmd.append("--refine")
 
     delay = body.get("delay", None)
     if delay is not None:
@@ -968,8 +970,14 @@ async def crawl_campus_status(
 
 @app.get("/api/knowledge/index-info")
 async def index_info(_: AuthPrincipal = Depends(require_permission("view"))):
-    meta_file = INDEXED_DIR / "metadata.json"
-    index_file = INDEXED_DIR / "index.faiss"
+    from dori_llm.index_store import active_directory, read_manifest
+    try:
+        directory = active_directory(INDEXED_DIR)
+        manifest = read_manifest(directory) if (directory / "manifest.json").exists() else None
+    except (OSError, ValueError, KeyError):
+        raise HTTPException(503, "Active index validation failed; rebuild the knowledge index") from None
+    meta_file = directory / "metadata.json"
+    index_file = directory / "index.faiss"
 
     if not meta_file.exists():
         return {"total_vectors": None, "total_docs": None, "built_at": None}
@@ -988,6 +996,8 @@ async def index_info(_: AuthPrincipal = Depends(require_permission("view"))):
         "total_vectors": total_vectors,
         "total_docs": total_docs,
         "built_at": built_at,
+        "generation": manifest["generation"] if manifest else None,
+        "validated": manifest is not None,
     }
 
 

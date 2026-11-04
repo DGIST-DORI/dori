@@ -1,0 +1,18 @@
+{
+  "kind": "web",
+  "doc_id": "dgist_history",
+  "category": "intro",
+  "title": "학교 연혁",
+  "title_en": "DGIST History",
+  "extractor_version": "source-sections-v2",
+  "source_url": "https://www.dgist.ac.kr/kor/sub01_02_04.do",
+  "requested_url": "https://www.dgist.ac.kr/kor/sub01_02_04.do",
+  "fetched_at": "2026-11-04T20:48:13+00:00",
+  "valid_until": "2026-12-04T20:48:13+00:00",
+  "raw_snapshot": "raw/dgist_history/b2ea6c1b5b5f5b736110cef3e6d05ff77bd9082c75491690d5c47196a737b803",
+  "etag": null,
+  "last_modified": null,
+  "content_sha256": "db20e71b1287bfbc20ecdb62c909d7b16e58d393df947c4690d72b554dc45215",
+  "schema_version": 1,
+  "text_sha256": "81c83defc8fcb52a41333fe7605a4c0637b2b9cde204a3d632b883ea8c3604cc"
+}

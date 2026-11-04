@@ -2,8 +2,7 @@ numpy>=1.24.0,<2.0.0
 openai>=1.0.0
 
 # RAG index/retrieval
-faiss-cpu>=1.7.4
-sentence-transformers>=2.2.2
+-r ../../../requirements-rag.txt
 
 # Optional external LLM providers (selected by model_name)
 google-genai>=1.75.0,<2

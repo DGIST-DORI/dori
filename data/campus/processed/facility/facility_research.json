@@ -1,0 +1,18 @@
+{
+  "kind": "web",
+  "doc_id": "facility_research",
+  "category": "facility",
+  "title": "연구시설",
+  "title_en": "Research Facilities",
+  "extractor_version": "source-sections-v2",
+  "source_url": "https://www.dgist.ac.kr/college/sub04_01_02.do",
+  "requested_url": "https://www.dgist.ac.kr/college/sub04_01_02.do",
+  "fetched_at": "2026-11-04T20:48:19+00:00",
+  "valid_until": "2026-12-04T20:48:19+00:00",
+  "raw_snapshot": "raw/facility_research/d4b571598b09ee7159c5c1bd80440c88ea6a0963427e8e4106e7225e25aa59ae",
+  "etag": null,
+  "last_modified": null,
+  "content_sha256": "eda02ab24001f0f6db2409ba846ce72b9839a2bef027f79a4ea7185301401f91",
+  "schema_version": 1,
+  "text_sha256": "05619bfa9f41a90f65d7f289e8efe0cfaa3b025119a73f0660f008eebd986967"
+}

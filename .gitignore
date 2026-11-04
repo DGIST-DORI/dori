@@ -33,3 +33,6 @@ ros2_ws/src/third_party/*
 !ros2_ws/src/third_party/cubemars_hardware/
 
 web/dist-visitor/
+
+# RAG writer lock is runtime state; corpus records/generations remain reviewable.
+/data/campus/indexed/.build.lock

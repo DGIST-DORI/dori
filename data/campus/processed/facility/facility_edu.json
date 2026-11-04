@@ -1,0 +1,18 @@
+{
+  "kind": "web",
+  "doc_id": "facility_edu",
+  "category": "facility",
+  "title": "교육시설",
+  "title_en": "Educational Facilities",
+  "extractor_version": "source-sections-v2",
+  "source_url": "https://www.dgist.ac.kr/college/sub04_01_01.do",
+  "requested_url": "https://www.dgist.ac.kr/college/sub04_01_01.do",
+  "fetched_at": "2026-11-04T20:48:17+00:00",
+  "valid_until": "2026-12-04T20:48:17+00:00",
+  "raw_snapshot": "raw/facility_edu/86ecff7f4f62dd1b3ab04c1f0d2e5d2fc2d0d89014e52a6dfb42da63fdd6985d",
+  "etag": null,
+  "last_modified": null,
+  "content_sha256": "82182282622702a2a86ebb609f30433b135f54323a7f1a3706a49f5b907b2784",
+  "schema_version": 1,
+  "text_sha256": "b7faa56cf1f7bf9a6d5789b06cb93ae72560b2652ccaeb9982f56312b1ec049a"
+}

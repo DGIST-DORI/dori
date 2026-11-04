@@ -1,93 +1,87 @@
-[연구시설]
-출처: https://www.dgist.ac.kr/college/sub04_01_02.do
-
-DGIST는 다양한 학부 시설 중 연구시설을 운영하고 있습니다. 각 건물 탭을 클릭하면 해당하는 연구시설들의 자세한 설명을 보실 수 있습니다.
-
+각 강의실 탭을 클릭하시면 해당하는 연구시설들의 자세한 설명을 보실 수 있습니다.
 E2
-E2-215 노벨상 실험실: <현대물리실험> 교과 활동이 이루어지는 노벨상실험실로, X-ray의 탄성/비탄성 충돌, 제만효과, 마이켈슨 간섭계, 핵자기공명, AFM, STM, SEM등의 노벨상 관련 실험을 수행할 수 있습니다.
-E2-216 광학 실험실: 편광, 광학활성, 회절, 분광, 홀로그래피 등의 기본적인 광학실험과 함께, 양자지우개 흉내내기, 양자암호 흉내내기 등의 양자광학 실험을 수행할 수 있습니다. 펨토초 레이저와 비선형결정을 이용한 비선형광학 실험도 가능합니다.
-E2-217 고체물리 실험실: 여러 가지 성분 조합의 고체결정을 만들고 성질을 측정할 수 있는 인프라가 갖추어져 있습니다. 물성관련 UGRP실험이 매년 이루어지고 있으며, 푸리에의 열전도 실험, 진공실험, 단열팽창 실험 등 열역학 실험장치도 구비하고 있습니다.
-E2-218 물리공작 실험실: 레이저커터, 3D 프린터, 3D 스캐너, 전기톱 등의 공작기계를 구비하고 있습니다. 1학년 필수교과인 <고전역학실험>과 <전기역학실험>의 마지막 3주를 차지하는 창의실험 수행 시, 공작기계를 통해 다양한 아이디어를 구현할 수 있습니다.
-E2-219 고전역학/전자기학 실험실: 본 실험실은 1학기에는 <고전역학실험>을, 2학기에는 <전자기학실험>을 수행할 수 있는 공간으로, 2인1조로 하나의 큰 테이블을 사용할 수 있도록 디자인되어 있습니다. 고전역학에서는 중력가속도 측정, 포사체운동, 회전관성 등의 실험을, 전자기학에서는 등전위선 측정, RLC회로, 전류천칭, 브루스터 각 등의 실험을 수행하며, 마지막 3주는 자유로운 주제로 창의실험을 수행합니다.
-E2-221 전기회로 실험실: 24명의 학생들이 각자 하나의 노트북 컴퓨터와 NI-ELVIS장비를 가지고 실험할 수 있도록 장비와 회로부품들이 구비되어 있습니다. 학생들은 다이오드, 트랜지스터, 연산증폭기 등의 원리를 이해하고 응용회로를 만드는 연습을 하며, 멀티미터와 오실로스코프를 다루는 법을 익힙니다. 다양한 아두이노 센서와 키트들도 구비되어 있습니다.
-
 E3
-E3-317 수리체험실: 선형대수, 응용 미적분학과 미분방정식, 확률과 통계, 다변수 미적분학 등 수학 공통 교과목의 실습을 하는 수학연습실입니다. 수강생들은 클라이언트들을 통해 기초학부 전용 서버에 접속하여 가상화 환경에서 Matlab과 같은 수학 프로그램을 이용해 실습합니다.
-E3-318 수리해석실: 선형대수, 응용 미적분학과 미분방정식, 확률과 통계, 다변수 미적분학 등 수학 공통 교과목의 실습을 하는 수학연습실입니다. 수강생들은 클라이언트들을 통해 기초학부 전용 서버에 접속하여 가상화 환경에서 Matlab과 같은 수학 프로그램을 이용해 실습합니다.
-E3-320 수리시뮬레이션실: 선형대수, 응용 미적분학과 미분방정식, 확률과 통계, 다변수 미적분학 등 수학 공통 교과목의 실습을 하는 수학연습실입니다. 수강생들은 클라이언트들을 통해 기초학부 전용 서버에 접속하여 가상화 환경에서 Matlab과 같은 수학 프로그램을 이용해 실습합니다.
-
 E4
-E4-223 세포생물학 실험실: 동물세포 또는 동물조직 배양, 관찰 및 기타 세포생물학 실습이 진행되는 실험실로 생명과학 실험, UGRP 및 고등학생 대상 R&E 수업에 활용됩니다. 주요 구축 장비로는 클린벤치, CO2 인큐베이터, 도립 광학 현미경, 스윙버켓 냉장 원심분리기, 웨스턴 블롯용 영상기록장비, Nucelofector 3D 등이 있습니다.
-E4-224 실험준비실Ⅰ: 각종 실험의 준비 및 재료를 만드는 실험실로 모든 생물 교과 수업에 활용합니다. 주요 구축 장비로는 안전시약장, 초저온냉동고, 증류수제조장치 등이 있습니다.
-E4-225 분자생물학 실험실: 분자생물학, 분자유전학 실험을 진행하는 실험실로, 1학년 ‘분자와 생명현상 실험’ 수업이 이루어집니다. 주요 구축 장비로는 젤영상장치, 온도 구배 중합효소연쇄반응 장치 등이 있습니다. 국가 규정에 의거하여 미래창조과학부에서 지정한 ‘안전관리 우수연구실’입니다.
-E4-226 미생물 실험실: 분유전학, 미생물학 실험을 주로 진행하는 실험실로 2학년 1학기 ‘생명과학실험Ⅰ’, 2학년 2학기 ‘생명과학실험Ⅱ’ 수업이 이루어집니다. 주요 구축 장비로는 미생물 배양기, 진탕배양기, 식물 배양기, 실체현미경 등이 있습니다.
-E4-227 미디어랩: 분석, 계산, 분자 모델링 등 소프트웨어를 이용한 실습이 진행되는 실험실로 고등학생 대상 R&E 수업에도 활용합니다. 주요 구축 장비로는 실습용 PC, 워크스테이션, 입체영상시스템 등이 있습니다.
-E4-228 모델생물 준비실: LMO법에 근거하여 모델생물 사육이 허가된 실험실로, 제브라피쉬를 포함한 살아 있는 동물을 다루는 교과 실험과 UGRP실험이 매년 이루어지고 있습니다. 주요 구축 장비로는 제브라피쉬 사육시스템, 초저온냉동고, 해부용 장비 등이 있습니다.
-E4-229 분석장비실: 다양한 시료를 분석하는 장비들이 구축되어 있으며 모든 생물교과 수업에서 활용합니다. 주요 구축 장비로는 다각광산란모듈, 대용량 생체분자 분리정제장치, 대용량 단백질 결정 스크리닝 장치 등이 있습니다.
-E4-230 세척실: 초자류 세척기, 대용량 고압 멸균기가 구축되어 있습니다.
-E4-231 현미경실: 현미경을 실습하는 실험실로 모든 수업에서 활용합니다. 주요 구축 장비로는 형광실체현미경, 도립형광현미경, 전자동형광현미경이 있습니다.
-E4-233 실험준비실Ⅱ: 실험 비품 및 소모품을 보관 하는 실험실로 모든 생물 교과 수업에 활용합니다.
-
 E5
-E5-218 공학시작실 (기계공작실): 공학적 설계, 메카트로닉스 등의 실험실습 교과에서 학생들의 공학적, 창의 아이디어를 구현하기 위하여 제작 활동을 할 수 있는 공간으로, 고용량의 전기 설비, 용접실, 배기 시설이 구축되어 있으며, 다양한 공구류 및 드릴링 머신, 용접기, 레이저 컷팅기, 금속 절단기, 밀링기, 소형 선반 등의 다양한 기계공작 설비를 갖추고 있습니다. 디지스트 자동차 동아리 ‘디지니어스’의 활동 장소이며, 교수님이나 안전관리 책임자의 지도하에 이용 가능합니다.
-E5-218 공학시작실(유체역학 실험실): 열역학, 열전달, 유체역학, 내연기관의 이론을 검증할 수 있는 실험장비들이 구축되어 있습니다. 열전달 실험장치, 증기모터 실험장치, 엔진 실험장치, 차대동력계, 배기가스 분석장치를 통하여 열역학적 에너지 거동을 측정, 분석 할 수 있고 오리피스, 벤츄리미터 실험장치 등의 다양한 유체역학 실험장비들을 통하여 베르누이 방정식, 천이 유동현상, 레이놀즈 수와 같은 현상을 확인 할 수 있습니다.
-E5-219 공학준비실: 학생들의 창작 활동을 지원하기 위하여 다수의 3D프린터를 운용하고, PCB 프린터, 아두이노, 라즈베리파이, 각종 정밀공구, 측정장비, 전자부품, 회로키트 등을 구비하고 있습니다. 회로 설계를 위한 OrCAD, 3D 설계 및 해석을 위한 솔리드웍스, 카티아, 아담스 등의 정식 네트워크 라이선스를 보유하고 있어, 이용을 원하는 학생들의 개인 PC에 설치를 지원합니다.
-E5-220A & 220B 자동제어 실습실: 기초공학의 공통필수인 <자동제어실습> 교과 활동이 이루어지는 자동제어실습실은 다양한 공학적 시스템에 대한 모델링 및 해석을 통해 도출된 제어기의 성능을 확인하고 검증 등을 수행할 수 있습니다. 즉, 수행 가능한 제어로는 (1) DC 모터 시스템을 이용한 각도 및 각속도 제어, (2) 역진자 시스템 이용한 평형 유지 제어, (3) Magnetic levitation 시스템 이용한 Ball 부양 높이 조절 제어, (4) coupled tank system 이용한 수조의 높이 조절 제어 등이 있습니다. 그 외에도 메카트로닉스, 진동공학 및 공학적 설계 등의 다양한 기초공학 교과목의 실습 공간으로 활용될 수 있도록 아두이노, 라즈베리파이, LabVIEW/NI-myRIO 등의 다양한 제어 플랫폼과 각종 센서 등을 구비하고 있습니다.
-E5-221 프로그래밍 실습실: 프로그래밍 실습실에서는 Python, pycharm, Visual studio, R studio, Matlab 등을 이용하고, UNIX 및 LINUX가상머신 접속을 통하여 다양한 프로그래밍 교육 환경을 제공합니다. 엘리스 소프트웨어 서비스를 통한 체계적인 프로그래밍 교육환경을 제공하고, ZOOM 소프트웨어를 통하여 수업 중 강의화면을 실시간으로 개인의 테블릿이나 휴대전화로 볼 수 있으며, 녹화 할 수 있습니다. 복잡한 시뮬레이션 및 3D 설계 등의 작업을 수행하기에 충분한 사양의 PC가 구축되어 있어 공학 교육 뿐만 아니라, 수학, 물리, 생물 교과의 수업 및 세미나를 지원 할 수 있습니다. 교원 및 학생들의 수요가 있을 시 수시로 3D설계 강의를 지원합니다.
-
 E6
-E6-217 생화학 실험실: 내용 준비 중입니다. 빠른 시일내에 서비스하도록 하겠습니다.
-E6-218 기초화학 실험실1: 화학교과의 기초화학 실험과 화학실험 수업이 진행되는 곳으로 221호 기초화학실험실보다 규모가 작은 곳입니다. 효과적인 실험 수업 진행을 위한 빔 프로젝트가 앞쪽에 설치되어 있고, 2인 1조로 학생들이 실험을 진행하는데 불편함이 없도록 충분한 간격을 확보한 실험 테이블들이 있습니다. 밀폐형 시약장과 안전 캐비닛에 시약들이 보관되어 있고, 양쪽 벽면의 여유 공간에는 실험에 필요한 실험 기구들과 장비들이 잘 정리되어 있습니다. 실험에 사용된 폐액의 안전한 처리를 위한 공간이 학생들의 동선에 맞춰 자리하고 있으며, 흄후드와 클린벤치 등이 있습니다. 기초화학 실험실은 많은 학생들이 한 공간에서 여러 시약을 다루기 때문에, 무엇보다 안전성을 바탕으로 디자인 하여 학생들에게 안전한 실험 환경을 제공하고 있습니다.
-E6-219 실험준비실: 화학교과의 실험실습을 준비하는 공간으로 실험수업 준비 및 예비 실험, R&E 및 UGRP 실험 준비가 주로 이루어지고 있습니다. 기초화학실험실, 심화화학실험실과 직접 연결되어 있어 최적의 동선으로 이동할 수 있어 실험 준비가 유기적으로 이루어질 수 있도록 디자인되어 있습니다.
-E6-220 화학반응실: 정규 수업 외 개별적으로 추가 실험 실습을 진행할 수 있도록 마련된 공간입니다. R&E, UGRP등의 소규모 실험 수행을 자유롭게 수행할 수 있도록 시약장, 컨벡션오븐, 초저온냉동고 등의 장비와 소규모 실험에 적합한 실험테이블 및 흄후드가 준비되어 있습니다.
-E6-221 기초화학 실험실2: 화학교과의 기초화학 실험과 화학실험 수업이 진행되는 곳으로, 218호 기초화학실험실보다 규모가 큰 곳입니다. 효과적인 실험 수업 진행을 위한 빔 프로젝트가 앞쪽에 설치되어 있고, 2인 1조로 학생들이 실험을 진행하는데 불편함이 없도록 충분한 간격을 확보한 실험 테이블들이 있습니다. 밀폐형 시약장과 안전 캐비닛에 시약들이 안전하게 보관되어 있고, 실험에 필요한 실험 기구들과 장비들이 역시 잘 정리되어 있습니다. 실험에 사용된 폐액의 안전한 처리를 위한 공간이 학생들의 동선에 맞춰 자리하고 있으며, 증류수 제조기, 저울, 흄후드 등이 있습니다. 기초화학 실험실은 많은 학생들이 한 공간에서 여러 시약을 다루기 때문에, 무엇보다 안전성을 바탕으로 디자인 하여 학생들에게 안전한 실험 환경을 제공하고 있습니다.
-E6-222 심화화학 실험실1: 유기화학, 무기화학 실험을 비롯해 UGRP 실험을 수행하는 실험실로 조 별로 사용할 수 있는 흄 후드, 쉬링크 라인(Schlenk Line)과 실험 테이블이 설치되어 있습니다. 무산소, 무수분 환경의 실험을 위한 글로브 박스(Glove Box) 2조가 갖추어져 있으며 컨벡션 오븐, 회전 농축기, 전자 시약장, 방화방폭장 등 화학 실험에 필수적인 주요 장비들이 충분하게 준비되어 있습니다. 심화화학실험실1은 다양한 시약을 다루는 화학 실험을 안전한 환경에서 수행할 수 있도록 최신의 시설을 갖추고 있습니다.
-E6-223 심화화학 실험실2: 화학교과의 물리화학, 분석화학 실험을 진행하는 곳입니다. 효과적인 실험 수업 진행을 위한 빔 프로젝트가 앞쪽에 설치되어 있고, 2인 1조로 학생들이 실험을 진행하는데 불편함이 없도록 충분한 간격을 확보한 실험 테이블들이 있습니다. 물리화학, 분석화학실험에 필요한 소규모 장비들은 앞쪽 벽장에 실험별로 분류되어 있습니다.
-
----
-
-[Research Facilities]
-Source: https://www.dgist.ac.kr/college/sub04_01_02.do
-
-DGIST operates various research facilities among its undergraduate facilities. You can find detailed descriptions of each research facility by clicking on the respective building tabs.
-
-E2
-E2-215 Nobel Prize Lab: This Nobel Prize Lab is where activities for the <Modern Physics Experiment> course take place. Students can perform experiments that led to Nobel Prizes, such as elastic/inelastic collisions of X-rays, the Zeeman effect, Michelson interferometry, nuclear magnetic resonance, AFM, STM, and SEM.
-E2-216 Optics Lab: In the Optics Lab, basic optical experiments like polarization, optical activity, diffraction, spectroscopy, and holography are performed. Additionally, quantum optics experiments such as simulating quantum erasure and quantum cryptography are possible. Nonlinear optics experiments using femtosecond lasers and nonlinear crystals can also be conducted.
-E2-217 Solid State Physics Lab: The Solid State Physics Lab is equipped with infrastructure to create solid crystals with various component combinations and measure their properties. UGRP experiments related to material properties are conducted here annually. Thermodynamic experimental devices, including Fourier's heat conduction experiments, vacuum experiments, and adiabatic expansion experiments, are also available.
-E2-218 Physics Workshop Lab: The Physics Workshop Lab is equipped with machine tools such as a laser cutter, 3D printer, 3D scanner, and electric saw. During the creative experiments that occupy the last three weeks of the mandatory first-year courses, <Classical Mechanics Experiment> and <Electrodynamics Experiment>, students can realize diverse ideas using these machine tools.
-E2-219 Classical Mechanics/Electromagnetism Lab: This lab is designed for students to conduct <Classical Mechanics Experiment> in the first semester and <Electromagnetism Experiment> in the second semester, with large tables accommodating two students per group. In classical mechanics, experiments like gravitational acceleration measurement, projectile motion, and rotational inertia are performed. In electromagnetism, experiments such as equipotential line measurement, RLC circuits, current balances, and Brewster's angle are conducted, with the final three weeks dedicated to creative experiments on free topics.
-E2-221 Electric Circuits Lab: The Electric Circuits Lab is equipped for 24 students, each with a laptop computer and NI-ELVIS equipment, along with various circuit components. Students learn the principles of diodes, transistors, and operational amplifiers, practice building application circuits, and gain proficiency in using multimeters and oscilloscopes. A variety of Arduino sensors and kits are also available.
-
-E3
-E3-317 Mathematical Experience Room: This is a mathematics practice room for common mathematics courses such as Linear Algebra, Applied Calculus and Differential Equations, Probability and Statistics, and Multivariable Calculus. Students access a server dedicated to the undergraduate program via individual clients to practice using mathematical software like Matlab in a virtualized environment.
-E3-318 Mathematical Analysis Room: This is a mathematics practice room for common mathematics courses such as Linear Algebra, Applied Calculus and Differential Equations, Probability and Statistics, and Multivariable Calculus. Students access a server dedicated to the undergraduate program via individual clients to practice using mathematical software like Matlab in a virtualized environment.
-E3-320 Mathematical Simulation Room: This is a mathematics practice room for common mathematics courses such as Linear Algebra, Applied Calculus and Differential Equations, Probability and Statistics, and Multivariable Calculus. Students access a server dedicated to the undergraduate program via individual clients to practice using mathematical software like Matlab in a virtualized environment.
-
-E4
-E4-223 Cell Biology Lab: This lab is used for culturing and observing animal cells or tissues, as well as other cell biology practicals. It is utilized for life science experiments, UGRP, and R&E classes for high school students. Key equipment includes clean benches, CO2 incubators, inverted optical microscopes, swing-bucket refrigerated centrifuges, Western blot imaging systems, and Nucelofector 3D.
-E4-224 Experiment Preparation Room Ⅰ: This lab is for preparing various experiments and materials, used for all biology courses. Key equipment includes a safety reagent cabinet, ultra-low temperature freezer, and distilled water purification system.
-E4-225 Molecular Biology Lab: This lab conducts molecular biology and molecular genetics experiments, including the first-year course 'Experiments in Molecules and Life Phenomena'. Key equipment includes gel imaging systems and temperature gradient polymerase chain reaction (PCR) devices. It is designated as an 'Excellent Safety Management Research Lab' by the Ministry of Science and ICT, in accordance with national regulations.
-E4-226 Microbiology Lab: This lab primarily conducts molecular genetics and microbiology experiments, hosting 'Life Science Experiment Ⅰ' in the first semester of the second year and 'Life Science ExperimentⅡ' in the second semester. Key equipment includes microbial incubators, shaking incubators, plant incubators, and stereomicroscopes.
-E4-227 Media Lab: This lab conducts practicals using software for analysis, computation, and molecular modeling, and is also used for R&E classes for high school students. Key equipment includes training PCs, workstations, and a stereoscopic imaging system.
-E4-228 Model Organism Preparation Room: This lab is authorized for rearing model organisms under the LMO Act. Textbook experiments and UGRP experiments involving live animals, including zebrafish, are conducted here annually. Key equipment includes a zebrafish rearing system, ultra-low temperature freezer, and dissection tools.
-E4-229 Analysis Equipment Room: This room is equipped with various devices for analyzing diverse samples and is used in all biology courses. Key equipment includes a multi-angle light scattering module, large-scale biomolecule purification systems, and large-scale protein crystallization screening devices.
-E4-230 Washing Room: Equipped with glassware washers and large-capacity autoclaves.
-E4-231 Microscopy Room: This lab is for microscopy practicals and is used in all courses. Key equipment includes a fluorescence stereomicroscope, inverted fluorescence microscope, and automated fluorescence microscope.
-E4-233 Experiment Preparation RoomⅡ: This lab is used for storing experimental supplies and consumables, and is utilized for all biology courses.
-
-E5
-E5-218 Engineering Startup Room (Machine Workshop): This space is for students to engage in fabrication activities to realize their engineering and creative ideas in practical courses such as engineering design and mechatronics. It is equipped with high-capacity electrical facilities, a welding room, exhaust systems, and various machine tools including drills, welders, laser cutters, metal cutters, milling machines, and small lathes. It is also the activity venue for the DGIST car club 'Digineers', and can be used under the supervision of a professor or safety manager.
-E5-218 Engineering Startup Room (Fluid Mechanics Lab): This lab is equipped with experimental devices to verify theories of thermodynamics, heat transfer, fluid mechanics, and internal combustion engines. Thermodynamic energy behavior can be measured and analyzed using heat transfer experimental setups, steam motor experimental setups, engine experimental setups, chassis dynamometers, and exhaust gas analyzers. Various fluid mechanics experimental devices such as orifice and Venturi meter setups allow verification of phenomena like Bernoulli's equation, transitional flow, and Reynolds number.
-E5-219 Engineering Preparation Room: To support students' creative activities, the Engineering Preparation Room operates multiple 3D printers and is equipped with a PCB printer, Arduino, Raspberry Pi, various precision tools, measuring equipment, electronic components, and circuit kits. It holds official network licenses for circuit design software like OrCAD and 3D design/analysis software like SolidWorks, CATIA, and Adams, and supports installation on students' personal PCs upon request.
-E5-220A & 220B Automatic Control Lab: The Automatic Control Lab, where activities for the common essential course <Automatic Control Practice> take place, allows students to confirm and verify the performance of controllers derived through modeling and analysis of various engineering systems. Controllable systems include (1) angle and angular velocity control using a DC motor system, (2) equilibrium maintenance control using an inverted pendulum system, (3) ball levitation height adjustment control using a magnetic levitation system, and (4) water tank height adjustment control using a coupled tank system. Additionally, it is equipped with various control platforms such as Arduino, Raspberry Pi, and LabVIEW/NI-myRIO, along with various sensors, to serve as a practical space for diverse basic engineering courses like mechatronics, vibration engineering, and engineering design.
-E5-221 Programming Lab: The Programming Lab offers diverse programming education environments using Python, PyCharm, Visual Studio, R Studio, and Matlab, and through access to UNIX and LINUX virtual machines. It provides a systematic programming education environment via Elice software services, and allows students to view and record lecture screens in real-time on their personal tablets or mobile phones using ZOOM software during classes. Equipped with high-spec PCs capable of complex simulations and 3D design tasks, it supports not only engineering education but also mathematics, physics, and biology courses and seminars. 3D design lectures are supported on demand from faculty and students.
-
-E6
-E6-217 Biochemistry Lab: Content is currently being prepared. We will provide service as soon as possible.
-E6-218 Basic Chemistry Lab 1: This is where basic chemistry experiments and chemistry classes for chemistry courses are held, smaller in scale than Basic Chemistry Lab 221. A beam projector is installed at the front for effective class delivery, and experimental tables are spaced adequately for two students per group to conduct experiments comfortably. Reagents are stored in sealed reagent cabinets and safety cabinets. Experiment equipment and devices are well-organized on the available wall spaces. A dedicated area for safe disposal of used experimental waste is located along student traffic paths, and fume hoods and clean benches are available. Basic Chemistry Lab 1 is designed with safety as the top priority to provide a safe experimental environment for many students handling various reagents in one space.
-E6-219 Experiment Preparation Room: This space is for preparing chemistry practicals, primarily for experiment class preparation, preliminary experiments, R&E, and UGRP experiment preparation. It is directly connected to the Basic Chemistry Lab and Advanced Chemistry Lab, allowing for optimal movement and organic coordination of experiment preparation.
-E6-220 Chemical Reaction Room: This space is provided for individual additional experimental practicals outside of regular classes. It is equipped with reagent cabinets, convection ovens, ultra-low temperature freezers, and experimental tables suitable for small-scale experiments, along with fume hoods, allowing for flexible execution of small-scale R&E and UGRP experiments.
-E6-221 Basic Chemistry Lab 2: This is where basic chemistry experiments and chemistry classes for chemistry courses are held, larger in scale than Basic Chemistry Lab 218. A beam projector is installed at the front for effective class delivery, and experimental tables are spaced adequately for two students per group to conduct experiments comfortably. Reagents are safely stored in sealed reagent cabinets and safety cabinets, and experiment equipment and devices are also well-organized. A dedicated area for safe disposal of used experimental waste is located along student traffic paths, and a distilled water generator, balances, and fume hoods are available. Basic Chemistry Lab 2 is designed with safety as the top priority to provide a safe experimental environment for many students handling various reagents in one space.
-E6-222 Advanced Chemistry Lab 1: This lab conducts organic chemistry, inorganic chemistry, and UGRP experiments. It is equipped with group-use fume hoods, Schlenk Lines, and experimental tables. Two glove boxes are available for experiments requiring oxygen-free, moisture-free environments. Essential chemistry equipment such as convection ovens, rotary evaporators, electronic reagent cabinets, and fire/explosion-proof cabinets are sufficiently provided. Advanced Chemistry Lab 1 is equipped with state-of-the-art facilities to conduct chemistry experiments involving various reagents in a safe environment.
-E6-223 Advanced Chemistry Lab 2: This is where physical chemistry and analytical chemistry experiments for chemistry courses are conducted. A beam projector is installed at the front for effective class delivery, and experimental tables are spaced adequately for two students per group to conduct experiments comfortably. Small-scale equipment required for physical chemistry and analytical chemistry experiments is categorized by experiment and stored in wall cabinets at the front.
+## E2
+## E2-215 노벨상 실험실
+<현대물리실험> 교과 활동이 이루어지는 노벨상실험실, 노벨상을 타게끔 한 실험들, 즉 X-ray의 탄성/비탄성 충돌, 제만효과, 마이켈슨 간섭계, 핵자기공명, AFM, STM, SEM등의 실험을 수행할 수 있다.
+## E2-216 광학 실험실
+광학실험실에서는 편광, 광학활성, 회절, 분광, 홀로그래피 등의 기본적인 광학실험과 함께, 양자지우개 흉내내기, 양자암호 흉내내기 등의 양자광학 실험을 수행할 수 있다. 펨토초 레이저와 비선형결정을 이용한 비선형광학 실험이 가능하다.
+## E2-217 고체물리 실험실
+고체물리실험실에서는 여러 가지 성분 조합의 고체결정을 만들고 성질을 측정할 수 있는 인프라가 갖추어져 있다. 이를 이용한 물성관련 UGRP실험이 매년 이루어지고 있고, 푸리에의 열전도 실험, 진공실험, 단열팽창 실험 등 열역학 실험장치도 구비하고 있다.
+## E2-218 물리공작 실험실
+물리공작실험실에는 레이저커터, 3D 프린터, 3D 스캐너, 전기톱 등의 공작기계를 구비하고 있다. 1학년의 필수교과인 <고전역학실험>과 <전기역학실험>의 마지막 3주를 차지하는 창의실험 수행시에 공작기계를 통해 다양한 아이디어를 구현할 수 있다.
+## E2-219 고전역학/전자기학 실험실
+본 실험실은 1학기에는 <고전역학실험>을, 2학기에는 <전자기학실험>을 수행할 수 있는 공간으로서, 2인1조로 하나의 큰 테이블을 사용할 수 있도록 디자인되어 있다. 고전역학에서는 중력가속도 측정, 포사체운동, 회전관성 등의 실험을, 전자기학에서는 등전위선 측정, RLC회로, 전류천칭, 브루스터 각 등의 실험을 수행하고, 마지막 3주는 자유로운 주제로 창의실험을 수행한다.
+## E2-221 전기회로 실험실
+전기회로 실험실에는 24명의 학생들이 각자 하나의 노트북 컴퓨터와 NI-ELVIS장비를 가지고 실험할 수 있도록 장비와 회로부품들이 구비되어 있다. 학생들은 다이오드, 트랜지스터, 연산증폭기 등의 원리를 이해하고 이를 이용한 응용회로를 만드는 연습을 하며, 멀티미터와 오실로스코프를 다루는 법을 익힌다. 다양한 아두이노 센서와 키트들도 구비되어 있다.
+## E3
+## E3-317 수리체험실
+선형대수, 응용 미적분학과 미분방정식, 확률과 통계, 다변수 미적분학 등 수학 공통 교과목의 실습을 하는 수학연습실이다. 수강생들은 각각의 클라이언트들을 통해 기초학부 전용 서버에 접속하여 가상화 환경에서 Matlab과 같은 수학 프로그램을 이용해 실습한다.
+## E3-318 수리해석실
+선형대수, 응용 미적분학과 미분방정식, 확률과 통계, 다변수 미적분학 등 수학 공통 교과목의 실습을 하는 수학연습실이다. 수강생들은 각각의 클라이언트들을 통해 기초학부 전용 서버에 접속하여 가상화 환경에서 Matlab과 같은 수학 프로그램을 이용해 실습한다.
+## E3-320 수리시뮬레이션실
+선형대수, 응용 미적분학과 미분방정식, 확률과 통계, 다변수 미적분학 등 수학 공통 교과목의 실습을 하는 수학연습실이다. 수강생들은 각각의 클라이언트들을 통해 기초학부 전용 서버에 접속하여 가상화 환경에서 Matlab과 같은 수학 프로그램을 이용해 실습한다.
+## E4
+## E4-223 세포생물학 실험실
+동물세포 또는 동물조직 배양, 관찰 및 기타 세포생물학 실습이 진행되는 실험실로 생명과학 실험, UGRP 및 고등학생 대상 R&E 수업에 활용된다. 주요 구축 장비로는 클린벤치, CO2 인큐베이터, 도립 광학 현미경, 스윙버켓 냉장 원심분리기, 웨스턴 블롯용 영상기록장비, Nucelofector 3D 등이 있다.
+## E4-224 실험준비실Ⅰ
+각종 실험의 준비 및 재료를 만드는 실험실로 모든 생물 교과 수업에 활용한다. 주요 구축 장비로는 안전시약장, 초저온냉동고, 증류수제조장치 등이 있다.
+## E4-225 분자생물학 실험실
+분자생물학, 분자유전학 실험을 진행하는 실험실로, 1학년 ‘분자와 생명현상 실험’ 수업이 이루어진다. 주요 구축 장비로는 젤영상장치, 온도 구배 중합효소연쇄반응 장치 등이 있다. 국가 규정에 의거하여 미래창조과학부에서 지정한 ‘안전관리 우수연구실’이다.
+## E4-226 미생물 실험실
+분유전학, 미생물학 실험을 주로 진행하는 실험실로 2학년 1학기 ‘생명과학실험Ⅰ’, 2학년 2학기 ‘생명과학실험Ⅱ’ 수업이 이루어진다. 주요 구축 장비로는 미생물 배양기, 진탕배양기, 식물 배양기, 실체현미경 등이 있다.
+## E4-227 미디어랩
+분석, 계산, 분자 모델링 등 소프트웨어를 이용한 실습이 진행되는 실험실로 고등학생 대상 R&E 수업에도 활용한다. 주요 구축 장비로는 실습용 PC, 워크스테이션, 입체영상시스템 등이 있다.
+## E4-228 모델생물 준비실
+LMO법에 근거하여 모델생물 사육이 허가된 실험실로, 제브라피쉬를 포함한 살아 있는 동물을 다루는 교과 실험과 UGRP실험이 매년 이루어지고 있다. 주요 구축 장비로는 제브라피쉬 사육시스템, 초저온냉동고, 해부용 장비 등이 있다.
+## E4-229 분석장비실
+다양한 시료를 분석하는 장비들이 구축되어 있으며 모든 생물교과 수업에서 활용한다. 주요 구축 장비로는 다각광산란모듈, 대용량 생체분자 분리정제장치, 대용량 단백질 결정 스크리닝 장치 등이 있다.
+## E4-230 세척실
+초자류 세척기, 대용량 고압 멸균기가 구축되어 있다.
+## E4-231 현미경실
+현미경을 실습하는 실험실로 모든 수업에서 활용한다. 주요 구축 장비로는 형광실체현미경, 도립형광현미경, 전자동형광현미경이 있다.
+## E4-233 실험준비실Ⅱ
+실험 비품 및 소모품을 보관 하는 실험실로 모든 생물 교과 수업에 활용한다.
+## E5
+## E5-218 공학시작실 (기계공작실)
+공학적 설계, 메카트로닉스 등의 실험실습 교과에서 학생들의 공학적, 창의 아이디어를 구현하기 위하여 제작 활동을 할 수 있는 공간으로, 고용량의 전기 설비, 용접실, 배기 시설이 구축되어 있으며, 다양한 공구류 및 드릴링 머신, 용접기, 레이저 컷팅기, 금속 절단기, 밀링기, 소형 선반 등의 다양한 기계공작 설비를 갖추고 있다. 디지스트 자동차 동아리 ‘디지니어스’의 활동 장소이며, 교수님이나 안전관리 책임자의 지도하에 이용 가능하다.
+## E5-218 공학시작실(유체역학 실험실)
+열역학, 열전달, 유체역학, 내연기관의 이론을 검증할 수 있는 실험장비들이 구축되어 있다.
+열전달 실험장치, 증기모터 실험장치, 엔진 실험장치, 차대동력계, 배기가스 분석장치를 통하여 열역학적 에너지 거동을 측정, 분석 할 수 있고 오리피스, 벤츄리미터 실험장치 등의 다양한 유체역학 실험장비들을 통하여 베르누이 방정식, 천이 유동현상, 레이놀드 수와 같은 현상을 확인 할 수 있다.
+## E5-219 공학준비실
+공학준비실에서는 학생들의 창작 활동을 지원하기 위하여 다수의 3D프린터를 운용하고, PCB 프린터, 아두이노, 라즈베리파이, 각종 정밀공구, 측정장비, 전자부품, 회로키트 등을 구비하고 있다. 회로 설계를 위한 OrCAD, 3D 설계 및 해석을 위한 솔리드웍스, 카티아, 아담스 등의 정식 네트워크 라이선스를 보유하고 있어, 이용을 원하는 학생들의 개인 PC에 설치를 지원한다.
+## E5-220A & 220B 자동제어 실습실
+기초공학의 공통필수인 <자동제어실습> 교과 활동이 이루어지는 자동제어실습실은 다양한 공학적 시스템에 대한 모델링 및 해석을 통해 도출된 제어기의 성능을 확인하고 검증 등을 수행할 수 있다. 즉, 수행 가능한 제어로는 (1) DC 모터 시스템을 이용한 각도 및 각속도 제어, (2) 역진자 시스템 이용한 평형 유지 제어, (3) Magnetic levitation 시스템 이용한 Ball 부양 높이 조절 제어, (4) coupled tank system 이용한 수조의 높이 조절 제어 등이 있다. 그 외에도 메카트로닉스, 진동공학 및 공학적 설계 등의 다양한 기초공학 교과목의 실습 공간으로 활용될 수 있도록 아두이노, 라즈베리파이, LabVIEW/NI-myRIO 등의 다양한 제어 플랫폼과 각종 센서 등을 구비하고 있다.
+## E5-221 프로그래밍 실습실
+프로그래밍 실습실에서는 Python, pycharm, Visual studio, R studio, Matlab 등을 이용하고, UNIX 및 LINUX가상머신 접속을 통하여 다양한 프로그래밍 교육 환경을 제공한다. 엘리스 소프트웨어 서비스를 통한 체계적인 프로그래밍 교육환경을 제공하고, ZOOM 소프트웨어를 통하여 수업 중 강의화면을 실시간으로 개인의 테블릿이나 휴대전화로 볼 수 있으며, 녹화 할 수 있다.
+복잡한 시뮬레이션 및 3D 설계 등의 작업을 수하기에 충분한 사양의 PC가 구축되어 있어 공학 교육 뿐만 아니라, 수학, 물리, 생물 교과의 수업 및 세미나를 지원 할 수 있다. 교원 및 학생들의 수요가 있을 시 수시로 3D설계 강의를 지원한다.
+## E6
+## E6-217 생화학 실험실
+내용 준비 중입니다. 빠른 시일내에 서비스하도록 하겠습니다.
+## E6-218 기초화학 실험실1
+화학교과의 기초화학 실험과 화학실험 수업이 진행되는 곳으로 221호 기초화학실험실보다 규모가 작은 곳이다. 효과적인 실험 수업 진행을 위한 빔 프로젝트가 앞쪽에 설치되어 있고, 2인 1조로 학생들이 실험을 진행하는데 불편함이 없도록 충분한 간격을 확보한 실험 테이블들이 있다. 밀폐형 시약장과 안전 캐비닛에 시약들이 보관되어 있고, 양쪽 벽면의 여유 공간에는 실험에 필요한 실험 기구들과 장비들이 잘 정리되어 있다. 실험에 사용된 폐액의 안전한 처리를 위한 공간이 학생들의 동선에 맞춰 자리하고 있으며, 흄후드와 클린벤치 등이 있다. 기초화학 실험실은 많은 학생들이 한 공간에서 여러 시약을 다루기 때문에, 무엇보다 안전성을 바탕으로 디자인 하여 학생들에게 안전한 실험 환경을 제공하고 있다.
+## E6-219 실험준비실
+화학교과의 실험실습을 준비하는 공간으로 실험수업 준비 및 예비 실험, R&E 및 UGRP 실험 준비가 주로 이루어지고 있다. 기초화학실험실, 심화화학실험실과 직접 연결되어 있어 최적의 동선으로 이동할 수 있어 실험 준비가 유기적으로 이루어질 수 있도록 디자인되어 있다.
+## E6-220 화학반응실
+정규 수업 외 개별적으로 추가 실험 실습을 진행할 수 있도록 마련된 공간이다. R&E, UGRP등의 소규모 실험 수행을 자유롭게 수행할 수 있도록 시약장, 컨벡션오븐, 초저온냉동고 등의 장비와 소규모 실험에 적합한 실험테이블 및 흄후드가 준비되어 있다.
+## E6-221 기초화학 실험실2
+화학교과의 기초화학 실험과 화학실험 수업이 진행되는 곳으로, 218호 기초화학실험실보다 규모가 큰 곳이다. 효과적인 실험 수업 진행을 위한 빔 프로젝트가 앞쪽에 설치되어 있고, 2인 1조로 학생들이 실험을 진행하는데 불편함이 없도록 충분한 간격을 확보한 실험 테이블들이 있다. 밀폐형 시약장과 안전 캐비닛에 시약들이 안전하게 보관되어 있고,실험에 필요한 실험 기구들과 장비들이 역시 잘 정리되어 있다. 실험에 사용된 폐액의 안전한 처리를 위한 공간이 학생들의 동선에 맞춰 자리하고 있으며,증류수 제조기, 저울, 흄후드 등이 있다. 기초화학 실험실은 많은 학생들이 한 공간에서 여러 시약을 다루기 때문에, 무엇보다 안전성을 바탕으로 디자인 하여 학생들에게 안전한 실험 환경을 제공하고 있다.
+## E6-222 심화화학 실험실1
+유기화학, 무기화학 실험을 비롯해 UGRP 실험을 수행하는 실험실로 조 별로 사용할 수 있는 흄 후드, 쉬링크 라인(Schlenk Line)과 실험 테이블이 설치되어 있다. 무산소, 무수분 환경의 실험을 위한 글로브 박스(Glove Box) 2조가 갖추어져 있으며 컨벡션 오븐, 회전 농축기, 전자 시약장, 방화방폭장 등 화학 실험에 필수적인 주요 장비들이 충분하게 준비되어 있다. 심화화학실험실1은 다양한 시약을 다루는 화학 실험을 안전한 환경에서 수행할 수 있도록 최신의 시설을 갖추고 있다.
+## E6-223 심화화학 실험실2
+화학교과의 물리화학, 분석화학 실험을 진행하는 곳이다. 효과적인 실험 수업 진행을 위한 빔 프로젝트가 앞쪽에 설치되어 있고, 2인 1조로 학생들이 실험을 진행하는데 불편함이 없도록 충분한 간격을 확보한 실험 테이블들이 있다. 물리화학, 분석화학실험에 필요한 소규모 장비들은 앞쪽 벽장에 실험별로 분류되어 보관되어 있으며, 실험 테이블 아래 서랍장에는 실험의 부속품들이 각각 수납되어 있어 효율적인 실험 수업이 진행되도록 하고 있다. 무산소, 무수분 환경에서 실험을 할 수 있는 글러브 박스(glove box)가 한쪽 벽면에 설치되어 있고, 이외 증류수 제조기 및 클린벤치, 대용량 알루미늄 데시케이터, 저울 등 실험에 필요한 장비들이 있다. 심화화학실험실2은 한 공간에서 여러 시약과 기체들을 다루고 진공펌프 사용, 고온 가열, 산소 연소 등이 필요한 고진공 실험, 열분석, 전기화학 분석 등의 실험을 진행하기 때문에 안전을 최우선으로 디자인되어 있다.
+## E6-224 반응측정실
+화학실험에 필요한 다양한 분석 장비들이 마련된 공간이다. 분석 시료를 준비하기 위한 씽크대, 흄후드, 실험테이블, 시약장이 마련되어 있으며 아래의 분석장비들이 설치되어 있다.
+AAS(Atomic Absorption Spectrometer) : 원자흡수분광기
+UV-Vis(Ultraviolet-Visible Spectrometer) : 자외선-가시광선 분광기
+FT-IR(Infrared Spectrometer) : 적외선 분광기
+GC(Gas Chromatography) : 기체 크로마토그래피
+GC-MS(Gas Chromatography-Mass Spectrometry) : 기체 크로마토그래피-질량분석기
+SEC(Size Exclusion Chromatography) : 분자량 분리 크로마토그래피
+FT-NMR(Nuclear Magnetic Resonance Spectometer) : 핵-자기 공명 분광기
+Polarimeter : 편광계
+Karl Fischer Titrator : 수분 측정기
+UTM(Universal Testing Machine) : 물성 측정기

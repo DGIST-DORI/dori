@@ -1,47 +1,39 @@
-[찾아오시는 길]
-출처: https://www.dgist.ac.kr/kor/sub01_03_01.do
-
-대구경북과학기술원 DGIST는 대구광역시 달성군 현풍읍 테크노중앙대로 333에 위치하고 있습니다. 우편번호는 42988입니다. 대표 전화는 053-785-0114이며, 팩스 번호는 053-785-1209입니다. 네이버 길찾기 및 카카오맵 길찾기를 통해 더 자세한 정보를 확인할 수 있습니다.
-
-**지하철 및 기차 이용 안내**
-*   **지하철 1호선 이용:** 지하철 1호선을 타고 진천역에서 하차하신 후 1번 출구를 이용합니다.
-*   **진천역에서 DGIST로 이동:**
-    *   **버스:** "진천역(1번 출구) 정류장"에서 급행8번 또는 급행8-1번 버스를 탑승합니다. "유가읍사무소" 정류장에서 하차 후 DGIST까지 도보로 약 13분 소요됩니다.
-    *   **택시:** 진천역에서 DGIST까지 택시 이용 시 예상 요금은 약 14,000원입니다.
-*   **동대구역/대구역에서 오시는 경우:** 동대구역 또는 대구역 앞에 위치한 지하철 1호선을 탑승하여 위의 지하철 이용 안내에 따라 진천역으로 이동합니다.
-*   **서대구역에서 오시는 경우:** "서대구역(남측)1 정류장"에서 급행8번 버스를 탑승합니다. "유가읍사무소" 정류장에서 하차 후 DGIST까지 도보로 약 13분 소요됩니다.
-
-**시외버스 이용 안내**
-*   **경로:** 서부정류장에서 출발하여 현풍시외버스터미널에서 하차합니다.
-*   **거리/소요시간:** 약 26.4km이며, 30분 소요됩니다.
-*   **배차간격:** 30분 간격으로 운행됩니다.
-*   **요금:** 2,200원입니다.
-*   **현풍시외버스터미널에서 DGIST로 이동:** 현풍시외버스터미널 하차 후 택시로 약 10분 소요됩니다.
-
-**셔틀버스 이용 안내**
-DGIST 셔틀버스 노선 및 출퇴근 정보는 DGIST 홈페이지 내 '대학생활 > 셔틀버스' 메뉴에서 확인하실 수 있습니다.
-
----
-
-[Directions to DGIST]
-Source: https://www.dgist.ac.kr/kor/sub01_03_01.do
-
-DGIST (Daegu Gyeongbuk Institute of Science and Technology) is located at 333 Techno Jungang-daero, Hyeonpung-eup, Dalseong-gun, Daegu. The postal code is 42988. The main contact number is 053-785-0114, and the fax number is 053-785-1209. More detailed directions can be found using Naver Maps and Kakao Map navigation.
-
-**Directions by Subway and Train**
-*   **Using Subway Line 1:** Take Subway Line 1 and get off at Jincheon Station, then use Exit 1.
-*   **From Jincheon Station to DGIST:**
-    *   **Bus:** At the "Jincheon Station (Exit 1) Bus Stop," take Express Bus No. 8 or 8-1. Get off at the "Yuga-eup Office" stop, then walk for approximately 13 minutes to DGIST.
-    *   **Taxi:** The estimated taxi fare from Jincheon Station to DGIST is approximately 14,000 KRW.
-*   **From Dongdaegu Station / Daegu Station:** Take Subway Line 1, which is located in front of Dongdaegu Station or Daegu Station, and follow the subway instructions above to Jincheon Station.
-*   **From Seodaegu Station:** At the "Seodaegu Station (South) 1 Bus Stop," take Express Bus No. 8. Get off at the "Yuga-eup Office" stop, then walk for approximately 13 minutes to DGIST.
-
-**Directions by Intercity Bus**
-*   **Route:** Depart from Seobu Terminal and get off at Hyeonpung Intercity Bus Terminal.
-*   **Distance/Travel Time:** Approximately 26.4 km, taking 30 minutes.
-*   **Service Interval:** Buses run every 30 minutes.
-*   **Fare:** The fare is 2,200 KRW.
-*   **From Hyeonpung Intercity Bus Terminal to DGIST:** After arriving at Hyeonpung Intercity Bus Terminal, it takes approximately 10 minutes by taxi to reach DGIST.
-
-**Shuttle Bus Information**
-Information regarding DGIST shuttle bus routes and commute schedules can be found on the DGIST website under the 'Campus Life > Shuttle Bus' menu.
+DGIST
+대구경북과학기술원
+주소
+[42988] 대구광역시 달성군 현풍읍 테크노중앙대로 333 대구경북과학기술원
+연락처
+(TEL) 053-785-0114 / (FAX) 053-785-1209
+네이버 길찾기
+카카오맵 길찾기
+## 지하철
+01.
+지하철 1호선을 이용 진천역에서 하차하여 1번 출구 이용
+02-1.
+“진천역(1번출구) 정류장”에서 급행8번 또는 급행8-1번 탑승  → “유가읍사무소”에서 하차 → 도보로 13분 소요
+02-2.
+진천역 → DGIST 택시 이용요금 : 약 14,000원
+## 기차
+## 동대구역/대구역 이용시
+01.
+동대구역/대구역 앞에 위치한 지하철1호선 탑승
+02.
+지하철 1호선을 이용 진천역에서 하차하여 1번 출구 이용
+03-1.
+“진천역(1번출구) 버스정류장”에서 급행8번 또는 급행8-1번 버스 탑승한 뒤 “유가읍사무소”에서 하차, 하차 후 도보로 13분 소요
+03-2.
+진천역 → DGIST 택시 이용시 예상 요금 : 약 14,000원
+## 서대구역 이용시
+01.
+“서대구역(남측)1 정류장” 을 이용 급행8번 탑승한 뒤 “유가읍사무소”에서 하차
+02.
+하차 후 도보로 13분 소요
+## 시외버스
+서부정류장 출발 → 현풍시외버스터미널 하차
+거리/소요시간 : 26.4㎞/30분
+배차간격 : 30분
+요금 : 2,200원
+기타 : 하차 후 택시로 10분 소요
+## 셔틀버스
+현 홈페이지 대학생활 > 셔틀버스 메뉴에서 출퇴근 및 셔틀버스 노선을 안내해드립니다.
+바로가기
