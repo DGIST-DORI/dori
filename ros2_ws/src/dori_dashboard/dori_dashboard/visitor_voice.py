@@ -6,6 +6,13 @@ import json
 import secrets
 import wave
 import time
+import os
+import re
+
+try:
+    from .azure_speech import AzureSpeechStream, AzureSpeechError, load_config, MAX_CHUNK_BYTES
+except ImportError:
+    from azure_speech import AzureSpeechStream, AzureSpeechError, load_config, MAX_CHUNK_BYTES
 
 from rclpy.action import ActionClient
 from dori_msgs.action import LLMQuery, Speak
@@ -74,6 +81,11 @@ class VisitorVoice:
         self.goal = None
         self.audio_id = None
         self.media = {}
+        self.provider = os.environ.get('DORI_VISITOR_STT', 'whisper')
+        if self.provider not in ('azure', 'whisper'):
+            raise ValueError('DORI_VISITOR_STT must be azure or whisper')
+        self.stream = self.stream_id = None
+        self.stream_sequence = 0
         self.llm = ActionClient(node, LLMQuery, 'llm/query')
         self.tts = ActionClient(node, Speak, 'tts/speak_remote')
         self.audio_pub = node.create_publisher(String, 'stt/audio_input', 1)
@@ -124,25 +136,69 @@ class VisitorVoice:
         return self.task is not None and not self.task.done()
 
     def start(self, payload):
+        if self.provider == 'azure':
+            raise ValueError('새 음성 연결을 사용하려면 페이지를 새로고침해 주세요.')
         audio = validate_audio(payload)
         self._start_turn(audio=audio)
+
+    def start_stream(self, payload):
+        stream_id = payload.get('id')
+        if self.provider != 'azure':
+            raise ValueError('실시간 음성 서비스가 준비되지 않았습니다.')
+        if (not isinstance(stream_id, str) or not re.fullmatch(r'[A-Za-z0-9_-]{16,64}', stream_id)
+                or (payload.get('format'), payload.get('sample_rate'), payload.get('channels')) != ('pcm16', 16000, 1)):
+            raise ValueError('음성 연결 형식이 올바르지 않습니다.')
+        self._start_turn(stream_id=stream_id)
+
+    def stream_audio(self, payload):
+        if not self.turn or payload.get('id') != self.stream_id:
+            return
+        stream = self.stream
+        if not stream or stream.input_closed:
+            return
+        try:
+            if type(payload.get('seq')) is not int or payload['seq'] != self.stream_sequence:
+                raise ValueError()
+            encoded = payload.get('audio_b64')
+            if not isinstance(encoded, str) or len(encoded) > (MAX_CHUNK_BYTES + 2) // 3 * 4:
+                raise ValueError()
+            pcm = base64.b64decode(encoded, validate=True)
+        except ValueError:
+            stream.fail('stt_invalid_audio')
+            return
+        self.stream_sequence += 1
+        stream.write(pcm)
+
+    def finish_stream(self, payload):
+        if self.turn and payload.get('id') == self.stream_id and self.stream:
+            if type(payload.get('seq')) is not int or payload['seq'] != self.stream_sequence:
+                self.stream.fail('stt_invalid_audio')
+            else:
+                self.stream.finish('manual')
+
+    def cancel_stream(self, payload):
+        if self.turn and payload.get('id') == self.stream_id:
+            self.cancel()
 
     def start_text(self, payload):
         self._start_turn(text=validate_text(payload))
 
-    def _start_turn(self, audio=None, text=None):
+    def _start_turn(self, audio=None, text=None, stream_id=None):
         if self.draining:
             raise ValueError('이전 답변을 처리 중입니다. 잠시 후 보내 주세요.')
         if (not self.llm.server_is_ready() or not self.tts.server_is_ready()
                 or (audio is not None and not self.audio_pub.get_subscription_count())):
             raise ValueError('대화 서비스가 아직 준비되지 않았습니다.')
         self.turn = secrets.token_hex(16)
-        self.task = asyncio.create_task(self._run(self.turn, audio=audio, text=text))
+        self.stream_id, self.stream_sequence = stream_id, 0
+        self.task = asyncio.create_task(self._run(self.turn, audio=audio, text=text, stream_id=stream_id))
 
     def cancel(self):
         self.turn = None
         self.media.clear()
         self.audio_id = None
+        if self.stream:
+            self.stream.cancel()
         if self.goal:
             self.goal.cancel_goal_async()
         if self.stt_waiter and not self.stt_waiter.done():
@@ -184,12 +240,46 @@ class VisitorVoice:
             raise ValueError('Voice request canceled or failed')
         return result.result
 
-    async def _run(self, turn, audio=None, text=None):
-        stage = 'stt' if audio is not None else 'llm'
+    async def _stream_ended(self, turn, stream_id, reason):
+        await self.emit(turn, 'stt_closed', id=stream_id, reason=reason)
+        await self.emit(turn, 'robot_state', status='TRANSCRIBING')
+
+    async def _recognize_stream(self, turn, stream_id):
+        try:
+            stream = AzureSpeechStream(load_config(), lambda reason: asyncio.create_task(
+                self._stream_ended(turn, stream_id, reason)))
+            self.stream = stream
+            try:
+                await stream.start()
+                if turn != self.turn:
+                    stream.cancel()
+                    raise asyncio.CancelledError()
+                if not stream.input_closed:
+                    await self.emit(turn, 'stt_ready', id=stream_id)
+                return await stream.result()
+            finally:
+                await stream.close()
+                self.stream = None
+        except AzureSpeechError as exc:
+            messages = {
+                'stt_unavailable': '음성 인식 서비스가 준비되지 않았습니다. 텍스트로 보내 주세요.',
+                'stt_timeout': '음성 인식 시간이 초과되었습니다. 다시 말씀하거나 텍스트로 보내 주세요.',
+                'stt_unclear': '음성을 알아듣지 못했어요. 다시 말씀하거나 텍스트로 보내 주세요.',
+                'stt_interrupted': '음성 연결이 끊겼습니다. 다시 말씀해 주세요.',
+            }
+            raise VoiceTurnError(exc.code, messages.get(exc.code, '음성을 처리하지 못했습니다. 다시 말씀하거나 텍스트로 보내 주세요.')) from None
+
+    async def _run(self, turn, audio=None, text=None, stream_id=None):
+        stage = 'stt' if audio is not None or stream_id is not None else 'llm'
         try:
             if turn != self.turn:
                 return
-            if audio is not None:
+            if stream_id is not None:
+                text = await self._recognize_stream(turn, stream_id)
+                if turn != self.turn:
+                    raise asyncio.CancelledError()
+                await self.emit(turn, 'stt_text', data=text)
+            elif audio is not None:
                 self.stt_waiter = asyncio.get_running_loop().create_future()
                 self.audio_pub.publish(String(data=json.dumps({**audio, 'request_id': turn, 'created_at': time.time()})))
                 audio.clear()
@@ -233,6 +323,9 @@ class VisitorVoice:
             message = str(exc) if isinstance(exc, VoiceTurnError) else messages[stage]
             await self.emit(turn, 'error', code=code, message=message)
         finally:
+            if stream_id is not None:
+                await self.emit(turn, 'stt_closed', id=stream_id, reason='finished')
+                self.stream_id = None
             self.stt_waiter = None
             self.media.clear()
             self.audio_id = None

@@ -116,3 +116,68 @@ export class Microphone {
     this.stream = this.source = this.node = this.context = this.endpoint = null; this.chunks = []; this.length = 0;
   }
 }
+
+// Buffer source samples across AudioWorklet messages before resampling, so a
+// 44.1/48 kHz microphone does not lose fractional samples on every 128-frame block.
+export class PcmChunks {
+  constructor(rate, emit) {
+    this.rate = rate; this.emit = emit;
+    this.frame = new Float32Array(Math.round(rate / 10)); this.used = 0;
+  }
+  push(samples) {
+    let offset = 0;
+    while (offset < samples.length) {
+      const count = Math.min(samples.length - offset, this.frame.length - this.used);
+      this.frame.set(samples.subarray(offset, offset + count), this.used);
+      this.used += count; offset += count;
+      if (this.used === this.frame.length) this.flush();
+    }
+  }
+  flush() {
+    if (!this.used) return;
+    const pcm = encodeWav(this.frame.subarray(0, this.used), this.rate).subarray(44);
+    this.used = 0;
+    if (pcm.length) this.emit(pcm);
+  }
+}
+
+export class StreamingMicrophone extends Microphone {
+  async start(onChunk, onLimit) {
+    this.cancel();
+    const seq = this.sequence;
+    if (!navigator.mediaDevices?.getUserMedia) throw new Error('마이크를 사용할 수 없습니다.');
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }, video: false });
+    if (seq !== this.sequence) { stream.getTracks().forEach(t => t.stop()); return false; }
+    this.stream = stream;
+    try {
+      this.context = new AudioContext();
+      await this.context.resume();
+      if (seq !== this.sequence) return false;
+      await this.context.audioWorklet.addModule('/recorder.js');
+      if (seq !== this.sequence) return false;
+      this.pcm = new PcmChunks(this.context.sampleRate, onChunk);
+      const maximum = this.context.sampleRate * 10;
+      let received = 0, completed = false;
+      const complete = () => {
+        if (seq !== this.sequence || completed) return;
+        completed = true; onLimit();
+      };
+      this.node = new AudioWorkletNode(this.context, 'dori-recorder');
+      this.node.port.onmessage = ({ data }) => {
+        if (seq !== this.sequence || completed) return;
+        const usable = data.subarray(0, Math.max(0, maximum - received));
+        received += usable.length; this.pcm.push(usable);
+        if (received >= maximum) complete();
+      };
+      this.source = this.context.createMediaStreamSource(stream);
+      this.source.connect(this.node); this.node.connect(this.context.destination);
+      this.timer = setTimeout(complete, 10000);
+      return true;
+    } catch (error) {
+      if (seq === this.sequence) this.cancel();
+      throw error;
+    }
+  }
+  finish() { this.pcm?.flush(); this.cancel(); }
+  cancel() { super.cancel(); this.pcm = null; }
+}

@@ -250,12 +250,14 @@ class BridgeNode(Node):
                 return False
 
         # Reset LLM, BT and TTS; busy services fail closed and are retried.
-        results = await asyncio.gather(
+        resets = [
             call_ros_service(self.cli_llm_reset, "LLM"),
             call_ros_service(self.cli_bt_clear, "BT"),
             call_ros_service(self.cli_tts_reset, "TTS"),
-            call_ros_service(self.cli_stt_reset, "STT"),
-        )
+        ]
+        if getattr(self.voice, 'provider', 'whisper') != 'azure':
+            resets.append(call_ros_service(self.cli_stt_reset, "STT"))
+        results = await asyncio.gather(*resets)
 
         logger.info("[ROS] Session cleanup completed")
         # Never admit a new visitor before every cleanup barrier succeeds.
@@ -696,7 +698,8 @@ async def websocket_user(websocket: WebSocket):
         await session_manager.broadcast_display("state", {"status": "ACTIVE"})
         logger.info("Session Resumed from GRACE")
 
-    await websocket.send_json({"type": "robot_state", "status": "READY"})
+    await websocket.send_json({"type": "robot_state", "status": "READY",
+                               "stt_provider": getattr(ros_node.voice, 'provider', 'whisper')})
     try:
         while True:
             # 연결 생존 확인은 사용자 활동과 별개다. ASGI에는 프로토콜 ping이
@@ -747,6 +750,19 @@ async def websocket_user(websocket: WebSocket):
                     session_manager.last_activity = time.monotonic()
                 except ValueError as exc:
                     await websocket.send_json({"type": "error", "code": "audio_rejected", "message": str(exc)})
+            elif cmd_type == "stt_start":
+                try:
+                    ros_node.voice.start_stream(payload)
+                    session_manager.last_activity = time.monotonic()
+                except ValueError as exc:
+                    await websocket.send_json({"type": "stt_closed", "id": payload.get('id'), "reason": "rejected"})
+                    await websocket.send_json({"type": "error", "code": "audio_rejected", "message": str(exc)})
+            elif cmd_type == "stt_chunk":
+                ros_node.voice.stream_audio(payload)
+            elif cmd_type == "stt_end":
+                ros_node.voice.finish_stream(payload)
+            elif cmd_type == "stt_cancel":
+                ros_node.voice.cancel_stream(payload)
             elif cmd_type == "text":
                 try:
                     ros_node.voice.start_text(payload)
