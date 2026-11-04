@@ -8,7 +8,7 @@ DxlStatePublisherNode::DxlStatePublisherNode()
   next_motor_index_(0), request_in_flight_(false)
 {
   logical_motor3_dxl_id_ = declare_parameter("logical_motor3_dxl_id", 1);
-  logical_motor4_dxl_id_ = declare_parameter("logical_motor4_dxl_id", 2);
+  logical_motor4_dxl_id_ = declare_parameter("logical_motor4_dxl_id", -1);
   logical_motor5_dxl_id_ = declare_parameter("logical_motor5_dxl_id", 3);
   motor3_joint_name_ = declare_parameter("motor3_joint_name", "motor_3_joint");
   motor4_joint_name_ = declare_parameter("motor4_joint_name", "motor_4_joint");
@@ -44,8 +44,13 @@ void DxlStatePublisherNode::requestTimerCallback()
   if (!get_position_client_->service_is_ready()) { return; }
   const std::array<int, 3> ids = {
     logical_motor3_dxl_id_, logical_motor4_dxl_id_, logical_motor5_dxl_id_};
-  const int index = next_motor_index_;
-  next_motor_index_ = (next_motor_index_ + 1) % 3;
+  int index = -1;
+  for (int attempt = 0; attempt < 3; ++attempt) {
+    const int candidate = next_motor_index_;
+    next_motor_index_ = (next_motor_index_ + 1) % 3;
+    if (ids[candidate] > 0 && ids[candidate] < 253) { index = candidate; break; }
+  }
+  if (index < 0) { return; }
   active_index_ = index;
   auto request = std::make_shared<dynamixel_sdk_custom_interfaces::srv::GetPosition::Request>();
   request->id = ids[index];

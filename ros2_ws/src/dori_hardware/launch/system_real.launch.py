@@ -218,6 +218,14 @@ def generate_launch_description():
             # Supervisor
             # ========================================================
             Node(
+                package="dori_hardware",
+                executable="motor4_servo_node",
+                parameters=[PathJoinSubstitution(
+                    [FindPackageShare("dori_hardware"), "config", "motor4_servo.yaml"]
+                )],
+                output="screen",
+            ),
+            Node(
                 package="dori_supervisor",
                 executable="mode_manager_node",
                 parameters=[supervisor_params],

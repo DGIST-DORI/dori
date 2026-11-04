@@ -71,6 +71,7 @@ private:
 
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr bldc_joint_state_sub_;
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr dxl_joint_state_sub_;
+  rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr motor4_joint_state_sub_;
 
   rclcpp::Publisher<dori_msgs::msg::TransformStep>::SharedPtr step_cmd_pub_;
   rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr tf_status_pub_;

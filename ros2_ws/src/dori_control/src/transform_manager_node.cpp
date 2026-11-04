@@ -23,6 +23,7 @@ constexpr int TF_FAILED = 4;
 
 constexpr int MOTOR_TYPE_BLDC = 1;
 constexpr int MOTOR_TYPE_DXL = 2;
+constexpr int MOTOR_TYPE_CUBEMARS_SERVO = 3;
 
 constexpr int TRANSFORM_ACCEPTED = 200;
 constexpr int TRANSFORM_STARTED = 201;
@@ -51,7 +52,7 @@ TransformManagerNode::TransformManagerNode()
   current_step_index_(0),
   pose_ref_angle_deg_(0.0),
   pose_ref_seen_(false),
-  pose_detect_tolerance_deg_(5.0),
+  pose_detect_tolerance_deg_(1.0),
   default_step_timeout_sec_(5.0),
   initial_step_delay_sec_(0.5),
   motor1_joint_name_("left_wheel_joint"),
@@ -67,6 +68,9 @@ TransformManagerNode::TransformManagerNode()
   this->declare_parameter<double>("left_bldc_motor_per_mechanical", 2.0);
   this->declare_parameter<double>("right_bldc_motor_per_mechanical", 2.0);
   this->declare_parameter<double>("max_dxl_preparation_deg", 45.0);
+  // Output travel; keep legacy behavior until the replacement motor's
+  // protocol, A reference and direction have been measured/configured.
+  this->declare_parameter<double>("motor4_travel_deg", -540.0);
 
   // Mechanical pose references for motor4.
   // These allow the real A/B posture to differ from encoder 0/180 deg.
@@ -133,6 +137,9 @@ TransformManagerNode::TransformManagerNode()
 
   dxl_joint_state_sub_ = this->create_subscription<sensor_msgs::msg::JointState>(
     "/dxl_joint_states", 20,
+    std::bind(&TransformManagerNode::dxlJointStateCallback, this, std::placeholders::_1));
+  motor4_joint_state_sub_ = this->create_subscription<sensor_msgs::msg::JointState>(
+    "/motor4/joint_states", 20,
     std::bind(&TransformManagerNode::dxlJointStateCallback, this, std::placeholders::_1));
 
   step_cmd_pub_ =
@@ -212,8 +219,11 @@ int TransformManagerNode::getMotorTypeForMotor(int motor_id) const
     return MOTOR_TYPE_BLDC;
   }
 
-  if (motor_id == 3 || motor_id == 4) {
+  if (motor_id == 3) {
     return MOTOR_TYPE_DXL;
+  }
+  if (motor_id == 4) {
+    return MOTOR_TYPE_CUBEMARS_SERVO;
   }
 
   return 0;
@@ -460,14 +470,16 @@ void TransformManagerNode::buildFixedReferenceSequence()
     this->get_parameter("left_bldc_motor_per_mechanical").as_double(),
     this->get_parameter("right_bldc_motor_per_mechanical").as_double(), 1.0, 1.0};
   const auto plan = dori_control::makeTargetPlan(
-    reference, feedback, ratio, current_pose_ == POSE_B);
+    reference, feedback, ratio, current_pose_ == POSE_B,
+    this->get_parameter("motor4_travel_deg").as_double());
 
   // Reject inconsistent calibration before issuing any preparation command.
   const double a_pose = this->get_parameter("pose_a_reference_deg").as_double();
   const double b_pose = this->get_parameter("pose_b_reference_deg").as_double();
   if (std::abs(shortestWrappedErrorDeg(reference[3], a_pose, 360.0)) >
       pose_detect_tolerance_deg_ ||
-    std::abs(shortestWrappedErrorDeg(reference[3] - 540.0, b_pose, 360.0)) >
+    std::abs(shortestWrappedErrorDeg(reference[3] +
+      this->get_parameter("motor4_travel_deg").as_double() * ratio[3], b_pose, 360.0)) >
       pose_detect_tolerance_deg_)
   {
     throw std::invalid_argument("Motor4 A/B calibration disagrees with sequence endpoints");
@@ -476,11 +488,11 @@ void TransformManagerNode::buildFixedReferenceSequence()
     if (std::abs(plan.preparation[i] - feedback[i]) >
       this->get_parameter("max_dxl_preparation_deg").as_double())
     {
-      throw std::invalid_argument("DXL is too far from the preparation pose");
+      throw std::invalid_argument("Servo is too far from the preparation pose");
     }
   }
   for (int i = 0; i < 4; ++i) {
-    if (i >= 2 && std::abs(plan.preparation[i] * 4096.0 / 360.0) > 1048575) {
+    if (i == 2 && std::abs(plan.preparation[i] * 4096.0 / 360.0) > 1048575) {
       throw std::invalid_argument("DXL preparation exceeds extended position range");
     }
     sequence_.push_back({i + 1, getMotorTypeForMotor(i + 1),
@@ -488,7 +500,7 @@ void TransformManagerNode::buildFixedReferenceSequence()
   }
   for (const auto & step : plan.motion) {
     // Continuous signed targets preserve the requested direction through zero.
-    if (step.motor_id >= 3 && std::abs(step.angle_deg * 4096.0 / 360.0) > 1048575) {
+    if (step.motor_id == 3 && std::abs(step.angle_deg * 4096.0 / 360.0) > 1048575) {
       throw std::invalid_argument("DXL target exceeds extended position range");
     }
     sequence_.push_back({step.motor_id, getMotorTypeForMotor(step.motor_id),

@@ -76,10 +76,19 @@ int main()
       can_frame feedback{};feedback.can_id=id;feedback.can_dlc=8;
       feedback.data[0]=id;feedback.data[1]=0x7f;feedback.data[2]=0xff;
       feedback.data[3]=0x7f;feedback.data[4]=0xf7;feedback.data[5]=0xff;
-      feedback.data[6]=30;
+      feedback.data[6]=id==1?80:200;
       received.push_back(feedback);
     }
     hardware.read(rclcpp::Time(0),rclcpp::Duration::from_seconds(.01));
+    size_t temperatures=0;
+    for (auto & state:states) {
+      if (state.get_interface_name()=="temperature") {
+        const double expected=state.get_prefix_name()=="left_wheel_joint"?40.0:160.0;
+        require(state.get_value()==expected, "MIT temperature must subtract 40 without signed-byte wrapping");
+        ++temperatures;
+      }
+    }
+    require(temperatures==2, "Both wheel temperatures must be exported");
     for (auto & state:states) {if (state.get_interface_name()=="feedback_age") {require(std::isfinite(state.get_value()),"Injected feedback must initially be fresh");}}
     const std::vector<std::string> drive_interfaces = {
       "left_wheel_joint/velocity", "left_wheel_joint/effort",

@@ -88,6 +88,8 @@ install(DIRECTORY launch config
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
+
+  ament_add_gtest(test_transform_plan test/test_transform_plan.cpp)
   
   ament_add_gtest(test_wheel_speed_servo test/test_wheel_speed_servo.cpp)
   target_compile_features(test_wheel_speed_servo PUBLIC cxx_std_14)

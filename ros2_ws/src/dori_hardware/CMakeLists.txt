@@ -52,6 +52,7 @@ install(DIRECTORY launch config
 
 ament_python_install_package(${PROJECT_NAME})
 install(PROGRAMS
+  scripts/motor4_servo_node
   scripts/imu_node
   scripts/body_pitch_node
   scripts/body_stabilizer_node

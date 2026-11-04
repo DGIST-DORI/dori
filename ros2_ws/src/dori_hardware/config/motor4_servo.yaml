@@ -1,0 +1,16 @@
+motor4_servo_node:
+  ros__parameters:
+    # Verified from 150 extended 0x2904 feedback frames on 2026-11-04.
+    # A was stationary at 0.0 deg; no encoder-zero command was sent.
+    can_interface: can1
+    can_id: 4
+    pole_pairs: 14
+    gear_ratio: 36.0
+    # Preserve the original negative A->B direction, now only half a turn.
+    minimum_deg: -182.0
+    maximum_deg: 2.0
+    speed_deg_s: 10.0
+    acceleration_deg_s2: 20.0
+    feedback_timeout_sec: 0.25
+    command_timeout_sec: 0.35
+    read_only: false

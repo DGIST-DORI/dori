@@ -331,7 +331,7 @@ bool CubeMarsSystemHardware::parse_mit_feedback(
 
   hw_states_temperatures_[i] =
     static_cast<double>(
-      temp_raw);
+      temp_raw - 40);  // MIT: unsigned byte with +40 offset (AK manual V1.0.18 p.68).
 
 
   return true;

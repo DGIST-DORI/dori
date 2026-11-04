@@ -3,6 +3,7 @@
 #include <string>
 #include <unordered_map>
 #include <array>
+#include <limits>
 
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
@@ -10,6 +11,7 @@
 #include <std_msgs/msg/string.hpp>
 #include <std_msgs/msg/int32.hpp>
 #include <std_msgs/msg/bool.hpp>
+#include <std_msgs/msg/float64.hpp>
 
 #include "dori_msgs/msg/transform_step.hpp"
 #include "dori_msgs/msg/transform_step_result.hpp"
@@ -57,6 +59,11 @@ private:
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr emergency_pub_;
 
   void publishDxlPositionCmd(int motor_id, double target_deg);
+  void publishMotor4PositionCmd(double target_deg);
+  void publishMotor4Stop();
+  bool motor4_allowed_{false};
+  double motor4_hold_target_{std::numeric_limits<double>::quiet_NaN()};
+  rclcpp::Time last_motor4_command_;
 
   double getMotorAngleDeg(int motor_id) const;
   double getMotorVelocityRad(int motor_id) const;
@@ -69,6 +76,7 @@ private:
   rclcpp::Subscription<dori_msgs::msg::TransformStep>::SharedPtr step_cmd_sub_;
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr bldc_joint_state_sub_;
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr dxl_joint_state_sub_;
+  rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr motor4_joint_state_sub_;
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr transform_profile_sub_;
 
   rclcpp::Publisher<dori_msgs::msg::TransformStepResult>::SharedPtr step_result_pub_;
@@ -76,6 +84,8 @@ private:
   rclcpp::Publisher<dori_msgs::msg::MitCommand>::SharedPtr mit_speed_pub_;
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr dxl_position_pub_;
   rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr dxl_stop_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr motor4_position_pub_;
+  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr motor4_stop_pub_;
   rclcpp::Publisher<dori_msgs::msg::SystemError>::SharedPtr error_pub_;
 
   rclcpp::TimerBase::SharedPtr control_timer_;

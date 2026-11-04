@@ -44,8 +44,18 @@ inline TargetPlan makeTargetPlan(
   const std::array<double, 4> & a_reference,
   const std::array<double, 4> & feedback,
   const std::array<double, 4> & motor_per_mechanical,
-  bool from_b)
+  bool from_b,
+  double motor4_travel_deg = -540.0)
 {
+  // The original motor4 moved six -90-degree increments. Its replacement
+  // may require a different total travel without changing the other motors.
+  // This is output/mechanical travel, independent of the internal gearbox.
+  if (!std::isfinite(motor4_travel_deg) || motor4_travel_deg == 0.0) {
+    throw std::invalid_argument("Motor4 travel must be finite and nonzero");
+  }
+  const auto motion_angle = [motor4_travel_deg](const MotionStep & step) {
+      return step.motor_id == 4 ? step.angle_deg * motor4_travel_deg / -540.0 : step.angle_deg;
+    };
   auto reference = a_reference;
   for (double ratio : motor_per_mechanical) {
     if (!std::isfinite(ratio) || ratio <= 0) {
@@ -56,7 +66,7 @@ inline TargetPlan makeTargetPlan(
   if (from_b) {
     for (const auto & step : forwardSteps()) {
       reference[step.motor_id - 1] +=
-        step.angle_deg * motor_per_mechanical[step.motor_id - 1];
+        motion_angle(step) * motor_per_mechanical[step.motor_id - 1];
     }
   }
   TargetPlan plan;
@@ -69,7 +79,7 @@ inline TargetPlan makeTargetPlan(
   auto target = plan.preparation;
   const auto append = [&](const MotionStep & step, double direction) {
       auto i = step.motor_id - 1;
-      target[i] += direction * step.angle_deg * motor_per_mechanical[i];
+      target[i] += direction * motion_angle(step) * motor_per_mechanical[i];
       plan.motion.push_back({step.motor_id, target[i]});
     };
   if (from_b) {

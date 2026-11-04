@@ -6,7 +6,7 @@ dxl_bridge_node:
     # ============================================================
 
     logical_motor3_dxl_id: 1
-    logical_motor4_dxl_id: 2
+    logical_motor4_dxl_id: -1  # Replaced by CubeMars Servo CAN ID 4.
     logical_motor5_dxl_id: 3
 
     # ============================================================
@@ -27,7 +27,7 @@ dxl_state_publisher_node:
     # ============================================================
 
     logical_motor3_dxl_id: 1
-    logical_motor4_dxl_id: 2
+    logical_motor4_dxl_id: -1  # Do not poll or publish obsolete DXL motor4 feedback.
     logical_motor5_dxl_id: 3
 
     # ============================================================

@@ -6,7 +6,7 @@
 DxlBridgeNode::DxlBridgeNode()
 : Node("dxl_bridge_node"),
   logical_motor3_dxl_id_(1),
-  logical_motor4_dxl_id_(2),
+  logical_motor4_dxl_id_(-1),
   logical_motor5_dxl_id_(3),
   dxl_position_min_(0),
   dxl_position_max_(4095)

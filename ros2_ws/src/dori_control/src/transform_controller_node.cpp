@@ -11,6 +11,7 @@ namespace
 {
 constexpr int MOTOR_TYPE_BLDC = 1;
 constexpr int MOTOR_TYPE_DXL = 2;
+constexpr int MOTOR_TYPE_CUBEMARS_SERVO = 3;
 
 double radToDeg(double rad)
 {
@@ -80,7 +81,7 @@ TransformControllerNode::TransformControllerNode()
   bldc_posvel_kd_(0.15),
   bldc_posvel_max_vel_rad_s_(6.0),
   bldc_posvel_min_vel_rad_s_(0.0),
-  bldc_posvel_position_tolerance_deg_(3.0),
+  bldc_posvel_position_tolerance_deg_(1.0),
   bldc_posvel_velocity_tolerance_rad_s_(0.35),
   bldc_posvel_accel_limit_rad_s2_(3.0),
   bldc_posvel_jerk_limit_rad_s3_(20.0),
@@ -215,6 +216,12 @@ TransformControllerNode::TransformControllerNode()
   dxl_joint_state_sub_ = this->create_subscription<sensor_msgs::msg::JointState>(
     "/dxl_joint_states", 50,
     std::bind(&TransformControllerNode::dxlJointStateCallback, this, std::placeholders::_1));
+  motor4_joint_state_sub_ = this->create_subscription<sensor_msgs::msg::JointState>(
+    "/motor4/joint_states", 20,
+    std::bind(&TransformControllerNode::bldcJointStateCallback, this, std::placeholders::_1));
+  motor4_position_pub_ = create_publisher<std_msgs::msg::Float64>("/motor4/position_cmd", 1);
+  motor4_stop_pub_ = create_publisher<std_msgs::msg::Bool>("/motor4/stop", 1);
+  last_motor4_command_ = now();
 
   transform_profile_sub_ = this->create_subscription<std_msgs::msg::String>(
     "/transform/profile_cmd", 20,
@@ -231,6 +238,8 @@ TransformControllerNode::TransformControllerNode()
   emergency_pub_ = create_publisher<std_msgs::msg::Bool>("/emergency_stop", 10);
   action_sub_ = create_subscription<std_msgs::msg::Int32>("/system/action_state",
     rclcpp::QoS(1).transient_local(), [this](const std_msgs::msg::Int32::SharedPtr msg) {
+      motor4_allowed_ = msg->data == 2;
+      if (!motor4_allowed_) { publishMotor4Stop(); }
       if (!smooth_bldc_) { return; }
       smooth_inhibited_ = msg->data != 2;
       if (smooth_inhibited_) {
@@ -248,6 +257,7 @@ TransformControllerNode::TransformControllerNode()
   cancel_sub_ = create_subscription<std_msgs::msg::Bool>("/transform/cancel", 20,
     [this](const std_msgs::msg::Bool::SharedPtr msg) {
       if (!msg->data) { return; }
+      publishMotor4Stop();
       if (smooth_bldc_) { publishBldcStopCmd(); holding_.fill(false); }
       if (step_active_) { stopActiveMotor(); }
       if (smooth_bldc_) { publishBldcStopCmd(); }
@@ -264,6 +274,7 @@ TransformControllerNode::TransformControllerNode()
   pause_sub_ = create_subscription<std_msgs::msg::Bool>("/transform/pause", 20,
     [this](const std_msgs::msg::Bool::SharedPtr msg) {
       if (!msg->data || paused_) { return; }
+      publishMotor4Stop();
       paused_ = true;
       paused_at_ = now();
       settle_started_ = false;
@@ -286,6 +297,8 @@ TransformControllerNode::TransformControllerNode()
       }
       if (active_motor_type_ == MOTOR_TYPE_DXL) {
         publishDxlPositionCmd(active_motor_id_, target_angle_deg_);
+      } else if (active_motor_type_ == MOTOR_TYPE_CUBEMARS_SERVO) {
+        publishMotor4PositionCmd(target_angle_deg_);
       }
     });
 
@@ -656,6 +669,24 @@ void TransformControllerNode::publishDxlPositionCmd(int motor_id, double target_
   dxl_position_pub_->publish(msg);
 }
 
+void TransformControllerNode::publishMotor4PositionCmd(double target_deg)
+{
+  motor4_hold_target_ = target_deg;
+  last_motor4_command_ = now();
+  std_msgs::msg::Float64 msg;
+  msg.data = target_deg;
+  motor4_position_pub_->publish(msg);
+}
+
+void TransformControllerNode::publishMotor4Stop()
+{
+  if (!std::isfinite(motor4_hold_target_)) { return; }
+  motor4_hold_target_ = std::numeric_limits<double>::quiet_NaN();
+  std_msgs::msg::Bool msg;
+  msg.data = true;
+  motor4_stop_pub_->publish(msg);
+}
+
 double TransformControllerNode::getMotorAngleDeg(int motor_id) const
 {
   std::string joint_name;
@@ -723,8 +754,9 @@ void TransformControllerNode::stepCmdCallback(
 
   if (!std::isfinite(msg->target_angle_deg) || !std::isfinite(timeout_sec_) ||
     timeout_sec_ <= 0 || !feedbackFresh(active_motor_id_) ||
-    (active_motor_type_ == MOTOR_TYPE_BLDC && active_motor_id_ > 2) ||
-    (active_motor_type_ == MOTOR_TYPE_DXL && active_motor_id_ < 3))
+    !((active_motor_type_ == MOTOR_TYPE_BLDC && (active_motor_id_ == 1 || active_motor_id_ == 2)) ||
+      (active_motor_type_ == MOTOR_TYPE_DXL && active_motor_id_ == 3) ||
+      (active_motor_type_ == MOTOR_TYPE_CUBEMARS_SERVO && active_motor_id_ == 4)))
   {
     publishStepResult(false, false, "Invalid step or missing/stale feedback");
     return;
@@ -752,15 +784,21 @@ void TransformControllerNode::stepCmdCallback(
       target_angle_deg_,
       timeout_sec_);
 
-  } else if (active_motor_type_ == MOTOR_TYPE_DXL) {
+  } else if (active_motor_type_ == MOTOR_TYPE_DXL || active_motor_type_ == MOTOR_TYPE_CUBEMARS_SERVO) {
     active_bldc_posvel_ = false;
     target_angle_deg_ = msg->target_angle_deg;
 
-    if (!paused_) { publishDxlPositionCmd(active_motor_id_, target_angle_deg_); }
+    if (!paused_) {
+      if (active_motor_type_ == MOTOR_TYPE_CUBEMARS_SERVO) {
+        publishMotor4PositionCmd(target_angle_deg_);
+      } else {
+        publishDxlPositionCmd(active_motor_id_, target_angle_deg_);
+      }
+    }
 
     RCLCPP_INFO(
       this->get_logger(),
-      "DXL step command: motor=%d target_deg=%.3f timeout=%.2f",
+      "Servo step command: motor=%d target_deg=%.3f timeout=%.2f",
       active_motor_id_,
       target_angle_deg_,
       timeout_sec_);
@@ -794,6 +832,7 @@ bool TransformControllerNode::feedbackFresh(int motor_id) const
 
 void TransformControllerNode::stopActiveMotor()
 {
+  publishMotor4Stop();
   if (smooth_bldc_) { publishBldcStopCmd(); }
   if (active_motor_type_ == MOTOR_TYPE_BLDC) {
     publishBldcStopCmd();
@@ -826,6 +865,13 @@ void TransformControllerNode::dxlJointStateCallback(
 
 void TransformControllerNode::controlTimerCallback()
 {
+  // Continue holding motor4 while another motor executes its step. A lost
+  // controller stops this heartbeat and the hardware bridge stops motor4.
+  if (motor4_allowed_ && !paused_ && std::isfinite(motor4_hold_target_) &&
+    (now() - last_motor4_command_).seconds() >= 0.1) {
+    if (feedbackFresh(4)) { publishMotor4PositionCmd(motor4_hold_target_); }
+    else { publishMotor4Stop(); }
+  }
   if (!step_active_ || paused_ || (smooth_bldc_ && smooth_inhibited_)) {
     return;
   }
@@ -1032,7 +1078,7 @@ void TransformControllerNode::controlTimerCallback()
       }
     }
 
-  } else if (active_motor_type_ == MOTOR_TYPE_DXL) {
+  } else if (active_motor_type_ == MOTOR_TYPE_DXL || active_motor_type_ == MOTOR_TYPE_CUBEMARS_SERVO) {
     // Extended-position DXL goals are signed and continuous, not modulo 360/1080.
     error_deg = target_angle_deg_ - current_angle_deg_raw;
 
