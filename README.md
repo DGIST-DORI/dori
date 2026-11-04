@@ -266,21 +266,23 @@ export ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}"
 export PYTHONNOUSERSITE=1
 ```
 
-### Smartphone Visitor App + Dashboard
+### Default Bringup: Smartphone Visitor App + Dashboard
 
-After building and configuring the credentials above, start both apps from the
-repository root:
+After building, sourcing the environment, and configuring the credentials above,
+start the default bringup:
 
 ```bash
 # Shared secret for the dashboard and visitor gateway; keep it private.
 export DORI_INTERNAL_TOKEN="$(openssl rand -hex 32)"
-scripts/start_visitor.sh
+ros2 launch dori_bringup bringup.launch.py
 ```
 
-The launcher sets up the ROS environment, selects `visitor_mode:=true`, and
-uses Azure STT in the gateway with local microphone STT disabled. No additional
-visitor flags or build steps are needed. Stop any existing desktop/dashboard
-session before starting it.
+This is the standard entrypoint for both apps, LLM/TTS and the interaction tree.
+It defaults to desktop mode, `enable_dashboard:=true`, `visitor_mode:=true`, and
+Azure STT in the gateway. Local microphone STT is disabled automatically. The
+launch checks the SDK and F0 settings using the gateway's Python before starting
+the session. No separate app launcher or visitor flags are needed. Stop any
+existing desktop/dashboard session before starting it.
 
 Open `http://127.0.0.1:3001/display` on the robot screen and scan its QR code
 with the phone. The public app uses `https://app.dgist-dori.xyz` through the
@@ -288,12 +290,18 @@ configured tunnel to loopback port 3100; the dashboard uses port 3000. See
 [access and authentication](web/README.md#access-and-authentication) for dashboard
 authentication and tunnel setup.
 
-Building makes both apps available; the launch profile selects who owns voice
-input. The local robot profile below uses the robot microphone and has
-`visitor_mode:=false`, so smartphone pairing returns 503 ("voice service not
-ready") even if the dashboard is running. Use `scripts/start_visitor.sh` for
-phone conversations. This profile keeps visitor speech from triggering robot
-movement.
+Visitor mode keeps phone conversations from triggering robot movement. To use
+local Whisper for phone input, prepare its model once with
+`scripts/prepare_voice.sh --topic-only`, then run:
+
+```bash
+ros2 launch dori_bringup bringup.launch.py visitor_stt:=whisper
+```
+
+`visitor_stt` takes precedence over `DORI_VISITOR_STT`; if neither is set, Azure
+is selected. Whisper mode automatically enables topic STT and uses the prepared
+`.state/voice/whisper-small` model. `enable_stt` and `stt_audio_input_mode` default
+to `auto`, so switching profiles keeps the voice node and gateway consistent.
 
 ### Local Robot Microphone / Simulation Mode (without Actuators)
 
@@ -303,14 +311,18 @@ as above when starting the dashboard:
 
 ```bash
 # Local robot microphone HRI + Dashboard
-ros2 launch dori_bringup bringup_dev.launch.py
+ros2 launch dori_bringup bringup.launch.py visitor_mode:=false
 
-# Desktop HRI without Dashboard
-ros2 launch dori_bringup bringup_dev.launch.py enable_dashboard:=false
+# Local robot microphone HRI without Dashboard
+ros2 launch dori_bringup bringup.launch.py visitor_mode:=false enable_dashboard:=false
 
 # Dashboard Standalone
 ros2 launch dori_dashboard dashboard.launch.py
 ```
+
+`visitor_mode:=false` enables microphone STT automatically and disables phone
+pairing. A standalone dashboard also needs the voice/interaction nodes for
+phone pairing; use the default bringup for the complete app session.
 
 ### Physical Robot (Hardware Launch)
 
@@ -322,15 +334,19 @@ ros2 launch dori_bringup hardware.launch.py \
   named_goals_file:=$(pwd)/maps/web_goals.json
 ```
 
-Or using the standard bringup entrypoint:
+Or using the standard bringup entrypoint with local robot microphone input:
 
 ```bash
 ros2 launch dori_bringup bringup.launch.py \
   dori_mode:=real \
+  visitor_mode:=false \
   real_map:=$(pwd)/maps/live_navigation_20261023_1938.yaml \
   real_named_goals_file:=$(pwd)/maps/web_goals.json \
   enable_dashboard:=true
 ```
+
+Omit `visitor_mode:=false` to keep the default visitor app profile on the
+physical robot. Hardware still requires the map and device preparation above.
 
 ### Topic Namespace (Default vs Multi-Robot)
 

@@ -4,45 +4,39 @@ This directory contains the Vite/React frontend for the DORI dashboard.
 
 ## Build (Required before first launch)
 
-Build frontend assets before launching the dashboard.
+From the repository root, build both apps, their runtime dependencies and ROS
+packages together:
 
 ```bash
-cd web
-npm ci   # or: npm install
-npm run build
+scripts/build.sh
 ```
 
-Return to the repository root with `cd ..`, then build ROS and source the
-Humble/Python 3.10 environment following [AMM 20-10/20-12](../docs/user/DORI-AMM.md).
+Source the Humble/Python 3.10 environment with `source scripts/env.sh` or follow
+[AMM 20-10/20-12](../docs/user/DORI-AMM.md).
 The ROS workspace is `ros2_ws`; the installed dashboard must contain this fresh
 web build. For package migrations, follow the clean-overlay procedure in AMM 20-15.
 
 ## Launch
 
-The development launch below starts desktop HRI and the dashboard map backend,
-not physical navigation. The map backend starts automatically with the dashboard
+The default bringup starts the visitor app, Azure voice gateway, LLM/TTS,
+interaction tree, dashboard and map backend in desktop mode. The map backend starts automatically with the dashboard
 and restarts after an unexpected exit. It listens only on `127.0.0.1:8080`; it
 does not open the standalone user port or start hardware/Nav2. Without a running
 robot/map source, the panel connects in monitor mode and waits for data.
 For hardware + Nav2 + map viewer + HRI, use `dori_bringup hardware.launch.py`
 with the device preparation and arguments in AMM 40-10.
 
-Desktop dashboard options:
-
-- Desktop HRI + dashboard (default): `ros2 launch dori_bringup bringup_dev.launch.py`
-  - Equivalent explicit form: `ros2 launch dori_bringup bringup_dev.launch.py enable_dashboard:=true`
-- Desktop HRI without dashboard: `ros2 launch dori_bringup bringup_dev.launch.py enable_dashboard:=false`
-- Dashboard only (standalone): `ros2 launch dori_dashboard dashboard.launch.py`
+After configuring the Azure F0 settings and shared authentication below:
 
 ```bash
-# Desktop HRI + dashboard (default)
-ros2 launch dori_bringup bringup_dev.launch.py
+# Visitor app + dashboard (default; no local microphone or hardware)
+ros2 launch dori_bringup bringup.launch.py
 
-# Desktop HRI + dashboard (explicit)
-ros2 launch dori_bringup bringup_dev.launch.py enable_dashboard:=true
+# Explicit local robot microphone HRI + dashboard (requires local voice assets)
+ros2 launch dori_bringup bringup.launch.py visitor_mode:=false
 
-# Desktop HRI without dashboard
-ros2 launch dori_bringup bringup_dev.launch.py enable_dashboard:=false
+# Local robot microphone HRI without dashboard
+ros2 launch dori_bringup bringup.launch.py visitor_mode:=false enable_dashboard:=false
 ```
 
 If you need to run the dashboard standalone (without the desktop HRI stack):
@@ -347,29 +341,33 @@ build is required; `npm run test:visitor` tests its PCM/WAV encoder.
 `dori_dashboard`. The regular dashboard build and authentication are unchanged.
 The existing `control` role and the `operator` alias both permit operator actions.
 
-Use the visitor profile for the first release. It deliberately disables BT
+The default bringup selects the visitor profile. It disables BT
 wake-triggered following, local STT intents, gestures and automatic patrols;
 visitor utterances cannot dispatch navigation. For a desktop session:
 
 ```bash
 # Build both apps and ROS packages; configure the private F0 settings below once.
 scripts/build.sh
-# Stop any existing bringup_dev session first, then:
-scripts/start_visitor.sh
+source scripts/env.sh
+# Stop any existing desktop/dashboard session first, then:
+export DORI_INTERNAL_TOKEN="$(openssl rand -hex 32)"
+ros2 launch dori_bringup bringup.launch.py
 ```
 
-`start_visitor.sh` now defaults to `DORI_VISITOR_STT=azure`, selects
-`visitor_mode:=true` and disables the local Whisper STT node (`enable_stt:=false`).
-Azure recognition runs in the visitor gateway. The launcher checks the SDK and
-local F0 settings before starting ROS. Build the updated `dori_dashboard` package
-using the repository's build workflow; building the frontend alone is insufficient.
-The development launch keeps
-its original defaults (visitor mode off, robot microphone input); simply enabling
-the dashboard does not select the visitor profile.
+`bringup.launch.py` defaults to `visitor_mode:=true`, `enable_dashboard:=true`
+and Azure STT. It sets `DORI_VISITOR_STT` for the gateway and automatically
+disables the local Whisper STT node. Azure recognition runs in the gateway;
+the launch checks the SDK and local F0 settings with the same Python environment
+before starting the session. `visitor_mode:=false` explicitly selects robot
+microphone input and disables visitor pairing. There is one standard bringup
+entrypoint for the app and dashboard.
 
 To explicitly use the previous local provider, first run
 `scripts/prepare_voice.sh --topic-only`, then
-`DORI_VISITOR_STT=whisper scripts/start_visitor.sh`. There is no automatic cloud
+`ros2 launch dori_bringup bringup.launch.py visitor_stt:=whisper`. This enables
+topic STT and selects `.state/voice/whisper-small` automatically. The
+`visitor_stt` argument overrides `DORI_VISITOR_STT`; Azure is the default when
+neither is set. There is no automatic cloud
 retry, paid-tier upgrade or fallback to another recognition provider.
 
 The normal dashboard authentication variables, a random `DORI_INTERNAL_TOKEN`

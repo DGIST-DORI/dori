@@ -50,6 +50,7 @@ def test_launch_injects_same_secret_and_rejects_missing_or_short_one(monkeypatch
         env = {perform_substitutions(context, key): perform_substitutions(context, value)
                for key, value in action.process_description.additional_env}
         assert env['DORI_INTERNAL_TOKEN'] == 'test-only-internal-secret-at-least-32'
+        assert env['DORI_WS'] == str(ROOT)
 
 
 def test_tunnel_only_exposes_dashboard_and_rosbridge_binds_loopback(monkeypatch, tmp_path):

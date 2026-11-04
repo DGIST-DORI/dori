@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
+from unittest.mock import patch
 
 import pytest
 from ament_index_python.packages import get_package_prefix, get_package_share_directory
@@ -26,6 +27,7 @@ from launch.actions import (
     OpaqueFunction,
     RegisterEventHandler,
     SetLaunchConfiguration,
+    SetEnvironmentVariable,
 )
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.utilities import normalize_to_list_of_substitutions, perform_substitutions
@@ -240,6 +242,7 @@ def inspect_launch(package, filename, overrides):
                 (
                     DeclareLaunchArgument,
                     SetLaunchConfiguration,
+                    SetEnvironmentVariable,
                     IncludeLaunchDescription,
                     OpaqueFunction,
                 ),
@@ -252,13 +255,22 @@ def inspect_launch(package, filename, overrides):
                 raise AssertionError(f"Unreviewed launch action: {type(action)}")
 
     path = Path(get_package_share_directory(package)) / "launch" / filename
-    expand([PythonLaunchDescriptionSource(str(path)).get_launch_description(context)])
+    # SetEnvironmentVariable mutates os.environ on Humble; introspection must
+    # not change the provider seen by later tests or launch descriptions.
+    with patch.dict(os.environ):
+        expand([PythonLaunchDescriptionSource(str(path)).get_launch_description(context)])
     return nodes
 
 
 @pytest.fixture
 def no_process_launch(monkeypatch, tmp_path):
     monkeypatch.setenv("DORI_INTERNAL_TOKEN", "test-only-internal-secret-32-characters")
+    # Launch preflight validates SDK/config only; it never contacts Azure.
+    monkeypatch.delenv("DORI_VISITOR_STT", raising=False)
+    monkeypatch.setenv("AZURE_SPEECH_KEY", "test-only-not-a-service-key")
+    monkeypatch.setenv("AZURE_SPEECH_REGION", "koreacentral")
+    monkeypatch.setenv("AZURE_SPEECH_TIER", "F0")
+    monkeypatch.setenv("DORI_AZURE_ENV_FILE", str(tmp_path / "absent.env"))
     def forbidden(*args, **kwargs):
         raise AssertionError("A launch test attempted to execute a process")
 
@@ -277,7 +289,7 @@ def no_process_launch(monkeypatch, tmp_path):
         ("dori_mapping", "lidar_odometry.launch.py", {}),
         ("dori_mapping", "lidar_only_cartographer.launch.py", {}),
         ("dori_navigation", "real_nav2.launch.py", {}),
-        ("dori_bringup", "bringup_dev.launch.py", {}),
+        ("dori_bringup", "bringup.launch.py", {}),
     ],
 )
 def test_installed_launch_paths(no_process_launch, package, filename, options):
@@ -287,6 +299,17 @@ def test_installed_launch_paths(no_process_launch, package, filename, options):
         {"map": str(ROOT / "maps/live_navigation_20261023_1938.yaml"), **options},
     )
     assert nodes
+
+
+def test_default_bringup_is_visitor_ready_without_robot_microphone(no_process_launch):
+    nodes = inspect_launch("dori_bringup", "bringup.launch.py", {})
+    executables = {exe for _, exe, _ in nodes}
+    assert {"llm_node", "tts_node", "dori_tree_executor", "rosbridge_websocket"} <= executables
+    assert not {"stt_node", "ros2_control_node", "nav2_adapter"} & executables
+    bt_params = next(params for _, exe, params in nodes if exe == "dori_tree_executor")
+    assert any(params.get("visitor_mode") is True for params in bt_params)
+    retired = Path(get_package_share_directory("dori_bringup")) / "launch/bringup_dev.launch.py"
+    assert not retired.exists() and not retired.is_symlink()
 
 
 def test_full_robot_resolves_and_excludes_inherited_virtual_inputs(no_process_launch):

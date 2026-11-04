@@ -97,6 +97,7 @@ def _make_server_actions(context, *args, **kwargs):
     dashboard_url = LaunchConfiguration("dashboard_url").perform(context)
 
     additional_env = {"DORI_INTERNAL_TOKEN": internal_token,
+                      "DORI_WS": repo_root,
                       "DORI_VISITOR_WEB_DIR": os.path.join(pkg_dir, "visitor_web")}
     if dashboard_url:
         additional_env["DORI_DASHBOARD_URL"] = dashboard_url

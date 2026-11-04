@@ -12,6 +12,8 @@ find_package(ament_cmake REQUIRED)
 # find_package(<dependency> REQUIRED)
 
 # Install launch files
+# Remove the retired entrypoint from existing overlays on incremental builds.
+install(CODE "file(REMOVE \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}/launch/bringup_dev.launch.py\")")
 install(DIRECTORY
   launch
   DESTINATION share/${PROJECT_NAME}/
