@@ -137,6 +137,7 @@ def setup(context):
                     for k in (
                         "namespace",
                         "require_user_tracking",
+                        "visitor_mode",
                         "require_mic_return",
                         "tree_xml_file",
                     )
@@ -181,6 +182,7 @@ def setup(context):
 def generate_launch_description():
     defaults = dict(
         namespace="/dori",
+        visitor_mode="false",
         named_goals_file="",
         use_joystick="false",
         rviz="false",

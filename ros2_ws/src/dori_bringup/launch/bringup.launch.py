@@ -34,6 +34,8 @@ def setup(context):
                         k: value(k)
                         for k in (
                             "namespace",
+                            "visitor_mode",
+                            "stt_audio_input_mode",
                             "enable_stt",
                             "enable_dashboard",
                             "enable_perception",
@@ -54,13 +56,14 @@ def setup(context):
                 k: value(k)
                 for k in (
                     "namespace",
+                    "stt_audio_input_mode",
                     "enable_stt",
                     "tts_playback_mode",
                     "whisper_model",
                 )
             },
         ),
-        include("interaction.launch.py", {"namespace": value("namespace")}),
+        include("interaction.launch.py", {"namespace": value("namespace"), "visitor_mode": value("visitor_mode")}),
     ]
     if value("enable_perception") == "true":
         actions.append(
@@ -81,6 +84,8 @@ def generate_launch_description():
     defaults = dict(
         dori_mode="desktop",
         namespace="/dori",
+        visitor_mode="false",
+        stt_audio_input_mode="microphone",
         real_map="",
         real_named_goals_file="",
         real_use_joystick="false",

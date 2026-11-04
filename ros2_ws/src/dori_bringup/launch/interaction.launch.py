@@ -9,6 +9,7 @@ from launch_ros.actions import Node
 def generate_launch_description():
     defaults = dict(
         namespace="/dori",
+        visitor_mode="false",
         tree_xml_file="",
         require_user_tracking="false",
         require_mic_return="false",

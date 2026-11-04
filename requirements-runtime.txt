@@ -15,3 +15,6 @@ sounddevice>=0.4.6,<1
 soundfile>=0.12,<1
 pytest>=9.0.3
 pyserial==3.5
+
+# Local robot display QR generation (no external QR service).
+qrcode>=7.4,<9

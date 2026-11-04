@@ -23,6 +23,7 @@ Publish topics:
 """
 
 import os
+import base64
 import queue
 import tempfile
 import threading
@@ -40,6 +41,7 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 
 from std_msgs.msg import Bool, String
+from std_srvs.srv import Trigger
 
 from dori_msgs.action import Speak
 
@@ -155,6 +157,19 @@ class TTSNode(Node):
             callback_group=self.callback_group,
         )
 
+        # A separate action keeps local/legacy playback behavior unchanged.
+        self._remote_results = {}
+        self._remote_cancel = False
+        self.create_service(Trigger, "tts/remote_reset", self._remote_reset,
+                            callback_group=self.callback_group)
+        self.create_subscription(String, "tts/remote_playback", self._on_remote_playback, 10,
+                                 callback_group=self.callback_group)
+        self._remote_server = ActionServer(
+            self, Speak, "tts/speak_remote",
+            execute_callback=lambda handle: self.execute_callback(handle, remote=True),
+            goal_callback=self.remote_goal_callback, cancel_callback=self.cancel_callback,
+            callback_group=self.callback_group,
+        )
         self._init_engine()
 
         # Separate SFX worker
@@ -196,7 +211,58 @@ class TTSNode(Node):
         self.get_logger().warn("Goal cancel requested!")
         return CancelResponse.ACCEPT
 
-    def execute_callback(self, goal_handle):
+    def remote_goal_callback(self, request):
+        with self._speech_lock:
+            if self._busy or not 0 < len(request.text.strip()) <= 4000:
+                return GoalResponse.REJECT
+            self._remote_cancel = False
+            self._busy = True
+        return GoalResponse.ACCEPT
+
+    def _remote_reset(self, request, response):
+        with self._speech_lock:
+            self._remote_cancel = True
+            response.success = not self._busy
+            response.message = "Playback draining" if self._busy else "Playback idle"
+        return response
+
+    def _on_remote_playback(self, msg):
+        try:
+            data = json.loads(msg.data)
+            with self._speech_lock:
+                if data.get("id") in self._remote_results and data.get("status") in ("ended", "failed", "canceled"):
+                    self._remote_results[data["id"]] = data["status"]
+        except (ValueError, TypeError):
+            pass
+
+    def _play_remote(self, goal_handle, path):
+        audio_id = bytes(goal_handle.goal_id.uuid).hex()
+        audio = Path(path).read_bytes()
+        if not audio or len(audio) > 4 * 1024 * 1024:
+            raise RuntimeError("Synthesized audio exceeds limit")
+        with self._speech_lock:
+            self._remote_results[audio_id] = None
+        try:
+            self._publish_audio_event("remote_audio", {
+                "id": audio_id, "audio_b64": base64.b64encode(audio).decode(),
+            })
+            deadline = time.monotonic() + 90
+            while rclpy.ok() and time.monotonic() < deadline:
+                if goal_handle.is_cancel_requested or self._remote_cancel:
+                    return False
+                with self._speech_lock:
+                    status = self._remote_results[audio_id]
+                if status is not None:
+                    if status != "ended":
+                        raise RuntimeError("Phone playback failed or canceled")
+                    return True
+                time.sleep(0.05)
+            raise RuntimeError("Phone playback timed out")
+        finally:
+            with self._speech_lock:
+                self._remote_results.pop(audio_id, None)
+
+    def execute_callback(self, goal_handle, remote=False):
         text = goal_handle.request.text
         result = Speak.Result()
         feedback = Speak.Feedback()
@@ -210,31 +276,39 @@ class TTSNode(Node):
         goal_handle.publish_feedback(feedback)
 
         try:
-            if goal_handle.is_cancel_requested:
-                goal_handle.canceled()
+            if goal_handle.is_cancel_requested or (remote and self._remote_cancel):
+                goal_handle.canceled() if goal_handle.is_cancel_requested else goal_handle.abort()
                 result.success = False
                 result.message = "Canceled before synthesis"
                 self._finish_speaking(success=False, text=text)
                 return result
             # 1. 텍스트 합성 (파일 경로만 반환받음)
-            if self.playback_mode == "publish_only":
+            if self.playback_mode == "publish_only" and not remote:
                 used_engine = "browser"
             elif self.gcp_client:
                 audio_file_path, used_engine = self._speak_with_waterfall(text)
             else:
                 audio_file_path = self._synthesize_gtts(text)
 
-            if goal_handle.is_cancel_requested:
-                goal_handle.canceled()
+            if goal_handle.is_cancel_requested or (remote and self._remote_cancel):
+                goal_handle.canceled() if goal_handle.is_cancel_requested else goal_handle.abort()
                 result.success = False
                 result.message = "Canceled during synthesis"
                 self._cleanup_temp_file(audio_file_path)
                 self._finish_speaking(success=False, text=text)
                 return result
-            self._publish_audio_event("tts_text", {"text": text, "engine": used_engine})
+            if not remote:
+                self._publish_audio_event("tts_text", {"text": text, "engine": used_engine})
+            if remote and not self._play_remote(goal_handle, audio_file_path):
+                goal_handle.canceled() if goal_handle.is_cancel_requested else goal_handle.abort()
+                result.success = False
+                result.message = "Canceled during phone playback"
+                self._cleanup_temp_file(audio_file_path)
+                self._finish_speaking(success=False, text=text)
+                return result
 
             # 2. 재생 처리 (취소 가능하도록 subprocess 적용)
-            if self.playback_mode != "publish_only" and audio_file_path:
+            if not remote and self.playback_mode != "publish_only" and audio_file_path:
                 feedback.status = "Playing audio..."
                 goal_handle.publish_feedback(feedback)
 

@@ -411,7 +411,12 @@ class LLMNode(Node):
 
     def _on_reset_history(self, request, response):
         try:
-            self.conversation_history.clear()
+            with self._busy_lock:
+                if self._busy:
+                    response.success = False
+                    response.message = "Generation is still draining"
+                    return response
+                self.conversation_history.clear()
             response.success = True
             response.message = "Conversation history cleared."
             self.get_logger().info("Conversation history cleared due to session reset.")

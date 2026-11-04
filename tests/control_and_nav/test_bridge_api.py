@@ -62,7 +62,10 @@ class BridgeAPITests(unittest.IsolatedAsyncioTestCase):
         self.manager = bridge.SessionManager()
         self.ros = SimpleNamespace(
             trigger_pairing_success=Mock(),
+            prepare_visitor=AsyncMock(return_value=True),
             request_stop=Mock(),
+            cancel_visitor=Mock(),
+            voice=SimpleNamespace(start=Mock(), playback=Mock(), media={}),
             execute_cleanup=AsyncMock(return_value=True),
         )
         self.clock = Mock(return_value=100.0)
@@ -93,6 +96,9 @@ class BridgeAPITests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             (await connection.outgoing.get())["type"], "websocket.accept"
         )
+        # Every connection receives an initial snapshot.
+        snapshot = await connection.outgoing.get()
+        self.assertIn('READY', snapshot['text'])
         return connection
 
     async def test_invalid_json_shapes_and_binary_keep_session_active(self):
@@ -114,13 +120,13 @@ class BridgeAPITests(unittest.IsolatedAsyncioTestCase):
                 self.assertIs(self.manager.active_ws, connection.websocket)
                 self.assertEqual(self.manager.last_activity, 100.0)
                 self.assertIsNone(self.manager.grace_task)
-        self.ros.request_stop.assert_not_called()
+        self.ros.cancel_visitor.assert_not_called()
         await connection.feed({
             "type": "websocket.receive",
             "text": '{"type": "command", "action": "STOP"}',
         })
-        self.ros.request_stop.assert_called_once()
-        self.ros.request_stop.assert_called_once_with()
+        self.ros.cancel_visitor.assert_called_once()
+        self.ros.cancel_visitor.assert_called_once_with()
         self.assertEqual(self.manager.last_activity, 110.0)
 
     async def test_idle_watcher_expires_without_incoming_messages(self):
@@ -234,10 +240,10 @@ class BridgeAPITests(unittest.IsolatedAsyncioTestCase):
             {"bytes": b"x" * (bridge.MAX_WS_MSG_SIZE + 1)},
         ):
             await connection.feed({"type": "websocket.receive", **frame})
-        self.ros.request_stop.assert_not_called()
+        self.ros.cancel_visitor.assert_not_called()
         self.assertEqual(self.manager.last_activity, 100.0)
         await connection.feed({"type": "websocket.receive", "text": at_limit})
-        self.ros.request_stop.assert_called_once()
+        self.ros.cancel_visitor.assert_called_once()
         self.assertEqual(self.manager.state, bridge.SessionState.ACTIVE)
 
     async def test_public_server_config_limits_messages_at_transport(self):

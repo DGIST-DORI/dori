@@ -17,8 +17,6 @@ def collect_web_data_files():
     publishes it via share/dori_dashboard/web_current for public traffic.
     """
     web_dist_dir = repo_root / "web" / "dist"
-    if not web_dist_dir.exists():
-        return []
 
     collected = []
     for src_path in sorted(p for p in web_dist_dir.rglob("*") if p.is_file()):
@@ -30,6 +28,10 @@ def collect_web_data_files():
             relative_src = Path(os.path.relpath(src_path, setup_dir))
         collected.append((str(install_dir), [str(relative_src)]))
 
+    visitor_dir = repo_root / "web" / "dist-visitor"
+    for src in sorted(p for p in visitor_dir.rglob("*") if p.is_file()):
+        dest = Path("share") / package_name / "visitor_web" / src.parent.relative_to(visitor_dir)
+        collected.append((str(dest), [os.path.relpath(src, setup_dir)]))
     return collected
 
 
@@ -43,12 +45,13 @@ setup(
         (os.path.join("share", package_name, "launch"), glob("launch/*.py")),
         (
             os.path.join("share", package_name, "scripts"),
-            glob("dori_dashboard/*.py"),
+            glob("dori_dashboard/*.py") + glob("dori_dashboard/*.html"),
         ),
     ]
     + collect_web_data_files(),
+    package_data={"dori_dashboard": ["*.html"]},
     install_requires=[
-        "setuptools", "fastapi", "uvicorn", "python-multipart",
+        "qrcode>=7.4,<9", "setuptools", "fastapi", "uvicorn", "python-multipart",
         "httpx>=0.27,<1", "websockets>=12,<16", "PyJWT[crypto]>=2.10.1,<3",
     ],
     zip_safe=True,

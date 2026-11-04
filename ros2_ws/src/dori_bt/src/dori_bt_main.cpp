@@ -78,6 +78,7 @@ class Navigate : public dori_bt::RosAction<dori_msgs::action::NavigateNamed> {
 class DoriTreeExecutor : public rclcpp::Node {
   public:
     DoriTreeExecutor() : Node("dori_tree_executor") {
+        visitor_mode_ = declare_parameter("visitor_mode", false);
         auto xml = declare_parameter<std::string>("tree_xml_file", "");
         tracking_required_ = declare_parameter("require_user_tracking", false);
         mic_required_ = declare_parameter("require_mic_return", false);
@@ -156,6 +157,7 @@ class DoriTreeExecutor : public rclcpp::Node {
         tree_ = factory.createTreeFromFile(xml, bb_);
         stt_ = create_subscription<String>(
             "stt/result", 10, [this](String::SharedPtr msg) {
+                if (visitor_mode_) return;
                 try {
                     auto data = Json::parse(msg->data);
                     auto text = data.value("text", std::string{});
@@ -199,6 +201,7 @@ class DoriTreeExecutor : public rclcpp::Node {
             });
         gesture_ = create_subscription<String>(
             "hri/gesture_command", 10, [this](String::SharedPtr m) {
+                if (visitor_mode_) return;
                 try {
                     auto j = Json::parse(m->data);
                     auto command = j.value("command", std::string{});
@@ -218,6 +221,7 @@ class DoriTreeExecutor : public rclcpp::Node {
             });
         expression_ = create_subscription<String>(
             "hri/expression_command", 10, [this](String::SharedPtr m) {
+                if (visitor_mode_) return;
                 try {
                     auto j = Json::parse(m->data);
                     auto command = j.value("command", std::string{});
@@ -226,7 +230,7 @@ class DoriTreeExecutor : public rclcpp::Node {
                          mode_ == "GUIDING")) {
                         std::string answer;
                         if (!bb_->get("answer", answer)) {
-                            return BT::NodeStatus::FAILURE;
+                            return;
                         }
                         say(answer.empty() ? "어떤 내용을 다시 설명해드릴까요?"
                                            : answer);
@@ -244,6 +248,7 @@ class DoriTreeExecutor : public rclcpp::Node {
             });
         mic_ = create_subscription<Bool>(
             "hri/mic_attached", 10, [this](Bool::SharedPtr m) {
+                if (visitor_mode_) return;
                 bool detached = mic_attached_ && !m->data;
                 mic_attached_ = m->data;
                 if (detached) {
@@ -288,10 +293,17 @@ class DoriTreeExecutor : public rclcpp::Node {
             [this](const std::shared_ptr<std_srvs::srv::Trigger::Request>,
                    std::shared_ptr<std_srvs::srv::Trigger::Response> res) {
                 interrupt(
-                    "CANCELED",
+                    "IDLE",
                     false); // nav·TTS 취소, 정지, follow 해제, pending 비움
                 res->success = true;
                 res->message = "session cleared";
+            });
+        visitor_ready_srv_ = create_service<std_srvs::srv::Trigger>(
+            "bt/visitor_ready",
+            [this](const std::shared_ptr<std_srvs::srv::Trigger::Request>,
+                   std::shared_ptr<std_srvs::srv::Trigger::Response> res) {
+                res->success = visitor_mode_;
+                res->message = visitor_mode_ ? "Visitor voice-only mode" : "Visitor mode disabled";
             });
         timer_ = create_wall_timer(100ms, [this] { tick(); });
         set_mode("IDLE");
@@ -302,7 +314,10 @@ class DoriTreeExecutor : public rclcpp::Node {
     }
 
   private:
+    bool visitor_mode_ = false;
+    rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr visitor_ready_srv_;
     void wake() {
+        if (visitor_mode_) { set_mode("LISTENING"); return; }
         if (std::chrono::duration<double>(Clock::now() - wake_time_).count() <
             1.5)
             return;
@@ -384,6 +399,7 @@ class DoriTreeExecutor : public rclcpp::Node {
     }
     void tick() {
         publish_state();
+        if (visitor_mode_) return;
         double elapsed =
             std::chrono::duration<double>(Clock::now() - changed_).count();
         if (mode_ == "GUIDING") {

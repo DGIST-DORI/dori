@@ -8,7 +8,9 @@
     "build": "vite build",
     "lint": "eslint .",
     "test": "node --test 'src/**/*.test.js'",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:visitor": "vite build --config vite.visitor.config.js",
+    "test:visitor": "node --test visitor/*.test.js"
   },
   "dependencies": {
     "lucide-react": "^0.577.0",

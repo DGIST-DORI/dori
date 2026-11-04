@@ -12,6 +12,10 @@ import os
 import secrets
 import threading
 import time
+from urllib.parse import urlsplit
+from pathlib import Path
+from collections import deque
+from io import BytesIO
 from enum import Enum
 from typing import Dict, Optional, Set
 
@@ -33,14 +37,17 @@ from fastapi import (
     Response,
     Cookie,
 )
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 try:
+    from .visitor_voice import VisitorVoice, ros_future
     from .control_contract import CONTROL_MODES, MOVE_TIMEOUT, validate_control
     from .internal_auth import internal_token, require_internal_token
 except ImportError:  # installed scripts are also executable directly
+    from visitor_voice import VisitorVoice, ros_future
     from control_contract import CONTROL_MODES, MOVE_TIMEOUT, validate_control
     from internal_auth import internal_token, require_internal_token
 
@@ -52,12 +59,16 @@ NONCE_TTL = 30  # QR 갱신 주기 (초)
 NONCE_GRACE = 5  # 스캔 지연 오차 허용 (초)
 GRACE_TIMEOUT = 90  # WS 끊김 후 재연결 유예 시간 (초)
 SESSION_MAX_TIME = 900  # 최대 세션 시간 (15분)
-MAX_WS_MSG_SIZE = 1024 * 50
+MAX_WS_MSG_SIZE = 450000
 
 _DEV_MODE = os.environ.get("DORI_DEV_MODE", "").strip().lower() in ("1", "true", "yes")
 PUBLIC_HOST = "0.0.0.0" if _DEV_MODE else "127.0.0.1"
 
-ALLOWED_ORIGINS = ["https://app.dgist-dori.xyz"]
+APP_ORIGIN = os.environ.get("DORI_VISITOR_ORIGIN", "https://app.dgist-dori.xyz").rstrip("/")
+_origin = urlsplit(APP_ORIGIN)
+if _origin.scheme != "https" or not _origin.netloc or _origin.path or _origin.query or _origin.fragment or _origin.username:
+    raise RuntimeError("DORI_VISITOR_ORIGIN must be an HTTPS origin")
+ALLOWED_ORIGINS = [APP_ORIGIN]
 if _DEV_MODE:
     ALLOWED_ORIGINS.append("http://localhost:3100")
 
@@ -75,7 +86,7 @@ class SessionState(Enum):
 
 
 class PairRequest(BaseModel):
-    nonce: str
+    nonce: str = Field(min_length=1, max_length=64)
     consent: bool
 
 
@@ -86,27 +97,31 @@ ros_node: Optional["BridgeNode"] = None
 
 class BridgeNode(Node):
     def __init__(self):
-        super().__init__("bridge_api_node", namespace="/dori")
+        super().__init__("bridge_api_node")
         # 하향(ROS -> WS) Subscriptions
-        self.create_subscription(String, "llm/response", self.llm_callback, 10)
+        self.voice = VisitorVoice(self, session_manager)
 
         # 상향(WS -> ROS) & 제어용 Publishers
         self.pub_wake = self.create_publisher(Bool, "stt/wake_word_detected", 10)
         self.pub_chime = self.create_publisher(String, "hri/audio_cue", 10)
-        self.pub_manual = self.create_publisher(Twist, "/manual/cmd_vel", 10)
-        self.pub_stop = self.create_publisher(Bool, "/emergency_stop", 10)
-        self.pub_mode = self.create_publisher(Int32, "/control_mode_cmd", 10)
+        self.pub_manual = self.create_publisher(Twist, "manual/cmd_vel", 10)
+        self.pub_stop = self.create_publisher(Bool, "emergency_stop", 10)
+        self.pub_mode = self.create_publisher(Int32, "control_mode_cmd", 10)
         self._control_lock = threading.RLock()
         self._move_deadline = 0.0
         self._move_command = None
         self._mode = None
         self._action_state = None
         latch = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
-        self.create_subscription(Int32, "/system/control_mode", self._on_mode, latch)
-        self.create_subscription(Int32, "/system/action_state", self._on_state, latch)
+        self.create_subscription(Int32, "system/control_mode", self._on_mode, latch)
+        self.create_subscription(Int32, "system/action_state", self._on_state, latch)
         self.create_timer(0.05, self._control_tick)
         self.pub_cancel = self.create_publisher(Bool, "hri/cancel", 10)
 
+        self.pub_nav_idle = self.create_publisher(Int32, "NAVIGATION_MODE", 10)
+        self.cli_visitor_ready = self.create_client(Trigger, "bt/visitor_ready")
+        self.cli_stt_reset = self.create_client(Trigger, "stt/reset")
+        self.cli_tts_reset = self.create_client(Trigger, "tts/remote_reset")
         self.cli_llm_reset = self.create_client(Trigger, "llm/reset")
         self.cli_bt_clear = self.create_client(Trigger, "bt/clear_session")
 
@@ -144,7 +159,7 @@ class BridgeNode(Node):
                     raise HTTPException(409, "Manual mode and idle/drive supervisor state required")
                 if not self.pub_manual.get_subscription_count() or not self.pub_stop.get_subscription_count():
                     raise HTTPException(503, "Supervisor is unavailable")
-                if self.count_publishers("/manual/cmd_vel") > 1:
+                if self.count_publishers("manual/cmd_vel") > 1:
                     raise HTTPException(409, "Another manual input publisher is active")
                 cmd = Twist()
                 cmd.linear.x = params["linear_x"]
@@ -161,26 +176,26 @@ class BridgeNode(Node):
             if self._move_command is None:
                 return
             if (time.monotonic() >= self._move_deadline
-                    or self.count_publishers("/manual/cmd_vel") > 1
+                    or self.count_publishers("manual/cmd_vel") > 1
                     or not self.pub_manual.get_subscription_count()):
                 self.request_stop()
                 return
             self.pub_manual.publish(self._move_command)
 
-    def llm_callback(self, msg):
+    def cancel_visitor(self):
+        self.voice.cancel()
+        self.pub_cancel.publish(Bool(data=True))
+        # IDLE does not clear the supervisor's latched emergency stop.
+        self.pub_nav_idle.publish(Int32(data=0))
+
+    async def prepare_visitor(self):
+        if not self.cli_visitor_ready.service_is_ready():
+            return False
         try:
-            text = json.loads(msg.data).get("text", "")
-        except ValueError:
-            return
-        if (
-            text
-            and session_manager.state == SessionState.ACTIVE
-            and session_manager.active_ws
-        ):
-            asyncio.run_coroutine_threadsafe(
-                session_manager.active_ws.send_json({"type": "llm_text", "data": text}),
-                loop=session_manager.main_loop,
-            )
+            response = await asyncio.wait_for(ros_future(self.cli_visitor_ready.call_async(Trigger.Request())), 3)
+            return response.success and await self.execute_cleanup()
+        except Exception:
+            return False
 
     def trigger_pairing_success(self):
         """페어링 성공 시 웨이크워드 감지 및 차임벨 발생"""
@@ -189,8 +204,10 @@ class BridgeNode(Node):
         logger.info("[ROS] Pairing success triggered to HRI")
 
     async def execute_cleanup(self, timeout_sec: float = 5.0) -> bool:
-        """로봇 정지 및 LLM 대화 기록 초기화를 수행한다."""
-        self.request_stop()
+        """Cancel visitor work and wait for LLM, BT and TTS cleanup barriers."""
+        self.cancel_visitor()
+        if self.voice.draining:
+            return False
 
         async def call_ros_service(cli, name):
             if not cli.service_is_ready():
@@ -225,14 +242,16 @@ class BridgeNode(Node):
                 logger.error(f"Cleanup: {name} error - {e}")
                 return False
 
-        # 3. LLM과 BT 초기화 서비스 동시 실행 및 대기
+        # Reset LLM, BT and TTS; busy services fail closed and are retried.
         results = await asyncio.gather(
             call_ros_service(self.cli_llm_reset, "LLM"),
             call_ros_service(self.cli_bt_clear, "BT"),
+            call_ros_service(self.cli_tts_reset, "TTS"),
+            call_ros_service(self.cli_stt_reset, "STT"),
         )
 
         logger.info("[ROS] Session cleanup completed")
-        # 둘 다 성공했는지 여부 반환 (필요에 따라 엄격도를 조절할 수 있습니다)
+        # Never admit a new visitor before every cleanup barrier succeeds.
         return all(results)
 
 
@@ -242,9 +261,16 @@ class BridgeNode(Node):
 class NonceManager:
     def __init__(self):
         self.nonces: Dict[str, float] = {}
+        self.current = None
+        self.generated_at = 0
 
     def generate(self) -> str:
+        self._cleanup()
+        if self.current in self.nonces and time.time() - self.generated_at < NONCE_TTL:
+            return self.current
         nonce = secrets.token_urlsafe(16)
+        self.current = nonce
+        self.generated_at = time.time()
         # 생성 시간 + TTL + 지연 허용 시간
         self.nonces[nonce] = time.time() + NONCE_TTL + NONCE_GRACE
         return nonce
@@ -275,6 +301,7 @@ class SessionManager:
         self._pairing_lock = asyncio.Lock()
         self.session_timer_task: Optional[asyncio.Task] = None
         self.idle_task: Optional[asyncio.Task] = None
+        self.cleanup_task = None
         self.idle_timeout = 120.0  # 2분 무조작 시 강제 종료
 
     async def _cancel_session_timers(self):
@@ -294,7 +321,7 @@ class SessionManager:
         payload = f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
         for q in list(self.display_queues):
             try:
-                await q.put(payload)
+                q.put_nowait(payload)
             except Exception:
                 self.display_queues.discard(q)
 
@@ -315,6 +342,7 @@ class SessionManager:
 
     async def handle_disconnect(self):
         if self.state == SessionState.ACTIVE:
+            ros_node.cancel_visitor()
             self.state = SessionState.GRACE
             self.active_ws = None
             await self.broadcast_display("state", {"status": "GRACE"})
@@ -361,7 +389,11 @@ class SessionManager:
             if self.state == SessionState.IDLE:
                 return True
 
+            if self.state == SessionState.ENDING and self.cleanup_task and not self.cleanup_task.done():
+                return False
             self.state = SessionState.ENDING
+            ros_node.cancel_visitor()
+            await self.broadcast_display("state", {"status": "ENDING"})
             self.current_token = None
             await self._cancel_session_timers()
             if self.active_ws:
@@ -380,18 +412,12 @@ class SessionManager:
                 logger.warning(f"Cleanup failed, retrying in {2**attempt}s...")
                 await asyncio.sleep(2**attempt)
 
-            if admin_force:
-                logger.error("Admin forced cleanup despite failures.")
-                self.state = SessionState.IDLE
-                await self.broadcast_display("state", {"status": "IDLE"})
-                return True
-
             logger.error(
                 "Critical: Cleanup failed completely. Starting background retry task."
             )
             await self.broadcast_display("state", {"status": "ENDING"})
 
-            asyncio.create_task(self._retry_cleanup_loop())
+            self.cleanup_task = asyncio.create_task(self._retry_cleanup_loop())
             return False
 
 
@@ -418,6 +444,10 @@ async def public_lifespan(app: FastAPI):
 
     # 3. 앱 종료 시 ROS 2 안전하게 정리
     if ros_node:
+        ros_node.cancel_visitor()
+        await session_manager._cancel_session_timers()
+        if session_manager.cleanup_task:
+            session_manager.cleanup_task.cancel()
         if ros_node._move_command is not None:
             ros_node.request_stop()
         ros_node.destroy_node()
@@ -438,6 +468,70 @@ app_public.add_middleware(
 )
 
 
+pair_attempts = deque()
+
+
+@app_public.middleware("http")
+async def public_boundary(request: Request, call_next):
+    if request.url.path in ("/api/pair", "/api/session") and request.method in ("POST", "DELETE") and request.headers.get("origin") not in ALLOWED_ORIGINS:
+        return Response(status_code=403)
+    if request.method == "POST" and request.url.path == "/api/pair":
+        now = time.monotonic()
+        while pair_attempts and pair_attempts[0] <= now - 60:
+            pair_attempts.popleft()
+        if len(pair_attempts) >= 30:
+            return Response(status_code=429, headers={"Retry-After": "60"})
+        pair_attempts.append(now)
+        body = bytearray()
+        async def read_body():
+            async for chunk in request.stream():
+                if len(body) + len(chunk) > 1024:
+                    return False
+                body.extend(chunk)
+            return True
+        try:
+            if not await asyncio.wait_for(read_body(), 5):
+                return Response(status_code=413)
+        except asyncio.TimeoutError:
+            return Response(status_code=408)
+        request._body = bytes(body)
+        original_receive = request._receive
+        replayed = False
+        async def replay():
+            nonlocal replayed
+            if not replayed:
+                replayed = True
+                return {"type": "http.request", "body": bytes(body), "more_body": False}
+            return await original_receive()
+        request._receive = replay
+    response = await call_next(request)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(self)"
+    return response
+
+
+def require_session(token):
+    if not token or not session_manager.current_token or not secrets.compare_digest(token.encode(), session_manager.current_token.encode()):
+        raise HTTPException(401, "Session expired")
+
+
+@app_public.get("/api/session")
+async def session_status(dori_session: Optional[str] = Cookie(None)):
+    require_session(dori_session)
+    return {"state": session_manager.state.value, "expires_at": session_manager.session_expires_at}
+
+
+@app_public.get("/api/audio/{audio_key}")
+async def session_audio(audio_key: str, dori_session: Optional[str] = Cookie(None)):
+    require_session(dori_session)
+    audio = ros_node.voice.media.get(audio_key) if ros_node else None
+    if not audio:
+        raise HTTPException(404, "Audio expired")
+    return Response(audio, media_type="audio/mpeg", headers={"Cache-Control": "no-store"})
+
+
 @app_public.post("/api/pair")
 async def pair_device(req: PairRequest, response: Response):
     if not req.consent:
@@ -453,13 +547,15 @@ async def pair_device(req: PairRequest, response: Response):
         if not nonce_manager.validate_and_consume(req.nonce):
             raise HTTPException(status_code=410, detail="Invalid or expired nonce")
 
+        if not await ros_node.prepare_visitor():
+            raise HTTPException(503, "Visitor voice profile unavailable or still draining")
         token = await session_manager.start_session()
 
     response.set_cookie(
         key="dori_session",
         value=token,
         httponly=True,
-        secure=True,  # LAN 테스트 시 False로 변경 필요
+        secure=True,  # HTTPS is required, including phone demos.
         samesite="strict",
         max_age=SESSION_MAX_TIME,
     )
@@ -481,7 +577,9 @@ async def delete_session(
                 status_code=503,
                 detail="Session cleanup failed",
             )
-    return {"status": "ok"}
+    response = Response(content='{"status":"ok"}', media_type="application/json")
+    response.delete_cookie("dori_session", secure=True, httponly=True, samesite="strict")
+    return response
 
 
 # ─── Internal IPC Endpoints (Called by backend_api.py) ─────────────────────
@@ -505,6 +603,9 @@ async def websocket_user(websocket: WebSocket):
         await websocket.close(code=1008)
         return
 
+    if session_manager.state not in (SessionState.ACTIVE, SessionState.GRACE):
+        await websocket.close(code=1008)
+        return
     await websocket.accept()
 
     if session_manager.active_ws and session_manager.active_ws is not websocket:
@@ -513,6 +614,9 @@ async def websocket_user(websocket: WebSocket):
         except Exception:
             pass
 
+    # Replacing a tab cancels its playback and outstanding work.
+    if session_manager.active_ws:
+        ros_node.cancel_visitor()
     session_manager.active_ws = websocket
     session_manager.last_activity = time.monotonic()
 
@@ -523,6 +627,7 @@ async def websocket_user(websocket: WebSocket):
         await session_manager.broadcast_display("state", {"status": "ACTIVE"})
         logger.info("Session Resumed from GRACE")
 
+    await websocket.send_json({"type": "robot_state", "status": "READY"})
     try:
         while True:
             # 연결 생존 확인은 사용자 활동과 별개다. ASGI에는 프로토콜 ping이
@@ -561,16 +666,25 @@ async def websocket_user(websocket: WebSocket):
                 logger.warning("WS JSON payload must be an object, dropping")
                 continue
 
-            # 제한된 자체 프로토콜 처리 (명령어 화이트리스트 필터링)
             cmd_type = payload.get("type")
-            if cmd_type == "command":
-                action = payload.get("action")
-                if action == "STOP":
-                    ros_node.request_stop()
+            if cmd_type == "command" and payload.get("action") == "STOP":
+                ros_node.cancel_visitor()
+                session_manager.last_activity = time.monotonic()
+                await websocket.send_json({"type": "command_result", "action": "STOP", "ok": True})
+                await websocket.send_json({"type": "robot_state", "status": "READY"})
+            elif cmd_type == "ptt_audio":
+                try:
+                    ros_node.voice.start(payload)
                     session_manager.last_activity = time.monotonic()
-                # 상향 메시지(오디오, 카메라 등) 추가 구현 지점
-            elif cmd_type == "heartbeat":
-                pass
+                except ValueError as exc:
+                    await websocket.send_json({"type": "error", "code": "audio_rejected", "message": str(exc)})
+            elif cmd_type == "playback":
+                ros_node.voice.playback(payload)
+            elif cmd_type == "end":
+                await session_manager.end_session()
+                break
+            elif cmd_type != "heartbeat":
+                await websocket.send_json({"type": "error", "code": "unsupported_message", "message": "지원하지 않는 요청입니다."})
 
     except asyncio.TimeoutError:
         logger.warning("WS Heartbeat timeout. Network likely dropped.")
@@ -659,9 +773,44 @@ async def internal_control(body: dict, x_internal_token: str = Header(None)):
 @app_display.get("/display/events")
 async def display_events(request: Request):
     """로봇 화면으로 QR Nonce와 세션 상태(Pairing 등)를 실시간 푸시하는 SSE"""
-    q = asyncio.Queue()
+    q = asyncio.Queue(maxsize=8)
     session_manager.display_queues.add(q)
     return StreamingResponse(display_event_generator(q), media_type="text/event-stream")
+
+
+@app_display.get("/display/qr/{nonce}")
+async def qr_image(nonce: str):
+    if session_manager.state != SessionState.IDLE or nonce_manager.nonces.get(nonce, 0) <= time.time():
+        raise HTTPException(410, "QR expired")
+    import qrcode
+    import qrcode.image.svg
+    output = BytesIO()
+    qrcode.make(APP_ORIGIN + "/p#" + nonce,
+                image_factory=qrcode.image.svg.SvgPathImage).save(output)
+    return Response(output.getvalue(), media_type="image/svg+xml", headers={"Cache-Control": "no-store"})
+
+
+@app_display.get("/display")
+async def display_page():
+    return FileResponse(Path(__file__).with_name("display.html"))
+
+
+def mount_visitor_assets():
+    directory = Path(os.environ.get("DORI_VISITOR_WEB_DIR", Path(__file__).parents[4] / "web/dist-visitor"))
+    if (directory / "assets").is_dir():
+        app_public.mount("/assets", StaticFiles(directory=directory / "assets"), name="visitor-assets")
+    async def recorder():
+        return FileResponse(directory / "recorder.js", media_type="text/javascript")
+    app_public.add_api_route("/recorder.js", recorder, methods=["GET"])
+    async def index():
+        if not (directory / "index.html").is_file():
+            raise HTTPException(503, "Build visitor app first")
+        return FileResponse(directory / "index.html")
+    app_public.add_api_route("/", index, methods=["GET"])
+    app_public.add_api_route("/p", index, methods=["GET"])
+
+
+mount_visitor_assets()
 
 
 # ─── Entrypoint & Runner ───────────────────────────────────────────────────
@@ -675,6 +824,8 @@ async def run_servers():
         log_level="info",
         ws="websockets",
         ws_max_size=MAX_WS_MSG_SIZE,
+        ssl_certfile=os.environ.get("DORI_VISITOR_TLS_CERT"),
+        ssl_keyfile=os.environ.get("DORI_VISITOR_TLS_KEY"),
     )
     config_display = uvicorn.Config(
         app_display, host="127.0.0.1", port=DISPLAY_PORT, log_level="warning"

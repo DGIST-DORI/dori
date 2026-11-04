@@ -57,6 +57,8 @@ jobs:
           npm run lint 2>&1 | tee ../log/ci/web-lint.log
           npm test 2>&1 | tee ../log/ci/web-test.log
           npm run build 2>&1 | tee ../log/ci/web-build.log
+          npm run test:visitor 2>&1 | tee ../log/ci/visitor-test.log
+          npm run build:visitor 2>&1 | tee ../log/ci/visitor-build.log
       - name: Clean ROS 2 build with testing enabled
         id: build
         run: |

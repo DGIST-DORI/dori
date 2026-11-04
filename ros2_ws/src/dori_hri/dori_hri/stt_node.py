@@ -27,6 +27,7 @@ import numpy as np
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Bool, String
+from std_srvs.srv import Trigger
 
 try:
     import sounddevice as sd
@@ -98,6 +99,7 @@ class STTNode(Node):
         # Publishers
         self.wake_word_pub = self.create_publisher(Bool, wake_word_topic, 10)
         self.result_pub = self.create_publisher(String, result_topic, 10)
+        self.visitor_result_pub = self.create_publisher(String, "stt/visitor_result", 10)
 
         # Subscribers
         self.create_subscription(Bool, tts_speaking_topic, self._on_tts_speaking, 10)
@@ -167,10 +169,24 @@ class STTNode(Node):
                 f'Audio input mode is "{self.audio_input_mode}" - microphone capture disabled'
             )
 
+        # Single-threaded callback ordering makes reset an inference drain barrier.
+        self._input_epoch = time.time()
+        self.create_service(Trigger, "stt/reset", self._reset_input)
+
         # Processing timer (20 Hz)
         self.create_timer(0.05, self._process_audio)
 
         self.get_logger().info("STT Node ready")
+
+    def _reset_input(self, request, response):
+        self._input_epoch = time.time()
+        self.buffer.clear()
+        while not self.audio_queue.empty():
+            self.audio_queue.get_nowait()
+        self.state = STTState.IDLE
+        response.success = self.audio_input_mode == "topic"
+        response.message = "Input drained" if response.success else "Visitor requires topic audio input"
+        return response
 
     # Callbacks
     def _on_tts_speaking(self, msg: Bool):
@@ -237,6 +253,8 @@ class STTNode(Node):
             import base64
 
             payload = json.loads(msg.data)
+            if payload.get("request_id") and payload.get("created_at", 0) < self._input_epoch:
+                return  # Queued audio predating session cleanup.
             fmt = payload.get("format")
             if fmt != "wav_pcm16":
                 self.get_logger().warn(f"Unsupported audio format: {fmt}")
@@ -262,7 +280,7 @@ class STTNode(Node):
             if not MIN_SPEECH_SEC <= len(audio) / SAMPLE_RATE <= MAX_BUFFER_SEC:
                 raise ValueError("Audio duration must be 0.5 to 10 seconds")
             self.buffer = [audio]
-            self._transcribe()
+            self._transcribe(request_id=payload.get("request_id"))
             self.buffer.clear()
         except Exception as e:
             self.get_logger().error(f"Audio topic decode/transcribe failed: {e}")
@@ -331,7 +349,7 @@ class STTNode(Node):
             return True
 
     # Transcription
-    def _transcribe(self):
+    def _transcribe(self, request_id=None):
         if not self.buffer:
             self.get_logger().warn("Empty buffer — skipping transcription")
             return
@@ -391,7 +409,12 @@ class STTNode(Node):
 
             msg = String()
             msg.data = json.dumps(payload, ensure_ascii=False)
-            self.result_pub.publish(msg)
+            if request_id:
+                payload["request_id"] = request_id
+                msg.data = json.dumps(payload, ensure_ascii=False)
+                self.visitor_result_pub.publish(msg)
+            else:
+                self.result_pub.publish(msg)
 
         except Exception as e:
             self.get_logger().error(f"Transcription failed: {e}")

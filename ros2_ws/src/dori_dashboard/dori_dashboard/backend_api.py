@@ -410,9 +410,9 @@ def _has_permission(
     if "admin" in principal.roles:
         return True
     if required == "view":
-        return bool({"viewer", "view", "control", "deploy"} & principal.roles)
+        return bool({"viewer", "view", "operator", "control", "deploy"} & principal.roles)
     if required == "control":
-        return bool({"control", "deploy"} & principal.roles)
+        return bool({"operator", "control", "deploy"} & principal.roles)
     return False
 
 

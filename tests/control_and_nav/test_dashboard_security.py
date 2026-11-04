@@ -33,6 +33,12 @@ from access_config import load_access_config
 
 
 class AccessConfigTests(unittest.TestCase):
+    def test_operator_alias_permits_control_but_not_administration(self):
+        principal = backend.AuthPrincipal('operator', frozenset({'operator'}), 'jwt', time.time() + 60)
+        self.assertTrue(backend._has_permission(principal, 'view'))
+        self.assertTrue(backend._has_permission(principal, 'control'))
+        self.assertFalse(backend._has_permission(principal, 'admin'))
+
     def test_persistent_settings_survive_without_shell_exports_and_env_overrides(self):
         with tempfile.TemporaryDirectory() as folder, patch.dict(os.environ, {}, clear=True):
             root = Path(folder)

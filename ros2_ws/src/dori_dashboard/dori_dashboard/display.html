@@ -1,0 +1,11 @@
+<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DORI 연결</title>
+<style>body{margin:0;background:#101e2d;color:#fff;font:24px system-ui;text-align:center;display:grid;place-content:center;min-height:100vh}img{width:300px;background:white;padding:20px;border-radius:20px;margin:auto}p{max-width:600px}small{color:#acbfd0}</style>
+<h1>안녕하세요, DORI입니다</h1><p id="status">연결 상태를 확인하고 있습니다</p><img id="qr" hidden alt="스마트폰으로 스캔해 DORI와 연결하세요"><small>DGIST 캠퍼스 안내 로봇</small>
+<script>
+const qr=document.getElementById('qr'),status=document.getElementById('status');let state='';
+const stream=new EventSource('/display/events');
+function update(event){state=JSON.parse(event.data).status;qr.hidden=true;status.textContent=({IDLE:'QR을 스캔해 대화를 시작하세요',ACTIVE:'방문자와 대화하고 있어요',GRACE:'스마트폰이 다시 연결되기를 기다리고 있어요',ENDING:'다음 방문자를 맞이할 준비를 하고 있어요'})[state]||'준비 중입니다'}
+stream.addEventListener('state',update);stream.addEventListener('paired',update);
+stream.addEventListener('qr_update',event=>{if(state==='IDLE'){qr.src='/display/qr/'+encodeURIComponent(JSON.parse(event.data).nonce);qr.hidden=false}});
+stream.onerror=()=>{qr.hidden=true;status.textContent='연결 상태를 확인하고 있습니다'};
+</script></html>

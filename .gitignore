@@ -31,3 +31,5 @@ __pycache__
 
 ros2_ws/src/third_party/*
 !ros2_ws/src/third_party/cubemars_hardware/
+
+web/dist-visitor/

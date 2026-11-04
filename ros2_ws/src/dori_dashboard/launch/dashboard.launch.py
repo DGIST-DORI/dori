@@ -96,7 +96,8 @@ def _make_server_actions(context, *args, **kwargs):
 
     dashboard_url = LaunchConfiguration("dashboard_url").perform(context)
 
-    additional_env = {"DORI_INTERNAL_TOKEN": internal_token}
+    additional_env = {"DORI_INTERNAL_TOKEN": internal_token,
+                      "DORI_VISITOR_WEB_DIR": os.path.join(pkg_dir, "visitor_web")}
     if dashboard_url:
         additional_env["DORI_DASHBOARD_URL"] = dashboard_url
 
@@ -126,7 +127,13 @@ def _make_server_actions(context, *args, **kwargs):
             additional_env=additional_env,
         ),
         ExecuteProcess(
-            cmd=[python, bridge_api_script],
+            cmd=[python, bridge_api_script, "--ros-args", "-r", "__ns:=/dori",
+                 "-r", "NAVIGATION_MODE:=/NAVIGATION_MODE",
+                 "-r", "manual/cmd_vel:=/manual/cmd_vel",
+                 "-r", "emergency_stop:=/emergency_stop",
+                 "-r", "control_mode_cmd:=/control_mode_cmd",
+                 "-r", "system/control_mode:=/system/control_mode",
+                 "-r", "system/action_state:=/system/action_state"],
             output="both",
             name="bridge_api_server",
             emulate_tty=True,

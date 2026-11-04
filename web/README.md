@@ -336,3 +336,99 @@ System panels include `Event Log` and `Topic Publisher`, located at
 | AudioContext resume | 브라우저 콘솔에 suspended 상태      | 개발자도구에서 `AudioContext` 상태 확인 후 resume 트리거.                                             |
 | WS 연결             | 패널 값/이벤트가 갱신되지 않음      | Settings > Connection 상태 및 `wss://dash.dgist-dori.xyz/ws/admin` 연결 상태 확인.                                  |
 | 토픽 수신           | STT/Vision/TTS 경로가 동작하지 않음 | `stt/audio_input`, `perception/vision/image/compressed` 등 토픽 수신 여부를 `ros2 topic echo`로 확인. |
+
+## Visitor voice app (app. host)
+
+The mobile visitor app is separate from the developer dashboard. Build it with
+`npm run build:visitor`; `npm run test:visitor` tests its PCM/WAV encoder.
+`dist-visitor` installs into `share/dori_dashboard/visitor_web` when rebuilding
+`dori_dashboard`. The regular dashboard build and authentication are unchanged.
+The existing `control` role and the `operator` alias both permit operator actions.
+
+Use the visitor profile for the first release. It deliberately disables BT
+wake-triggered following, local STT intents, gestures and automatic patrols;
+visitor utterances cannot dispatch navigation. For a desktop session:
+
+```bash
+ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop \
+  enable_dashboard:=true visitor_mode:=true stt_audio_input_mode:=topic
+```
+
+The normal dashboard authentication variables, a random `DORI_INTERNAL_TOKEN`
+and prepared Whisper models remain required. To use the real hardware profile,
+pass `visitor_mode:=true stt_audio_input_mode:=topic` to `hardware.launch.py`
+alongside its required map and hardware settings. Do not start duplicate HRI
+nodes. Pairing returns 503 unless `bt/visitor_ready` confirms the voice-only
+profile and STT, BT, LLM and TTS cleanup succeeds. Starting the dashboard alone does
+not activate or stop physical hardware.
+
+Open `http://127.0.0.1:3001/display` on the robot screen. QR codes are rendered
+locally, rotate every 30 seconds, have a five-second overlap, and disappear while
+occupied. Only tunnel `app.dgist-dori.xyz` to `http://127.0.0.1:3100` and the
+Access-protected `dash.dgist-dori.xyz` to port 3000. Never register 3001 or 9090 in
+a tunnel. The default listeners are loopback; `DORI_DEV_MODE` explicitly widens
+public binding and must stay off in production. Firewall changes and Cloudflare
+account configuration are deployment operations, not performed by the build.
+
+For a local HTTPS demo, configure `DORI_VISITOR_ORIGIN=https://<trusted-local-host>:3100`,
+`DORI_VISITOR_TLS_CERT` and `DORI_VISITOR_TLS_KEY` with a certificate trusted by the
+phone. Both certificate and key are required. Reach the loopback service through
+a local TLS proxy, or explicitly enable development binding on an isolated demo
+network. Cookies remain Secure in all modes. Set `DORI_VISITOR_WEB_DIR` when
+running the bridge directly from an installed location without dashboard launch.
+
+The user protocol is JSON over `/ws/user`, protected by the session cookie and
+an exact Origin check. Supported input messages:
+
+- `heartbeat` every 5 seconds; it does not extend the 120-second idle deadline.
+- `ptt_audio` with `audio_b64`, `format: "wav_pcm16"`, `sample_rate: 16000`,
+  `channels: 1`; 0.5–10 seconds, one outstanding turn, 450,000-byte WS limit.
+- `command` with `action: "STOP"` cancels the current task without clearing an
+  operator emergency stop. Unsupported commands, including GUIDE/FOLLOW, fail.
+- `playback` with the issued audio `id` and `status: "ended" | "failed" | "canceled"`.
+- `end` closes and cleans up the session; `DELETE /api/session` is also available.
+
+Outputs are `robot_state` (READY/TRANSCRIBING/THINKING/SPEAKING), `stt_text`,
+`llm_text`, `tts_audio` (id and authenticated URL), `command_result`, and `error`.
+`GET /api/session` permits page reload recovery. MP3 URLs are unpredictable,
+require the active cookie, have no-store caching, and expire after playback or
+cancellation. Pairing uses a global limit of 30 attempts/minute, intentionally
+independent of untrusted forwarding headers. Responses include 409 busy, 410
+expired nonce, 429 throttled, and 503 voice profile unavailable.
+
+The gateway assigns per-turn request IDs to STT JSON and uses ROS action UUIDs
+for LLM/TTS work; it never adds a ROS session ID. Visitor STT replies use
+`stt/visitor_result`, separate from the BT's `stt/result`. `tts/speak_remote`
+synthesizes MP3 and waits for `tts/remote_playback` acknowledgment (90-second
+limit). It never plays visitor answers on the robot speaker. Wake chimes remain
+local. The existing `tts/speak` and legacy `publish_only` behavior are preserved.
+
+GRACE cancels work immediately and retains history for up to 90 seconds.
+Reconnection never resumes canceled work. Session expiry is 15 minutes.
+ENDING revokes the cookie and waits for actual in-flight action completion;
+failed cleanup retries every 5 seconds and cannot be bypassed by an admin.
+STT reset drains current transcription and rejects queued audio predating cleanup.
+The reset services also prevent a restarted gateway from inheriting old speech
+or LLM history. A stuck upstream provider can keep cleanup pending; operators
+should diagnose/restart the affected HRI service before admitting another user.
+
+Audio stays in memory at the gateway/STT; synthesis may use a temporary MP3
+which TTS removes after completion/cancellation. No uploaded recordings are
+persisted. AI transcription/synthesis providers may have separate data handling
+policies; the consent screen discloses use of external services. Camera input,
+GUIDE and FOLLOW are deferred.
+
+Before a visitor rollout, verify on physical Android Chrome and iPhone Safari:
+QR pairing, permissions denied/retried, first-gesture audio playback, the manual
+play fallback, 10-second recording cutoff, background/lock/foreground, network
+switch, STOP during each voice phase, session expiry and a second visitor with
+no previous visitor's audio or history. Software tests do not establish physical
+stopping behavior or mobile autoplay compatibility.
+
+An optional desktop Chromium smoke test is retained at
+`tests/browser/visitor.spec.mjs`. With Playwright and its Chromium runtime installed,
+run it from the repository root using `node tests/browser/visitor.spec.mjs`.
+Set `DORI_PLAYWRIGHT_MODULE` to a Playwright module path if installed outside the
+repository. The test starts a local static server, mocks the API/WebSocket,
+uses a fake microphone, and checks consent, pairing, WAV capture, playback
+acknowledgment, STOP, end and mobile-width layout. It does not contact the robot.
