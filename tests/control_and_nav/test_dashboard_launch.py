@@ -77,7 +77,8 @@ def test_installed_scripts_include_bridge_and_shared_modules(monkeypatch):
     monkeypatch.chdir(PACKAGE)
     runpy.run_path(str(PACKAGE / 'setup.py'))
     files = dict(setup.call_args.kwargs['data_files'])['share/dori_dashboard/scripts']
-    assert {'backend_api.py', 'bridge_api.py', 'control_contract.py', 'internal_auth.py'} <= {Path(path).name for path in files}
+    assert {'backend_api.py', 'bridge_api.py', 'control_contract.py', 'internal_auth.py',
+            'access_config.py'} <= {Path(path).name for path in files}
     assert all(Path(path).is_file() for path in files)
     assert 'PyJWT[crypto]>=2.10.1,<3' in setup.call_args.kwargs['install_requires']
 

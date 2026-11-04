@@ -72,9 +72,11 @@ except Exception:
     _shared_find_repo_root = None
 
 try:
+    from .access_config import load_access_config
     from .control_contract import validate_control
     from .internal_auth import internal_token
 except ImportError:
+    from access_config import load_access_config
     from control_contract import validate_control
     from internal_auth import internal_token
 
@@ -220,13 +222,10 @@ _JWT_AUDIENCE = os.environ.get("DORI_API_JWT_AUDIENCE", "").strip()
 _JWT_ISSUER = os.environ.get("DORI_API_JWT_ISSUER", "").strip()
 _ACCESS_ROLE_MAP_RAW = os.environ.get("DORI_API_ACCESS_TOKENS", "").strip()
 
-_CF_TEAM_DOMAIN = os.environ.get(
-    "DORI_CF_TEAM_DOMAIN", ""
-).strip().rstrip("/")  # https://your-team.cloudflareaccess.com
-_CF_AUDIENCE = os.environ.get("DORI_CF_AUDIENCE", "").strip()
-_CF_ROLE_MAP_RAW = os.environ.get(
-    "DORI_CF_ROLE_MAP", ""
-).strip()  # 예: admin@dgist.ac.kr:admin,op@dgist.ac.kr:control
+_CF_CONFIG = load_access_config(REPO_ROOT)
+_CF_TEAM_DOMAIN = _CF_CONFIG["team_domain"].rstrip("/")
+_CF_AUDIENCE = _CF_CONFIG["audience"]
+_CF_ROLE_MAP_RAW = _CF_CONFIG["role_map"]
 
 if _CF_TEAM_DOMAIN and not re.fullmatch(r"https://[a-zA-Z0-9-]+\.cloudflareaccess\.com", _CF_TEAM_DOMAIN):
     raise RuntimeError("DORI_CF_TEAM_DOMAIN must be an HTTPS Cloudflare Access team domain")
@@ -313,7 +312,7 @@ def _token_expiry(payload: dict) -> float:
 
 def _verify_cf_jwt(token: str) -> AuthPrincipal:
     if not _jwks_client or not _CF_AUDIENCE:
-        raise HTTPException(401, "Cloudflare Access not configured")
+        raise HTTPException(503, "Cloudflare Access not configured")
     try:
         # This entire function runs on a worker, including cache misses and RSA.
         with _jwks_lock:
@@ -428,8 +427,8 @@ def require_permission(required: Literal["view", "control", "admin"]):
         principal: AuthPrincipal | None = None
         try:
             principal = await _authenticate_request(authorization, access, cf_assertion, session_cookie)
-        except HTTPException:
-            _log_auth_event(request, principal=None, required=required, status_code=401)
+        except HTTPException as exc:
+            _log_auth_event(request, principal=None, required=required, status_code=exc.status_code)
             raise
 
         if not _has_permission(principal, required):

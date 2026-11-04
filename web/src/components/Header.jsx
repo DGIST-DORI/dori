@@ -90,8 +90,8 @@ export default function Header({ onLogoClick, themeMode, sidebarExpanded }) {
       <div className="hdr-conn">
         <button className="hdr-btn" onClick={async () => {
           try { await logout(); }
-          catch (error) { addLog(LOG_TAGS.ERROR, error.message); }
-        }}>로그아웃</button>
+          catch (error) { addLog(LOG_TAGS.ERROR, error.code ? t(error.code) : error.message); }
+        }}>{t('auth.logout')}</button>
         {/* URL input — synced with Settings tab but kept here for quick access */}
         <input
           className="hdr-url"

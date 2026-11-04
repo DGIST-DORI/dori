@@ -1,10 +1,12 @@
 """Security boundaries and deadman behavior; no ROS graph or hardware is started."""
 import asyncio
 import importlib.util
+import json
 import os
 import subprocess
 from pathlib import Path
 import sys
+import tempfile
 import threading
 import time
 from types import MethodType, SimpleNamespace
@@ -27,6 +29,42 @@ spec.loader.exec_module(backend)
 import bridge_api as bridge
 from control_contract import validate_control, MOVE_TIMEOUT
 from internal_auth import require_internal_token
+from access_config import load_access_config
+
+
+class AccessConfigTests(unittest.TestCase):
+    def test_persistent_settings_survive_without_shell_exports_and_env_overrides(self):
+        with tempfile.TemporaryDirectory() as folder, patch.dict(os.environ, {}, clear=True):
+            root = Path(folder)
+            (root / 'config').mkdir()
+            config = {'team_domain': 'https://test.cloudflareaccess.com',
+                      'audience': 'dashboard', 'role_map': ''}
+            (root / 'config/dashboard_access.json').write_text(json.dumps(config))
+            self.assertEqual(load_access_config(root), config)
+            with patch.dict(os.environ, {'DORI_CF_AUDIENCE': 'another-app',
+                                         'DORI_CF_ROLE_MAP': 'admin@example.org:admin'}):
+                self.assertEqual(load_access_config(root), {
+                    **config, 'audience': 'another-app', 'role_map': 'admin@example.org:admin'})
+            with patch.dict(os.environ, {'DORI_CF_TEAM_DOMAIN': '', 'DORI_CF_AUDIENCE': ''}):
+                self.assertEqual(load_access_config(root)['team_domain'], '')
+                self.assertEqual(load_access_config(root)['audience'], '')
+
+    def test_missing_file_still_supports_environment_only_and_local_fallback(self):
+        with tempfile.TemporaryDirectory() as folder, patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(load_access_config(Path(folder)), {
+                'team_domain': '', 'audience': '', 'role_map': ''})
+            with patch.dict(os.environ, {'DORI_CF_TEAM_DOMAIN': 'https://test.cloudflareaccess.com',
+                                         'DORI_CF_AUDIENCE': 'dashboard'}):
+                self.assertEqual(load_access_config(Path(folder))['audience'], 'dashboard')
+
+    def test_malformed_config_fails_closed(self):
+        with tempfile.TemporaryDirectory() as folder, patch.dict(os.environ, {}, clear=True):
+            root = Path(folder)
+            (root / 'config').mkdir()
+            for content in ('{', '[]', '{"audience": 123}'):
+                (root / 'config/dashboard_access.json').write_text(content)
+                with self.subTest(content=content), self.assertRaises(RuntimeError):
+                    load_access_config(root)
 
 
 class DashboardSecurityTests(unittest.IsolatedAsyncioTestCase):
@@ -110,6 +148,31 @@ class DashboardSecurityTests(unittest.IsolatedAsyncioTestCase):
             finally:
                 release.set()
                 await task
+
+    async def test_cf_browser_session_works_without_local_login_and_after_logout(self):
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        jwks = SimpleNamespace(get_signing_key_from_jwt=Mock(
+            return_value=SimpleNamespace(key=key.public_key())))
+        payload = {'sub': '123', 'email': 'viewer@example.org', 'iss': backend._CF_TEAM_DOMAIN,
+                   'aud': 'dashboard', 'exp': time.time() + 300}
+        headers = {'Cf-Access-Jwt-Assertion': jwt.encode(payload, key, algorithm='RS256')}
+        with patch.object(backend, '_jwks_client', jwks):
+            for _ in range(2):
+                response = await self.client.get('/api/auth/session', headers=headers)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json()['auth_type'], 'cf_access')
+                self.assertEqual(response.json()['roles'], ['viewer'])
+                self.assertFalse(backend._auth_sessions)
+                response = await self.client.delete('/api/auth/session', headers=headers)
+                self.assertEqual(response.json()['logout_url'], '/cdn-cgi/access/logout')
+                self.assertEqual((await self.client.get('/api/auth/session')).status_code, 401)
+
+    async def test_missing_cf_config_is_server_error_not_invalid_user_credentials(self):
+        with patch.object(backend, '_jwks_client', None):
+            response = await self.client.get('/api/auth/session',
+                                             headers={'Cf-Access-Jwt-Assertion': 'test'})
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()['detail'], 'Cloudflare Access not configured')
 
     async def test_static_tokens_require_explicit_break_glass(self):
         with patch.object(backend, '_ACCESS_ROLE_MAP', {'emergency': self.admin}):

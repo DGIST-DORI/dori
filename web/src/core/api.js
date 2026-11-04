@@ -1,4 +1,12 @@
 /** Same-origin credentials only. Secrets are exchanged for an HttpOnly cookie. */
+class AuthError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'AuthError';
+    this.code = code;
+  }
+}
+
 export async function apiFetch(path, options = {}) {
   const url = new URL(path, window.location.origin);
   if (url.origin !== window.location.origin) {
@@ -19,13 +27,33 @@ export async function loginWithToken(token, kind = 'jwt') {
     ? { Access: token.trim() }
     : { Authorization: `Bearer ${token.trim()}` };
   const response = await apiFetch('/api/auth/session', { method: 'POST', headers });
-  if (!response.ok) throw new Error('로그인에 실패했습니다. 토큰과 권한을 확인하세요.');
+  if (!response.ok) throw new AuthError('auth.error.token', 'Sign-in failed. Check your token and permissions.');
   return response.json();
+}
+
+export async function getAuthSession() {
+  let response;
+  try {
+    response = await apiFetch('/api/auth/session', { cache: 'no-store' });
+  } catch {
+    throw new AuthError('auth.error.connection', 'Unable to connect. Check your connection and sign in again.');
+  }
+  const data = await response.json().catch(() => ({}));
+  if (response.ok) return data;
+  if (data.detail === 'Cloudflare Access not configured') {
+    throw new AuthError('auth.error.configuration', 'Access sign-in is not configured. Contact an administrator.');
+  }
+  if (data.detail === 'CF Access token invalid') {
+    throw new AuthError('auth.error.access', 'Unable to verify your Access session. Sign in again or contact an administrator.');
+  }
+  if (response.status === 401) return null;
+  if (response.status === 403) throw new AuthError('auth.error.permission', 'This account does not have access to the dashboard.');
+  throw new AuthError('auth.error.session', 'Unable to check your sign-in status. Please try again shortly.');
 }
 
 export async function logout() {
   const response = await apiFetch('/api/auth/session', { method: 'DELETE' });
-  if (!response.ok) throw new Error('로그아웃 요청에 실패했습니다.');
+  if (!response.ok) throw new AuthError('auth.error.logout', 'Sign-out failed. Please try again.');
   window.dispatchEvent(new Event('dori-auth-required'));
   const data = await response.json();
   if (data.logout_url === '/cdn-cgi/access/logout') window.location.assign(data.logout_url);

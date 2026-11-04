@@ -49,6 +49,31 @@ export function resolveEffectiveLang(stored) {
 
 const TRANSLATIONS = {
   en: {
+    // Sign-in
+    'auth.title': 'Sign in to DORI',
+    'auth.description': 'Use your approved email address to access the dashboard.',
+    'auth.email': 'Continue with email',
+    'auth.provider': 'Email verification is handled by Cloudflare Access.',
+    'auth.checking': 'Checking your session…',
+    'auth.language': 'Language / 언어',
+    'auth.otherOptions': 'Other sign-in options',
+    'auth.tokenHelp': 'Use this option only if an administrator gave you a sign-in token.',
+    'auth.tokenKind': 'Token type',
+    'auth.jwt': 'Sign-in token (JWT)',
+    'auth.emergency': 'Emergency access token',
+    'auth.token': 'Token',
+    'auth.tokenSubmit': 'Sign in with token',
+    'auth.signingIn': 'Signing in…',
+    'auth.error.token': 'Sign-in failed. Check your token and permissions.',
+    'auth.error.connection': 'Unable to connect. Check your connection and sign in again.',
+    'auth.error.configuration': 'Email sign-in is not available because of a server setup issue. Contact an administrator.',
+    'auth.error.access': 'Unable to verify your session. Sign in again with your email or contact an administrator.',
+    'auth.error.permission': 'This account does not have access to the dashboard. Contact an administrator.',
+    'auth.error.session': 'Unable to check your sign-in status. Please try again shortly.',
+    'auth.error.unknown': 'Unable to sign in. Check your connection and try again.',
+    'auth.error.logout': 'Unable to sign out. Please try again.',
+    'auth.logout': 'Sign out',
+
     // Sidebar categories
     'sidebar.hri': 'HRI',
     'sidebar.navigation': 'Navigation',
@@ -158,6 +183,31 @@ const TRANSLATIONS = {
   },
 
   ko: {
+    // Sign-in
+    'auth.title': 'DORI에 로그인',
+    'auth.description': '접근이 허용된 이메일로 대시보드에 로그인하세요.',
+    'auth.email': '이메일로 로그인',
+    'auth.provider': 'Cloudflare Access에서 이메일을 인증합니다.',
+    'auth.checking': '로그인 상태를 확인하고 있어요…',
+    'auth.language': '언어 / Language',
+    'auth.otherOptions': '다른 로그인 방법',
+    'auth.tokenHelp': '관리자에게 로그인 토큰을 발급받은 경우에만 사용하세요.',
+    'auth.tokenKind': '토큰 종류',
+    'auth.jwt': '로그인 토큰 (JWT)',
+    'auth.emergency': '비상용 Access 토큰',
+    'auth.token': '토큰',
+    'auth.tokenSubmit': '토큰으로 로그인',
+    'auth.signingIn': '로그인 중…',
+    'auth.error.token': '로그인에 실패했습니다. 토큰과 권한을 확인하세요.',
+    'auth.error.connection': '서버에 연결할 수 없습니다. 연결 상태를 확인하고 다시 로그인하세요.',
+    'auth.error.configuration': '서버 설정 문제로 이메일 로그인을 사용할 수 없습니다. 관리자에게 문의하세요.',
+    'auth.error.access': '인증을 확인하지 못했습니다. 이메일로 다시 로그인하거나 관리자에게 문의하세요.',
+    'auth.error.permission': '이 계정에는 대시보드 접근 권한이 없습니다. 관리자에게 문의하세요.',
+    'auth.error.session': '로그인 상태를 확인하지 못했습니다. 잠시 후 다시 시도하세요.',
+    'auth.error.unknown': '로그인할 수 없습니다. 연결 상태를 확인하고 다시 시도하세요.',
+    'auth.error.logout': '로그아웃하지 못했습니다. 다시 시도하세요.',
+    'auth.logout': '로그아웃',
+
     // Sidebar categories
     'sidebar.hri': 'HRI',
     'sidebar.navigation': '주행',

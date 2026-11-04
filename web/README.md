@@ -87,6 +87,17 @@ For normal operation, protect the **entire dashboard hostname**, including
 - `DORI_CF_AUDIENCE=<Access application AUD>`
 - `DORI_CF_ROLE_MAP=admin@example.org:admin,operator@example.org:control`
 
+The backend also reads `config/dashboard_access.json` under its repository root
+(`--repo-root`). It contains the non-secret team domain and application AUD for
+`dash.dgist-dori.xyz`, so normal launches and respawns retain Access verification
+without shell exports. The corresponding environment variables override each
+file value, including explicitly empty values. For another Access application,
+set its team domain and AUD together. `role_map` lists the explicitly assigned
+operator/admin accounts; unlisted identities remain viewers. Never put JWTs or
+secrets in this file.
+A missing verification configuration returns 503 and the login screen displays
+the configuration error instead of silently requesting another login.
+
 The backend verifies RS256 signatures, issuer, audience, subject, and finite
 expiry. JWKS fetching runs outside the event loop with a three-second timeout
 and cached keys. Unmapped identities have viewer permissions. Cloudflare issues
@@ -101,7 +112,12 @@ a token **on the trusted host** using the same environment:
 .venv/bin/python tools/auth/issue_dashboard_token.py --user operator --role admin --ttl 900
 ```
 
-Paste the result into the login screen. The shared API wrapper uses an HttpOnly,
+The login screen puts email sign-in first. It uses the saved dashboard language
+or detects Korean/English from the browser, and provides a language selector
+before sign-in. Token login is available under **Other sign-in options**
+(**다른 로그인 방법**); paste a locally issued token there when needed.
+
+The shared API wrapper uses an HttpOnly,
 SameSite=Strict session cookie (Secure on HTTPS); tokens are never saved in
 localStorage/sessionStorage. The cookie expires within 15 minutes and never
 outlives the source JWT. This also authenticates the navigation panel requests. API 401s
