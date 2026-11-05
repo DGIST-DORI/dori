@@ -151,8 +151,6 @@ _crawl_jobs: dict[str, dict] = {}
 @asynccontextmanager
 async def lifespan(app):
     internal_token()
-    if _CONTROL_EXECUTOR not in ("dry-run", "bridge"):
-        raise RuntimeError("DORI_CONTROL_EXECUTOR must be dry-run or bridge; ros2_cli was removed")
     yield
 
 
@@ -1085,14 +1083,14 @@ async def update_building(
 
 # ── /api/control/actions (external-safe control path) ────────────────────────
 
-_CONTROL_EXECUTOR = (
-    os.environ.get("DORI_CONTROL_EXECUTOR", "dry-run").strip().lower() or "dry-run"
-)
 _CONTROL_RATE_LIMITS = {
     # action -> (max_requests, window_seconds)
     "move": (10, 1.0),
-    "stop": (5, 1.0),
+    "stop": (None, 1.0),  # A latched stop must remain available during request bursts.
     "set_mode": (2, 1.0),
+    "resume": (2, 1.0),
+    "transform": (2, 1.0),
+    "set_live_control": (2, 1.0),
 }
 _control_rate_events: dict[tuple[str, str], list[float]] = {}
 _control_rate_lock = threading.Lock()
@@ -1100,7 +1098,7 @@ _control_rate_lock = threading.Lock()
 
 def _enforce_control_rate_limit(principal: AuthPrincipal, action: str) -> None:
     limit = _CONTROL_RATE_LIMITS.get(action)
-    if not limit:
+    if not limit or limit[0] is None:
         return
     max_requests, window_sec = limit
     now = time.monotonic()
@@ -1120,21 +1118,31 @@ def _enforce_control_rate_limit(principal: AuthPrincipal, action: str) -> None:
 
 
 async def _execute_control_action(action: str, params: dict) -> dict:
-    if _CONTROL_EXECUTOR == "dry-run":
-        return {"executor": "dry-run", "executed": False,
-                "detail": "Validated only; move values are normalized joystick inputs"}
-    if _CONTROL_EXECUTOR != "bridge":
-        raise HTTPException(503, "Unsupported control executor; configure dry-run or bridge")
+    # The ROS bridge owns the runtime switch; the HTTP process must not cache a second copy.
     try:
         async with httpx.AsyncClient(timeout=2.0, trust_env=False) as client:
             resp = await client.post(f"{BRIDGE_API_URL}/internal/control",
                                      headers={"X-Internal-Token": internal_token()},
                                      json={"action": action, "params": params})
         if resp.status_code != 200:
-            raise HTTPException(resp.status_code, "Bridge rejected control action")
+            raise HTTPException(resp.status_code, resp.json().get("detail", "Bridge rejected control action"))
         return resp.json()
-    except (httpx.RequestError, RuntimeError):
+    except (httpx.RequestError, RuntimeError, ValueError):
         raise HTTPException(503, "Control bridge unavailable") from None
+
+
+@app.get("/api/control/state")
+async def control_state(principal: AuthPrincipal = Depends(require_permission("view"))):
+    try:
+        async with httpx.AsyncClient(timeout=2.0, trust_env=False) as client:
+            resp = await client.get(f"{BRIDGE_API_URL}/internal/control/state",
+                                    headers={"X-Internal-Token": internal_token()})
+        if resp.status_code != 200:
+            raise HTTPException(503, "Hardware status unavailable")
+        state = resp.json()
+    except (httpx.RequestError, RuntimeError, ValueError):
+        raise HTTPException(503, "Control bridge unavailable") from None
+    return {**state, "can_control": _has_permission(principal, "control")}
 
 
 @app.post("/api/control/actions")
@@ -1148,14 +1156,16 @@ async def control_actions(
     """
     action, validated = validate_control(body)
 
-    _enforce_control_rate_limit(principal, action)
+    disabling = action == "set_live_control" and not validated["enabled"]
+    if not disabling:
+        _enforce_control_rate_limit(principal, action)
     exec_result = await _execute_control_action(action, validated)
     return {
         "ok": True,
         "action": action,
         "validated_params": validated,
         "rate_limit": {
-            "max_requests": _CONTROL_RATE_LIMITS[action][0],
+            "max_requests": None if disabling else _CONTROL_RATE_LIMITS[action][0],
             "window_sec": _CONTROL_RATE_LIMITS[action][1],
         },
         **exec_result,

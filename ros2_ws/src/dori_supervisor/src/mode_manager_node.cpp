@@ -419,6 +419,13 @@ void ModeManagerNode::transformStatusCallback(const std_msgs::msg::Int32::Shared
 
 void ModeManagerNode::transformFeedbackCallback(const dori_msgs::msg::CommandFeedback::SharedPtr msg)
 {
+  // A rejected request never starts a sequence. Do not strand manual controls
+  // in TRANSFORM (e.g. requesting the pose the robot already occupies).
+  if (!msg->accepted && transform_status_ != TF_RUNNING && transform_status_ != TF_PAUSED) {
+    publishZeroDrive();
+    publishTransformProfile(transform_profile_before_transform_);
+    setActionState(IDLE);
+  }
   RCLCPP_INFO(
     this->get_logger(),
     "Transform feedback: accepted=%d code=%d message=%s",

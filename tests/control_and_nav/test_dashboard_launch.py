@@ -3,6 +3,7 @@ import importlib.util
 from pathlib import Path
 import runpy
 from unittest.mock import Mock
+from unittest.mock import patch
 
 import pytest
 from launch import LaunchContext
@@ -82,6 +83,23 @@ def test_installed_scripts_include_bridge_and_shared_modules(monkeypatch):
             'access_config.py'} <= {Path(path).name for path in files}
     assert all(Path(path).is_file() for path in files)
     assert 'PyJWT[crypto]>=2.10.1,<3' in setup.call_args.kwargs['install_requires']
+
+
+def test_standalone_dashboard_labels_all_descendants_for_shutdown(monkeypatch, tmp_path):
+    import os
+    from launch.actions import SetEnvironmentVariable
+
+    module = load_launch(monkeypatch)
+    (tmp_path / 'web').mkdir()
+    monkeypatch.setattr(module, 'get_package_share_directory', lambda _: str(tmp_path))
+    monkeypatch.setattr(module, '_resolve_repo_root', lambda _: str(ROOT))
+    description = module.generate_launch_description()
+    marker = description.entities[0]
+    assert isinstance(marker, SetEnvironmentVariable)
+    with patch.dict(os.environ):
+        context = LaunchContext()
+        marker.execute(context)
+        assert context.environment['DORI_SESSION_ROOT'] == str(ROOT)
 
 
 def test_navigation_viewer_starts_by_default_on_loopback(monkeypatch, tmp_path):

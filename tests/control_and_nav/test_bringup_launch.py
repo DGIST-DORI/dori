@@ -56,6 +56,7 @@ def test_default_starts_app_gateway_and_voice_without_local_stt(bringup, monkeyp
     assert includes["voice.launch.py"]["stt_audio_input_mode"] == "topic"
     assert includes["interaction.launch.py"]["visitor_mode"] == "true"
     assert context.environment["DORI_VISITOR_STT"] == "azure"
+    assert context.environment["DORI_SESSION_ROOT"] == str(ROOT)
     check.assert_called_once_with(context, ROOT, "azure", str(ROOT / ".state/voice/whisper-small"))
 
 

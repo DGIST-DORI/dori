@@ -292,6 +292,34 @@ launch checks the SDK and F0 settings using the gateway's Python before starting
 the session. No separate app launcher or visitor flags are needed. Stop any
 existing desktop/dashboard session before starting it.
 
+If the previous terminal was closed or shutdown was interrupted, use the recovery
+command from this checkout before launching again:
+
+```bash
+scripts/stop_dori.sh --dry-run  # Inspect the processes that will be stopped
+scripts/stop_dori.sh           # Stop and verify that they have exited
+ros2 launch dori_bringup bringup.launch.py
+```
+
+Normally, press **Ctrl+C once** in the launch terminal and wait for it to exit.
+The recovery command works without sourcing ROS or activating the venv. It stops
+this checkout's DORI sessions owned by the current user, including orphaned app
+servers. It first sends SIGINT to launchers to disable automatic respawning and
+allow normal cleanup, then sends SIGINT, SIGTERM and finally SIGKILL to remaining
+processes as needed. Each SIGINT stage waits up to 10 seconds (`--grace SECONDS`
+changes this); SIGTERM and SIGKILL wait up to 5 and 2 seconds. Repeating the command
+after shutdown is harmless. Process identities are checked to avoid signalling a
+reused PID. All sessions/namespaces from this checkout are included; unrelated
+processes are not stopped just because they occupy a DORI port.
+
+New bringup/dashboard sessions label their descendants with `DORI_SESSION_ROOT`
+so recovery can find them even after their parent exits. Older sessions are
+identified by their launch tree, workspace paths and dashboard ROS namespace.
+Run as the same user that launched DORI. This stops the server processes;
+`scripts/stop_navigation.sh` only requests a navigation stop. For a physical robot,
+stop movement before shutting down the stack; forced process termination cannot
+perform hardware cleanup.
+
 Open `http://127.0.0.1:3001/display` on the robot screen and scan its QR code
 with the phone. The public app uses `https://app.dgist-dori.xyz` through the
 configured tunnel to loopback port 3100; the dashboard uses port 3000. See

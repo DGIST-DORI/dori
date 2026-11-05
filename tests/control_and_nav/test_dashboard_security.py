@@ -80,7 +80,7 @@ class DashboardSecurityTests(unittest.IsolatedAsyncioTestCase):
         self.stack = []
         for target, value in (
             ('_JWT_SECRET', self.secret), ('_JWT_AUDIENCE', ''), ('_JWT_ISSUER', ''),
-            ('_CONTROL_EXECUTOR', 'dry-run'), ('_BREAK_GLASS_ENABLED', False),
+            ('_BREAK_GLASS_ENABLED', False),
             ('_CF_TEAM_DOMAIN', 'https://test.cloudflareaccess.com'), ('_CF_AUDIENCE', 'dashboard'),
             ('_CF_ROLE_MAP_RAW', 'admin@example.org:admin'),
         ):
@@ -260,12 +260,69 @@ class DashboardSecurityTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(response.status_code, 400, (value, field, response.text))
         for mode in ('dock', 'idle', 'safe'):
             self.assertEqual((await self.client.post('/api/control/actions', json={'action': 'set_mode', 'params': {'mode': mode}})).status_code, 400)
-        for mode in ('manual', 'auto'):
-            response = await self.client.post('/api/control/actions', json={'action': 'set_mode', 'params': {'mode': mode}})
-            self.assertEqual(response.status_code, 200)
-            self.assertFalse(response.json()['executed'])
+        with patch.object(backend, '_execute_control_action', AsyncMock(return_value={'executed': False, 'executor': 'dry-run'})):
+            for mode in ('manual', 'auto'):
+                response = await self.client.post('/api/control/actions', json={'action': 'set_mode', 'params': {'mode': mode}})
+                self.assertEqual(response.status_code, 200)
+                self.assertFalse(response.json()['executed'])
         for params in ({'linear_y': .1}, {'angular_z': 1.1}):
             self.assertEqual((await self.client.post('/api/control/actions', json={'action': 'move', 'params': params})).status_code, 400)
+
+    async def test_hardware_state_is_readable_by_viewers_but_commands_are_not(self):
+        self.assertEqual((await self.client.get('/api/control/state')).status_code, 401)
+        await self.login(roles=['viewer'])
+        upstream = Mock()
+        upstream.get = AsyncMock(return_value=httpx.Response(200, json={
+            'live_enabled': True, 'mode': 0, 'joints': [], 'supervisor_available': True,
+        }))
+        manager = AsyncMock()
+        manager.__aenter__.return_value = upstream
+        with patch.object(backend.httpx, 'AsyncClient', return_value=manager):
+            response = await self.client.get('/api/control/state')
+            self.assertEqual(response.status_code, 200)
+            self.assertFalse(response.json()['can_control'])
+            self.assertTrue(response.json()['live_enabled'])  # Bridge is the only runtime authority.
+            self.assertEqual(upstream.get.call_args.args[0], 'http://127.0.0.1:3001/internal/control/state')
+            self.assertIn('X-Internal-Token', upstream.get.call_args.kwargs['headers'])
+        for action in ('resume', 'transform', 'stop', 'set_live_control'):
+            response = await self.client.post('/api/control/actions', json={'action': action, 'params': {'pose': 'B'}})
+            self.assertEqual(response.status_code, 403)
+
+    async def test_hardware_internal_state_requires_secret_and_is_not_public(self):
+        node = Mock()
+        node.hardware_state.return_value = {'joints': [], 'mode': 0}
+        with patch.object(bridge, 'ros_node', node):
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=bridge.app_display), base_url='http://test') as client:
+                self.assertEqual((await client.get('/internal/control/state')).status_code, 403)
+                node.hardware_state.assert_not_called()
+                response = await client.get('/internal/control/state', headers={'X-Internal-Token': os.environ['DORI_INTERNAL_TOKEN']})
+                self.assertEqual(response.status_code, 200)
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=bridge.app_public), base_url='http://test') as client:
+                self.assertEqual((await client.get('/internal/control/state')).status_code, 404)
+
+    async def test_emergency_stop_is_not_blocked_by_action_rate_limits(self):
+        await self.login()
+        with patch.object(backend, '_execute_control_action', AsyncMock(return_value={'executed': False})):
+            for _ in range(12):
+                response = await self.client.post('/api/control/actions', json={'action': 'stop'})
+                self.assertEqual(response.status_code, 200)
+
+    async def test_operators_can_switch_live_control_and_disabling_is_never_rate_limited(self):
+        await self.login(roles=['operator'])
+        with patch.object(backend, '_execute_control_action', AsyncMock(return_value={'executed': True})) as execute:
+            for invalid in (None, 1, 'true', [], {}):
+                response = await self.client.post('/api/control/actions', json={'action': 'set_live_control', 'params': {'enabled': invalid}})
+                self.assertEqual(response.status_code, 400)
+            self.assertEqual((await self.client.post('/api/control/actions', json={'action': 'set_live_control', 'params': {'enabled': True}})).status_code, 400)
+            execute.assert_not_called()
+            params = {'enabled': True, 'control_epoch': 'a' * 32}
+            for _ in range(2):
+                self.assertEqual((await self.client.post('/api/control/actions', json={'action': 'set_live_control', 'params': params})).status_code, 200)
+            self.assertEqual((await self.client.post('/api/control/actions', json={'action': 'set_live_control', 'params': params})).status_code, 429)
+            for _ in range(4):
+                response = await self.client.post('/api/control/actions', json={'action': 'set_live_control', 'params': {'enabled': False}})
+                self.assertEqual(response.status_code, 200)
+                self.assertIsNone(response.json()['rate_limit']['max_requests'])
 
     async def test_live_controls_only_use_authenticated_local_bridge(self):
         client = AsyncMock()
@@ -273,13 +330,20 @@ class DashboardSecurityTests(unittest.IsolatedAsyncioTestCase):
         manager = Mock()
         manager.__aenter__ = AsyncMock(return_value=client)
         manager.__aexit__ = AsyncMock(return_value=None)
-        with patch.object(backend, '_CONTROL_EXECUTOR', 'bridge'), patch.object(backend.httpx, 'AsyncClient', return_value=manager) as factory:
+        with patch.object(backend.httpx, 'AsyncClient', return_value=manager) as factory:
             self.assertTrue((await backend._execute_control_action('stop', {}))['executed'])
             self.assertEqual(client.post.call_args.args[0], 'http://127.0.0.1:3001/internal/control')
             self.assertIn('X-Internal-Token', client.post.call_args.kwargs['headers'])
             self.assertFalse(factory.call_args.kwargs['trust_env'])
-        with patch.object(backend, '_CONTROL_EXECUTOR', 'ros2_cli'), self.assertRaises(HTTPException):
-            await backend._execute_control_action('move', {})
+            client.post.side_effect = httpx.ConnectError('offline')
+            with self.assertRaises(HTTPException) as error:
+                await backend._execute_control_action('move', {})
+            self.assertEqual(error.exception.status_code, 503)
+
+    async def test_backend_startup_no_longer_requires_an_executor_environment(self):
+        with patch.dict(os.environ, {'DORI_CONTROL_EXECUTOR': 'obsolete'}):
+            async with backend.lifespan(backend.app):
+                pass
 
     async def test_tunnel_url_cannot_enable_legacy_raw_ws(self):
         with patch.dict(os.environ, {'DORI_WS_URL': 'wss://ws.evil.test', 'DORI_EXPOSE_ROSBRIDGE_TUNNEL': 'true'}):
@@ -346,16 +410,16 @@ class DashboardSecurityTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual((await client.get('/internal/session')).status_code, 403)
             headers = {'X-Internal-Token': os.environ['DORI_INTERNAL_TOKEN']}
             self.assertEqual((await client.get('/internal/session', headers=headers)).status_code, 200)
-            with patch.dict(os.environ, {'DORI_CONTROL_EXECUTOR': 'bridge'}), patch.object(bridge, 'ros_node', Mock()) as node:
+            with patch.object(bridge, 'ros_node', Mock()) as node:
                 response = await client.post('/internal/control', headers=headers, json={'action': 'move', 'params': {'linear_y': .1}})
                 self.assertEqual(response.status_code, 400)
-                node.control_action.assert_not_called()
+                node.execute_control.assert_not_called()
 
 
 class BridgeDeadmanTests(unittest.TestCase):
     def setUp(self):
         self.node = SimpleNamespace(_control_lock=threading.RLock(), _move_command=None,
-            _move_deadline=0, _action_state=0, _mode=0, pub_stop=Mock(), pub_cancel=Mock(),
+            _move_deadline=0, _move_owner=None, _action_state=0, _mode=0, _stop_latched=False, pub_stop=Mock(), pub_cancel=Mock(),
             pub_manual=Mock(), pub_mode=Mock(), count_publishers=Mock(return_value=1))
         self.node.pub_manual.get_subscription_count.return_value = 1
         self.node.pub_stop.get_subscription_count.return_value = 1

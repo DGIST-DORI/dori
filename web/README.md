@@ -178,9 +178,35 @@ Desktop/mobile screenshots are written under `/tmp/dori-navigation-*.png`.
 
 ### Manual control
 
-`DORI_CONTROL_EXECUTOR=dry-run` remains the default. Live control requires
-`DORI_CONTROL_EXECUTOR=bridge` in **both** backend and bridge environments.
-The removed `ros2_cli` executor is rejected instead of silently publishing.
+Open **Control → Hardware → Hardware Control** for manual driving, A/B posture
+changes, stop/resume, motor feedback and body pitch/rate/stabilization telemetry.
+This panel uses the authenticated HTTP control API; it does not require an admin
+ROS WebSocket. Viewers can inspect status; operators/admins can send commands.
+
+Hold a direction with a pointer/touch or Space/Enter. Releasing the button,
+losing focus, hiding the page, minimizing/closing the panel, stale status or a
+failed request sends a latched stop. **비상 정지** (or Escape while focused inside
+the panel) is always available to an authorized operator, including after status
+disconnects. **정지 해제 / 변형 재개** explicitly publishes emergency-go, returns
+to manual mode, and resumes a paused transform if one exists. A/B requests use
+the supervisor and existing transform sequence, requiring fresh motor 1–4
+feedback. Motor values older than 0.5 seconds and unavailable effort values are
+shown as missing. The panel does not send raw CAN, encoder-zero or torque commands.
+
+Use **실제 제어 켜기 / 실제 제어 끄기** in the panel to switch between live and
+simulated commands at runtime. No environment change or restart is needed for
+each switch. The bridge owns one shared setting for all dashboards; viewers
+cannot change it. Enabling requires a connected supervisor and no competing
+joystick/keyboard publisher. Each change latches a stop, so enabling alone never
+starts driving or resumes a transform. Explicitly use **정지 해제 / 변형 재개**
+after enabling. Disabling remains available during motion and stale UI status.
+
+The bridge starts in simulation after every restart. Opening/reconnecting a
+panel never enables live control. The old `DORI_CONTROL_EXECUTOR` variable no
+longer selects the executor; the UI and authenticated control API replace it.
+The selected setting governs dashboard commands, not other joystick or Nav2
+command sources. A running joystick/keyboard input must still be stopped before
+enabling dashboard control; this switch does not terminate its process.
 
 - `move`: normalized manual joystick values, **not** SI velocity; `linear_x`
   is in [-0.8, 0.8], `linear_y` must be 0, and `angular_z` is in [-1, 1].
@@ -192,14 +218,36 @@ The removed `ros2_cli` executor is rejected instead of silently publishing.
 - The bridge's ROS-thread watchdog latches `/emergency_stop` when refreshes stop
   or another manual publisher appears. The downstream drive controller's
   existing 0.3-second command timeout also stops output if the bridge crashes.
-- Both user WS `STOP` and API `stop` publish `/emergency_stop` plus `/dori/hri/cancel`.
+- User WS `STOP`, API `stop` in live mode, and live/simulation transitions publish
+  `/emergency_stop` plus `/dori/hri/cancel`. In simulation, API `stop` only
+  invalidates pending commands and does not publish to hardware.
   The supervisor prevents subsequent manual/auto commands from overriding this
-  latch. A local operator must explicitly resume using the existing emergency-go
-  procedure; the web API does not automatically clear a stop.
+  latch. An operator must explicitly resume using emergency-go or the panel's
+  resume button; the web API does not automatically clear a stop.
+- `resume` publishes `/emergency_go`; `transform` accepts `pose: "A" | "B"`
+  and publishes `/manual/transform_cmd`. Command delivery is shown separately
+  from actual controller feedback and does not claim physical completion.
+- `GET /api/control/state` provides role-filtered control availability and
+  telemetry. The panel includes its `client_id` and the current `control_epoch`
+  in action parameters. A second client cannot overwrite active manual driving;
+  stop invalidates outstanding commands from the panel and is never rate-limited.
+- `set_live_control` accepts `enabled: true | false`. Enabling and all live
+  commands except stop require the current `control_epoch`; switching invalidates
+  it. Disabling accepts stale state and is never rate-limited. Delayed simulated
+  commands cannot execute after live control is enabled, and a held simulated
+  input stops when another dashboard changes the setting.
 - `set_mode` supports only `manual` (Int32 0) and `auto` (Int32 1), published to
   `/control_mode_cmd`. `dock`, `idle`, and `safe` are not supervisor control modes.
 - Pairing/LLM/BT traffic uses the actual `/dori` namespace. Low-level hardware
   input topics retain their existing absolute names.
+
+Hardware checks include `test_hardware_control.py`, the dashboard security tests,
+and frontend tests under `src/panels/control/hardware`. With Vite on port 5179,
+run `PLAYWRIGHT_MODULE=/path/to/playwright node tests/hardware.browser.mjs` from
+`web` for mocked browser checks (no robot commands). An optional real-supervisor
+test is in `tests/integration/test_hardware_supervisor.py`; it requires a separate
+test executable, `ROS_DOMAIN_ID=97`, and `ROS_LOCALHOST_ONLY=1`, and uses only
+synthetic motor feedback. Physical movement and stopping remain unverified.
 
 ## Deployment checks and review status (2026-11-03)
 

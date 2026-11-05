@@ -16,6 +16,7 @@ const FaceDisplayPanel = lazy(() => import('./panels/hri/FaceDisplayPanel'));
 const EmotionPalettePanel = lazy(() => import('./panels/hri/EmotionPalettePanel'));
 
 const NavigationPanel = lazy(() => import('./panels/control/NavigationPanel'));
+const HardwareControlPanel = lazy(() => import('./panels/control/HardwareControlPanel'));
 
 const CubeViewerPanel = lazy(() => import('./panels/control/CubeViewerPanel'));
 const RotationControlPanel = lazy(() => import('./panels/control/RotationControlPanel'));
@@ -98,6 +99,13 @@ export const PANEL_TREE = [
   {
     id: 'control', label: 'Control', icon: <ControlIcon />,
     children: [
+      {
+        id: 'ctrl-hardware', label: 'Hardware', icon: <ControlIcon />,
+        children: [
+          { id: 'hardware-control', label: 'Hardware Control', component: HardwareControlPanel,
+            searchTexts: ['Hardware Control', '하드웨어 제어', '수동 주행', '모터', '변형', '비상 정지'] },
+        ],
+      },
       {
         id: 'ctrl-cube', label: 'Cube', icon: <CubeIcon />,
         children: [

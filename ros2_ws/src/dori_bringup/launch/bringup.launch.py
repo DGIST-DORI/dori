@@ -69,7 +69,10 @@ def setup(context):
             raise ValueError("Visitor Whisper requires enable_stt:=true")
         if value("enable_dashboard") == "true":
             check_visitor(context, root, provider, value("whisper_model"))
-    environment = [SetEnvironmentVariable("DORI_VISITOR_STT", provider)]
+    environment = [
+        SetEnvironmentVariable("DORI_VISITOR_STT", provider),
+        SetEnvironmentVariable("DORI_SESSION_ROOT", str(root)),
+    ]
 
     def include(filename, params):
         return IncludeLaunchDescription(

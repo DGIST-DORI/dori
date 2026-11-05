@@ -48,10 +48,12 @@ try:
     from .visitor_voice import VisitorVoice, ros_future
     from .control_contract import CONTROL_MODES, MOVE_TIMEOUT, validate_control
     from .internal_auth import internal_token, require_internal_token
+    from .hardware_control import HardwareControlMixin
 except ImportError:  # installed scripts are also executable directly
     from visitor_voice import VisitorVoice, ros_future
     from control_contract import CONTROL_MODES, MOVE_TIMEOUT, validate_control
     from internal_auth import internal_token, require_internal_token
+    from hardware_control import HardwareControlMixin
 
 # ─── Configuration ─────────────────────────────────────────────────────────
 
@@ -102,7 +104,7 @@ ros_node: Optional["BridgeNode"] = None
 # ─── ROS 2 Node (Bridge Gateway) ───────────────────────────────────────────
 
 
-class BridgeNode(Node):
+class BridgeNode(HardwareControlMixin, Node):
     def __init__(self):
         super().__init__("bridge_api_node")
         # 하향(ROS -> WS) Subscriptions
@@ -119,6 +121,7 @@ class BridgeNode(Node):
         self._move_command = None
         self._mode = None
         self._action_state = None
+        self._init_hardware_control()
         latch = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.create_subscription(Int32, "system/control_mode", self._on_mode, latch)
         self.create_subscription(Int32, "system/action_state", self._on_state, latch)
@@ -149,12 +152,18 @@ class BridgeNode(Node):
         with self._control_lock:
             self._move_command = None
             self._move_deadline = 0.0
+            self._move_owner = None
             self._action_state = 4
+            self._stop_latched = True
+            self._control_epoch = secrets.token_hex(16)
             self.pub_stop.publish(Bool(data=True))
             self.pub_cancel.publish(Bool(data=True))
 
     def control_action(self, action, params):
         with self._control_lock:
+            if (action != "stop" and "control_epoch" in params
+                    and params["control_epoch"] != self._control_epoch):
+                raise HTTPException(409, "Control state changed; refresh before commanding motion")
             if action == "stop":
                 self.request_stop()
             elif action == "set_mode":
@@ -162,18 +171,25 @@ class BridgeNode(Node):
                     self.request_stop()
                 self.pub_mode.publish(Int32(data=CONTROL_MODES[params["mode"]]))
             elif action == "move":
-                if self._mode != CONTROL_MODES["manual"] or self._action_state not in (0, 1):
+                owner = params.get("client_id", "legacy")
+                if self._move_command is not None and self._move_owner != owner:
+                    raise HTTPException(409, "Another dashboard is driving; stop before taking control")
+                if (self._stop_latched or self._mode != CONTROL_MODES["manual"]
+                        or self._action_state not in (0, 1)):
                     raise HTTPException(409, "Manual mode and idle/drive supervisor state required")
                 if not self.pub_manual.get_subscription_count() or not self.pub_stop.get_subscription_count():
                     raise HTTPException(503, "Supervisor is unavailable")
-                if self.count_publishers("manual/cmd_vel") > 1:
+                if self.count_publishers("/manual/cmd_vel") > 1:
                     raise HTTPException(409, "Another manual input publisher is active")
                 cmd = Twist()
                 cmd.linear.x = params["linear_x"]
                 cmd.angular.z = params["angular_z"]
                 self._move_command = cmd
+                self._move_owner = owner
                 self._move_deadline = time.monotonic() + MOVE_TIMEOUT
                 self.pub_manual.publish(cmd)
+            elif action in ("resume", "transform"):
+                self.hardware_action(action, params)
 
     def _control_tick(self):
         # Runs on the ROS thread, independently of HTTP/WS event-loop load.
@@ -183,7 +199,7 @@ class BridgeNode(Node):
             if self._move_command is None:
                 return
             if (time.monotonic() >= self._move_deadline
-                    or self.count_publishers("manual/cmd_vel") > 1
+                    or self.count_publishers("/manual/cmd_vel") > 1
                     or not self.pub_manual.get_subscription_count()):
                 self.request_stop()
                 return
@@ -856,13 +872,18 @@ async def delete_internal_session(x_internal_token: str = Header(None)):
 @app_display.post("/internal/control")
 async def internal_control(body: dict, x_internal_token: str = Header(None)):
     require_internal_token(x_internal_token)
-    if os.environ.get("DORI_CONTROL_EXECUTOR", "dry-run") != "bridge":
-        raise HTTPException(403, "Live control is disabled")
     action, params = validate_control(body)
     if ros_node is None:
         raise HTTPException(503, "ROS bridge is unavailable")
-    ros_node.control_action(action, params)
-    return {"executed": True, "executor": "bridge", "detail": "Published through supervisor"}
+    return ros_node.execute_control(action, params)
+
+
+@app_display.get("/internal/control/state")
+async def internal_control_state(x_internal_token: str = Header(None)):
+    require_internal_token(x_internal_token)
+    if ros_node is None:
+        raise HTTPException(503, "ROS bridge is unavailable")
+    return ros_node.hardware_state()
 
 
 @app_display.get("/display/events")
