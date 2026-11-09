@@ -21,14 +21,14 @@
     body[data-tone="green"] { --accent: #8de1c2; --accent-rgb: 141, 225, 194; }
     body[data-tone="amber"] { --accent: #f4cf8a; --accent-rgb: 244, 207, 138; }
     .display {
-      width: min(100%, 1440px);
+      width: min(100%, 1920px);
       min-height: 100vh;
       min-height: 100svh;
       margin: auto;
-      padding: clamp(24px, 4vh, 48px) clamp(24px, 4vw, 64px);
+      padding: clamp(24px, 3vh, 40px) clamp(24px, 4vw, 64px);
       display: flex;
       flex-direction: column;
-      gap: clamp(24px, 4vh, 48px);
+      gap: clamp(20px, 2.5vh, 32px);
     }
     .topbar, .footer { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
     .greeting { margin: 0; color: var(--muted); font-size: clamp(16px, 1.6vw, 22px); }
@@ -49,7 +49,7 @@
     .content {
       flex: 1;
       display: grid;
-      grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       align-items: center;
       gap: clamp(32px, 5vw, 80px);
       padding-block: 12px;
@@ -96,7 +96,13 @@
       font-size: 15px;
       font-variant-numeric: tabular-nums;
     }
-    .visual { width: 100%; max-width: 440px; justify-self: center; text-align: center; }
+    .visual {
+      width: 100%;
+      /* A 720px frame at Full HD; reserve height for the bars, caption and spacing. */
+      max-width: min(720px, calc(100svh - 320px));
+      justify-self: center;
+      text-align: center;
+    }
     .qr-frame {
       padding: clamp(14px, 1.8vw, 24px);
       border-radius: 28px;
@@ -309,6 +315,8 @@
     let state = '';
     let qrVersion = 0;
     let expiryTimer;
+    let loadTimer;
+    let pendingQR;
 
     function render(view) {
       const content = views[view];
@@ -329,6 +337,8 @@
     function clearQR() {
       qrVersion++;
       clearTimeout(expiryTimer);
+      clearTimeout(loadTimer);
+      pendingQR = null;
       qr.hidden = qrFrame.hidden = true;
       qr.removeAttribute('src');
     }
@@ -349,30 +359,44 @@
       if (typeof nonce !== 'string' || !nonce || !Number.isFinite(ttl) || ttl <= 0) return;
       const version = qrVersion;
       const deadline = performance.now() + ttl * 1000;
-      // Preload before showing the scan instruction. A late image must never
-      // bring back a QR after pairing, losing the stream, or its TTL expiring.
-      const nextQR = new Image();
-      nextQR.onload = () => {
+      let retryDelay = 1000;
+      function loadQR() {
         if (version !== qrVersion || state !== 'IDLE' || performance.now() >= deadline) return;
-        // Reuse the loaded element: QR responses are no-store, so assigning
-        // its URL to a second image would fetch the expiring code again.
-        nextQR.id = 'qr';
-        nextQR.alt = qr.alt;
-        qr.replaceWith(nextQR);
-        qr = nextQR;
-        render('IDLE');
-      };
-      nextQR.onerror = () => {
-        if (version !== qrVersion || state !== 'IDLE') return;
-        clearQR();
-        render('PREPARING');
-      };
+        // Preload before showing the scan instruction. Only the current
+        // attempt may display an image, including after a load timeout.
+        const nextQR = new Image();
+        pendingQR = nextQR;
+        nextQR.onload = () => {
+          if (version !== qrVersion || pendingQR !== nextQR || state !== 'IDLE' || performance.now() >= deadline) return;
+          clearTimeout(loadTimer);
+          pendingQR = null;
+          // Reuse the loaded no-store image without requesting it again.
+          nextQR.id = 'qr';
+          nextQR.alt = qr.alt;
+          qr.replaceWith(nextQR);
+          qr = nextQR;
+          render('IDLE');
+        };
+        const retry = () => {
+          if (version !== qrVersion || pendingQR !== nextQR) return;
+          clearTimeout(loadTimer);
+          pendingQR = null;
+          nextQR.onload = nextQR.onerror = null;
+          nextQR.removeAttribute('src');
+          // A transient startup failure must not wait for the 30s rotation.
+          loadTimer = setTimeout(loadQR, retryDelay);
+          retryDelay = Math.min(retryDelay * 2, 5000);
+        };
+        nextQR.onerror = retry;
+        loadTimer = setTimeout(retry, 5000);
+        nextQR.src = '/display/qr/' + encodeURIComponent(nonce);
+      }
       expiryTimer = setTimeout(() => {
         if (version !== qrVersion) return;
         clearQR();
         render('PREPARING');
       }, ttl * 1000);
-      nextQR.src = '/display/qr/' + encodeURIComponent(nonce);
+      loadQR();
     });
     stream.onerror = () => {
       state = '';

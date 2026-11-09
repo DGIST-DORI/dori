@@ -408,6 +408,11 @@ set -euo pipefail
 
 profile="$HOME/.local/state/dori/firefox-kiosk"
 mkdir -p "$profile"
+cat > "$profile/user.js" <<'FIREFOX_PREFS'
+// Keep the rotated kiosk display from retaining stale GPU frames.
+user_pref("layers.acceleration.disabled", true);
+user_pref("gfx.webrender.software", true);
+FIREFOX_PREFS
 url='http://127.0.0.1:3001/display'
 until curl --noproxy '*' --fail --silent --max-time 2 --output /dev/null "$url"; do
     sleep 1
@@ -431,7 +436,12 @@ AUTOSTART
 ```
 
 The separate Firefox profile and `--no-remote` keep the kiosk independent of
-ordinary browser windows. If you used the earlier Chromium setup, recreate the
+ordinary browser windows. Software rendering is enabled only for this profile:
+on the robot's rotated X11 display, accelerated rendering can leave the physical
+screen stuck on “QR 준비 중” even after the QR image has loaded. A desktop
+screenshot can force a repaint and hide this symptom, so verify the physical
+screen after a reload and through at least two 30-second QR rotations.
+If you used the earlier Chromium setup, recreate the
 launcher above to switch browsers. Start it once for the current desktop session,
 then run the usual bringup from the repository root with the terminal environment
 and credentials configured above:

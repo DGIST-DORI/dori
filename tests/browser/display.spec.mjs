@@ -23,6 +23,9 @@ try {
     if (pathname === '/display') return route.fulfill({ contentType: 'text/html', body: html });
     if (pathname.startsWith('/display/qr/')) {
       requests.push(pathname);
+      const attempt = requests.filter(path => path === pathname).length;
+      if ((pathname.endsWith('/retry-once') && attempt === 1) || pathname.includes('/cancel-retry-')) return route.abort('failed');
+      if (pathname.endsWith('/stalled-once') && attempt === 1) { pending.set(pathname, route); return; }
       if (pathname.includes('slow')) { pending.set(pathname, route); return; }
       if (pathname.endsWith('broken')) return route.fulfill({ status: 410, body: 'QR expired' });
       return route.fulfill({ contentType: 'image/svg+xml', body: qrImage, headers: { 'Cache-Control': 'no-store' } });
@@ -42,12 +45,16 @@ try {
     assert.ok(await page.locator('#qr').evaluate(image => image.complete && image.naturalWidth > 0));
   };
   const hiddenQR = async () => assert.equal(await page.locator('#qr').isVisible(), false);
-  const release = async nonce => {
+  const waitPending = async nonce => {
     const path = '/display/qr/' + nonce;
     for (let attempt = 0; !pending.has(path); attempt++) {
       assert.ok(attempt < 100, 'Expected pending QR request');
       await new Promise(resolve => setTimeout(resolve, 10));
     }
+    return path;
+  };
+  const release = async nonce => {
+    const path = await waitPending(nonce);
     const response = page.waitForResponse(response => new URL(response.url()).pathname === path);
     await pending.get(path).fulfill({ contentType: 'image/svg+xml', body: qrImage });
     await (await response).finished();
@@ -86,6 +93,44 @@ try {
   await page.waitForTimeout(50);
   await hiddenQR();
   assert.match(await page.locator('#status').innerText(), /새 QR/);
+
+  // A failed first request must recover without waiting for the next SSE QR
+  // rotation. Slow requests also need a bound before trying again.
+  const failQR = async (nonce, ttl = 30) => {
+    await state('IDLE');
+    const failed = page.waitForEvent('requestfailed', request => new URL(request.url()).pathname.endsWith('/' + nonce));
+    await emit('qr_update', { nonce, ttl });
+    await failed;
+    await page.waitForTimeout(50);
+    await hiddenQR();
+  };
+  await failQR('retry-once');
+  await page.clock.fastForward(1000);
+  await page.locator('#qr').waitFor({ state: 'visible', timeout: 3000 });
+  assert.equal(requests.filter(path => path.endsWith('/retry-once')).length, 2);
+
+  await state('IDLE');
+  await emit('qr_update', { nonce: 'stalled-once', ttl: 30 });
+  await waitPending('stalled-once');
+  await page.clock.fastForward(5000);
+  await hiddenQR();
+  await page.clock.fastForward(1000);
+  await page.locator('#qr').waitFor({ state: 'visible', timeout: 3000 });
+  assert.equal(requests.filter(path => path.endsWith('/stalled-once')).length, 2);
+  await pending.get('/display/qr/stalled-once').fulfill({ contentType: 'image/svg+xml', body: qrImage });
+
+  for (const action of ['paired', 'offline', 'expired', 'newer']) {
+    const nonce = 'cancel-retry-' + action;
+    await failQR(nonce, action === 'expired' ? 0.5 : 30);
+    if (action === 'paired') await emit('paired', { status: 'ACTIVE' });
+    if (action === 'offline') await page.evaluate(() => window.displayEvents.onerror());
+    if (action === 'newer') await loadQR('after-retry-cancel');
+    await page.clock.fastForward(1500);
+    assert.equal(requests.filter(path => path.endsWith('/' + nonce)).length, 1, 'Obsolete QR retries must be cancelled');
+    if (action === 'newer') assert.ok((await page.locator('#qr').getAttribute('src')).endsWith('/after-retry-cancel'));
+    else await hiddenQR();
+  }
+
   await loadQR('expiring', 2);
   await page.clock.fastForward(2100);
   await hiddenQR();
@@ -129,7 +174,7 @@ try {
     assert.ok(metrics.qrWidth >= 220, 'QR must remain large enough to scan');
   }
   assert.deepEqual(errors, []);
-  console.log('Display checks passed: state transitions, QR loading/expiry/races, logo, and six viewport sizes.');
+  console.log('Display checks passed: state transitions, QR loading/retries/timeouts/expiry/races, logo, and six viewport sizes.');
 } finally {
   await browser.close();
 }
