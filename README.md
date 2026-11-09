@@ -480,18 +480,47 @@ phone pairing; use the default bringup for the complete app session.
 
 For complete robot operation with hardware drivers, LiDAR, Nav2, HRI, and web viewer:
 
-Install CAN auto-setup **once**, with the CANable2 connected and robot nodes stopped:
+**1. Install CAN auto-setup once on each robot computer.** Connect the CANable2,
+stop robot nodes, and run the following from the repository root. This host
+installation is required before the first `dori_mode:=real` bringup;
+`colcon build` does not install or start the system service.
 
 ```bash
+# Optional: inspect the selected adapter and installation paths without sudo.
+/usr/bin/python3 ros2_ws/src/dori_hardware/scripts/install_can_service.py --dry-run
+
+# Required once: install the host configuration and start CAN setup.
 sudo /usr/bin/python3 ros2_ws/src/dori_hardware/scripts/install_can_service.py
 ```
 
-This identifies the connected CANable2 by USB serial and installs
-`dori-can.service` plus its udev rule. At boot and on USB reconnect, the service
-creates and activates `can1`; unplugging the adapter stops its service.
-It does not launch ROS nodes or issue motor commands. The Dynamixel adapter is not
-required for this installation. No `systemctl enable` or per-session sudo is needed.
-Use `--dry-run` to review the device and paths without changing the system.
+The installer requires `slcand` (`can-utils`), `ip` (`iproute2`), `modprobe`,
+`udevadm`, and `systemctl`. Administrator privileges are needed to install:
+
+- `/etc/dori/can.json`: the selected CANable2 USB identity and CAN interface.
+- `/etc/udev/rules.d/99-dori-can.rules`: activation when that adapter connects.
+- `/etc/systemd/system/dori-can.service`: the CAN setup service.
+- `/usr/local/libexec/dori-can`: the service implementation.
+
+The installer reloads systemd/udev and starts the service immediately; a reboot
+is not required. At subsequent boots and USB reconnects, the service creates
+and activates `can1`; unplugging the adapter stops its service. It does not
+launch ROS nodes or issue motor commands, and the Dynamixel adapter is not
+required for installation. No `systemctl enable` or per-session sudo is needed.
+
+**2. Verify CAN readiness before starting bringup.**
+
+```bash
+systemctl status dori-can.service --no-pager
+ip -details link show can1
+```
+
+Expect the service to be `active (running)` and `can1` to have the `UP` flag.
+SLCAN may report `state UNKNOWN` while the interface is UP. If setup fails,
+inspect `journalctl -u dori-can.service -b --no-pager`. After replacing the
+CANable2 or updating the service implementation, stop robot nodes and run
+`sudo systemctl stop dori-can.service` before rerunning the installer above.
+
+**3. Start bringup as the normal user.**
 
 Bringup waits up to 10 seconds for CAN to become UP, then checks that the
 Dynamixel, IMU and LiDAR ports exist, are accessible, and refer to different
@@ -499,12 +528,6 @@ devices. `real_can_wait_timeout:=20` changes this wait (0–30 seconds);
 `hardware.launch.py` uses `can_wait_timeout`. Failure reports the CAN service
 state and all missing devices before starting robot nodes. Full device setup
 and troubleshooting are in [AMM 20-30](docs/user/DORI-AMM.md#task-20-30-00--현장-장치-준비).
-
-```bash
-systemctl status dori-can.service --no-pager
-journalctl -u dori-can.service -b --no-pager
-ip -details link show can1
-```
 
 ```bash
 ros2 launch dori_bringup hardware.launch.py \
