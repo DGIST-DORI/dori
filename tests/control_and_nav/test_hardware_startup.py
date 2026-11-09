@@ -1,4 +1,4 @@
-"""Device checks use filesystem metadata only; never open physical devices."""
+"""Metadata checks and mocked auto discovery; never open physical devices."""
 import importlib.util
 import os
 from pathlib import Path
@@ -49,6 +49,47 @@ def test_rejects_aliases_of_same_device(devices):
     ports["LiDAR"] = str(alias)
     with pytest.raises(RuntimeError, match="LiDAR and Dynamixel share"):
         checks.validate_devices("can1", ports, net_root=root)
+
+
+def test_auto_discovery_returns_resolved_port_and_excludes_other_roles(devices, monkeypatch):
+    root, ports = devices
+    chosen = ports["Dynamixel"]
+    def resolve(port, **kwargs):
+        assert port == "auto"
+        assert kwargs["baudrate"] == "115200"
+        assert ports["LiDAR"] in kwargs["excluded_ports"]
+        assert ports["IMU"] in kwargs["excluded_ports"]
+        return chosen
+    monkeypatch.setattr(checks, "resolve_dxl_port", resolve)
+    ports["Dynamixel"] = "auto"
+    resolved = checks.validate_devices("can1", ports, net_root=root, dxl_baudrate="115200")
+    assert resolved["Dynamixel"] == chosen
+    assert ports["Dynamixel"] == "auto"  # Caller input is unchanged.
+
+
+def test_discovery_failure_is_aggregated_with_can_failure(devices, monkeypatch):
+    root, ports = devices
+    (root / "can1/flags").write_text("0x40")
+    def missing(*args, **kwargs):
+        raise RuntimeError("No responding Dynamixel bus")
+    monkeypatch.setattr(checks, "resolve_dxl_port", missing)
+    ports["Dynamixel"] = "auto"
+    with pytest.raises(RuntimeError) as exc:
+        checks.validate_devices("can1", ports, net_root=root)
+    assert "CAN can1 is DOWN" in str(exc.value)
+    assert "No responding Dynamixel bus" in str(exc.value)
+
+
+def test_missing_dxl_does_not_report_healthy_can_as_unprepared(devices, monkeypatch):
+    root, ports = devices
+    def missing(*args, **kwargs):
+        raise RuntimeError("No responding Dynamixel bus")
+    monkeypatch.setattr(checks, "resolve_dxl_port", missing)
+    ports["Dynamixel"] = "auto"
+    with pytest.raises(RuntimeError) as exc:
+        checks.validate_devices("can1", ports, net_root=root)
+    assert "No responding Dynamixel bus" in str(exc.value)
+    assert "install_can_service" not in str(exc.value)
 
 
 @pytest.mark.parametrize("filename,value,message", [("type", "1", "not a CAN"), ("flags", "0x40", "DOWN")])

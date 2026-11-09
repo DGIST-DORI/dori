@@ -12,7 +12,7 @@ from launch.actions import (
 )
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import EnvironmentVariable, LaunchConfiguration
-from dori_hardware.startup_checks import CAN_INTERFACE, CAN_WAIT_TIMEOUT, DXL_PORT, IMU_PORT, LIDAR_PORT
+from dori_hardware.startup_checks import CAN_INTERFACE, CAN_WAIT_TIMEOUT, DXL_PORT, DXL_BAUDRATE, IMU_PORT, LIDAR_PORT
 
 
 def repo_root():
@@ -90,7 +90,7 @@ def setup(context):
                     "named_goals_file": value("real_named_goals_file"),
                     "use_joystick": value("real_use_joystick"),
                     **{k: value("real_" + k) for k in (
-                        "can_interface", "can_wait_timeout", "dxl_port", "imu_port", "lidar_port",
+                        "can_interface", "can_wait_timeout", "dxl_port", "dxl_baudrate", "imu_port", "lidar_port",
                     )},
                     **{
                         k: value(k)
@@ -161,6 +161,7 @@ def generate_launch_description():
         real_can_interface=CAN_INTERFACE,
         real_can_wait_timeout=CAN_WAIT_TIMEOUT,
         real_dxl_port=DXL_PORT,
+        real_dxl_baudrate=DXL_BAUDRATE,
         real_imu_port=IMU_PORT,
         real_lidar_port=LIDAR_PORT,
         enable_stt="auto",

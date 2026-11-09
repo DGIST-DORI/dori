@@ -267,6 +267,8 @@ def no_process_launch(monkeypatch, tmp_path):
     # Device readiness is exercised separately without hardware. Here only
     # expand the descriptions and verify installed programs/parameters.
     monkeypatch.setattr("dori_hardware.startup_checks.validate_devices", lambda *args, **kwargs: None)
+    monkeypatch.setattr("dori_hardware.serial_identity.resolve_dxl_port",
+                        lambda port, **kwargs: "/dev/test-dynamixel" if port == "auto" else port)
     monkeypatch.setenv("DORI_INTERNAL_TOKEN", "test-only-internal-secret-32-characters")
     # Launch preflight validates SDK/config only; it never contacts Azure.
     monkeypatch.delenv("DORI_VISITOR_STT", raising=False)
@@ -354,6 +356,7 @@ def test_physical_device_parameters_reach_every_driver(no_process_launch):
         "real_map": str(ROOT / "maps/live_navigation_20261023_1938.yaml"),
         "real_can_interface": "can7",
         "real_dxl_port": "/dev/serial/by-id/test-dxl",
+        "real_dxl_baudrate": "115200",
         "real_imu_port": "/dev/serial/by-id/test-imu",
         "real_lidar_port": "/dev/test-lidar",
     })
@@ -361,6 +364,7 @@ def test_physical_device_parameters_reach_every_driver(no_process_launch):
         return next(params for _, exe, params in nodes if exe == executable)
     for exe, key, expected in (
         ("dxl_driver_node", "device_name", "/dev/serial/by-id/test-dxl"),
+        ("dxl_driver_node", "baudrate", 115200),
         ("imu_node", "port", "/dev/serial/by-id/test-imu"),
         ("sllidar_node", "serial_port", "/dev/test-lidar"),
         ("motor4_servo_node", "can_interface", "can7"),
@@ -369,6 +373,26 @@ def test_physical_device_parameters_reach_every_driver(no_process_launch):
     description = next(p["robot_description"] for p in parameters("ros2_control_node")
                        if isinstance(p, dict) and "robot_description" in p)
     assert ET.fromstring(description).find("ros2_control/hardware/param[@name='can_interface']").text == "can7"
+
+
+def test_discovered_port_reaches_driver_without_a_second_probe(no_process_launch, monkeypatch):
+    def validate(can_interface, serial_ports, **kwargs):
+        ports = dict(serial_ports)
+        if ports["Dynamixel"] == "auto":
+            ports["Dynamixel"] = "/dev/serial/by-id/usb-CP2102N-servos"
+        return ports
+    def resolved_only(port, **kwargs):
+        assert port != "auto", "The parent must forward the identified device"
+        return port
+    monkeypatch.setattr("dori_hardware.startup_checks.validate_devices", validate)
+    monkeypatch.setattr("dori_hardware.serial_identity.resolve_dxl_port", resolved_only)
+    nodes = inspect_launch("dori_bringup", "bringup.launch.py", {
+        "dori_mode": "real",
+        "real_map": str(ROOT / "maps/live_navigation_20261023_1938.yaml"),
+    })
+    params = next(params for _, exe, params in nodes if exe == "dxl_driver_node")
+    assert any(isinstance(p, dict) and p.get("device_name") ==
+               "/dev/serial/by-id/usb-CP2102N-servos" for p in params)
 
 
 def test_dashboard_and_native_plugin_assets_installed():

@@ -17,7 +17,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from dori_hardware.startup_checks import (
-    CAN_INTERFACE, CAN_WAIT_TIMEOUT, DXL_PORT, IMU_PORT, LIDAR_PORT, validate_devices,
+    CAN_INTERFACE, CAN_WAIT_TIMEOUT, DXL_PORT, DXL_BAUDRATE, IMU_PORT, LIDAR_PORT, validate_devices,
 )
 
 
@@ -43,10 +43,12 @@ def setup(context):
         )
     if value("named_goals_file") and not Path(value("named_goals_file")).is_file():
         raise ValueError("named_goals_file does not exist")
-    validate_devices(value("can_interface"), {
+    resolved = validate_devices(value("can_interface"), {
         "Dynamixel": value("dxl_port"), "IMU": value("imu_port"),
         "LiDAR": value("lidar_port"),
-    }, can_wait_timeout=value("can_wait_timeout"))
+    }, can_wait_timeout=value("can_wait_timeout"), dxl_baudrate=value("dxl_baudrate"))
+    if resolved:
+        context.launch_configurations["dxl_port"] = resolved["Dynamixel"]
 
     def failed(event, _context):
         # Teardown exits must not start another shutdown sequence.
@@ -68,7 +70,7 @@ def setup(context):
         include(
             "dori_hardware",
             "real_hardware.launch.py",
-            {k: value(k) for k in ("use_joystick", "can_interface", "can_wait_timeout", "dxl_port", "imu_port")},
+            {k: value(k) for k in ("use_joystick", "can_interface", "can_wait_timeout", "dxl_port", "dxl_baudrate", "imu_port")},
         ),
         include(
             "sllidar_ros2",
@@ -199,6 +201,7 @@ def generate_launch_description():
         can_interface=CAN_INTERFACE,
         can_wait_timeout=CAN_WAIT_TIMEOUT,
         dxl_port=DXL_PORT,
+        dxl_baudrate=DXL_BAUDRATE,
         imu_port=IMU_PORT,
         lidar_port=LIDAR_PORT,
         enable_hri="true",

@@ -6,11 +6,15 @@ from pathlib import Path
 import stat
 import subprocess
 import time
+from dori_hardware.serial_identity import resolve_dxl_port
 
 CAN_INTERFACE = "can1"
-DXL_PORT = "/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTAU591Z-if00-port0"
+DXL_PORT = "auto"
+DXL_BAUDRATE = "57600"
 IMU_PORT = "/dev/serial/by-id/usb-Arduino_Nano_33_BLE_B9CD51D670B512DB-if00"
-LIDAR_PORT = "/dev/slamtec_c1"
+# Verified by SLAMTEC GET_DEVICE_INFO. The old broad CP210x udev alias can
+# incorrectly move to a second CP210x adapter, so do not use it for bringup.
+LIDAR_PORT = "/dev/serial/by-id/usb-Silicon_Labs_CP2102N_USB_to_UART_Bridge_Controller_82c0f09f3531f111bc58935f30d20014-if00-port0"
 CAN_WAIT_TIMEOUT = "10.0"
 
 
@@ -40,8 +44,9 @@ def can_service_status():
     return "service status unavailable"
 
 
-def validate_devices(can_interface, serial_ports, *, net_root=Path("/sys/class/net"), can_wait_timeout=0.0):
-    """Collect setup errors without opening ports, sending packets or running sudo."""
+def validate_devices(can_interface, serial_ports, *, net_root=Path("/sys/class/net"),
+                     can_wait_timeout=0.0, dxl_baudrate=DXL_BAUDRATE):
+    """Return resolved ports; auto DXL uses PING, explicit paths use metadata only."""
     errors = []
     timeout = float(can_wait_timeout)
     if not math.isfinite(timeout) or not 0 <= timeout <= 30:
@@ -59,6 +64,18 @@ def validate_devices(can_interface, serial_ports, *, net_root=Path("/sys/class/n
         if error:
             errors.append(f"{error} after waiting {timeout:g}s; dori-can.service: {can_service_status()}")
 
+    can_failed = bool(errors)
+    serial_ports = dict(serial_ports)
+    if serial_ports.get("Dynamixel") == "auto":
+        try:
+            serial_ports["Dynamixel"] = resolve_dxl_port(
+                "auto", baudrate=dxl_baudrate,
+                excluded_ports=[IMU_PORT, LIDAR_PORT] + [
+                    p for label, p in serial_ports.items() if label != "Dynamixel"],
+            )
+        except (OSError, ValueError, RuntimeError) as exc:
+            errors.append(f"Dynamixel: {exc}")
+            del serial_ports["Dynamixel"]
     devices = {}
     for label, port in serial_ports.items():
         path = Path(port)
@@ -78,7 +95,9 @@ def validate_devices(can_interface, serial_ports, *, net_root=Path("/sys/class/n
         raise RuntimeError(
             "Hardware startup checks failed; no robot nodes were started:\n- "
             + "\n- ".join(errors)
-            + "\nCAN: install dori_hardware/scripts/install_can_service.py once with sudo; "
-            "then check systemctl status dori-can.service and journalctl -u dori-can.service -b."
+            + ("\nCAN: install dori_hardware/scripts/install_can_service.py once with sudo; "
+               "then check systemctl status dori-can.service and journalctl -u dori-can.service -b."
+               if can_failed else "")
             + "\nSee docs/user/DORI-AMM.md TASK 20-30-00."
         )
+    return serial_ports

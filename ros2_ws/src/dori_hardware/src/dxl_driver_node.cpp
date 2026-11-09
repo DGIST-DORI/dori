@@ -35,8 +35,7 @@ class DxlDriverNode : public rclcpp::Node
 public:
   DxlDriverNode() : Node("dxl_driver_node")
   {
-    device_ = declare_parameter<std::string>("device_name",
-      "/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTAU591Z-if00-port0");
+    device_ = declare_parameter<std::string>("device_name", "");
     baudrate_ = declare_parameter<int>("baudrate", 57600);
     port_.reset(dynamixel::PortHandler::getPortHandler(device_.c_str()));
     packet_ = dynamixel::PacketHandler::getPacketHandler(2.0);
@@ -54,6 +53,9 @@ public:
 
   void start()
   {
+    if (device_.empty() || device_ == "auto") {
+      throw std::runtime_error("Set device_name to the Dynamixel serial port, or use hardware launch for discovery");
+    }
     if (baudrate_ <= 0 || !port_->openPort() || !port_->setBaudRate(baudrate_)) {
       throw std::runtime_error("Cannot open DXL port " + device_ + " at " +
               std::to_string(baudrate_) + " baud");

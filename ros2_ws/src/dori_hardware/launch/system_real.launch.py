@@ -1,6 +1,6 @@
 from launch_ros.parameter_descriptions import ParameterValue
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.conditions import IfCondition
 from launch.substitutions import (
     LaunchConfiguration,
@@ -10,7 +10,18 @@ from launch.substitutions import (
 )
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
-from dori_hardware.startup_checks import CAN_INTERFACE, DXL_PORT
+from dori_hardware.startup_checks import CAN_INTERFACE, DXL_PORT, DXL_BAUDRATE, IMU_PORT, LIDAR_PORT
+from dori_hardware.serial_identity import resolve_dxl_port
+
+
+def identify_dynamixel(context):
+    context.launch_configurations["dxl_port"] = resolve_dxl_port(
+        LaunchConfiguration("dxl_port").perform(context),
+        baudrate=LaunchConfiguration("dxl_baudrate").perform(context),
+        excluded_ports=[LaunchConfiguration("imu_port", default=IMU_PORT).perform(context),
+                        LaunchConfiguration("lidar_port", default=LIDAR_PORT).perform(context)],
+    )
+    return []
 
 
 def generate_launch_description():
@@ -78,10 +89,12 @@ def generate_launch_description():
             DeclareLaunchArgument("use_input_nodes", default_value="false"),
             DeclareLaunchArgument("can_interface", default_value=CAN_INTERFACE),
             DeclareLaunchArgument("dxl_port", default_value=DXL_PORT),
+            DeclareLaunchArgument("dxl_baudrate", default_value=DXL_BAUDRATE),
             DeclareLaunchArgument("use_joystick", default_value="false"),
             DeclareLaunchArgument("use_wheel_odometry", default_value="false"),
             DeclareLaunchArgument("odom_publish_tf", default_value="false"),
             DeclareLaunchArgument("odom_scale", default_value="1.0"),
+            OpaqueFunction(function=identify_dynamixel),
             Node(
                 package="dori_control",
                 executable="wheel_odometry_node",
@@ -204,7 +217,8 @@ def generate_launch_description():
             Node(
                 package="dori_hardware",
                 executable="dxl_driver_node",
-                parameters=[{"device_name": LaunchConfiguration("dxl_port")}],
+                parameters=[{"device_name": LaunchConfiguration("dxl_port"),
+                             "baudrate": ParameterValue(LaunchConfiguration("dxl_baudrate"), value_type=int)}],
                 output="screen",
             ),
             Node(

@@ -489,7 +489,7 @@ sudo /usr/bin/python3 ros2_ws/src/dori_hardware/scripts/install_can_service.py
 This identifies the connected CANable2 by USB serial and installs
 `dori-can.service` plus its udev rule. At boot and on USB reconnect, the service
 creates and activates `can1`; unplugging the adapter stops its service.
-It does not launch ROS nodes or issue motor commands. The FTDI adapter is not
+It does not launch ROS nodes or issue motor commands. The Dynamixel adapter is not
 required for this installation. No `systemctl enable` or per-session sudo is needed.
 Use `--dry-run` to review the device and paths without changing the system.
 
@@ -526,19 +526,27 @@ ros2 launch dori_bringup bringup.launch.py \
 Omit `visitor_mode:=false` to keep the default visitor app profile on the
 physical robot. Hardware still requires the map and device preparation above.
 
-The DORI Dynamixel driver uses the FTDI adapter's stable `/dev/serial/by-id/`
-path. Do not run the upstream `dynamixel_sdk_examples/read_write_node` alongside
+The Dynamixel port defaults to `auto`: a read-only Protocol 2 PING identifies
+ID 1/model 1140 and ID 3/model 1040 on a unique USB serial bus at 57600 baud.
+Configured LiDAR/IMU and CANable ports are excluded, and occupied ports are
+rejected. No USB chip manufacturer or previous adapter serial is required.
+Bringup uses the verified LiDAR's stable by-id path because the existing
+`/dev/slamtec_c1` udev rule matches all CP210x adapters.
+Do not run the upstream `dynamixel_sdk_examples/read_write_node` alongside
 bringup: its fixed `/dev/ttyUSB0` can open the LiDAR port, change its baud rate,
 and cause `SL_RESULT_OPERATION_TIMEOUT`. The DORI driver handles only DXL IDs
 1 and 3; motor 4 uses CubeMars CAN ID 4. Failed DXL reads are rejected as invalid
 feedback instead of being reported as position zero.
 
-To use different hardware paths, set `real_can_interface`, `real_dxl_port`,
+To use different hardware paths, set `real_can_interface`, `real_dxl_port`, `real_dxl_baudrate`,
 `real_imu_port` and `real_lidar_port` on `bringup.launch.py`. On
 `hardware.launch.py`, use the same argument names without `real_`. Specify the
 actual devices; changing `can1` to the onboard `can0` is not a substitute for
-preparing the connected CANable adapter. A missing FTDI path means that adapter
-must be connected or its replacement's path explicitly configured.
+preparing the connected CANable adapter. No responding Dynamixel bus means
+checking its USB connection, servo power, baudrate and IDs. Full real bringup
+still requires this bus; it does not silently skip the servos. An explicit
+`real_dxl_port:=/dev/serial/by-id/...` bypasses discovery; the driver still
+validates servo models before enabling torque.
 
 ### Topic Namespace (Default vs Multi-Robot)
 

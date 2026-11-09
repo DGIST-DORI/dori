@@ -30,7 +30,8 @@ CAN을 먼저 준비합니다. 다른 장치 준비가 실패해도 이미 켠 c
 필요한 경우 sudo 비밀번호를 요청합니다. 스크립트 자체는 일반 사용자로 실행하세요.
 이미 실행 중인 제어 노드가 있으면 중복 실행을 거부합니다.
 USB 장치 연결 및 작업공간 빌드는 미리 완료해야 합니다.
---check는 상태만 검사하며 sudo나 장치 변경을 수행하지 않습니다.
+--check는 상태 검사와 Dynamixel PING만 수행하며 sudo나 모터 설정 변경을 수행하지 않습니다.
+DORI_DXL_PORT(기본 auto), DORI_DXL_BAUDRATE(기본 57600)로 서보 연결을 지정할 수 있습니다.
 --check 통과는 실제 센서/조이스틱 데이터 갱신이나 기구 안전을 보증하지 않습니다.
 HELP
 }
@@ -77,9 +78,11 @@ hardware_args=()
 import os
 from pathlib import Path
 import serial  # 누락 시 하드웨어 노드 실행 전에 실패
+from dori_hardware.serial_identity import resolve_dxl_port
+from dori_hardware.startup_checks import DXL_PORT, DXL_BAUDRATE, IMU_PORT, LIDAR_PORT
 
 blocked = {
-    'ros2_control_node', 'read_write_node', 'bldc_command_bridge_node',
+    'ros2_control_node', 'read_write_node', 'dxl_driver_node', 'bldc_command_bridge_node',
     'drive_controller_node', 'wheel_torque_controller_node',
     'dxl_bridge_node', 'dxl_state_publisher_node',
     'mode_manager_node', 'transform_manager_node', 'transform_controller_node',
@@ -126,10 +129,19 @@ def main():
     parser.add_argument('--no-joystick', action='store_true')
     args = parser.parse_args()
     errors = []
-    for device, label in [
-        ('/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTAU591Z-if00-port0', 'Dynamixel USB'),
-        ('/dev/serial/by-id/usb-Arduino_Nano_33_BLE_B9CD51D670B512DB-if00', 'IMU'),
-    ]:
+    devices = [(IMU_PORT, 'IMU')]
+    try:
+        dxl_port = resolve_dxl_port(
+            os.environ.get('DORI_DXL_PORT', DXL_PORT),
+            baudrate=os.environ.get('DORI_DXL_BAUDRATE', DXL_BAUDRATE),
+            excluded_ports=[IMU_PORT, LIDAR_PORT])
+        if Path(dxl_port).resolve() in {Path(IMU_PORT).resolve(), Path(LIDAR_PORT).resolve(),
+                                       Path('/dev/dori_canable').resolve()}:
+            raise RuntimeError('Dynamixel 포트가 IMU/LiDAR/CAN 포트와 겹칩니다.')
+        devices.append((dxl_port, 'Dynamixel USB'))
+    except (OSError, ValueError, RuntimeError) as exc:
+        errors.append(str(exc))
+    for device, label in devices:
         if not Path(device).exists():
             errors.append(f'{label}: {device} 없음. USB 연결과 전원을 확인하세요.')
         elif not os.access(device, os.R_OK | os.W_OK):
@@ -242,6 +254,8 @@ printf '전체 제어 시작 (조이스틱: %s). 종료: Ctrl+C\n' "$DORI_CONTRO
 # 하위 노드를 따로 중복 실행하지 않고 기존 통합 launch가 수명주기를 관리한다.
 exec ros2 launch dori_hardware system_real_with_imu.launch.py \
     "use_joystick:=$DORI_CONTROL_JOYSTICK" \
+    "dxl_port:=${DORI_DXL_PORT:-auto}" \
+    "dxl_baudrate:=${DORI_DXL_BAUDRATE:-57600}" \
     "use_wheel_odometry:=${DORI_USE_WHEEL_ODOMETRY:-false}" \
     "odom_publish_tf:=${DORI_ODOM_PUBLISH_TF:-false}" \
     "odom_scale:=${DORI_ODOM_SCALE:-1.0}"

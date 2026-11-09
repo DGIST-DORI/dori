@@ -51,7 +51,7 @@ Humble 액션 basename remap의 제약 때문에 내부 Nav2 액션의 send_goal
 2. 배터리, CANable, 서보, IMU, LiDAR의 전원·결선·커넥터를 확인한다.
 3. 적용 지도와 현장 구조가 일치하는지 확인한다. 지도만 같고 초기 위치가 다른 상태에서 출발하지 않는다.
 4. 다른 터미널·서비스에서 제어 노드가 실행 중이면 먼저 정상 종료한다.
-5. 현재 로봇의 udev 장치 별칭과 포트를 확인한다. LiDAR 기본 별칭은 `/dev/slamtec_c1`, CAN은 `can1`이다. IMU/서보 포트는 `dori_hardware`의 기존 실물 launch 설정을 적용한다.
+5. 현재 로봇의 udev 장치 별칭과 포트를 확인한다. LiDAR는 확인된 CP2102N의 `/dev/serial/by-id/` 경로, CAN은 `can1`을 사용한다. `/dev/slamtec_c1`은 기존 호환 별칭이며 다른 CP210x 장치와 혼동될 수 있다. IMU/서보 포트는 `dori_hardware`의 기존 실물 launch 설정을 적용한다.
 
 **합격기준:** 단일 제어 세션을 시작할 수 있고, 현장 정지 수단과 자유 주행 공간이 확보됨.
 
@@ -221,7 +221,7 @@ sudo udevadm control --reload-rules
 sudo udevadm trigger --subsystem-match=tty
 ```
 
-현재 실물의 CANable2는 SLCAN 방식이다. **최초 한 번**, CANable2를 연결하고 로봇 구동 노드가 종료된 상태에서 다음 명령을 실행한다. ROS 환경 설정이나 FTDI 연결은 설치에 필요하지 않다.
+현재 실물의 CANable2는 SLCAN 방식이다. **최초 한 번**, CANable2를 연결하고 로봇 구동 노드가 종료된 상태에서 다음 명령을 실행한다. ROS 환경 설정이나 Dynamixel 어댑터 연결은 설치에 필요하지 않다.
 
 ```bash
 # 선택할 USB 고유 ID와 설치 위치를 먼저 조회할 수 있다.
@@ -251,9 +251,13 @@ IMU 포트는 `dori_hardware`의 IMU 노드 파라미터, DXL 포트는 Dynamixe
 
 `hardware.launch.py`는 프로세스를 시작하기 전에 CAN의 UP 플래그를 기본 10초 동안 기다린다. `can_wait_timeout`으로 0–30초 범위에서 조정하며, `bringup.launch.py dori_mode:=real`에서는 `real_can_wait_timeout`을 사용한다. CAN이 준비되면 즉시 다음 검사로 진행한다. 시리얼 장치 존재·접근 권한·동일 장치 중복 지정도 검사하고, 실패 항목과 CAN 서비스 상태를 함께 표시한다. 이 검사는 장치를 열거나 통신 명령을 보내지 않으므로 전원·응답·센서 데이터 정상 여부까지 보장하지 않는다.
 
-DXL은 `dori_hardware/dxl_driver_node`를 사용하며 기본 포트는 `/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTAU591Z-if00-port0`이다. 범용 `dynamixel_sdk_examples/read_write_node`는 사용하지 않는다. 범용 예제의 `/dev/ttyUSB0`이 LiDAR와 겹치면 통신 속도가 바뀌어 LiDAR 시간 초과와 전체 세션 종료가 발생한다. DORI 드라이버는 ID 1/3만 사용하며, 통신 오류를 위치 0으로 전달하지 않는다. 제어 모드와 signed 위치 처리는 [XH540 문서](https://emanual.robotis.com/docs/en/dxl/x/xh540-v270/)와 [XH430 문서](https://emanual.robotis.com/docs/en/dxl/x/xh430-v350/)를 따른다.
+DXL은 `dori_hardware/dxl_driver_node`를 사용하며 기본 포트는 `auto`이다. 특정 FTDI 칩이나 과거 USB 일련번호를 요구하지 않는다. 설정된 LiDAR·IMU와 CANable 포트를 제외한 USB by-id 포트에서 Protocol 2 PING으로 ID 1/model 1140, ID 3/model 1040의 응답을 확인한다. 토크·위치·서보 설정은 변경하지 않으며 사용 중인 포트는 탐색하지 않는다. 기본 통신 속도는 57600 baud이며, 일치하는 버스가 없거나 여러 개면 노드를 시작하기 전에 원인을 출력한다. 범용 `dynamixel_sdk_examples/read_write_node`는 사용하지 않는다. 범용 예제의 `/dev/ttyUSB0`이 LiDAR와 겹치면 통신 속도가 바뀌어 LiDAR 시간 초과와 전체 세션 종료가 발생한다. DORI 드라이버는 ID 1/3만 사용하며, 통신 오류를 위치 0으로 전달하지 않는다. 제어 모드와 signed 위치 처리는 [XH540 문서](https://emanual.robotis.com/docs/en/dxl/x/xh540-v270/)와 [XH430 문서](https://emanual.robotis.com/docs/en/dxl/x/xh430-v350/)를 따른다.
 
-교체 장치는 `hardware.launch.py`의 `can_interface`, `dxl_port`, `imu_port`, `lidar_port`로 지정한다. `bringup.launch.py dori_mode:=real`에서는 각각 `real_` 접두사를 붙인다. CANable을 교체했다면 새 장치 ID로 설치기를 다시 실행한다. CAN 준비가 실패했다면 다른 인터페이스로 임의 변경하지 않고 서비스 로그를 확인한다.
+교체 장치는 `hardware.launch.py`의 `can_interface`, `dxl_port`, `dxl_baudrate`, `imu_port`, `lidar_port`로 지정한다. `bringup.launch.py dori_mode:=real`에서는 각각 `real_` 접두사를 붙인다. CANable을 교체했다면 새 장치 ID로 설치기를 다시 실행한다. CAN 준비가 실패했다면 다른 인터페이스로 임의 변경하지 않고 서비스 로그를 확인한다.
+
+2026-11-09 장치 조회에서 USB 일련번호 `82c0f09f3531f111bc58935f30d20014`인 CP2102N은 SLAMTEC `GET_DEVICE_INFO`에 응답했다(펌웨어 1.2, 센서 일련번호 `6509e18ac1ea9ed2b29c92f5e6ad466c`). 따라서 이 장치는 LiDAR로 지정하고 Dynamixel 탐색에서 제외한다. bringup의 LiDAR 기본값은 이 장치의 by-id 경로다. 기존 `/dev/slamtec_c1` 규칙은 CP210x 전체를 매칭하므로 서보 어댑터 식별 근거로 사용하지 않는다. LiDAR 교체 시 `real_lidar_port`도 새 장치 경로로 지정한다.
+
+Dynamixel 버스가 발견되지 않으면 USB 어댑터 연결뿐 아니라 서보 전원·ID·통신 속도를 확인한다. 직접 실행 시에는 `dxl_driver_node`의 `device_name`을 명시한다. `scripts/run_dori_control.sh`에서는 `DORI_DXL_PORT`, `DORI_DXL_BAUDRATE` 환경 변수로 지정할 수 있다.
 
 ## AMM 30 — 시스템 및 신호 흐름
 
