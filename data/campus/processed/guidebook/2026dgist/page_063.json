@@ -1,0 +1,22 @@
+{
+  "kind": "pdf",
+  "doc_id": "2026dgist",
+  "category": "guidebook",
+  "source_file": "2026dgist.pdf",
+  "source_sha256": "3c5ac2cc533acfc8c8c89e915abffed8d87d05fa77b331553c621c713e1f3930",
+  "book_title": "2026 DGIST 캠퍼스 라이프 가이드북",
+  "edition": "2026",
+  "page_number": 63,
+  "page_label": "63",
+  "title": "학생상담실 이용 및 상담신청",
+  "parsed_at": "2026-11-09T16:41:11+00:00",
+  "extraction_method": "visual_transcription_of_original",
+  "review_status": "visually_verified",
+  "raw_snapshot": "raw/guidebook/2026dgist/3c5ac2cc533acfc8c8c89e915abffed8d87d05fa77b331553c621c713e1f3930",
+  "review_export": "pages-3917b573bf3a202319c26aa911e0825917529f5398bb2193a5c1464da6d4d52f.json",
+  "language": "ko",
+  "publisher": "DGIST 학생팀",
+  "source_role": "primary",
+  "schema_version": 1,
+  "text_sha256": "7dc216a512c62c6edff5b32a2493d4228e5d6b8a661fe92c18030ca184604fb2"
+}

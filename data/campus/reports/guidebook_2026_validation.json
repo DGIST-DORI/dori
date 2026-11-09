@@ -1,0 +1,327 @@
+{
+  "activated_at": "2026-11-09T16:18:27+00:00",
+  "generation": "955fdce446a24df48d9d4ac8ae2494a4",
+  "previous_generation": "8cfd0d7358c143a4a27b43249901abb6",
+  "source_file": "2026dgist.pdf",
+  "source_sha256": "3c5ac2cc533acfc8c8c89e915abffed8d87d05fa77b331553c621c713e1f3930",
+  "edition": "2026",
+  "pdf_pages": 90,
+  "reviewed_pages_indexed": [
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61,
+    62,
+    63,
+    64,
+    65,
+    66,
+    67,
+    68,
+    69,
+    70,
+    77,
+    78,
+    79,
+    85,
+    86,
+    87
+  ],
+  "coverage_report": "pdf_import_2026dgist.json",
+  "review_export": "pages-29c888c46e36fb4f461b423dc8ebbcf6ba46eaffd7c1a915eb6f120e0c375e6e.json",
+  "before": {
+    "documents": 5,
+    "chunks": 105
+  },
+  "after": {
+    "documents": 33,
+    "chunks": 316,
+    "pdf_chunks": 211
+  },
+  "retrieval_checks_passed": 30,
+  "retrieval_checks": [
+    {
+      "query": "디지스트 주소가 어디야?",
+      "passed": true,
+      "sources": [
+        "intro/dgist_directions.txt",
+        "guidebook/2026dgist/page_009.txt",
+        "guidebook/2026dgist/page_008.txt"
+      ]
+    },
+    {
+      "query": "What is the address of DGIST?",
+      "passed": true,
+      "sources": [
+        "intro/dgist_history.txt",
+        "intro/dgist_directions.txt",
+        "guidebook/2026dgist/page_079.txt"
+      ]
+    },
+    {
+      "query": "SL Corporation 이충곤 강의실은 어디에 있나요?",
+      "passed": true,
+      "sources": [
+        "facility/facility_edu.txt",
+        "guidebook/2026dgist/page_064.txt",
+        "guidebook/2026dgist/page_086.txt"
+      ]
+    },
+    {
+      "query": "수영장 평일 운영시간은?",
+      "passed": true,
+      "sources": [
+        "facility/facility_welfare.txt",
+        "facility/facility_welfare.txt",
+        "facility/facility_welfare.txt"
+      ]
+    },
+    {
+      "query": "When is the swimming pool open on weekdays?",
+      "passed": true,
+      "sources": [
+        "facility/facility_welfare.txt",
+        "guidebook/2026dgist/page_078.txt",
+        "guidebook/2026dgist/page_077.txt"
+      ]
+    },
+    {
+      "query": "노벨상 실험실은 어느 호실인가요?",
+      "passed": true,
+      "sources": [
+        "facility/facility_research.txt",
+        "facility/facility_research.txt",
+        "facility/facility_research.txt"
+      ]
+    },
+    {
+      "query": "Where is the Nobel Prize laboratory?",
+      "passed": true,
+      "sources": [
+        "facility/facility_research.txt",
+        "facility/facility_research.txt",
+        "facility/facility_research.txt"
+      ]
+    },
+    {
+      "query": "DGIST 기술경영전문대학원은 언제 첫 개강했나요?",
+      "passed": true,
+      "sources": [
+        "intro/dgist_history.txt",
+        "intro/dgist_history.txt",
+        "intro/dgist_history.txt"
+      ]
+    },
+    {
+      "query": "How do I reset a Python list?",
+      "passed": true,
+      "sources": []
+    },
+    {
+      "query": "What is bitcoin price right now?",
+      "passed": true,
+      "sources": []
+    },
+    {
+      "query": "도서관은 어디에 있어?",
+      "passed": true,
+      "sources": [
+        "guidebook/2026dgist/page_058.txt",
+        "guidebook/2026dgist/page_058.txt",
+        "guidebook/2026dgist/page_057.txt"
+      ]
+    },
+    {
+      "query": "도서관 학기 중 운영시간은?",
+      "passed": true,
+      "sources": [
+        "guidebook/2026dgist/page_057.txt",
+        "guidebook/2026dgist/page_058.txt",
+        "guidebook/2026dgist/page_057.txt"
+      ]
+    },
+    {
+      "query": "학부생 도서 대출은 몇 권까지 가능해?",
+      "passed": true,
+      "sources": [
+        "guidebook/2026dgist/page_057.txt",
+        "guidebook/2026dgist/page_057.txt",
+        "guidebook/2026dgist/page_057.txt"
+      ]
+    },
+    {
+      "query": "학생식당 저녁은 몇 시에 먹을 수 있어?",
+      "passed": true,
+      "sources": [
+        "guidebook/2026dgist/page_077.txt",
+        "guidebook/2026dgist/page_077.txt",
+        "guidebook/2026dgist/page_079.txt"
+      ]
+    },
+    {
+      "query": "건강관리실 위치와 전화번호 알려줘",
+      "passed": true,
+      "sources": [
+        "guidebook/2026dgist/page_078.txt",
+        "guidebook/2026dgist/page_078.txt",
+        "guidebook/2026dgist/page_078.txt"
+      ]
+    },
+    {
+      "query": "건강관리실 체성분분석기 예약은 어떻게 해?",
+      "passed": true,
+      "sources": [
+        "guidebook/2026dgist/page_078.txt",
+        "guidebook/2026dgist/page_078.txt",
+        "guidebook/2026dgist/page_009.txt"
+      ]
+    },
+    {
+      "query": "일반학생증 재발급 수수료는 얼마야?",
+      "passed": true,
+      "sources": [
+        "guidebook/2026dgist/page_060.txt",
+        "guidebook/2026dgist/page_060.txt",
+        "guidebook/2026dgist/page_062.txt"
+      ]
+    },
+    {
+      "query": "와이파이 어떻게 로그인해?",
+      "passed": true,
+      "sources": [
+        "guidebook/2026dgist/page_066.txt",
+        "guidebook/2026dgist/page_064.txt",
+        "guidebook/2026dgist/page_066.txt"
+      ]
+    },
+    {
+      "query": "증명서 온라인 발급은 어디서 해?",
+      "passed": true,
+      "sources": [
+        "guidebook/2026dgist/page_067.txt",
+        "guidebook/2026dgist/page_067.txt",
+        "guidebook/2026dgist/page_067.txt"
+      ]
+    },
+    {
+      "query": "2026년 2학기 종강일은 언제야?",
+      "passed": true,
+      "sources": [
+        "guidebook/2026dgist/page_007.txt",
+        "guidebook/2026dgist/page_006.txt",
+        "guidebook/2026dgist/page_006.txt"
+      ]
+    },
+    {
+      "query": "분실물은 어디에 문의해?",
+      "passed": true,
+      "sources": [
+        "guidebook/2026dgist/page_009.txt",
+        "guidebook/2026dgist/page_067.txt",
+        "intro/dgist_directions.txt"
+      ]
+    },
+    {
+      "query": "재학생 생활관 신청방법 알려줘",
+      "passed": true,
+      "sources": [
+        "guidebook/2026dgist/page_055.txt",
+        "guidebook/2026dgist/page_055.txt",
+        "guidebook/2026dgist/page_070.txt"
+      ]
+    },
+    {
+      "query": "글로벌 라운지 운영시간 알려줘",
+      "passed": true,
+      "sources": [
+        "guidebook/2026dgist/page_079.txt",
+        "guidebook/2026dgist/page_079.txt",
+        "guidebook/2026dgist/page_079.txt"
+      ]
+    },
+    {
+      "query": "비슬창의융합관 건물 번호가 뭐야?",
+      "passed": true,
+      "sources": [
+        "guidebook/2026dgist/page_085.txt",
+        "guidebook/2026dgist/page_077.txt",
+        "guidebook/2026dgist/page_085.txt"
+      ]
+    },
+    {
+      "query": "셔틀버스 상세노선과 운영시간은 어디서 확인해?",
+      "passed": true,
+      "sources": [
+        "guidebook/2026dgist/page_086.txt",
+        "intro/dgist_directions.txt",
+        "intro/dgist_directions.txt"
+      ]
+    },
+    {
+      "query": "연구실안전교육은 반기별 몇 시간 받아야 해?",
+      "passed": true,
+      "sources": [
+        "guidebook/2026dgist/page_068.txt",
+        "guidebook/2026dgist/page_068.txt",
+        "guidebook/2026dgist/page_068.txt"
+      ]
+    },
+    {
+      "query": "권익인권센터 상담 신청 이메일 알려줘",
+      "passed": true,
+      "sources": [
+        "guidebook/2026dgist/page_069.txt",
+        "guidebook/2026dgist/page_069.txt",
+        "guidebook/2026dgist/page_009.txt"
+      ]
+    },
+    {
+      "query": "학생과외활동은 언제까지 신청해야 해?",
+      "passed": true,
+      "sources": [
+        "guidebook/2026dgist/page_070.txt",
+        "guidebook/2026dgist/page_070.txt",
+        "guidebook/2026dgist/page_070.txt"
+      ]
+    },
+    {
+      "query": "학생 상해보험 처리절차 알려줘",
+      "passed": true,
+      "sources": [
+        "guidebook/2026dgist/page_062.txt",
+        "guidebook/2026dgist/page_062.txt",
+        "guidebook/2026dgist/page_062.txt"
+      ]
+    },
+    {
+      "query": "학생단체 동아리는 어느 부서에 문의해?",
+      "passed": true,
+      "sources": [
+        "guidebook/2026dgist/page_061.txt",
+        "guidebook/2026dgist/page_009.txt",
+        "guidebook/2026dgist/page_061.txt"
+      ]
+    }
+  ],
+  "tests": {
+    "passed": 66,
+    "files": [
+      "tests/control_and_nav/test_rag_pipeline.py",
+      "tests/control_and_nav/test_llm_gemini.py"
+    ]
+  },
+  "limitations": [
+    "표지·이미지 및 원본 대조가 끝나지 않은 페이지는 검색에서 제외. 전체 OCR은 검수 초안으로 보관.",
+    "가이드북은 2026년 판본의 자료이며 수집일이 최신 운영정보의 확인일을 뜻하지 않음.",
+    "상위 3개 검색 결과의 근거 회수와 코드 테스트를 검증함. 외부 LLM 답변 생성 및 실제 로봇 동작은 이번 검증 범위에 포함하지 않음."
+  ]
+}

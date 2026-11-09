@@ -136,9 +136,34 @@ Builds use an exclusive writer lock. They validate vector dimensions, normalizat
 finite values, metadata counts, checksums and a stable source snapshot. When an
 `--evaluation` file is supplied, every retrieval case must pass before publication.
 The dashboard build endpoint automatically uses `data/campus/evaluation.json`.
-Its ten bilingual/negative checks are smoke coverage, not a comprehensive quality
+Its 52 bilingual, guidebook and negative checks are smoke coverage, not a comprehensive quality
 benchmark; add cases when adding or changing source topics. If official facts
 change, review/update the expected evidence instead of weakening the checks.
+
+Spoken campus aliases (for example, 디지스트/DGIST, 와이파이/Wi-Fi and
+분실물/유실물) are normalized before retrieval. Korean question endings and
+particles, and English question/function words, are removed for lexical matching; the semantic relevance threshold
+still applies. This retrieval configuration requires a full rebuild when upgrading
+from `dense-bm25-rrf-v1`.
+
+The 2026 guidebook import retains the original PDF, physical page numbers, edition
+and extraction review status. Of its 90 pages, 28 pages covering calendars,
+contacts and essential campus life have been checked against the original and
+included. All 90 OCR pages are archived; unreviewed academic/fee tables and image
+pages are excluded explicitly in `data/campus/reports/pdf_import_2026dgist.json`.
+The [PDF import workflow](../../../tools/parser/README.md) explains how to review
+and add the remaining pages. Guidebook dates describe its edition, not a live
+confirmation of opening hours or schedules.
+
+The August 2025 English *Living Guide for International Members* supplements this
+with reviewed excerpts from eight physical PDF pages. Original/translated search
+headings are embedded as paired representations and deduplicated by evidence ID.
+English library, lost-property and building queries thus retrieve the 2026 Korean
+facts; the English guide adds international-member topics with an explicit dated
+reference label. Old cafeteria hours and unverified fees/policies are excluded.
+The full extraction, selected passages and omissions are archived. See
+`data/campus/reports/pdf_import_2025dgisteng.json` for coverage. The bilingual
+chunker requires a full rebuild when upgrading from `sections-token-offsets-v2`.
 
 Successful builds create immutable `indexed/generations/<id>/` directories and
 atomically switch `indexed/CURRENT`. Failed builds leave the previous generation

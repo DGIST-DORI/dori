@@ -1,0 +1,356 @@
+{
+  "assessed_at": "2026-11-09T16:28:59+00:00",
+  "source_file": "/home/dori/pdf/2025dgisteng.pdf",
+  "source_sha256": "6b301e1733c29ce4fa95f8317603ca12dd7abcb9b278363d2989e7e711c4a100",
+  "title": "Living Guide for International Members",
+  "publisher": "DGIST International Affairs Team",
+  "updated": "2025-08",
+  "language": "en",
+  "physical_pdf_pages": 65,
+  "layout_note": "Facing printed pages share physical PDF pages. Verified physical page 42 contains printed pages 82–83; physical page 43 contains printed pages 84–85.",
+  "active_generation_tested": "955fdce446a24df48d9d4ac8ae2494a4",
+  "assessment_only": true,
+  "production_index_changed": false,
+  "baseline": {
+    "query_count": 12,
+    "passed": 7,
+    "top_k": 3,
+    "criterion": "Expected 2026 source page and required answer evidence must occur in the same retrieved chunk. This is a small hand-selected retrieval sample, not end-to-end answer accuracy.",
+    "cases": [
+      {
+        "query": "Where is the library?",
+        "expected_page": 57,
+        "passed": false,
+        "hits": [
+          {
+            "source_key": "guidebook/2026dgist/page_058.txt",
+            "page": 58,
+            "score": 0.6547127962112427,
+            "text": "학술정보관 도서관 전자자료 및 정보서비스 / 타도서관책빌리기\n## 타도서관책빌리기\n도서관에서 소장하고 있지 않은 단행본 도서를 소장하고 있는 기관에서 대출받을 수 있는 서비스.\n접속경로: 도서관 홈페이지 > 서비스 신청 > 타도서관책빌리기."
+          },
+          {
+            "source_key": "guidebook/2026dgist/page_058.txt",
+            "page": 58,
+            "score": 0.6057155132293701,
+            "text": "학술정보관 도서관 전자자료 및 정보서비스 / 타도서관논문복사\n## 타도서관논문복사\n도서관에서 구독하고 있지 않은 저널의 원문이나 유료기사를 소장하고 있는 기관에 복사를 요청하여 인쇄물로 제공받는 서비스.\n접속경로: 도서관 홈페이지 > 서비스 신청 > 타도서관논문복사."
+          },
+          {
+            "source_key": "guidebook/2026dgist/page_058.txt",
+            "page": 58,
+            "score": 0.5204393267631531,
+            "text": "학술정보관 도서관 전자자료 및 정보서비스 / 도서예약 및 연체·변상\n## 도서예약 및 연체·변상\n도서예약: 대출된 도서에 한하여 도서관 홈페이지를 통해 예약 가능.\n연체규정: 반납일 기준 (연체자료 수)×(연체일 수)만큼 대출 중지.\n변상규정: 분실·훼손 자료와 동일 자료를 구입하여 변상 처리서와 함께 제출.\n자세한 사항은 도서관 홈페이지 > 도서관 안내 > 규정/지침 페이지 참조."
+          }
+        ]
+      },
+      {
+        "query": "What are the library opening hours during the semester?",
+        "expected_page": 57,
+        "passed": false,
+        "hits": [
+          {
+            "source_key": "guidebook/2026dgist/page_057.txt",
+            "page": 57,
+            "score": 0.5419312119483948,
+            "text": "학술정보관 도서관 / 강의지정도서 대출\n## 강의지정도서 대출\n대출·반납 장소: 1·4·5·6층 무인대출반납기.\n강의지정도서: 1일 대출 또는 관내열람."
+          },
+          {
+            "source_key": "guidebook/2026dgist/page_057.txt",
+            "page": 57,
+            "score": 0.5209774971008301,
+            "text": "학술정보관 도서관 / 일반도서 대출 및 반납\n## 일반도서 대출 및 반납\n대출·반납 장소: 1·4·5·6층 무인대출반납기.\n학부생: 10책, 30일, 3회 연장 가능.\n대학원생: 20책, 30일, 3회 연장 가능."
+          },
+          {
+            "source_key": "guidebook/2026dgist/page_077.txt",
+            "page": 77,
+            "score": 0.5025153160095215,
+            "text": "식당 및 편의시설 / 학생생활관 한원물산 세탁소\n## 학생생활관 한원물산 세탁소\n장소: 학생생활관 H201~H207, H203 앞. 상호: 한원물산.\n연락처: 010-6769-3000.\n이용시간: 월~금 09:00~19:00, 찾기 24시간 개방."
+          }
+        ]
+      },
+      {
+        "query": "How many books can an undergraduate borrow?",
+        "expected_page": 57,
+        "passed": true,
+        "hits": [
+          {
+            "source_key": "guidebook/2026dgist/page_057.txt",
+            "page": 57,
+            "score": 0.7350307703018188,
+            "text": "학술정보관 도서관 / 일반도서 대출 및 반납\n## 일반도서 대출 및 반납\n대출·반납 장소: 1·4·5·6층 무인대출반납기.\n학부생: 10책, 30일, 3회 연장 가능.\n대학원생: 20책, 30일, 3회 연장 가능."
+          },
+          {
+            "source_key": "guidebook/2026dgist/page_057.txt",
+            "page": 57,
+            "score": 0.637773334980011,
+            "text": "학술정보관 도서관 / 강의지정도서 대출\n## 강의지정도서 대출\n대출·반납 장소: 1·4·5·6층 무인대출반납기.\n강의지정도서: 1일 대출 또는 관내열람."
+          },
+          {
+            "source_key": "guidebook/2026dgist/page_060.txt",
+            "page": 60,
+            "score": 0.44972124695777893,
+            "text": "학생증 및 국제학생증 / 학생증 기능 및 담당부서\n## 학생증 기능 및 담당부서\n학생증 기능: 신분확인 및 교내 건물 출입, 도서대출 등.\n담당부서: 학사팀 053-785-5131~4."
+          }
+        ]
+      },
+      {
+        "query": "When is dinner served at the student cafeteria?",
+        "expected_page": 77,
+        "passed": true,
+        "hits": [
+          {
+            "source_key": "guidebook/2026dgist/page_077.txt",
+            "page": 77,
+            "score": 0.5367498993873596,
+            "text": "식당 및 편의시설 / 컨실리언스홀 E7 밀올 학생식당\n## 컨실리언스홀 E7 밀올 학생식당\n상호: 밀올. 분류: 구내식당(학생). 연락처: 053-785-0065.\n이용시간: 월~금 중식 11:30~13:00, 월~금 석식 17:30~19:00."
+          },
+          {
+            "source_key": "guidebook/2026dgist/page_056.txt",
+            "page": 56,
+            "score": 0.5233784914016724,
+            "text": "학생생활관 기숙사 운영시설 및 생활수칙 / 생활관 편의시설\n## 생활관 편의시설\n체력단련실(201동) 운영시간: 06:00~24:00.\n세탁실: 각 동별 위치.\n교류실: 각 동별 위치, 요리 및 취사시설 구비.\n인터내셔널키친(H207): 외국인유학생 공동주방, 요리 및 취사시설 구비.\n휴게실: 각 층별 위치(201~204동), 로비에 위치(205~207동)."
+          },
+          {
+            "source_key": "guidebook/2026dgist/page_077.txt",
+            "page": 77,
+            "score": 0.5174578428268433,
+            "text": "식당 및 편의시설 / 학생생활관 더큰도시락\n## 학생생활관 더큰도시락\n장소: 학생생활관 H201~H204. 상호: 더큰도시락. 분류: 도시락.\n연락처: 053-611-3575.\n이용시간: 월~금 08:00~20:00(학기중), 토/공휴일 09:30~19:30. 일요일 휴점."
+          }
+        ]
+      },
+      {
+        "query": "Where is the health care center?",
+        "expected_page": 78,
+        "passed": true,
+        "hits": [
+          {
+            "source_key": "guidebook/2026dgist/page_078.txt",
+            "page": 78,
+            "score": 0.6816132664680481,
+            "text": "건강관리실 및 체육시설 / 건강관리실 위치 및 연락처\n## 건강관리실 위치 및 연락처\n위치: 컨실리언스홀 2층 262호.\n담당부서: 건강관리실 053-785-0911."
+          },
+          {
+            "source_key": "guidebook/2026dgist/page_078.txt",
+            "page": 78,
+            "score": 0.5556514859199524,
+            "text": "건강관리실 및 체육시설 / 지정의료기관\n## 지정의료기관\n미즈맘병원(진천동, 산부인과/소아청소년과/내과), 푸른병원(화상전문병원)."
+          },
+          {
+            "source_key": "guidebook/2026dgist/page_009.txt",
+            "page": 9,
+            "score": 0.5472134947776794,
+            "text": "주요 행정부서 위치 업무 연락처 / 건강관리실\n## 건강관리실\n위치: E7-262호. 전화: 053-785-0911.\n감기약, 진통제, 상처치료제 등 일반의약품 구비, 체성분 분석기, 자동혈압계, 신장계, 적외선조사기, 파라핀 베스, 혈당측정기 구비."
+          }
+        ]
+      },
+      {
+        "query": "How do I connect to campus Wi-Fi?",
+        "expected_page": 66,
+        "passed": true,
+        "hits": [
+          {
+            "source_key": "guidebook/2026dgist/page_066.txt",
+            "page": 66,
+            "score": 0.5111849308013916,
+            "text": "메일서비스 와이파이 Wi-Fi 및 IT 문의 / Wireless LAN Wi-Fi 로그인\n## Wireless LAN Wi-Fi 로그인\nWi-Fi 목록에서 \"DGIST\" 선택 및 연결 > OneID, 비밀번호로 로그인.\nPC, 모바일 기기 등 상세 이용방법은 EasyIT(easyit.dgist.ac.kr) 홈페이지 참고."
+          },
+          {
+            "source_key": "guidebook/2026dgist/page_065.txt",
+            "page": 65,
+            "score": 0.5444221496582031,
+            "text": "학생포털 학사서비스 수강신청 접속방법 / 학생포털\n중하게 결정 필요.\n주요 연계서비스: 웹메일, 도서관, Wi-Fi, 수업지원시스템(LMS)."
+          },
+          {
+            "source_key": "guidebook/2026dgist/page_064.txt",
+            "page": 64,
+            "score": 0.49970507621765137,
+            "text": "IT 서비스 주요 시스템 및 문의 / 무선랜 Wi-Fi\n## 무선랜 Wi-Fi\n무선 네트워크 서비스 이용. https://wlan.dgist.ac.kr"
+          }
+        ]
+      },
+      {
+        "query": "How much does it cost to replace my student ID card?",
+        "expected_page": 60,
+        "passed": true,
+        "hits": [
+          {
+            "source_key": "guidebook/2026dgist/page_060.txt",
+            "page": 60,
+            "score": 0.4053323268890381,
+            "text": "학생증 및 국제학생증 / 국제학생증\n## 국제학생증\n담당부서: 학생팀 053-785-5155.\nISIC(국제학생증)는 유네스코가 인증하고 ISTC(International Student Travel Confederation)에서 발행하는 국제 학생 신분증으로서, 학생들은 ISIC를 통해 국내 및 온라인 상에서 본인의 학생 신분을 증명하고 다양한 혜택을 누릴 수 있음.\n발급대상: 재학생 및 휴학생.\n온라인신청: https://www.isic.co.kr/index.jsp"
+          },
+          {
+            "source_key": "guidebook/2026dgist/page_060.txt",
+            "page": 60,
+            "score": 0.49580031633377075,
+            "text": "학생증 및 국제학생증 / 학생증 재발급 수령 및 수수료\n## 학생증 재발급 수령 및 수수료\n수령: 대학본부 E1 601호 학사팀.\n재발급수수료: 일반학생증 1만원."
+          },
+          {
+            "source_key": "guidebook/2026dgist/page_060.txt",
+            "page": 60,
+            "score": 0.47610628604888916,
+            "text": "학생증 및 국제학생증 / 학생증 재발급 신청\n## 학생증 재발급 신청\n체크카드 학생증: iM뱅크(비슬창의융합관 E16 1층) 방문하여 발급신청. 사진, 신분증 지참.\n일반학생증: 온라인 신청(학생포털 > 정보광장 > 학교생활 > 학생증발급신청).\n일반학생증 발급 완료 시 개별 문자 안내."
+          }
+        ]
+      },
+      {
+        "query": "Where can I report lost property?",
+        "expected_page": 9,
+        "passed": false,
+        "hits": [
+          {
+            "source_key": "facility/facility_welfare.txt",
+            "page": null,
+            "score": 0.42475426197052,
+            "text": "복지시설 / Welfare Facilities / 이용신청 안내\n## 이용신청 안내\nDGIST 구성원 및 외부 지역 주민"
+          },
+          {
+            "source_key": "guidebook/2026dgist/page_056.txt",
+            "page": 56,
+            "score": 0.3653465807437897,
+            "text": "학생생활관 기숙사 운영시설 및 생활수칙 / 생활지원센터\n## 생활지원센터\n1차 201~204동: 053-720-7882. 2차 205~207동: 053-720-7858.\n비슬빌리지 홈페이지 운영 및 공지 안내, 입·퇴실 등 행정지원, 공과금 고지 및 수납, 불편사항 접수."
+          }
+        ]
+      },
+      {
+        "query": "How do I get a certificate of enrollment online?",
+        "expected_page": 67,
+        "passed": true,
+        "hits": [
+          {
+            "source_key": "guidebook/2026dgist/page_067.txt",
+            "page": 67,
+            "score": 0.5645670890808105,
+            "text": "학력증명서 발급 / 증명서 온라인 발급\n## 증명서 온라인 발급\n발급금액: 무료.\n발급방법: 학생포털 > 주요사이트 > 증명서 발급."
+          },
+          {
+            "source_key": "guidebook/2026dgist/page_067.txt",
+            "page": 67,
+            "score": 0.5528601408004761,
+            "text": "학력증명서 발급 / 증명서 발급 유의사항\n## 증명서 발급 유의사항\n졸업예정증명서는 졸업 신청 이후 발급 가능.\n대학원생은 청구논문 제출 후, 1~2주 이내 출력 가능.\n학적부, 기타증명서는 학사팀(대학본부 601호) 방문 시 발급 가능."
+          },
+          {
+            "source_key": "guidebook/2026dgist/page_060.txt",
+            "page": 60,
+            "score": 0.5427637100219727,
+            "text": "학생증 및 국제학생증 / 학생증 재발급 신청\n## 학생증 재발급 신청\n체크카드 학생증: iM뱅크(비슬창의융합관 E16 1층) 방문하여 발급신청. 사진, 신분증 지참.\n일반학생증: 온라인 신청(학생포털 > 정보광장 > 학교생활 > 학생증발급신청).\n일반학생증 발급 완료 시 개별 문자 안내."
+          }
+        ]
+      },
+      {
+        "query": "How do I reserve a library group study room?",
+        "expected_page": 57,
+        "passed": false,
+        "hits": [
+          {
+            "source_key": "guidebook/2026dgist/page_058.txt",
+            "page": 58,
+            "score": 0.6030493974685669,
+            "text": "학술정보관 도서관 전자자료 및 정보서비스 / 타도서관책빌리기\n## 타도서관책빌리기\n도서관에서 소장하고 있지 않은 단행본 도서를 소장하고 있는 기관에서 대출받을 수 있는 서비스.\n접속경로: 도서관 홈페이지 > 서비스 신청 > 타도서관책빌리기."
+          },
+          {
+            "source_key": "guidebook/2026dgist/page_057.txt",
+            "page": 57,
+            "score": 0.5549672842025757,
+            "text": "학술정보관 도서관 / 강의지정도서 대출\n## 강의지정도서 대출\n대출·반납 장소: 1·4·5·6층 무인대출반납기.\n강의지정도서: 1일 대출 또는 관내열람."
+          },
+          {
+            "source_key": "guidebook/2026dgist/page_058.txt",
+            "page": 58,
+            "score": 0.5378345251083374,
+            "text": "학술정보관 도서관 전자자료 및 정보서비스 / 타도서관논문복사\n## 타도서관논문복사\n도서관에서 구독하고 있지 않은 저널의 원문이나 유료기사를 소장하고 있는 기관에 복사를 요청하여 인쇄물로 제공받는 서비스.\n접속경로: 도서관 홈페이지 > 서비스 신청 > 타도서관논문복사."
+          }
+        ]
+      },
+      {
+        "query": "What are the Global Lounge opening hours?",
+        "expected_page": 79,
+        "passed": true,
+        "hits": [
+          {
+            "source_key": "guidebook/2026dgist/page_079.txt",
+            "page": 79,
+            "score": 0.7575247287750244,
+            "text": "글로벌 라운지 및 국제관 / 국제관 프론트 데스크 운영시간\n## 국제관 프론트 데스크 운영시간\n09:00~18:00.\n연중 명절을 포함한 공휴일에는 객실 예약 현황에 따라 휴관할 수 있으니 사전 문의."
+          },
+          {
+            "source_key": "guidebook/2026dgist/page_079.txt",
+            "page": 79,
+            "score": 0.6030517816543579,
+            "text": "글로벌 라운지 및 국제관 / 글로벌 라운지 이용시간 및 이용방법\n## 글로벌 라운지 이용시간 및 이용방법\n이용시간: 월~금 09:00~18:00.\n이용방법: 별도의 예약 없이 방문하여 이용 가능.\nForeign Language Only Zone으로 라운지 내에서는 영어와 기타 외국어 사용 권장.\n비치 물품: 한국문화 안내 책자, 영문 도서, 보드게임, 검색 및 프린트용 컴퓨터 등."
+          },
+          {
+            "source_key": "guidebook/2026dgist/page_056.txt",
+            "page": 56,
+            "score": 0.5676568746566772,
+            "text": "학생생활관 기숙사 운영시설 및 생활수칙 / 생활관 편의시설\n## 생활관 편의시설\n체력단련실(201동) 운영시간: 06:00~24:00.\n세탁실: 각 동별 위치.\n교류실: 각 동별 위치, 요리 및 취사시설 구비.\n인터내셔널키친(H207): 외국인유학생 공동주방, 요리 및 취사시설 구비.\n휴게실: 각 층별 위치(201~204동), 로비에 위치(205~207동)."
+          }
+        ]
+      },
+      {
+        "query": "Which building is the Consilience Hall?",
+        "expected_page": 85,
+        "passed": false,
+        "hits": [
+          {
+            "source_key": "guidebook/2026dgist/page_056.txt",
+            "page": 56,
+            "score": 0.4988277554512024,
+            "text": "학생생활관 기숙사 운영시설 및 생활수칙 / 생활지원센터\n## 생활지원센터\n1차 201~204동: 053-720-7882. 2차 205~207동: 053-720-7858.\n비슬빌리지 홈페이지 운영 및 공지 안내, 입·퇴실 등 행정지원, 공과금 고지 및 수납, 불편사항 접수."
+          },
+          {
+            "source_key": "facility/facility_welfare.txt",
+            "page": null,
+            "score": 0.48497283458709717,
+            "text": "복지시설 / Welfare Facilities / 종합체육관 시설현황\n실) | 회의실(30인) 2실, 귀빈실(12인) 1실 세미나 및 회의 등\n2층 | 동아리실 | 36인/실(1실) 12인/실(3실) | 동아리실 4실\n3층 | 강사실 음악연습실 |  | 강사실 1실(23㎡), 중형연습실 1실(63㎡), 소형연습실 7실(각 29㎡)"
+          },
+          {
+            "source_key": "facility/facility_welfare.txt",
+            "page": null,
+            "score": 0.4804551601409912,
+            "text": "복지시설 / Welfare Facilities / 종합체육관 시설현황\n| 1,078m 2 | 무대, 경기장, 관람석 277석 농구, 배구, 배드민턴, 대관 등\n2층 | 골프연습장 | 432.26m 2 | 스크린룸(2실),스크린연습타석(5타석), 모니터타석(6타석)\n2층 | 회의실 등 | 30인/실(2실) | 회의실(30인) 2실, 귀빈실(12인)"
+          }
+        ]
+      }
+    ]
+  },
+  "confirmed_conflicts": [
+    {
+      "topic": "E7 Student Cafeteria weekday dinner",
+      "english_2025": {
+        "physical_pdf_page": 42,
+        "printed_page": 83,
+        "hours": "17:30–18:40",
+        "verification": "original_page_visually_checked"
+      },
+      "korean_2026": {
+        "physical_pdf_page": 77,
+        "printed_page": 77,
+        "hours": "17:30–19:00",
+        "source_key": "guidebook/2026dgist/page_077.txt"
+      },
+      "implication": "Resolve the edition conflict before exposing both as current facts. English response language does not make the older English fact authoritative."
+    }
+  ],
+  "recommendation": {
+    "decision": "Use selectively as a complementary source.",
+    "retrieval_terms": [
+      "Consilience Hall ↔ 컨실리언스홀",
+      "Central Library ↔ 학술정보관",
+      "Health Care Center ↔ 건강관리실"
+    ],
+    "additional_topics": [
+      "international arrival and settlement",
+      "Buddy Program",
+      "Korean language programs",
+      "DISA",
+      "housing"
+    ],
+    "source_policy": "For the same topic, use the most recent applicable authoritative evidence. Reuse English terminology to retrieve the 2026 Korean source; answer in the requested language. Keep older-edition facts dated and distinguish them from current information.",
+    "before_ingestion": [
+      "Preserve language, publisher, edition, physical page and printed page labels.",
+      "Cross-check duplicated facts with 2026 sources.",
+      "Verify current official information for schedules, fees, immigration procedures and other changing details.",
+      "Add English retrieval and conflicting-edition regression cases; measure before/after."
+    ]
+  }
+}

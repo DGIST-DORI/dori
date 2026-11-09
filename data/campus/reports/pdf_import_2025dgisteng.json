@@ -1,0 +1,308 @@
+{
+  "source_file": "2025dgisteng.pdf",
+  "source_sha256": "6b301e1733c29ce4fa95f8317603ca12dd7abcb9b278363d2989e7e711c4a100",
+  "book_title": "DGIST Living Guide for International Members",
+  "edition": "2025-08",
+  "parsed_at": "2026-11-09T16:44:13+00:00",
+  "page_count": 65,
+  "imported_pages": [
+    2,
+    8,
+    34,
+    35,
+    36,
+    38,
+    53,
+    54
+  ],
+  "excluded_pages": [
+    {
+      "page_number": 1,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 3,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 4,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 5,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 6,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 7,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 9,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 10,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 11,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 12,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 13,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 14,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 15,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 16,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 17,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 18,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 19,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 20,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 21,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 22,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 23,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 24,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 25,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 26,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 27,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 28,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 29,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 30,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 31,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 32,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 33,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 37,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 39,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 40,
+      "reason": "Library facts covered by 2026 page 57; English terminology linked to that source."
+    },
+    {
+      "page_number": 41,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 42,
+      "reason": "Outdated cafeteria hours conflict with 2026 page 77; use 2026 facts with English retrieval headings."
+    },
+    {
+      "page_number": 43,
+      "reason": "Global Lounge covered by 2026 page 79; English terminology linked to current source."
+    },
+    {
+      "page_number": 44,
+      "reason": "Health Care Center covered by 2026 page 78; older hours are not imported."
+    },
+    {
+      "page_number": 45,
+      "reason": "Bank hours/contact and other facility details need current verification; 2026 coverage is preferred."
+    },
+    {
+      "page_number": 46,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 47,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 48,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 49,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 50,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 51,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 52,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 55,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 56,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 57,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 58,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 59,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 60,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 61,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 62,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 63,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 64,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    },
+    {
+      "page_number": 65,
+      "reason": "Not selected for current retrieval: cover/illustration or content needing current verification, duplicate coverage or further original-page review. Complete source and text extraction retained."
+    }
+  ],
+  "raw_snapshot": "raw/guidebook/2025dgisteng/6b301e1733c29ce4fa95f8317603ca12dd7abcb9b278363d2989e7e711c4a100",
+  "review_export": "pages-9876132a93dedc264dd961312d57cf314251477bd03f1ee234858791255f0044.json",
+  "index_published": false,
+  "selected_sections": [
+    {
+      "page_number": 2,
+      "omitted_sections": [
+        "Contents listing and decorative material omitted; only the publisher, purpose and contact section is imported."
+      ]
+    },
+    {
+      "page_number": 8,
+      "omitted_sections": [
+        "Printed page 14 currency and exchange advice omitted.",
+        "Mobile operator/provider and local agency listings omitted pending current verification; retained only power-plug facts and the source's dated SIM preparation paragraph."
+      ]
+    },
+    {
+      "page_number": 34,
+      "omitted_sections": [
+        "Graduation requirements, TOPIK exemptions and auditor fee statements omitted pending current academic-policy verification; only the center and class overview is imported."
+      ]
+    },
+    {
+      "page_number": 35,
+      "omitted_sections": [
+        "Instructors and recurring class schedules omitted pending current verification.",
+        "TOPIK reimbursement event, amount, eligibility and application deadline omitted pending current verification."
+      ]
+    },
+    {
+      "page_number": 36,
+      "omitted_sections": [
+        "Printed page 70 descriptions of past excursions omitted.",
+        "Orientation timing, duration and scheduling arrangements omitted pending current verification; only purpose and program topics are imported."
+      ]
+    },
+    {
+      "page_number": 38,
+      "omitted_sections": [
+        "Printed page 74 Nanum and bilingual-administration descriptions omitted; Nanum has newer 2026 coverage.",
+        "Membership counts omitted because they describe the 2025 snapshot."
+      ]
+    },
+    {
+      "page_number": 53,
+      "omitted_sections": [
+        "Printed page 104 dormitory fees, capacity and roommate procedures omitted in favor of newer 2026 dormitory information.",
+        "Printed page 105 management/contact and facility table omitted where 2026 coverage exists. Prayer-room location is also inconsistent with the map later in this English PDF and is not imported."
+      ]
+    },
+    {
+      "page_number": 54,
+      "omitted_sections": [
+        "On-campus apartment eligibility, deposits, rents and contract conditions omitted pending current verification.",
+        "Guest House section omitted in favor of the 2026 guidebook's international-residence information.",
+        "Comparative cost and safety claims about off-campus housing omitted."
+      ]
+    }
+  ]
+}

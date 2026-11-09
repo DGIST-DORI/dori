@@ -28,8 +28,8 @@ EMBED_REVISION = "e8f8c211226b894fcb81acc59f3b34ba3efd5f42"
 CHUNK_SIZE = 300
 CHUNK_OVERLAP = 60
 SIGNATURE = {"model": EMBED_MODEL, "revision": EMBED_REVISION,
-             "chunker": "sections-token-offsets-v2", "overlap_tokens": 20,
-             "retrieval": "dense-bm25-rrf-v1", "min_score": 0.35,
+             "chunker": "sections-bilingual-headings-v3", "overlap_tokens": 20,
+             "retrieval": "dense-bm25-rrf-campus-query-v2", "min_score": 0.35,
              "lexical_min_coverage": 0.35, "lexical_relative_cutoff": 0.35,
              "normalize_embeddings": True}
 
@@ -49,25 +49,33 @@ def chunk_text(text, size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
     return chunks
 
 
-def token_chunks(text, model, title=""):
+def token_chunks(text, model, title="", section_titles_en=None, section_titles_ko=None):
     """Keep explicit source sections apart and repeat their headings in long sections."""
     for section in re.split(r"(?=^## )", text, flags=re.MULTILINE):
         if not section.strip():
             continue
         heading = section.splitlines()[0][3:] if section.startswith("## ") else ""
         prefix = f"{title} / {heading}" if heading else title
-        yield from _token_windows(section, model, prefix)
+        # Preserve both the original and translated retrieval representation.
+        # They share identical source text and an evidence ID at indexing time.
+        aliases = [(titles or {}).get(heading) for titles in (section_titles_en, section_titles_ko)]
+        alternate = " / ".join(filter(None, aliases))
+        yield from _token_windows(section, model, prefix, f"{alternate} / {prefix}" if alternate else None)
 
 
-def _token_windows(text, model, title):
+def _token_windows(text, model, title, alternate_title=None):
     """Use tokenizer offsets so Korean and long lines are never silently truncated."""
     tokenizer = model.tokenizer
     # Titles are useful to disambiguate isolated table cells; bound their budget.
-    title_offsets = tokenizer(title, add_special_tokens=False, return_offsets_mapping=True, verbose=False)["offset_mapping"]
-    if len(title_offsets) > 24:
-        title = title[:title_offsets[23][1]]
-    prefix = title.strip() + "\n" if title.strip() else ""
-    reserved = len(tokenizer(prefix, add_special_tokens=False)["input_ids"])
+    prefixes = []
+    for candidate in ([title, alternate_title] if alternate_title else [title]):
+        title_offsets = tokenizer(candidate, add_special_tokens=False, return_offsets_mapping=True, verbose=False)["offset_mapping"]
+        if len(title_offsets) > 24:
+            candidate = candidate[:title_offsets[23][1]]
+        prefix = candidate.strip() + "\n" if candidate.strip() else ""
+        if prefix not in prefixes:
+            prefixes.append(prefix)
+    reserved = max(len(tokenizer(prefix, add_special_tokens=False)["input_ids"]) for prefix in prefixes)
     budget = model.max_seq_length - tokenizer.num_special_tokens_to_add(False) - reserved - 2
     if budget <= 20:
         raise ValueError("Embedding model token budget is too small")
@@ -75,10 +83,11 @@ def _token_windows(text, model, title):
     start = 0
     while start < len(offsets):
         end = min(start + budget, len(offsets))
-        value = prefix + text[offsets[start][0]:offsets[end - 1][1]].strip()
-        if len(tokenizer(value)["input_ids"]) > model.max_seq_length:
-            raise ValueError("Chunk exceeds embedding token budget")
-        yield value
+        for prefix in prefixes:
+            value = prefix + text[offsets[start][0]:offsets[end - 1][1]].strip()
+            if len(tokenizer(value)["input_ids"]) > model.max_seq_length:
+                raise ValueError("Chunk exceeds embedding token budget")
+            yield value
         if end == len(offsets):
             break
         start = end - 20
@@ -132,6 +141,35 @@ def lexical_tokens(text):
     return tokens
 
 
+def retrieval_query(query):
+    """Match common spoken campus terms to the terminology used by the sources."""
+    for pattern, replacement in (
+        (r"디지스트|대구경북과학기술원", "DGIST"),
+        (r"와이파이", "Wi-Fi"),
+        (r"도서관", "도서관 학술정보관"),
+        (r"분실물", "유실물"),
+        (r"저녁", "석식"),
+        (r"점심", "중식"),
+    ):
+        query = re.sub(pattern, replacement, query, flags=re.IGNORECASE)
+    query = re.sub(r"어디(?:에|서)?(?:\s*(?:있어|있나요|인가요|야))?", " 위치 ", query)
+    query = re.sub(r"몇\s*시", " 시간 ", query)
+    # Canonicalize short "where is X?" questions for the embedding model too.
+    # Keep full wording for procedural/time questions, where it carries intent.
+    if re.search(r"위치\s*[?!.]*$", query):
+        query = lexical_query(query).strip(" ?!.")
+    return query
+
+
+def lexical_query(query):
+    # Spoken question endings are not evidence-bearing terms. Keeping them in
+    # coverage made short location questions lose their exact-name BM25 boost.
+    query = re.sub(r"알려\s*주세요|알려줘|어떻게|언제|뭐야|몇|인가요|있나요|있어", " ", query)
+    query = re.sub(r"\b(?:what|where|when|how|is|are|the|a|an|of|to|do|i|on|in|at)\b", " ", query,
+                   flags=re.IGNORECASE)
+    return re.sub(r"([가-힣]{2,})(?:에서|으로|은|는|이|가|을|를|의|에)(?=\s|[?!.]|$)", r"\1", query)
+
+
 def lexical_scores(metadata, query, with_coverage=False):
     documents = [Counter(lexical_tokens(m["text"])) for m in metadata]
     lengths = [sum(d.values()) for d in documents]
@@ -141,6 +179,8 @@ def lexical_scores(metadata, query, with_coverage=False):
     total_weight = 0.
     for term in set(lexical_tokens(query)):
         frequency = sum(term in doc for doc in documents)
+        if not frequency:
+            continue
         inverse = math.log(1 + (len(documents) - frequency + .5) / (frequency + .5))
         total_weight += inverse
         for i, doc in enumerate(documents):
@@ -157,10 +197,11 @@ def search_index(index, metadata, model, query, top_k=3, min_score=0.35):
         raise ValueError("top_k must be positive")
     if not query.strip() or not index.ntotal:
         return []
+    query = retrieval_query(query)
     vector = np.asarray(model.encode([query], normalize_embeddings=True,
                                     convert_to_numpy=True), dtype="float32")
     scores, indices = index.search(vector, index.ntotal)
-    lexical, coverage = lexical_scores(metadata, query, with_coverage=True)
+    lexical, coverage = lexical_scores(metadata, lexical_query(query), with_coverage=True)
     lexical_order = sorted(range(len(metadata)), key=lambda i: lexical[i], reverse=True)
     strongest = max(lexical, default=0)
     lexical_rank = {i: rank for rank, i in enumerate(lexical_order, 1)
@@ -178,9 +219,11 @@ def search_index(index, metadata, model, query, top_k=3, min_score=0.35):
     results, seen = [], set()
     for _, score, idx in candidates:
         entry = metadata[int(idx)]
-        if not available(entry) or entry["text"] in seen:
+        evidence = ((entry["source_key"], entry["evidence_id"])
+                    if entry.get("evidence_id") else entry["text"])
+        if not available(entry) or evidence in seen:
             continue
-        seen.add(entry["text"])
+        seen.add(evidence)
         results.append({**entry, "score": float(score)})
         if len(results) >= top_k:
             break
@@ -257,11 +300,17 @@ class IndexBuilder:
             if doc["source_key"] in unchanged:
                 continue
             title = " / ".join(filter(None, (doc.get("title"), doc.get("title_en"))))
-            for chunk_id, text in enumerate(token_chunks(doc["text"], model, title)):
+            for chunk_id, text in enumerate(token_chunks(doc["text"], model, title,
+                                                        doc.get("section_titles_en"), doc.get("section_titles_ko"))):
                 pending.append({key: value for key, value in doc.items()
                                 if key in ("source", "source_key", "source_url", "source_file", "title",
-                                           "fetched_at", "parsed_at", "valid_from", "valid_until", "text_sha256")}
-                               | {"chunk_id": chunk_id, "text": text})
+                                           "fetched_at", "parsed_at", "valid_from", "valid_until", "text_sha256",
+                                           "book_title", "edition", "page_number", "page_label",
+                                           "source_sha256", "raw_snapshot", "review_export", "extraction_method", "review_status",
+                                           "language", "publisher", "source_role", "reference_note", "retrieval_note",
+                                           "content_scope", "omitted_sections")}
+                               | {"chunk_id": chunk_id, "text": text,
+                                  "evidence_id": digest(text.split("\n", 1)[1] if title and "\n" in text else text)})
         for start in range(0, len(pending), chunk_batch_size):
             batch = pending[start:start + chunk_batch_size]
             vectors = self._embed([m["text"] for m in batch], batch_size)
@@ -291,6 +340,10 @@ class IndexBuilder:
                 expected = case.get("source_key")
                 passed = (not hits if expected is None else any(
                     h["source_key"] == expected and case.get("contains", "") in h["text"] for h in hits))
+                forbidden = case.get("must_not_contain", [])
+                if not isinstance(forbidden, list) or any(not isinstance(s, str) or not s for s in forbidden):
+                    raise ValueError("must_not_contain must be a list of nonempty strings")
+                passed = passed and not any(s in h["text"] for h in hits for s in forbidden)
                 checks.append({"query": case["query"], "passed": passed,
                                "sources": [h["source_key"] for h in hits]})
             if not all(c["passed"] for c in checks):

@@ -1,0 +1,31 @@
+{
+  "kind": "pdf",
+  "doc_id": "2025dgisteng",
+  "category": "guidebook",
+  "source_file": "2025dgisteng.pdf",
+  "source_sha256": "6b301e1733c29ce4fa95f8317603ca12dd7abcb9b278363d2989e7e711c4a100",
+  "book_title": "DGIST Living Guide for International Members",
+  "edition": "2025-08",
+  "page_number": 2,
+  "page_label": "",
+  "title": "International Affairs Team and living guide scope",
+  "parsed_at": "2026-11-09T16:44:13+00:00",
+  "extraction_method": "Adobe text extraction, selected sections checked against original pages",
+  "review_status": "visually_verified",
+  "raw_snapshot": "raw/guidebook/2025dgisteng/6b301e1733c29ce4fa95f8317603ca12dd7abcb9b278363d2989e7e711c4a100",
+  "review_export": "pages-9876132a93dedc264dd961312d57cf314251477bd03f1ee234858791255f0044.json",
+  "language": "en",
+  "publisher": "DGIST International Affairs Team",
+  "source_role": "dated_supplement",
+  "reference_note": "Selected passages from the August 2025 guide, checked for extraction accuracy. Current availability and policies have not been reverified. For overlapping campus facts use the applicable newer 2026 guide or official updates.",
+  "section_titles_ko": {
+    "International Affairs Team": "국제교류팀 외국인 생활 안내 문의"
+  },
+  "retrieval_note": "Korean retrieval headings translate the selected English section topics. Facts remain from the August 2025 English PDF, not a new Korean source.",
+  "content_scope": "selected_sections",
+  "omitted_sections": [
+    "Contents listing and decorative material omitted; only the publisher, purpose and contact section is imported."
+  ],
+  "schema_version": 1,
+  "text_sha256": "38b306b2f9d87a321c5f8a98be4be29c5c383a13ddef30856dc0f82759e4fb3a"
+}

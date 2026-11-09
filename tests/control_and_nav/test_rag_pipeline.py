@@ -26,6 +26,7 @@ def module(name, path):
 
 crawler = module('rag_crawler', 'tools/crawler/crawl_campus.py')
 parser = module('rag_parser', 'tools/parser/parse_cafeteria_menu.py')
+pdf_importer = module('rag_pdf_importer', 'tools/parser/import_pdf_pages.py')
 
 
 class Tokenizer:
@@ -272,6 +273,19 @@ def test_evaluation_failure_and_stage_only_never_activate(corpus, tmp_path):
     assert active_directory(corpus.output) == before
 
 
+def test_conflicting_old_fact_blocks_publication_even_when_expected_source_is_found(corpus, tmp_path):
+    corpus.write('new.txt', 'cafeteria dinner 17:30~19:00')
+    builder = index.IndexBuilder(corpus.output, corpus.model)
+    assert builder.build(corpus.docs)
+    before = active_directory(corpus.output)
+    corpus.write('old.txt', 'cafeteria dinner 17:30-18:40')
+    evaluation = tmp_path / 'conflict.json'
+    evaluation.write_text(json.dumps([{'query': 'cafeteria dinner', 'source_key': 'new.txt',
+                                      'contains': '19:00', 'must_not_contain': ['18:40']}]))
+    assert not builder.build(corpus.docs, evaluation=evaluation)
+    assert active_directory(corpus.output) == before
+
+
 def test_expired_and_future_sources_are_not_returned(corpus):
     corpus.write('a.txt')
     path = corpus.write('old.txt')
@@ -312,6 +326,35 @@ def test_exact_korean_entity_evidence_refines_dense_ranking():
                 {'text': '기술경영전문대학원 개강 2026년 2월', 'source': 'specific'}]
     hits = index.search_index(vectors, metadata, model, '기술경영전문대학원 개강')
     assert hits[0]['source'] == 'specific'
+
+
+@pytest.mark.parametrize('query,evidence', [
+    ('디지스트 주소가 어디야?', 'DGIST 주소 위치 대구광역시 테크노중앙대로 333'),
+    ('도서관은 어디에 있어?', '도서관 위치 E8'),
+    ('분실물은 어디에 문의해?', '유실물 문의 서비스센터 위치 E1 208'),
+    ('와이파이 어떻게 로그인해?', 'Wi-Fi 로그인 DGIST OneID'),
+])
+def test_spoken_campus_questions_retrieve_source_terminology(query, evidence):
+    import faiss
+    vectors = faiss.IndexFlatIP(3)
+    vectors.add(np.array([[.95, np.sqrt(1 - .95**2), 0], [.6, .8, 0]], dtype='float32'))
+    model = SimpleNamespace(encode=lambda *a, **k: np.array([[1, 0, 0]], dtype='float32'))
+    metadata = [{'text': '일반 대학생활 안내', 'source': 'generic'},
+                {'text': evidence, 'source': 'answer'}]
+    assert index.search_index(vectors, metadata, model, query, top_k=1)[0]['source'] == 'answer'
+    # Lexical matches must not bypass the existing semantic relevance threshold.
+    assert index.search_index(vectors, metadata, model, query, min_score=.99) == []
+
+
+def test_english_question_words_do_not_boost_incidental_proper_names():
+    import faiss
+    vectors = faiss.IndexFlatIP(3)
+    vectors.add(np.array([[.95, np.sqrt(1 - .95**2), 0], [.6, .8, 0]], dtype='float32'))
+    model = SimpleNamespace(encode=lambda *a, **k: np.array([[1, 0, 0]], dtype='float32'))
+    metadata = [{'text': 'THE QUE', 'source': 'club'},
+                {'text': 'swimming pool open weekdays 06:00~23:00', 'source': 'pool'}]
+    hits = index.search_index(vectors, metadata, model, 'When is the swimming pool open on weekdays?', top_k=1)
+    assert hits[0]['source'] == 'pool'
 
 
 @pytest.mark.parametrize('text', ['11/5', '11월 5일'])
@@ -356,3 +399,128 @@ def test_running_llm_reloads_generation_and_keeps_last_good_on_failure(corpus, m
     assert reader.search('library')  # Previously verified, unexpired snapshot.
     assert reader.search('library')
     assert factory.call_count == 3
+
+
+@pytest.fixture
+def pdf_export(tmp_path):
+    from dori_llm.corpus import digest
+    source = tmp_path / 'guide.pdf'
+    source.write_bytes(b'%PDF-1.6\nsource fixture')
+    data = {'schema_version': 1, 'source_sha256': digest(source.read_bytes()),
+            'book_title': 'Campus guidebook', 'edition': '2026', 'page_count': 2,
+            'pages': [{'page_number': 2, 'page_label': '1', 'title': 'Library',
+                       'text': 'library study room', 'extraction_method': 'OCR',
+                       'review_status': 'visually_verified'}],
+            'excluded_pages': [{'page_number': 1, 'reason': 'Cover'}]}
+    export = tmp_path / 'pages.json'
+    export.write_text(json.dumps(data))
+    return SimpleNamespace(source=source, data=data, export=export, output=tmp_path / 'campus')
+
+
+def test_pdf_page_provenance_survives_import_index_and_llm_context(pdf_export):
+    from dori_llm.llm_node import VectorRetriever
+    p = pdf_export
+    report = pdf_importer.import_pages(p.source, p.export, p.output, 'guide')
+    assert (p.output / report['raw_snapshot'] / 'source.pdf').read_bytes() == p.source.read_bytes()
+    builder = index.IndexBuilder(p.output / 'indexed', Model())
+    assert builder.build(p.output / 'processed')
+    hit = index.Retriever(p.output / 'indexed', Model()).search('library')[0]
+    assert hit['page_number'] == 2 and hit['page_label'] == '1'
+    assert hit['edition'] == '2026' and hit['source_sha256'] == p.data['source_sha256']
+    context = VectorRetriever(None).format_context([hit])
+    assert 'Source: guide.pdf' in context and 'PDF page: 2' in context
+    assert 'Printed page: 1' in context and 'Edition: 2026' in context
+    assert 'Collection time is not the publication date' in context
+
+
+@pytest.mark.parametrize('failure', ['checksum', 'missing_page', 'duplicate_page', 'empty_text'])
+def test_invalid_pdf_export_never_replaces_existing_corpus(pdf_export, failure):
+    p = pdf_export
+    pdf_importer.import_pages(p.source, p.export, p.output, 'guide')
+    document = p.output / 'processed/guidebook/guide/page_002.txt'
+    before = document.read_bytes(), document.with_suffix('.json').read_bytes()
+    if failure == 'checksum':
+        p.source.write_bytes(b'%PDF-1.6\na different edition')
+    elif failure == 'missing_page':
+        p.data['excluded_pages'] = []
+    elif failure == 'duplicate_page':
+        p.data['pages'].append(p.data['pages'][0].copy())
+    else:
+        p.data['pages'][0]['text'] = ' '
+    p.export.write_text(json.dumps(p.data))
+    with pytest.raises(ValueError):
+        pdf_importer.import_pages(p.source, p.export, p.output, 'guide')
+    assert before == (document.read_bytes(), document.with_suffix('.json').read_bytes())
+
+
+def test_reimport_removes_quarantined_pages_but_keeps_archived_evidence(pdf_export):
+    p = pdf_export
+    p.data['pages'].append({**p.data['pages'][0], 'page_number': 1, 'text': 'OCR draft'})
+    p.data['excluded_pages'] = []
+    p.export.write_text(json.dumps(p.data))
+    first = pdf_importer.import_pages(p.source, p.export, p.output, 'guide')
+    p.data['pages'] = [p.data['pages'][0]]
+    p.data['excluded_pages'] = [{'page_number': 1, 'reason': 'Pending OCR review'}]
+    p.export.write_text(json.dumps(p.data))
+    second = pdf_importer.import_pages(p.source, p.export, p.output, 'guide')
+    target = p.output / 'processed/guidebook/guide'
+    assert not (target / 'page_001.txt').exists()
+    assert not (target / 'page_001.json').exists()
+    assert (target / 'page_002.txt').exists()
+    archive = p.output / first['raw_snapshot']
+    assert (archive / first['review_export']).exists()
+    assert (archive / second['review_export']).exists()
+
+
+def test_english_retrieval_heading_retains_original_facts_page_and_edition(pdf_export):
+    p = pdf_export
+    p.data.update(language='ko', publisher='Student Affairs Team', source_role='primary')
+    p.data['pages'][0].update(text='## 도서관 이용안내\n위치 E8. 학기 09:00~24:00.',
+                             section_titles_en={'도서관 이용안내': 'Central Library location and opening hours'},
+                             retrieval_note='English heading only; facts from the Korean edition.')
+    p.export.write_text(json.dumps(p.data))
+    pdf_importer.import_pages(p.source, p.export, p.output, 'guide')
+    builder = index.IndexBuilder(p.output / 'indexed', Model())
+    assert builder.build(p.output / 'processed')
+    hits = index.Retriever(p.output / 'indexed', Model()).search('Central Library', top_k=3)
+    assert len(hits) == 1  # Original and English headings must not consume two result slots.
+    hit = hits[0]
+    assert 'Central Library location' in hit['text'] and '위치 E8' in hit['text']
+    assert hit['edition'] == '2026' and hit['page_number'] == 2 and hit['language'] == 'ko'
+    assert hit['review_export'] and hit['source_role'] == 'primary'
+
+
+def test_dated_selected_passages_carry_scope_and_source_policy_into_llm_context(pdf_export):
+    from dori_llm.llm_node import VectorRetriever
+    p = pdf_export
+    p.data.update(edition='2025-08', language='en', publisher='International Affairs Team',
+                  source_role='dated_supplement', reference_note='Current availability not reverified.')
+    p.data['pages'][0].update(content_scope='selected_sections', omitted_sections=['Old fee table omitted.'])
+    p.export.write_text(json.dumps(p.data))
+    report = pdf_importer.import_pages(p.source, p.export, p.output, 'guide')
+    assert report['selected_sections'][0]['omitted_sections'] == ['Old fee table omitted.']
+    builder = index.IndexBuilder(p.output / 'indexed', Model())
+    assert builder.build(p.output / 'processed')
+    hit = index.Retriever(p.output / 'indexed', Model()).search('library')[0]
+    context = VectorRetriever(None).format_context([hit])
+    assert 'Edition: 2025-08' in context and 'Content scope: selected_sections' in context
+    assert 'Source language: en' in context and 'Publisher: International Affairs Team' in context
+    assert 'Dated supplementary evidence' in context and 'Current availability not reverified.' in context
+
+
+@pytest.mark.parametrize('bad', [
+    {'section_titles_en': {'Nonexistent section': 'Library'}},
+    {'content_scope': 'selected_sections'},
+    {'omitted_sections': 'unstructured'},
+    {'source_role': 'latest'},
+])
+def test_invalid_bilingual_or_partial_page_metadata_does_not_replace_sources(pdf_export, bad):
+    p = pdf_export
+    pdf_importer.import_pages(p.source, p.export, p.output, 'guide')
+    path = p.output / 'processed/guidebook/guide/page_002.json'
+    before = path.read_bytes()
+    p.data['pages'][0].update(bad)
+    p.export.write_text(json.dumps(p.data))
+    with pytest.raises(ValueError):
+        pdf_importer.import_pages(p.source, p.export, p.output, 'guide')
+    assert path.read_bytes() == before

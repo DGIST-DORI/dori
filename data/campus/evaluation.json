@@ -1,12 +1,266 @@
 [
-  {"query": "디지스트 주소가 어디야?", "source_key": "intro/dgist_directions.txt", "contains": "333"},
-  {"query": "What is the address of DGIST?", "source_key": "intro/dgist_directions.txt", "contains": "333"},
-  {"query": "SL Corporation 이충곤 강의실은 어디에 있나요?", "source_key": "facility/facility_edu.txt", "contains": "E7 G01"},
-  {"query": "수영장 평일 운영시간은?", "source_key": "facility/facility_welfare.txt", "contains": "06:00~23:00"},
-  {"query": "When is the swimming pool open on weekdays?", "source_key": "facility/facility_welfare.txt", "contains": "06:00~23:00"},
-  {"query": "노벨상 실험실은 어느 호실인가요?", "source_key": "facility/facility_research.txt", "contains": "E2-215"},
-  {"query": "Where is the Nobel Prize laboratory?", "source_key": "facility/facility_research.txt", "contains": "E2-215"},
-  {"query": "DGIST 기술경영전문대학원은 언제 첫 개강했나요?", "source_key": "intro/dgist_history.txt", "contains": "02.23"},
-  {"query": "How do I reset a Python list?", "source_key": null},
-  {"query": "What is bitcoin price right now?", "source_key": null}
+  {
+    "query": "디지스트 주소가 어디야?",
+    "source_key": "intro/dgist_directions.txt",
+    "contains": "333"
+  },
+  {
+    "query": "What is the address of DGIST?",
+    "source_key": "intro/dgist_directions.txt",
+    "contains": "333"
+  },
+  {
+    "query": "SL Corporation 이충곤 강의실은 어디에 있나요?",
+    "source_key": "facility/facility_edu.txt",
+    "contains": "E7 G01"
+  },
+  {
+    "query": "수영장 평일 운영시간은?",
+    "source_key": "facility/facility_welfare.txt",
+    "contains": "06:00~23:00"
+  },
+  {
+    "query": "When is the swimming pool open on weekdays?",
+    "source_key": "facility/facility_welfare.txt",
+    "contains": "06:00~23:00"
+  },
+  {
+    "query": "노벨상 실험실은 어느 호실인가요?",
+    "source_key": "facility/facility_research.txt",
+    "contains": "E2-215"
+  },
+  {
+    "query": "Where is the Nobel Prize laboratory?",
+    "source_key": "facility/facility_research.txt",
+    "contains": "E2-215"
+  },
+  {
+    "query": "DGIST 기술경영전문대학원은 언제 첫 개강했나요?",
+    "source_key": "intro/dgist_history.txt",
+    "contains": "02.23"
+  },
+  {
+    "query": "How do I reset a Python list?",
+    "source_key": null
+  },
+  {
+    "query": "What is bitcoin price right now?",
+    "source_key": null
+  },
+  {
+    "query": "도서관은 어디에 있어?",
+    "source_key": "guidebook/2026dgist/page_057.txt",
+    "contains": "E8"
+  },
+  {
+    "query": "도서관 학기 중 운영시간은?",
+    "source_key": "guidebook/2026dgist/page_057.txt",
+    "contains": "09:00~24:00"
+  },
+  {
+    "query": "학부생 도서 대출은 몇 권까지 가능해?",
+    "source_key": "guidebook/2026dgist/page_057.txt",
+    "contains": "10책"
+  },
+  {
+    "query": "학생식당 저녁은 몇 시에 먹을 수 있어?",
+    "source_key": "guidebook/2026dgist/page_077.txt",
+    "contains": "17:30~19:00",
+    "must_not_contain": [
+      "18:40"
+    ]
+  },
+  {
+    "query": "건강관리실 위치와 전화번호 알려줘",
+    "source_key": "guidebook/2026dgist/page_078.txt",
+    "contains": "262호"
+  },
+  {
+    "query": "건강관리실 체성분분석기 예약은 어떻게 해?",
+    "source_key": "guidebook/2026dgist/page_078.txt",
+    "contains": "건강관리실 예약신청"
+  },
+  {
+    "query": "일반학생증 재발급 수수료는 얼마야?",
+    "source_key": "guidebook/2026dgist/page_060.txt",
+    "contains": "1만원"
+  },
+  {
+    "query": "와이파이 어떻게 로그인해?",
+    "source_key": "guidebook/2026dgist/page_066.txt",
+    "contains": "OneID"
+  },
+  {
+    "query": "증명서 온라인 발급은 어디서 해?",
+    "source_key": "guidebook/2026dgist/page_067.txt",
+    "contains": "주요사이트"
+  },
+  {
+    "query": "2026년 2학기 종강일은 언제야?",
+    "source_key": "guidebook/2026dgist/page_007.txt",
+    "contains": "12.11."
+  },
+  {
+    "query": "분실물은 어디에 문의해?",
+    "source_key": "guidebook/2026dgist/page_009.txt",
+    "contains": "053-785-8282"
+  },
+  {
+    "query": "재학생 생활관 신청방법 알려줘",
+    "source_key": "guidebook/2026dgist/page_055.txt",
+    "contains": "dorm.dgist.ac.kr"
+  },
+  {
+    "query": "글로벌 라운지 운영시간 알려줘",
+    "source_key": "guidebook/2026dgist/page_079.txt",
+    "contains": "09:00~18:00"
+  },
+  {
+    "query": "비슬창의융합관 건물 번호가 뭐야?",
+    "source_key": "guidebook/2026dgist/page_085.txt",
+    "contains": "E16"
+  },
+  {
+    "query": "셔틀버스 상세노선과 운영시간은 어디서 확인해?",
+    "source_key": "guidebook/2026dgist/page_086.txt",
+    "contains": "대학생활 > 셔틀버스"
+  },
+  {
+    "query": "연구실안전교육은 반기별 몇 시간 받아야 해?",
+    "source_key": "guidebook/2026dgist/page_068.txt",
+    "contains": "6시간"
+  },
+  {
+    "query": "권익인권센터 상담 신청 이메일 알려줘",
+    "source_key": "guidebook/2026dgist/page_069.txt",
+    "contains": "humanrights@dgist.ac.kr"
+  },
+  {
+    "query": "학생과외활동은 언제까지 신청해야 해?",
+    "source_key": "guidebook/2026dgist/page_070.txt",
+    "contains": "2주"
+  },
+  {
+    "query": "학생 상해보험 처리절차 알려줘",
+    "source_key": "guidebook/2026dgist/page_062.txt",
+    "contains": "사고 경위서"
+  },
+  {
+    "query": "학생단체 동아리는 어느 부서에 문의해?",
+    "source_key": "guidebook/2026dgist/page_061.txt",
+    "contains": "053-785-5151"
+  },
+  {
+    "query": "Where is the library?",
+    "source_key": "guidebook/2026dgist/page_057.txt",
+    "contains": "E8"
+  },
+  {
+    "query": "What are the library opening hours during the semester?",
+    "source_key": "guidebook/2026dgist/page_057.txt",
+    "contains": "09:00~24:00"
+  },
+  {
+    "query": "How many books can an undergraduate borrow?",
+    "source_key": "guidebook/2026dgist/page_057.txt",
+    "contains": "10책"
+  },
+  {
+    "query": "When is dinner served at the student cafeteria?",
+    "source_key": "guidebook/2026dgist/page_077.txt",
+    "contains": "17:30~19:00",
+    "must_not_contain": [
+      "18:40"
+    ]
+  },
+  {
+    "query": "Where is the health care center?",
+    "source_key": "guidebook/2026dgist/page_078.txt",
+    "contains": "262"
+  },
+  {
+    "query": "How do I connect to campus Wi-Fi?",
+    "source_key": "guidebook/2026dgist/page_066.txt",
+    "contains": "OneID"
+  },
+  {
+    "query": "How much does it cost to replace my student ID card?",
+    "source_key": "guidebook/2026dgist/page_060.txt",
+    "contains": "1만원"
+  },
+  {
+    "query": "Where can I report lost property?",
+    "source_key": "guidebook/2026dgist/page_009.txt",
+    "contains": "053-785-8282"
+  },
+  {
+    "query": "How do I get a certificate of enrollment online?",
+    "source_key": "guidebook/2026dgist/page_067.txt",
+    "contains": "주요사이트"
+  },
+  {
+    "query": "How do I reserve a library group study room?",
+    "source_key": "guidebook/2026dgist/page_057.txt",
+    "contains": "협업공간예약"
+  },
+  {
+    "query": "What are the Global Lounge opening hours?",
+    "source_key": "guidebook/2026dgist/page_079.txt",
+    "contains": "09:00~18:00"
+  },
+  {
+    "query": "Which building is the Consilience Hall?",
+    "source_key": "guidebook/2026dgist/page_085.txt",
+    "contains": "E7"
+  },
+  {
+    "query": "How does the Buddy Program help international students?",
+    "source_key": "guidebook/2025dgisteng/page_036.txt",
+    "contains": "existing students"
+  },
+  {
+    "query": "외국인 학생 버디 프로그램은 어떤 지원을 해?",
+    "source_key": "guidebook/2025dgisteng/page_036.txt",
+    "contains": "existing students"
+  },
+  {
+    "query": "How can I contact DISA?",
+    "source_key": "guidebook/2025dgisteng/page_038.txt",
+    "contains": "disa@dgist.ac.kr"
+  },
+  {
+    "query": "DISA 국제학생회 연락 이메일 알려줘",
+    "source_key": "guidebook/2025dgisteng/page_038.txt",
+    "contains": "disa@dgist.ac.kr"
+  },
+  {
+    "query": "What is the Korean Language Center website?",
+    "source_key": "guidebook/2025dgisteng/page_034.txt",
+    "contains": "https://www.dgist.ac.kr/klc/"
+  },
+  {
+    "query": "What languages can I practice in the Language Exchange Program?",
+    "source_key": "guidebook/2025dgisteng/page_035.txt",
+    "contains": "Korean and English"
+  },
+  {
+    "query": "What power plugs and voltage are used in Korea?",
+    "source_key": "guidebook/2025dgisteng/page_008.txt",
+    "contains": "220V"
+  },
+  {
+    "query": "Which app is used for dormitory laundry?",
+    "source_key": "guidebook/2025dgisteng/page_053.txt",
+    "contains": "MetaClub"
+  },
+  {
+    "query": "Who handles on-campus apartment inquiries?",
+    "source_key": "guidebook/2025dgisteng/page_054.txt",
+    "contains": "general@dgist.ac.kr"
+  },
+  {
+    "query": "Which apps does the guide mention for off-campus housing?",
+    "source_key": "guidebook/2025dgisteng/page_054.txt",
+    "contains": "Jigbang"
+  }
 ]

@@ -1,0 +1,16 @@
+## IT 서비스 문의
+담당부서: 정보전산팀 053-785-1121.
+IT서비스 문의·신청: IT관련 서비스 문의 및 지원신청. 학생포털 > IT서비스신청.
+## EasyIT
+IT서비스 관련 정보 모음. https://easyit.dgist.ac.kr
+학생포털에서 접속하기: 학생포털 > 주요사이트 > EasyIT.
+## 학생포털
+주요 공지, 게시판 및 바로가기 등. https://my.dgist.ac.kr
+## 학사서비스
+성적조회, 휴·복학, 졸업 등 학사업무. https://stud.dgist.ac.kr
+## 수강신청
+수강신청, 수강 희망과목 관리 등. https://sugang.dgist.ac.kr
+## 메일서비스
+의사소통 및 정보교환 도구. https://mail.dgist.ac.kr
+## 무선랜 Wi-Fi
+무선 네트워크 서비스 이용. https://wlan.dgist.ac.kr

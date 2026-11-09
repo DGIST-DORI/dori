@@ -1,0 +1,10 @@
+## 메일서비스
+시스템 접속 URL: https://mail.dgist.ac.kr
+접속 방법: DGIST OneID, 비밀번호 입력 및 2차 인증 후 로그인.
+메일 저장용량: 10GB 제공.
+대용량파일 저장용량: 3GB 제공(14일간 보관 및 다운로드 가능).
+## Wireless LAN Wi-Fi 로그인
+Wi-Fi 목록에서 "DGIST" 선택 및 연결 > OneID, 비밀번호로 로그인.
+PC, 모바일 기기 등 상세 이용방법은 EasyIT(easyit.dgist.ac.kr) 홈페이지 참고.
+## IT서비스 문의·신청
+접속방법: 학생포털 > IT서비스문의 > HelpDesk or IT Resource.

@@ -1,0 +1,34 @@
+{
+  "kind": "pdf",
+  "doc_id": "2025dgisteng",
+  "category": "guidebook",
+  "source_file": "2025dgisteng.pdf",
+  "source_sha256": "6b301e1733c29ce4fa95f8317603ca12dd7abcb9b278363d2989e7e711c4a100",
+  "book_title": "DGIST Living Guide for International Members",
+  "edition": "2025-08",
+  "page_number": 35,
+  "page_label": "68–69",
+  "title": "TOPIK preparation, language exchange and Living in Korea lectures",
+  "parsed_at": "2026-11-09T16:44:13+00:00",
+  "extraction_method": "Adobe text extraction, selected sections checked against original pages",
+  "review_status": "visually_verified",
+  "raw_snapshot": "raw/guidebook/2025dgisteng/6b301e1733c29ce4fa95f8317603ca12dd7abcb9b278363d2989e7e711c4a100",
+  "review_export": "pages-9876132a93dedc264dd961312d57cf314251477bd03f1ee234858791255f0044.json",
+  "language": "en",
+  "publisher": "DGIST International Affairs Team",
+  "source_role": "dated_supplement",
+  "reference_note": "Selected passages from the August 2025 guide, checked for extraction accuracy. Current availability and policies have not been reverified. For overlapping campus facts use the applicable newer 2026 guide or official updates.",
+  "section_titles_ko": {
+    "Summer/Winter Intensive TOPIK Class overview": "외국인 TOPIK 한국어능력시험 준비 수업",
+    "Language Exchange Program overview": "한국어 영어 언어교환 프로그램",
+    "Living in Korea Lecture Series overview": "외국인 한국 생활 특강"
+  },
+  "retrieval_note": "Korean retrieval headings translate the selected English section topics. Facts remain from the August 2025 English PDF, not a new Korean source.",
+  "content_scope": "selected_sections",
+  "omitted_sections": [
+    "Instructors and recurring class schedules omitted pending current verification.",
+    "TOPIK reimbursement event, amount, eligibility and application deadline omitted pending current verification."
+  ],
+  "schema_version": 1,
+  "text_sha256": "b11d7cee528c54cb8569635a7ef8b25a873a653e0c20746f3d2319d8d87b9306"
+}
