@@ -12,6 +12,7 @@ import numpy as np
 import rclpy
 from action_msgs.msg import GoalStatus
 from dori_msgs.action import Navigate, NavigateNamed
+from dori_web.goals import default_goals_path
 from nav_msgs.msg import OccupancyGrid
 from rclpy.action import ActionClient, ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
@@ -126,13 +127,9 @@ class NamedGoalAdapter(Node):
         self._reload()
 
     def _reload(self):
-        value = self.get_parameter("goals_file").value
+        value = self.get_parameter("goals_file").value or default_goals_path()
         try:
-            payload = (
-                json.loads(Path(value).read_text())
-                if value
-                else {"version": 1, "maps": {}}
-            )
+            payload = json.loads(Path(value).read_text())
             with self._lock:
                 self._goals = registered_goals(payload, self._key)
                 text = json.dumps(

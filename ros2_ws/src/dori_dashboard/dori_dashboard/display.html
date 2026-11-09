@@ -1,12 +1,384 @@
-<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DORI 연결</title>
-<style>body{margin:0;background:#101e2d;color:#fff;font:24px system-ui;text-align:center;display:grid;place-content:center;min-height:100vh}img{width:300px;background:white;padding:20px;border-radius:20px;margin:auto}p{max-width:600px}small{color:#acbfd0}</style>
-<h1>안녕하세요, DORI입니다</h1><p id="status">연결 상태를 확인하고 있습니다</p><img id="qr" hidden alt="스마트폰으로 스캔해 DORI와 연결하세요"><small>DGIST 캠퍼스 안내 로봇</small>
-<script>
-const qr=document.getElementById('qr'),status=document.getElementById('status');let state='';
-const stream=new EventSource('/display/events');
-function update(event){state=JSON.parse(event.data).status;qr.hidden=true;status.textContent=({IDLE:'QR을 스캔해 대화를 시작하세요',ACTIVE:'방문자와 대화하고 있어요',GRACE:'스마트폰이 다시 연결되기를 기다리고 있어요',ENDING:'다음 방문자를 맞이할 준비를 하고 있어요'})[state]||'준비 중입니다'}
-stream.addEventListener('state',update);stream.addEventListener('paired',update);
-stream.addEventListener('qr_update',event=>{if(state==='IDLE'){qr.src='/display/qr/'+encodeURIComponent(JSON.parse(event.data).nonce);qr.hidden=false}});
-stream.onerror=()=>{qr.hidden=true;status.textContent='연결 상태를 확인하고 있습니다'};
-qr.onerror=()=>{qr.hidden=true;status.textContent='새 QR을 준비하고 있습니다. 잠시 기다려 주세요.'};
-</script></html>
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>DORI 연결</title>
+  <style>
+    :root {
+      font-family: "Noto Sans CJK KR", "Noto Sans KR", system-ui, sans-serif;
+      color: #f2f6fa;
+      background: #101e2d;
+      font-synthesis: none;
+      --muted: #b1c2d2;
+      --accent: #90cfff;
+      --accent-rgb: 144, 207, 255;
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { margin: 0; }
+    body[data-tone="green"] { --accent: #8de1c2; --accent-rgb: 141, 225, 194; }
+    body[data-tone="amber"] { --accent: #f4cf8a; --accent-rgb: 244, 207, 138; }
+    .display {
+      width: min(100%, 1440px);
+      min-height: 100vh;
+      min-height: 100svh;
+      margin: auto;
+      padding: clamp(24px, 4vh, 48px) clamp(24px, 4vw, 64px);
+      display: flex;
+      flex-direction: column;
+      gap: clamp(24px, 4vh, 48px);
+    }
+    .topbar, .footer { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+    .greeting { margin: 0; color: var(--muted); font-size: clamp(16px, 1.6vw, 22px); }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+      padding: 10px 16px;
+      border: 1px solid rgba(var(--accent-rgb), .25);
+      border-radius: 100px;
+      background: rgba(var(--accent-rgb), .08);
+      color: var(--accent);
+      font-size: clamp(15px, 1.5vw, 20px);
+      font-weight: 600;
+    }
+    .badge::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+    .content {
+      flex: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+      align-items: center;
+      gap: clamp(32px, 5vw, 80px);
+      padding-block: 12px;
+    }
+    .eyebrow { margin: 0 0 18px; font-size: clamp(17px, 1.7vw, 23px); font-weight: 600; color: var(--accent); }
+    h1 {
+      margin: 0;
+      font-size: clamp(36px, 4.3vw, 64px);
+      font-weight: 700;
+      line-height: 1.35;
+      letter-spacing: -.045em;
+      word-break: keep-all;
+      overflow-wrap: anywhere;
+      white-space: pre-line;
+      text-wrap: balance;
+    }
+    .description {
+      margin: 24px 0 0;
+      max-width: 32em;
+      color: var(--muted);
+      font-size: clamp(18px, 1.9vw, 26px);
+      line-height: 1.65;
+      word-break: keep-all;
+    }
+    .steps {
+      list-style: none;
+      display: grid;
+      gap: 16px;
+      margin: 36px 0 0;
+      padding: 28px 0 0;
+      border-top: 1px solid #304153;
+      font-size: clamp(17px, 1.7vw, 22px);
+    }
+    .steps li { display: flex; align-items: center; gap: 14px; }
+    .step-number {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      flex-shrink: 0;
+      border: 1px solid #415b72;
+      border-radius: 50%;
+      color: var(--accent);
+      font-size: 15px;
+      font-variant-numeric: tabular-nums;
+    }
+    .visual { width: 100%; max-width: 440px; justify-self: center; text-align: center; }
+    .qr-frame {
+      padding: clamp(14px, 1.8vw, 24px);
+      border-radius: 28px;
+      background: #fff;
+      box-shadow: 0 16px 48px #0003;
+    }
+    #qr { display: block; width: 100%; aspect-ratio: 1; background: #fff; }
+    .state-art {
+      aspect-ratio: 1;
+      display: grid;
+      place-content: center;
+      justify-items: center;
+      gap: 28px;
+      border: 1px solid rgba(var(--accent-rgb), .2);
+      border-radius: 28px;
+      background: rgba(var(--accent-rgb), .035);
+      color: var(--accent);
+    }
+    .state-symbol {
+      display: grid;
+      place-items: center;
+      width: clamp(100px, 12vw, 168px);
+      aspect-ratio: 1;
+      border: 1px solid rgba(var(--accent-rgb), .2);
+      border-radius: 50%;
+      background: rgba(var(--accent-rgb), .07);
+    }
+    .state-symbol svg { width: 48%; height: 48%; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+    .state-label { margin: 0; font-size: clamp(22px, 2.4vw, 32px); font-weight: 600; }
+    .visual-caption { margin: 20px 0 0; color: var(--muted); font-size: clamp(15px, 1.5vw, 20px); line-height: 1.5; word-break: keep-all; }
+    .footer { border-top: 1px solid #304153; padding-top: 24px; }
+    .footer p { margin: 0; color: var(--muted); font-size: clamp(14px, 1.5vw, 19px); }
+    .brand { display: block; width: clamp(110px, 12vw, 156px); height: auto; flex-shrink: 0; }
+    .icon-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+    @media (min-width: 761px) and (max-height: 700px) {
+      .display { padding: 24px 36px; gap: 20px; }
+      .content { gap: 32px; padding: 0; }
+      h1 { font-size: clamp(34px, 4vw, 52px); }
+      .eyebrow { margin-bottom: 10px; }
+      .description { margin-top: 16px; font-size: 20px; }
+      .steps { margin-top: 20px; padding-top: 18px; gap: 10px; font-size: 18px; }
+      .visual { max-width: min(360px, 60vh); }
+      .footer { padding-top: 16px; }
+    }
+    @media (min-width: 761px) and (max-height: 540px) {
+      .display { padding: 16px 28px; gap: 14px; }
+      .eyebrow { font-size: 16px; margin-bottom: 8px; }
+      h1 { font-size: 34px; }
+      .description { margin-top: 12px; font-size: 17px; }
+      .steps { grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; padding-top: 16px; font-size: 14px; }
+      .steps li { flex-direction: column; align-items: flex-start; gap: 8px; word-break: keep-all; }
+      .step-number { width: 24px; height: 24px; font-size: 13px; }
+      .visual-caption { margin-top: 12px; font-size: 14px; }
+      .footer { padding-top: 12px; }
+    }
+    @media (max-width: 760px) {
+      .display { padding: 24px; gap: 28px; }
+      .topbar { gap: 12px; flex-wrap: wrap; }
+      .badge { padding: 8px 12px; }
+      .content { grid-template-columns: 1fr; gap: 28px; text-align: center; padding: 0; }
+      h1 { font-size: clamp(32px, 6.2vw, 46px); }
+      .eyebrow { margin-bottom: 12px; }
+      .description { margin: 16px auto 0; }
+      .steps { grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 24px; padding-top: 20px; font-size: 15px; }
+      .steps li { flex-direction: column; gap: 10px; word-break: keep-all; }
+      .visual { max-width: 360px; }
+      .state-symbol { width: 128px; }
+      .footer { padding-top: 20px; }
+      .footer p { max-width: 16em; line-height: 1.7; word-break: keep-all; }
+    }
+  </style>
+</head>
+<body data-tone="blue">
+  <svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <defs>
+      <symbol id="icon-connection" viewBox="0 0 48 48">
+        <path d="M7 17a26 26 0 0 1 34 0M13 24a17 17 0 0 1 22 0M19 31a8 8 0 0 1 10 0"/>
+        <circle cx="24" cy="38" r="1.5" fill="currentColor" stroke="none"/>
+      </symbol>
+      <symbol id="icon-conversation" viewBox="0 0 48 48">
+        <rect x="18" y="6" width="12" height="24" rx="6"/>
+        <path d="M12 23a12 12 0 0 0 24 0M24 35v7M18 42h12"/>
+      </symbol>
+      <symbol id="icon-prepare" viewBox="0 0 48 48">
+        <path d="M38 17A16 16 0 0 0 10 12l-4 5m0-9v9h9M10 31a16 16 0 0 0 28 5l4-5m-9 0h9v9"/>
+      </symbol>
+    </defs>
+  </svg>
+  <div class="display">
+    <header class="topbar">
+      <p class="greeting">안녕하세요, DORI입니다.</p>
+      <span class="badge" id="connection-badge">연결 확인 중</span>
+    </header>
+    <main class="content">
+      <section aria-labelledby="status">
+        <div role="status" aria-live="polite" aria-atomic="true">
+          <p class="eyebrow" id="eyebrow">잠시만 기다려 주세요</p>
+          <h1 id="status">연결 상태를<br>확인하고 있어요</h1>
+          <p class="description" id="description">연결이 확인되면 대화를 시작할 수 있어요.</p>
+        </div>
+        <ol class="steps" id="steps" aria-label="스마트폰 연결 순서" hidden>
+          <li><span class="step-number" aria-hidden="true">1</span>카메라로 QR 스캔</li>
+          <li><span class="step-number" aria-hidden="true">2</span>휴대폰에서 연결하기</li>
+          <li><span class="step-number" aria-hidden="true">3</span>말하거나 글로 질문</li>
+        </ol>
+      </section>
+      <div class="visual">
+        <div class="qr-frame" id="qr-frame" hidden>
+          <img id="qr" hidden alt="스마트폰으로 스캔해 DORI와 연결하세요">
+        </div>
+        <div class="state-art" id="state-art" aria-hidden="true">
+          <div class="state-symbol"><svg><use id="state-icon" href="#icon-connection"/></svg></div>
+          <p class="state-label" id="state-label">연결 확인 중</p>
+        </div>
+        <p class="visual-caption" id="visual-caption">자동으로 연결을 확인하고 있어요</p>
+      </div>
+    </main>
+    <footer class="footer">
+      <p>캠퍼스 안내 · 건물 위치 · 생활 정보</p>
+      <!-- Original artwork: web/src/assets/logo/logo-full-dark.svg. Inline so
+           the loopback display stays self-contained in the ROS installation. -->
+      <svg class="brand" role="img" aria-label="DORI" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 3192.98 1000">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #e2eaf2;
+      }
+
+      .cls-2 {
+        fill: url(#linear-gradient);
+      }
+    </style>
+    <linearGradient id="linear-gradient" x1="67.24" y1="249.4" x2="933.41" y2="749.48" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#d8e7f7"/>
+      <stop offset=".06" stop-color="#cee3f5"/>
+      <stop offset=".16" stop-color="#b5d8f0"/>
+      <stop offset=".29" stop-color="#8bc7e9"/>
+      <stop offset=".44" stop-color="#52afdf"/>
+      <stop offset=".57" stop-color="#1f9ad7"/>
+      <stop offset=".87" stop-color="#006cba"/>
+      <stop offset=".99" stop-color="#00599b"/>
+    </linearGradient>
+  </defs>
+  <path class="cls-2" d="M220,914.3C87.25,824.4,0,672.39,0,500S87.8,174.64,221.26,84.86M500,0c-40.96,0-80.77,4.93-118.88,14.22v971.56c38.1,9.29,77.91,14.22,118.88,14.22,276.14,0,500-223.86,500-500S776.14,0,500,0Z"/>
+  <g>
+    <path class="cls-1" d="M1200,875.08V175.07h295c74.66,0,140.5,14.67,197.5,44,57,29.34,101.33,70.34,133,123,31.66,52.67,47.5,113.67,47.5,183s-15.84,130.34-47.5,183c-31.67,52.67-76,93.67-133,123-57,29.34-122.84,44-197.5,44h-295ZM1300,788.08h189c58,0,108.16-11,150.5-33,42.33-22,75.16-52.83,98.5-92.5,23.33-39.66,35-85.5,35-137.5s-11.67-98.66-35-138c-23.34-39.33-56.17-70-98.5-92-42.34-22-92.5-33-150.5-33h-189v526Z"/>
+    <path class="cls-1" d="M2248.99,881.08c-52.67,0-99.84-11.66-141.5-35-41.67-23.33-74.5-55.5-98.5-96.5s-36-87.5-36-139.5,12-99.16,36-139.5c24-40.33,56.66-72.16,98-95.5,41.33-23.33,88.66-35,142-35s99.83,11.5,141.5,34.5c41.66,23,74.33,54.84,98,95.5,23.66,40.67,35.5,87.34,35.5,140s-11.84,99.34-35.5,140c-23.67,40.67-56.34,72.67-98,96-41.67,23.34-88.84,35-141.5,35ZM2248.99,797.08c34,0,64.5-7.66,91.5-23,27-15.33,48.16-37.16,63.5-65.5,15.33-28.33,23-61.16,23-98.5s-7.67-70.83-23-98.5c-15.34-27.66-36.5-49.16-63.5-64.5-27-15.33-57.5-23-91.5-23s-64.34,7.67-91,23c-26.67,15.34-48,36.84-64,64.5-16,27.67-24,60.5-24,98.5s8,70.17,24,98.5c16,28.34,37.33,50.17,64,65.5,26.66,15.34,57,23,91,23Z"/>
+    <path class="cls-1" d="M2666.98,875.08V345.07h92v144l-9-36c14.66-36.66,39.33-64.66,74-84,34.66-19.33,77.33-29,128-29v93c-4-.66-7.84-1-11.5-1h-10.5c-51.34,0-92,15.34-122,46-30,30.67-45,75-45,133v264h-96Z"/>
+    <path class="cls-1" d="M3127.98,243.07c-18.67,0-34.17-6-46.5-18-12.34-12-18.5-26.66-18.5-44s6.16-33,18.5-45c12.33-12,27.83-18,46.5-18s34.16,5.84,46.5,17.5c12.33,11.67,18.5,26.17,18.5,43.5s-6,33.17-18,45.5c-12,12.34-27.67,18.5-47,18.5ZM3079.98,875.08V345.07h96v530h-96Z"/>
+  </g>
+</svg>
+    </footer>
+  </div>
+  <script>
+    let qr = document.getElementById('qr');
+    const qrFrame = document.getElementById('qr-frame');
+    const status = document.getElementById('status');
+    const description = document.getElementById('description');
+    const eyebrow = document.getElementById('eyebrow');
+    const badge = document.getElementById('connection-badge');
+    const steps = document.getElementById('steps');
+    const art = document.getElementById('state-art');
+    const icon = document.getElementById('state-icon');
+    const label = document.getElementById('state-label');
+    const caption = document.getElementById('visual-caption');
+    const views = {
+      CONNECTING: {
+        badge: '연결 확인 중', eyebrow: '잠시만 기다려 주세요',
+        title: '연결 상태를\n확인하고 있어요',
+        description: '연결이 확인되면 대화를 시작할 수 있어요.',
+        caption: '자동으로 연결을 확인하고 있어요', icon: 'connection', tone: 'blue',
+      },
+      IDLE: {
+        badge: '연결 가능', eyebrow: '무엇이 궁금하세요?',
+        title: 'QR을 스캔하고\n대화를 시작하세요',
+        description: '스마트폰으로 DORI와 연결해 주세요. 캠퍼스에 대해 궁금한 것을 물어보세요.',
+        caption: '연결 코드는 자동으로 갱신돼요', icon: 'connection', tone: 'blue',
+      },
+      ACTIVE: {
+        badge: '연결됨 · 대화 중', eyebrow: '방문자와 함께하고 있어요',
+        title: '지금은 방문자와\n대화하고 있어요',
+        description: '연결한 스마트폰에서 대화를 이어가세요. 다음 방문자는 잠시만 기다려 주세요.',
+        label: '대화 중', caption: '대화가 끝나면 새 QR이 표시돼요', icon: 'conversation', tone: 'green',
+      },
+      GRACE: {
+        badge: '스마트폰 재연결 중', eyebrow: '대화가 잠시 멈췄어요',
+        title: '스마트폰 연결을\n기다리고 있어요',
+        description: '연결했던 스마트폰의 인터넷 연결을 확인하고 대화 화면으로 돌아와 주세요.',
+        label: '다시 연결하는 중', caption: '스마트폰이 연결되면 대화를 이어가요', icon: 'connection', tone: 'amber',
+      },
+      ENDING: {
+        badge: '대화 마무리 중', eyebrow: '함께해 주셔서 고마워요',
+        title: '다음 만남을\n준비하고 있어요',
+        description: '대화를 마무리하고 있어요. 준비가 끝나면 새 QR이 표시돼요.',
+        label: '잠시만 기다려 주세요', caption: '곧 다시 만나요', icon: 'prepare', tone: 'blue',
+      },
+      PREPARING: {
+        badge: '연결 준비 중', eyebrow: '잠시만 기다려 주세요',
+        title: '새 QR을\n준비하고 있어요',
+        description: 'QR이 표시되면 스마트폰 카메라로 스캔해 주세요.',
+        label: 'QR 준비 중', caption: '새 연결 코드를 기다리고 있어요', icon: 'prepare', tone: 'blue',
+      },
+      OFFLINE: {
+        badge: '연결 확인 중', eyebrow: '연결이 잠시 끊어졌어요',
+        title: '연결 상태를\n확인하고 있어요',
+        description: '연결이 돌아오면 화면이 자동으로 바뀌어요. 잠시만 기다려 주세요.',
+        label: '다시 연결하는 중', caption: '자동으로 다시 연결하고 있어요', icon: 'connection', tone: 'amber',
+      },
+    };
+    let state = '';
+    let qrVersion = 0;
+    let expiryTimer;
+
+    function render(view) {
+      const content = views[view];
+      document.body.dataset.tone = content.tone;
+      badge.textContent = content.badge;
+      eyebrow.textContent = content.eyebrow;
+      status.textContent = content.title;
+      description.textContent = content.description;
+      caption.textContent = content.caption;
+      label.textContent = content.label || content.badge;
+      icon.setAttribute('href', '#icon-' + content.icon);
+      const ready = view === 'IDLE';
+      qr.hidden = qrFrame.hidden = !ready;
+      steps.hidden = !ready;
+      art.hidden = ready;
+    }
+
+    function clearQR() {
+      qrVersion++;
+      clearTimeout(expiryTimer);
+      qr.hidden = qrFrame.hidden = true;
+      qr.removeAttribute('src');
+    }
+
+    const stream = new EventSource('/display/events');
+    function update(event) {
+      state = JSON.parse(event.data).status;
+      clearQR();
+      render(state === 'IDLE' ? 'PREPARING' : views[state] ? state : 'CONNECTING');
+    }
+    stream.addEventListener('state', update);
+    stream.addEventListener('paired', update);
+    stream.addEventListener('qr_update', event => {
+      if (state !== 'IDLE') return;
+      const { nonce, ttl } = JSON.parse(event.data);
+      clearQR();
+      render('PREPARING');
+      if (typeof nonce !== 'string' || !nonce || !Number.isFinite(ttl) || ttl <= 0) return;
+      const version = qrVersion;
+      const deadline = performance.now() + ttl * 1000;
+      // Preload before showing the scan instruction. A late image must never
+      // bring back a QR after pairing, losing the stream, or its TTL expiring.
+      const nextQR = new Image();
+      nextQR.onload = () => {
+        if (version !== qrVersion || state !== 'IDLE' || performance.now() >= deadline) return;
+        // Reuse the loaded element: QR responses are no-store, so assigning
+        // its URL to a second image would fetch the expiring code again.
+        nextQR.id = 'qr';
+        nextQR.alt = qr.alt;
+        qr.replaceWith(nextQR);
+        qr = nextQR;
+        render('IDLE');
+      };
+      nextQR.onerror = () => {
+        if (version !== qrVersion || state !== 'IDLE') return;
+        clearQR();
+        render('PREPARING');
+      };
+      expiryTimer = setTimeout(() => {
+        if (version !== qrVersion) return;
+        clearQR();
+        render('PREPARING');
+      }, ttl * 1000);
+      nextQR.src = '/display/qr/' + encodeURIComponent(nonce);
+    });
+    stream.onerror = () => {
+      state = '';
+      clearQR();
+      render('OFFLINE');
+    };
+  </script>
+</body>
+</html>

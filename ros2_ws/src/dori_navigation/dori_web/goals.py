@@ -7,6 +7,12 @@ from pathlib import Path
 import uuid
 
 
+def default_goals_path():
+    """Use the same registry for the web viewer and the named action server."""
+    root = os.environ.get("DORI_WS") or os.environ.get("DORI_SESSION_ROOT") or Path.cwd()
+    return Path(root) / "maps/web_goals.json"
+
+
 def map_key(signature):
     return (
         hashlib.sha256(json.dumps(signature).encode()).hexdigest()[:24]

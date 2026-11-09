@@ -9,8 +9,6 @@ import threading
 import time
 import zlib
 import uuid
-import os
-from pathlib import Path as FilePath
 import numpy as np
 from PIL import Image
 from rclpy.node import Node
@@ -26,7 +24,7 @@ from .geometry import yaw, pose_values, free_cell
 from .lifecycle import LifecycleReadiness
 from .localization import LocalPoseSearch
 from .auto_alignment import PeriodicAlignment
-from .goals import GoalStore, map_key
+from .goals import GoalStore, map_key, default_goals_path
 from .relative_motion import forward_distance, forward_goal, forward_reply
 
 
@@ -58,13 +56,7 @@ class WebBridge(Node):
         self.selected_goal_kind = "destination"
         self.goal_revision = 0
         self.last_goal_request = -math.inf
-        self.goal_store = GoalStore(
-            goals_path
-            or FilePath(
-                os.getenv("DORI_WS", str(FilePath(__file__).resolve().parents[3]))
-            )
-            / "maps/web_goals.json"
-        )
+        self.goal_store = GoalStore(goals_path or default_goals_path())
         self.buffer = Buffer()
         self.listener = TransformListener(self.buffer, self)
         latch = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)

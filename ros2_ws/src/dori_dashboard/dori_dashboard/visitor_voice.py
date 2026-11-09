@@ -15,12 +15,7 @@ except ImportError:
     from azure_speech import AzureSpeechStream, AzureSpeechError, load_config, MAX_CHUNK_BYTES
 
 from rclpy.action import ActionClient
-from dori_msgs.action import LLMQuery, Speak
-try:
-    from dori_msgs.action import LLMQuery, Speak, NavigateNamed
-except ImportError:
-    from dori_msgs.action import LLMQuery, Speak
-    NavigateNamed = None
+from dori_msgs.action import LLMQuery, Speak, NavigateNamed
 from std_msgs.msg import String
 from unique_identifier_msgs.msg import UUID
 
@@ -93,8 +88,7 @@ class VisitorVoice:
         self.stream_sequence = 0
         self.llm = ActionClient(node, LLMQuery, 'llm/query')
         self.tts = ActionClient(node, Speak, 'tts/speak_remote')
-        self.nav = ActionClient(node, NavigateNamed, 'nav/navigate_named') if NavigateNamed else None
-        self.nav_goal = None
+        self.nav = ActionClient(node, NavigateNamed, 'nav/navigate_named')
         self.audio_pub = node.create_publisher(String, 'stt/audio_input', 1)
         self.playback_pub = node.create_publisher(String, 'tts/remote_playback', 10)
         node.create_subscription(String, 'stt/visitor_result', self._stt, 10)
@@ -190,15 +184,25 @@ class VisitorVoice:
     def start_text(self, payload):
         self._start_turn(text=validate_text(payload))
 
-    def _start_turn(self, audio=None, text=None, stream_id=None):
+    def start_navigation(self, payload):
+        identifier = payload.get('destination_id')
+        matches = [g for g in self.node.destinations if g['id'] == identifier]
+        if not isinstance(identifier, str) or len(matches) != 1:
+            raise ValueError('현재 지도에서 목적지를 찾을 수 없습니다. 목록에서 다시 선택해 주세요.')
+        if not self.nav.server_is_ready():
+            raise ValueError('길안내 서비스가 아직 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.')
+        self._start_turn(destination=dict(matches[0]))
+
+    def _start_turn(self, audio=None, text=None, stream_id=None, destination=None):
         if self.draining:
             raise ValueError('이전 답변을 처리 중입니다. 잠시 후 보내 주세요.')
-        if (not self.llm.server_is_ready() or not self.tts.server_is_ready()
+        if ((destination is None and not self.llm.server_is_ready()) or not self.tts.server_is_ready()
                 or (audio is not None and not self.audio_pub.get_subscription_count())):
             raise ValueError('대화 서비스가 아직 준비되지 않았습니다.')
         self.turn = secrets.token_hex(16)
         self.stream_id, self.stream_sequence = stream_id, 0
-        self.task = asyncio.create_task(self._run(self.turn, audio=audio, text=text, stream_id=stream_id))
+        self.task = asyncio.create_task(self._run(
+            self.turn, audio=audio, text=text, stream_id=stream_id, destination=destination))
 
     def cancel(self):
         self.turn = None
@@ -208,12 +212,6 @@ class VisitorVoice:
             self.stream.cancel()
         if self.goal:
             self.goal.cancel_goal_async()
-        if self.nav_goal:
-            try:
-                self.nav_goal.cancel_goal_async()
-            except Exception:
-                pass
-            self.nav_goal = None
         if self.stt_waiter and not self.stt_waiter.done():
             self.stt_waiter.cancel()
 
@@ -222,7 +220,7 @@ class VisitorVoice:
             self.playback_pub.publish(String(data=json.dumps({'id': self.audio_id, 'status': data['status']})))
             self.media.clear()
 
-    async def _action(self, turn, client, goal, remote=False):
+    async def _action(self, turn, client, goal, remote=False, timeout=100, on_accepted=None):
         if turn != self.turn:
             raise asyncio.CancelledError()
         # Do not cancel this task: late goal acceptance must still be canceled and drained.
@@ -230,16 +228,18 @@ class VisitorVoice:
         if remote:
             self.audio_id = goal_id.hex()
         handle = await ros_future(client.send_goal_async(goal, goal_uuid=UUID(uuid=list(goal_id))))
-        if not handle.accepted:
+        if not handle or not handle.accepted:
             raise ValueError('Voice service is busy')
         self.goal = handle
         if remote:
             self.audio_id = bytes(handle.goal_id.uuid).hex()
         if turn != self.turn:
             handle.cancel_goal_async()
+        elif on_accepted:
+            await on_accepted()
         pending = asyncio.create_task(ros_future(handle.get_result_async()))
         try:
-            result = await asyncio.wait_for(asyncio.shield(pending), 100)
+            result = await asyncio.wait_for(asyncio.shield(pending), timeout)
         except asyncio.TimeoutError:
             handle.cancel_goal_async()
             # Keep the drain barrier until the server actually completes.
@@ -254,31 +254,18 @@ class VisitorVoice:
         return result.result
 
     async def _dispatch_navigation(self, turn, destination):
-        if turn != self.turn or not self.nav:
-            return
+        if turn != self.turn:
+            raise asyncio.CancelledError()
         if not self.nav.server_is_ready():
-            self.node.get_logger().warn("NavigateNamed action server is not ready")
-            return
-        goal_msg = NavigateNamed.Goal(destination=destination)
-        try:
-            goal_id = secrets.token_bytes(16)
-            handle = await ros_future(self.nav.send_goal_async(goal_msg, goal_uuid=UUID(uuid=list(goal_id))))
-            if not handle or not handle.accepted:
-                self.node.get_logger().warn(f"Navigation goal to {destination} rejected")
-                return
-            self.nav_goal = handle
-            await self.emit(turn, 'robot_state', status='NAVIGATING', destination=destination)
-            result = await ros_future(handle.get_result_async())
-            if turn == self.turn and result.status == 4 and getattr(result.result, 'code', 0) == 0:
-                arrived_text = "목적지에 도착했습니다."
-                await self.emit(turn, 'llm_text', data=arrived_text)
-                await self.emit(turn, 'robot_state', status='ARRIVED')
-                if self.tts.server_is_ready():
-                    await self._action(turn, self.tts, Speak.Goal(text=arrived_text), remote=True)
-        except Exception as exc:
-            self.node.get_logger().warn(f"Navigation error: {exc}")
-        finally:
-            self.nav_goal = None
+            raise VoiceTurnError('navigation_unavailable', '길안내 서비스가 아직 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.')
+        # Use the same cancellation/drain barrier as voice actions, including
+        # acceptance arriving after STOP, disconnect or session replacement.
+        result = await self._action(
+            turn, self.nav, NavigateNamed.Goal(destination=destination), timeout=940,
+            on_accepted=lambda: self.emit(turn, 'robot_state', status='NAVIGATING', destination=destination),
+        )
+        if result.code != NavigateNamed.Result.SUCCESS:
+            raise ValueError('Navigation failed')
 
     async def _stream_ended(self, turn, stream_id, reason):
         await self.emit(turn, 'stt_closed', id=stream_id, reason=reason)
@@ -309,11 +296,13 @@ class VisitorVoice:
             }
             raise VoiceTurnError(exc.code, messages.get(exc.code, '음성을 처리하지 못했습니다. 다시 말씀하거나 텍스트로 보내 주세요.')) from None
 
-    async def _run(self, turn, audio=None, text=None, stream_id=None):
+    async def _run(self, turn, audio=None, text=None, stream_id=None, destination=None):
         stage = 'stt' if audio is not None or stream_id is not None else 'llm'
         try:
             if turn != self.turn:
                 return
+            if destination is not None:
+                text = f"{destination['name']} 안내해줘"
             if stream_id is not None:
                 text = await self._recognize_stream(turn, stream_id)
                 if turn != self.turn:
@@ -338,12 +327,19 @@ class VisitorVoice:
                 await self.emit(turn, 'user_text', data=text)
             stage = 'llm'
             await self.emit(turn, 'robot_state', status='THINKING')
-            answer = await self._action(turn, self.llm, LLMQuery.Goal(text=text, location_context=''))
+            if destination is not None:
+                answer = LLMQuery.Result(intent='navigation', target_location=destination['id'],
+                                         response_text=f"{destination['name']}(으)로 안내하겠습니다.")
+            else:
+                answer = await self._action(turn, self.llm, LLMQuery.Goal(text=text, location_context=''))
             if answer.intent in ('error', 'canceled') or not answer.response_text:
                 raise ValueError('Unable to generate an answer')
-            if answer.intent in ('navigation', 'follow'):
-                answer.response_text = '현재 스마트폰 연결에서는 캠퍼스에 관한 대화만 가능합니다. 이동 안내와 추종은 아직 지원하지 않아요.'
-            # Intents are deliberately never dispatched to robot motion in visitor v1.
+            if answer.intent == 'navigation':
+                stage = 'navigation'
+                if not answer.target_location:
+                    raise VoiceTurnError('navigation_rejected', '목적지를 확인하지 못했습니다. 목록에서 선택하거나 목적지 이름을 말씀해 주세요.')
+                if not self.nav.server_is_ready():
+                    raise VoiceTurnError('navigation_unavailable', '길안내 서비스가 아직 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.')
             if answer.intent == 'follow':
                 answer.response_text = '현재 스마트폰 연결에서는 캠퍼스에 관한 대화와 길안내만 가능합니다. 추종은 지원하지 않아요.'
             await self.emit(turn, 'llm_text', data=answer.response_text)
@@ -353,8 +349,16 @@ class VisitorVoice:
             if not spoken.success:
                 raise ValueError('Phone playback failed')
 
-            if answer.intent == 'navigation' and getattr(answer, 'target_location', None) and self.nav:
+            if answer.intent == 'navigation':
+                stage = 'navigation'
                 await self._dispatch_navigation(turn, answer.target_location)
+                arrived_text = '목적지에 도착했습니다.'
+                await self.emit(turn, 'llm_text', data=arrived_text)
+                await self.emit(turn, 'robot_state', status='ARRIVED')
+                stage = 'tts'
+                spoken = await self._action(turn, self.tts, Speak.Goal(text=arrived_text), remote=True)
+                if not spoken.success:
+                    raise ValueError('Phone playback failed')
         except asyncio.CancelledError:
             pass
         except Exception as exc:
@@ -363,6 +367,7 @@ class VisitorVoice:
                 'stt': '음성을 처리하지 못했습니다. 다시 녹음하거나 텍스트로 보내 주세요.',
                 'llm': '답변을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.',
                 'tts': '답변 음성을 재생하지 못했습니다. 답변은 화면에서 확인해 주세요.',
+                'navigation': '길안내를 완료하지 못했습니다. 현재 지도와 로봇 상태를 확인한 뒤 다시 시도해 주세요.',
             }
             code = exc.code if isinstance(exc, VoiceTurnError) else f'{stage}_failed'
             message = str(exc) if isinstance(exc, VoiceTurnError) else messages[stage]

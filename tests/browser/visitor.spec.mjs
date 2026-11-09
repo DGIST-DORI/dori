@@ -8,6 +8,8 @@ const browser=await chromium.launch({headless:true,args:['--no-sandbox','--use-f
 const context=await browser.newContext({viewport:{width:390,height:844},permissions:['microphone']});
 let paired=false, claimed=false, failPreparation=true, failText=true, claimCalls=0, sent=[];
 let sttProvider='whisper', streamMode='automatic', activeStream=null;
+let userSocket;
+const destinations=[{id:'gate6',name:'e6 gate'},{id:'stair',name:'stair'}];
 await context.addInitScript(() => {
  window.microphoneRequests=0;
  const original=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
@@ -43,7 +45,7 @@ await context.route('**/*',async route=>{const url=new URL(route.request().url()
  if(url.pathname==='/api/audio/test')return route.fulfill({body:wave,contentType:'audio/wav'});
  return route.continue();
 });
-await context.routeWebSocket('**/ws/user',ws=>{ws.send(JSON.stringify({type:'robot_state',status:'READY',stt_provider:sttProvider}));ws.onMessage(raw=>{const msg=JSON.parse(raw);sent.push(msg);
+await context.routeWebSocket('**/ws/user',ws=>{userSocket=ws;ws.send(JSON.stringify({type:'robot_state',status:'READY',stt_provider:sttProvider,destinations}));ws.onMessage(raw=>{const msg=JSON.parse(raw);sent.push(msg);
  const streamReply=()=>{
    ws.send(JSON.stringify({type:'stt_closed',id:activeStream.id,reason:'azure_final'}));
    if(streamMode==='error')ws.send(JSON.stringify({type:'error',code:'stt_failed',message:'음성 인식 연결을 다시 시도해 주세요.'}));
@@ -72,6 +74,12 @@ await context.routeWebSocket('**/ws/user',ws=>{ws.send(JSON.stringify({type:'rob
    ws.send(JSON.stringify({type:'llm_text',data:'글로 보낸 질문에 답할게요.'}));
    ws.send(JSON.stringify({type:'robot_state',status:'SPEAKING'}));
    ws.send(JSON.stringify({type:'tts_audio',id:'test',url:'/api/audio/test'}));
+ }
+ if(msg.type==='navigate'){
+   assert.equal(msg.destination_id,'gate6');
+   ws.send(JSON.stringify({type:'user_text',data:'e6 gate 안내해줘'}));
+   ws.send(JSON.stringify({type:'llm_text',data:'e6 gate(으)로 안내하겠습니다.'}));
+   ws.send(JSON.stringify({type:'robot_state',status:'NAVIGATING',destination:'gate6'}));
  }
  if(msg.type==='playback'&&msg.status==='ended')ws.send(JSON.stringify({type:'robot_state',status:'READY'}));
  if(msg.type==='command'){activeStream=null;ws.send(JSON.stringify({type:'robot_state',status:'READY'}));}
@@ -118,6 +126,28 @@ try{
  assert.equal(await page.locator('.messages').getByText('도서관에 대해 알려 주세요',{exact:true}).count(),1);
  assert.equal(sent.filter(m=>m.type==='text').length,2);
  await page.screenshot({path:'/tmp/dori-visitor-text.png'});
+ const gate=page.getByRole('button',{name:'e6 gate ↗',exact:true});
+ await composer.fill('작성 중인 질문');
+ await gate.click();
+ await page.getByRole('heading',{name:'목적지로 안내하고 있어요'}).waitFor();
+ assert.equal(sent.filter(m=>m.type==='navigate').length,1);
+ assert.equal(await composer.inputValue(),'작성 중인 질문');
+ assert.equal(await gate.isEnabled(),false);
+ assert.equal(await sendButton.isEnabled(),false);
+ assert.equal(await page.getByRole('button',{name:'눌러서 말하기'}).isEnabled(),false);
+ assert.equal(await page.evaluate(()=>window.microphoneRequests),0);
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ await page.screenshot({path:'/tmp/dori-visitor-navigation.png'});
+ await page.getByRole('button',{name:'현재 작업 취소'}).click();
+ await page.getByRole('heading',{name:'무엇이 궁금하세요?'}).waitFor();
+ await gate.click();
+ await page.getByRole('heading',{name:'목적지로 안내하고 있어요'}).waitFor();
+ userSocket.send(JSON.stringify({type:'robot_state',status:'ARRIVED'}));
+ await page.getByRole('heading',{name:'목적지에 도착했어요'}).waitFor();
+ userSocket.send(JSON.stringify({type:'robot_state',status:'READY'}));
+ userSocket.send(JSON.stringify({type:'destinations',destinations:[]}));
+ await gate.waitFor({state:'detached'});
+ await composer.fill('');
  await page.getByRole('button',{name:'눌러서 말하기'}).click();await page.waitForTimeout(1400);
  await page.getByRole('button',{name:'말하기 마치기'}).click();
  await page.getByText('DGIST 캠퍼스를 소개할게요.').waitFor();
@@ -175,5 +205,5 @@ try{
  await page.clock.fastForward(121000);
  await page.getByText(/이 페이지를 새로고침해도/).waitFor();
  assert.equal(await page.getByRole('button',{name:'DORI와 연결하기'}).isEnabled(),false);
- console.log('PASS: pairing, text, legacy WAV, Azure PCM streaming, silence tolerance, stale stream events, service endpoint, error recovery, manual finish, cancellation, playback, mobile layout');
+ console.log('PASS: pairing, text, destination selection by ID, navigation states/cancel, map invalidation, legacy WAV, Azure PCM streaming, silence tolerance, stale stream events, service endpoint, error recovery, manual finish, playback, mobile layout');
 }finally{await browser.close();server.close();}

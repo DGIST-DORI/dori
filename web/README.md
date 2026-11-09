@@ -390,8 +390,10 @@ build is required; `npm run test:visitor` tests its PCM/WAV encoder.
 The existing `control` role and the `operator` alias both permit operator actions.
 
 The default bringup selects the visitor profile. It disables BT
-wake-triggered following, local STT intents, gestures and automatic patrols;
-visitor utterances cannot dispatch navigation. For a desktop session:
+wake-triggered following, local STT intents, gestures and automatic patrols.
+Visitor text/voice requests and destination buttons can dispatch registered
+destinations through `nav/navigate_named` when the real navigation stack is
+running. Following remains unavailable. For a desktop session:
 
 ```bash
 # Build both apps and ROS packages; configure the private F0 settings below once.
@@ -443,6 +445,15 @@ it. A new QR scan can replace the previous proof. Successful pairing clears all
 pending scan proofs; 503 readiness failures keep the current proof available
 for retry. Expired scans, busy sessions and unavailable voice services have
 separate messages. Multiple displays refresh on the same rotation deadline.
+
+The robot display gives the current connection state priority over the greeting, with
+scan instructions while idle and distinct conversation, reconnecting, cleanup,
+and connection-loss screens. The original Dori logo is embedded in the HTML,
+so the installed display needs no external asset server or frontend build.
+QR images appear only after loading and are hidden at the advertised rotation
+deadline or when the session/connection changes; delayed image responses cannot
+restore an old code. The layout adapts to landscape and narrow screens.
+
 Only tunnel `app.dgist-dori.xyz` to `http://127.0.0.1:3100` and the
 Access-protected `dash.dgist-dori.xyz` to port 3000. Never register 3001 or 9090 in
 a tunnel. The default listeners are loopback; `DORI_DEV_MODE` explicitly widens
@@ -476,14 +487,40 @@ an exact Origin check. Supported input messages:
   trims surrounding whitespace, echoes accepted input as `user_text`, skips STT,
   and uses the same LLM and remote TTS actions as microphone input. Audio and text
   share one outstanding turn, cancellation, idle activity and cleanup rules.
+- `navigate` with `destination_id`: selects an ID from the current destination
+  snapshot. The gateway validates the ID and skips LLM interpretation for buttons.
+  The named action server revalidates the destination against the active map.
 - `command` with `action: "STOP"` cancels the current task without clearing an
   operator emergency stop. Unsupported commands, including GUIDE/FOLLOW, fail.
 - `playback` with the issued audio `id` and `status: "ended" | "failed" | "canceled"`.
 - `end` closes and cleans up the session; `DELETE /api/session` is also available.
 
-Outputs are `robot_state` (READY/TRANSCRIBING/THINKING/SPEAKING), `stt_text`, `user_text`,
+Outputs are `robot_state` (READY/TRANSCRIBING/THINKING/SPEAKING/NAVIGATING/ARRIVED), `stt_text`, `user_text`,
 `llm_text`, `tts_audio` (id and authenticated URL), `command_result`, and `error`.
-The initial READY snapshot includes `stt_provider`. Azure additionally sends
+The initial READY snapshot includes `stt_provider` and `destinations` (ID/name).
+Subsequent `destinations` events replace the whole list, including empty lists
+after a map change or deletion. `GET /api/destinations` exposes the same snapshot
+with session authentication. The app uses the WebSocket snapshot to avoid races
+with older HTTP responses.
+
+Both the LLM and gateway subscribe to the named adapter's transient-local
+`/dori/nav/locations`; they never combine maps or load example destinations.
+The web viewer and named adapter share `maps/web_goals.json` under `DORI_WS`
+(then `DORI_SESSION_ROOT`, then the working directory), unless a goals file is
+explicitly supplied. In real bringup, pass the same absolute `named_goals_file`
+to both via the launch argument. A desktop-only session has no navigation server
+and therefore no destination buttons; start the real navigation profile before
+requesting motion.
+
+“길안내 해줘” asks for a destination; a subsequent name such as “e6 gate” or
+“계단” resolves only against the active registry. Ambiguous/unknown destinations
+do not produce a motion target. A successful departure announcement must finish
+playing before dispatch. While navigating, new requests are disabled; STOP,
+disconnect and session end cancel the action and wait for its terminal result,
+including late goal acceptance. Rejection/failure appears as an app error;
+arrival is announced only after successful completion.
+
+Azure additionally sends
 `stt_ready` and `stt_closed` with the client stream ID. On `stt_closed`, the app
 stops its microphone immediately; the server still drains buffered final segments
 before emitting one `stt_text` and starting the existing LLM/TTS actions.
@@ -573,6 +610,13 @@ uses a fake microphone, and checks consent, pairing, legacy WAV capture, Azure P
 streaming through a long silence, service endpoint events, stale IDs, manual
 finish, recognition-error recovery, playback, STOP, end and mobile-width layout.
 It does not contact the robot or Azure.
+
+The standalone robot display has a separate Chromium check:
+`node tests/browser/display.spec.mjs` from the repository root, with the same
+`DORI_PLAYWRIGHT_MODULE` override. It mocks all requests and display events,
+checks QR expiry/loading races and session transitions, and captures six viewport
+sizes under `/tmp/dori-display-*.png`. Set `DORI_DISPLAY_QR_FIXTURE` to a local
+SVG QR image for realistic screenshots; the default is a placeholder image.
 
 Azure app integration verification (2026-11-05): 53 gateway/visitor tests,
 9 native-session lifecycle tests, 16 frontend tests, one isolated ROS visitor

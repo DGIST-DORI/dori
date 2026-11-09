@@ -114,7 +114,8 @@ class BridgeAPITests(unittest.IsolatedAsyncioTestCase):
             prepare_visitor=AsyncMock(return_value=True),
             request_stop=Mock(),
             cancel_visitor=Mock(),
-            voice=SimpleNamespace(start=Mock(), start_text=Mock(), playback=Mock(), media={}),
+            voice=SimpleNamespace(start=Mock(), start_text=Mock(), start_navigation=Mock(), playback=Mock(), media={}),
+            destinations=[{'id': 'lobby', 'name': '로비'}],
             execute_cleanup=AsyncMock(return_value=True),
         )
         self.clock = Mock(return_value=100.0)
@@ -148,6 +149,8 @@ class BridgeAPITests(unittest.IsolatedAsyncioTestCase):
         # Every connection receives an initial snapshot.
         snapshot = await connection.outgoing.get()
         self.assertIn('READY', snapshot['text'])
+        self.assertEqual(json.loads(snapshot['text'])['destinations'], self.ros.destinations)
+        self.assertTrue(connection.outgoing.empty())
         return connection
 
     async def test_invalid_json_shapes_and_binary_keep_session_active(self):
@@ -193,6 +196,37 @@ class BridgeAPITests(unittest.IsolatedAsyncioTestCase):
         self.ros.voice.start_text.assert_called_with(payload)
         self.ros.voice.start.assert_not_called()
         self.assertEqual(self.manager.last_activity, 110.0)
+
+    async def test_navigation_dispatch_counts_only_accepted_requests_as_activity(self):
+        connection = await self.connect()
+        self.clock.return_value = 110.0
+        payload = {'type': 'navigate', 'destination_id': 'lobby'}
+        self.ros.voice.start_navigation.side_effect = ValueError('Destination changed')
+        await connection.feed({'type': 'websocket.receive', 'text': json.dumps(payload)})
+        error = json.loads((await connection.outgoing.get())['text'])
+        self.assertEqual(error['code'], 'navigation_rejected')
+        self.assertEqual(self.manager.last_activity, 100.0)
+        self.ros.voice.start_navigation.side_effect = None
+        await connection.feed({'type': 'websocket.receive', 'text': json.dumps(payload)})
+        self.ros.voice.start_navigation.assert_called_with(payload)
+        self.ros.voice.start_text.assert_not_called()
+        self.assertEqual(self.manager.last_activity, 110.0)
+
+    async def test_location_updates_clear_stale_map_destinations(self):
+        node = object.__new__(bridge.BridgeNode)
+        self.manager.main_loop = asyncio.get_running_loop()
+        connection = await self.connect()
+        for payload, expected in (
+            ({'goals': [{'id': 'gate', 'name': 'Gate', 'x': 1}]}, [{'id': 'gate', 'name': 'Gate'}]),
+            ({'goals': []}, []),
+            ({'goals': [{'id': 'removed'}]}, []),
+            ({'goals': None}, []),
+            ([], []),
+        ):
+            node._on_locations(SimpleNamespace(data=json.dumps(payload)))
+            event = json.loads((await asyncio.wait_for(connection.outgoing.get(), 1))['text'])
+            self.assertEqual(event, {'type': 'destinations', 'destinations': expected})
+            self.assertEqual(node.destinations, expected)
 
     async def test_azure_frames_follow_authenticated_socket_ownership(self):
         for name in ('start_stream', 'stream_audio', 'finish_stream', 'cancel_stream'):

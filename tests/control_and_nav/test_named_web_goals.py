@@ -1,18 +1,41 @@
 """Persistent destinations and validated LLM selection, independent of hardware."""
 import json
+import os
+import threading
 import base64
 import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
+from types import SimpleNamespace
 from io import BytesIO
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'ros2_ws/src/dori_navigation'))
-from dori_web.goals import GoalStore,map_key
+from dori_web.goals import GoalStore,map_key,default_goals_path
+from dori_navigation.named_goal_adapter import NamedGoalAdapter
 from dori_web.voice import GeminiNavigator
 
 
 class DestinationTests(unittest.TestCase):
+    def test_default_registry_is_shared_with_named_action_and_scoped_to_active_map(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {'DORI_WS': temporary}):
+            path = default_goals_path()
+            self.assertEqual(path, Path(temporary) / 'maps/web_goals.json')
+            store = GoalStore(path)
+            goal = store.save('map-a', 'Lobby', [1., 2., 0.])
+            store.save('map-b', 'Other map', [3., 4., 0.])
+            node = object.__new__(NamedGoalAdapter)
+            node.get_parameter = Mock(return_value=SimpleNamespace(value=''))
+            node._lock = threading.RLock()
+            node._key, node._published = 'map-a', None
+            node.locations = Mock()
+            node._reload()
+            self.assertEqual(list(node._goals), [goal['id']])
+            self.assertEqual(json.loads(node.locations.publish.call_args.args[0].data)['goals'], [goal])
+            node._key = 'empty-map'
+            node._reload()
+            self.assertEqual(json.loads(node.locations.publish.call_args.args[0].data)['goals'], [])
+
     def test_save_reload_rename_delete_and_map_isolation(self):
         with tempfile.TemporaryDirectory() as d:
             path=Path(d)/'goals.json';store=GoalStore(path)

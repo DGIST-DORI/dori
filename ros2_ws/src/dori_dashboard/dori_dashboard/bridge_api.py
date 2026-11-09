@@ -134,48 +134,34 @@ class BridgeNode(HardwareControlMixin, Node):
         self.cli_tts_reset = self.create_client(Trigger, "tts/remote_reset")
         self.cli_llm_reset = self.create_client(Trigger, "llm/reset")
         self.cli_bt_clear = self.create_client(Trigger, "bt/clear_session")
-        self.destinations = self._load_saved_destinations()
+        self.destinations = []
         self.create_subscription(String, "nav/locations", self._on_locations, latch)
-
-    def _load_saved_destinations(self):
-        candidates = [
-            Path(os.environ.get("DORI_SESSION_ROOT", ".")) / "maps/web_goals.json",
-            Path(os.environ.get("DORI_SESSION_ROOT", ".")) / "maps/web_goals.example.json",
-            Path(__file__).parents[4] / "maps/web_goals.json",
-            Path(__file__).parents[4] / "maps/web_goals.example.json",
-        ]
-        for candidate in candidates:
-            try:
-                if candidate.is_file():
-                    data = json.loads(candidate.read_text())
-                    goals = []
-                    for map_goals in data.get("maps", {}).values():
-                        if isinstance(map_goals, list):
-                            goals.extend(map_goals)
-                    if goals:
-                        return [{"id": g["id"], "name": g["name"]} for g in goals]
-            except Exception:
-                pass
-        return []
 
     def _on_locations(self, msg):
         try:
             data = json.loads(msg.data)
-            goals = data.get("goals", [])
-            if goals:
-                self.destinations = [{"id": g["id"], "name": g["name"]} for g in goals]
-                if session_manager.active_ws:
-                    loop = session_manager.main_loop
-                    if loop and not loop.is_closed():
-                        loop.call_soon_threadsafe(
-                            lambda: asyncio.create_task(
-                                session_manager.active_ws.send_json(
-                                    {"type": "destinations", "destinations": self.destinations}
-                                )
-                            )
-                        )
-        except Exception:
-            pass
+            goals = data.get("goals", []) if isinstance(data, dict) else None
+            if not isinstance(goals, list) or any(
+                not isinstance(g, dict)
+                or any(not isinstance(g.get(k), str) or not g[k].strip() for k in ("id", "name"))
+                for g in goals
+            ):
+                raise ValueError("Invalid destination snapshot")
+            destinations = [{"id": g["id"], "name": g["name"]} for g in goals]
+        except (ValueError, TypeError):
+            destinations = []
+        self.destinations = destinations
+        loop = session_manager.main_loop
+        if loop and not loop.is_closed():
+            loop.call_soon_threadsafe(lambda: asyncio.create_task(self._send_destinations()))
+
+    async def _send_destinations(self):
+        websocket = session_manager.active_ws
+        if websocket:
+            try:
+                await websocket.send_json({"type": "destinations", "destinations": self.destinations})
+            except (RuntimeError, ConnectionError):
+                pass  # The session owner handles a disconnect during publication.
 
     def _on_mode(self, msg):
         with self._control_lock:
@@ -762,8 +748,6 @@ async def websocket_user(websocket: WebSocket):
         await session_manager.broadcast_display("state", {"status": "ACTIVE"})
         logger.info("Session Resumed from GRACE")
 
-    await websocket.send_json({"type": "robot_state", "status": "READY",
-                               "stt_provider": getattr(ros_node.voice, 'provider', 'whisper')})
     await websocket.send_json({
         "type": "robot_state",
         "status": "READY",
@@ -839,6 +823,12 @@ async def websocket_user(websocket: WebSocket):
                     session_manager.last_activity = time.monotonic()
                 except ValueError as exc:
                     await websocket.send_json({"type": "error", "code": "text_rejected", "message": str(exc)})
+            elif cmd_type == "navigate":
+                try:
+                    ros_node.voice.start_navigation(payload)
+                    session_manager.last_activity = time.monotonic()
+                except ValueError as exc:
+                    await websocket.send_json({"type": "error", "code": "navigation_rejected", "message": str(exc)})
             elif cmd_type == "playback":
                 ros_node.voice.playback(payload)
             elif cmd_type == "end":

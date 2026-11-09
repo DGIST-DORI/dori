@@ -5,7 +5,6 @@ import { confirmPairingScan, pairingError } from './pairing';
 import doriLogo from '../src/assets/logo/logo-full.svg';
 import './style.css';
 
-const labels = { READY: '무엇이 궁금하세요?', TRANSCRIBING: '말씀을 글로 바꾸고 있어요', THINKING: '답변을 생각하고 있어요', SPEAKING: 'DORI가 답하고 있어요' };
 const labels = { READY: '무엇이 궁금하세요?', TRANSCRIBING: '말씀을 글로 바꾸고 있어요', THINKING: '답변을 생각하고 있어요', SPEAKING: 'DORI가 답하고 있어요', NAVIGATING: '목적지로 안내하고 있어요', ARRIVED: '목적지에 도착했어요' };
 const MAX_TEXT_LENGTH = 1000;
 const initialNonce = location.hash.slice(1);
@@ -131,6 +130,14 @@ export default function App() {
       setStatus('THINKING');
     } else setError('연결이 끊겼습니다. 다시 연결한 뒤 보내 주세요.');
   }
+  function navigate(destination) {
+    if (pendingText.current !== null || capture.current || phase !== 'active' || status !== 'READY') return;
+    unlock(); setError('');
+    if (send({ type: 'navigate', destination_id: destination.id })) {
+      pendingText.current = ''; // Keep any drafted question when the selection is echoed.
+      setStatus('THINKING');
+    } else setError('연결이 끊겼습니다. 다시 연결한 뒤 보내 주세요.');
+  }
   function textKeyDown(event) {
     if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing
       || event.keyCode === 229 || composing.current) return;
@@ -139,7 +146,7 @@ export default function App() {
   }
   function showEnded() {
     closed.current = true; pendingText.current = null;
-    setDraft(''); setMessages([]); setPhase('ended');
+    setDraft(''); setMessages([]); setDestinations([]); setPhase('ended');
   }
   function connect() {
     if (closed.current) return;
@@ -148,13 +155,11 @@ export default function App() {
     socket.onopen = () => {
       reconnectStarted.current = 0; setPhase('active'); setError(''); acquireWake();
       clearInterval(heartbeat.current); heartbeat.current = setInterval(() => send({ type: 'heartbeat' }), 5000);
-      fetch('/api/destinations').then(r => r.json()).then(d => { if (d.destinations) setDestinations(d.destinations); }).catch(() => {});
     };
     socket.onmessage = ({ data }) => {
       if (ws.current !== socket || closed.current) return;
       const message = JSON.parse(data);
-      if (message.destinations) setDestinations(message.destinations);
-      if (message.type === 'destinations') setDestinations(message.destinations);
+      if (Array.isArray(message.destinations)) setDestinations(message.destinations);
       if (message.stt_provider) provider.current = message.stt_provider;
       if (message.type === 'stt_ready' && message.id === streamTurn.current?.id) {
         streamTurn.current.ready = true; flushStream();
@@ -271,16 +276,9 @@ export default function App() {
       {destinations.length > 0 && <div className="destinations" aria-label="안내 가능한 목적지">
         <span className="destinations-title">안내 가능한 목적지</span>
         <div className="destination-chips">
-          {destinations.map(dest => <button key={dest.id || dest.name} type="button" className="destination-chip"
-            disabled={recording || phase !== 'active' || (status !== 'READY' && status !== 'NAVIGATING')}
-            onClick={() => {
-              const text = `${dest.name} 안내해줘`;
-              unlock(); setError('');
-              if (send({ type: 'text', text })) {
-                pendingText.current = text;
-                setStatus('THINKING');
-              }
-            }}>{dest.name} ↗</button>)}
+          {destinations.map(dest => <button key={dest.id} type="button" className="destination-chip"
+            disabled={recording || phase !== 'active' || status !== 'READY'}
+            onClick={() => navigate(dest)}>{dest.name} ↗</button>)}
         </div>
       </div>}
       <form className="text-composer" onSubmit={sendText}>

@@ -232,9 +232,8 @@ class IntentClassifier:
 
     PATTERNS = {
         "navigation": [
-            r"(안내해|안내해줘|데려다|데려가|가자|이동해)",
-            r"\b(take me|guide me|go to|navigate to)\b",
-            r"(길안내|길 안내|목적지|안내해|안내해줘|데려다|데려가|가자|이동해|길찾기|길 찾아)",
+            r"(길안내|길 안내|안내해|데려다|데려가|가자|이동해|길찾기|길 찾아)",
+            r"^목적지(?:\s*목록)?[.!?]?$",
             r"\b(take me|guide me|go to|navigate to|directions?)\b",
         ],
         "information": [
@@ -315,7 +314,6 @@ class LLMNode(Node):
             )
 
         self.registered = []
-        self._init_registered_goals()
         self.create_subscription(
             String,
             "nav/locations",
@@ -393,6 +391,7 @@ class LLMNode(Node):
                     "user": user_text,
                     "assistant": response_data["text"],
                     "language": self.current_language,
+                    "awaiting_destination": response_data.get("awaiting_destination", False),
                 }
             )
 
@@ -420,31 +419,19 @@ class LLMNode(Node):
             with self._busy_lock:
                 self._busy = False
 
-    def _init_registered_goals(self):
-        candidates = [
-            Path(os.environ.get("DORI_SESSION_ROOT", ".")) / "maps/web_goals.json",
-            Path(os.environ.get("DORI_SESSION_ROOT", ".")) / "maps/web_goals.example.json",
-            Path(__file__).resolve().parents[4] / "maps/web_goals.json",
-            Path(__file__).resolve().parents[4] / "maps/web_goals.example.json",
-        ]
-        for candidate in candidates:
-            try:
-                if candidate.is_file():
-                    data = json.loads(candidate.read_text())
-                    goals = []
-                    for map_goals in data.get("maps", {}).values():
-                        if isinstance(map_goals, list):
-                            goals.extend(map_goals)
-                    if goals:
-                        self.registered = goals
-                        return
-            except Exception:
-                pass
-
     def _on_locations(self, message):
         try:
             data = json.loads(message.data)
-            self.registered = data.get("goals", [])
+            goals = data.get("goals", []) if isinstance(data, dict) else None
+            if not isinstance(goals, list) or any(
+                not isinstance(g, dict)
+                or any(not isinstance(g.get(k), str) or not g[k].strip() for k in ("id", "name"))
+                for g in goals
+            ):
+                raise ValueError("Invalid destination snapshot")
+            # Only the navigation server knows which map is currently loaded.
+            # Empty snapshots invalidate the previous map's destinations too.
+            self.registered = goals
         except (ValueError, TypeError):
             self.registered = []
 
@@ -466,30 +453,10 @@ class LLMNode(Node):
 
         return response
 
-    def _match_registered_goals(self, text: str) -> list:
+    def _match_registered_goals(self, text: str, destination_only=False) -> list:
         raw_clean = text.strip().casefold()
-        no_space = re.sub(r"\s+", "", raw_clean)
-
-        # 1. Exact ID or name substring
-        direct = [
-            g
-            for g in self.registered
-            if g["name"].casefold() in raw_clean or g["id"] in text
-        ]
-        if len(direct) == 1:
-            return direct
-
-        # 2. Match without spaces
-        no_space_matches = [
-            g
-            for g in self.registered
-            if re.sub(r"\s+", "", g["name"]).casefold() in no_space
-            or no_space in re.sub(r"\s+", "", g["name"]).casefold()
-        ]
-        if len(no_space_matches) == 1:
-            return no_space_matches
-
-        # 3. Common English/Korean alias mappings
+        if not raw_clean:
+            return []
         alias_map = {
             "gate": ["게이트"],
             "stair": ["계단", "스테어"],
@@ -498,25 +465,28 @@ class LLMNode(Node):
             "cafeteria": ["식당", "학생식당"],
             "library": ["도서관"],
         }
-        alias_matches = []
+        matches = []
         for g in self.registered:
             g_name = g["name"].casefold()
-            aliases = [g_name]
+            aliases = {g_name, g["id"].casefold()}
             for eng, kor_list in alias_map.items():
                 if eng in g_name:
                     for k in kor_list:
-                        aliases.append(g_name.replace(eng, k))
-                        aliases.append(k)
+                        # Keep qualifiers such as E6; E7 gate must not select E6.
+                        aliases.add(g_name.replace(eng, k))
+                for k in kor_list:
+                    if k in g_name:
+                        aliases.add(g_name.replace(k, eng))
             for alias in aliases:
-                a_clean = re.sub(r"\s+", "", alias).casefold()
-                if a_clean in no_space or no_space in a_clean:
-                    if g not in alias_matches:
-                        alias_matches.append(g)
+                pattern = r"\s*".join(re.escape(c) for c in alias if not c.isspace())
+                if destination_only:
+                    found = re.fullmatch(pattern + r"(?:\s*(?:으?로)?(?:요)?)?[.!?]*", raw_clean)
+                else:
+                    found = re.search(r"(?<![a-z0-9])" + pattern + r"(?![a-z0-9])", raw_clean)
+                if found:
+                    matches.append(g)
                     break
-        if len(alias_matches) == 1:
-            return alias_matches
-
-        return direct or no_space_matches or alias_matches
+        return matches
 
     # --- Response Generation (구조화된 딕셔너리 반환으로 변경) ---
     def _generate_response(self, user_text: str, location_context: str) -> dict:
@@ -525,21 +495,12 @@ class LLMNode(Node):
 
         if intent == "navigation":
             return self._handle_navigation(user_text)
-        # Check if user is responding with a destination name to a previous prompt
+        # Only an explicit destination question opens a follow-up selection.
         last_turn = self.conversation_history[-1] if self.conversation_history else None
-        prev_asked_destination = False
-        if last_turn:
-            prev_bot = last_turn.get("assistant", "")
-            if (
-                "목적지" in prev_bot
-                or "어디로 안내" in prev_bot
-                or "destination" in prev_bot.lower()
-            ):
-                prev_asked_destination = True
-
-        matches = self._match_registered_goals(user_text)
-        if intent == "navigation" or (prev_asked_destination and len(matches) == 1):
-            return self._handle_navigation(user_text, matches)
+        if last_turn and last_turn.get("awaiting_destination"):
+            matches = self._match_registered_goals(user_text, destination_only=True)
+            if matches:
+                return self._handle_navigation(user_text, matches)
         # With the LLM enabled, greetings and thanks may contain a question or
         # refer to earlier turns. Let the model answer the complete utterance.
         if not self.use_external or not self.llm_client:
@@ -550,14 +511,8 @@ class LLMNode(Node):
         response_text = self._handle_with_rag(user_text, location_context)
         return {"intent": intent, "text": response_text, "target": ""}
 
-    def _handle_navigation(self, text: str) -> dict:
     def _handle_navigation(self, text: str, matches: list = None) -> dict:
         """직접 주행하지 않고 목적지 이름(ID)만 추출하여 반환"""
-        matches = [
-            g
-            for g in self.registered
-            if g["name"].casefold() in text.casefold() or g["id"] in text
-        ]
         if matches is None:
             matches = self._match_registered_goals(text)
         if len(matches) == 1:
@@ -569,11 +524,6 @@ class LLMNode(Node):
             )
             return {"intent": "navigation", "text": response, "target": goal["id"]}
         names = ", ".join(g["name"] for g in self.registered)
-        response = (
-            "목적지를 하나 지정해주세요. 등록된 목적지: " + names
-            if names
-            else "현재 지도에 등록된 목적지가 없습니다. 웹 지도에서 목적지를 등록해주세요."
-        )
         if self.current_language == "en":
             response = (
                 f"Where would you like to go? Available destinations: {names}"
@@ -586,7 +536,7 @@ class LLMNode(Node):
                 if names
                 else "현재 지도에 등록된 목적지가 없습니다. 웹 지도에서 목적지를 등록해주세요."
             )
-        return {"intent": "qa", "text": response, "target": ""}
+        return {"intent": "qa", "text": response, "target": "", "awaiting_destination": True}
 
     # LLM client init
     def _init_llm_client(self, api_key: str):

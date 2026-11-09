@@ -15,11 +15,18 @@ from types import SimpleNamespace
 import rclpy
 from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor
-from std_msgs.msg import String
+from rclpy.parameter import Parameter
+from rclpy.qos import QoSProfile, DurabilityPolicy
+from nav_msgs.msg import OccupancyGrid
+from std_msgs.msg import String, Int32
 from std_srvs.srv import SetBool, Trigger
 from dori_dashboard import bridge_api as bridge
 from dori_hri.tts_node import TTSNode
 from dori_llm.llm_node import LLMNode
+from dori_navigation.named_goal_adapter import NamedGoalAdapter
+from dori_navigation.nav2_adapter import Nav2Adapter
+from dori_web.goals import GoalStore
+from .test_action_flow import Backend
 
 
 def test_visitor_pair_voice_playback_cancel_and_cleanup(tmp_path):
@@ -37,7 +44,7 @@ async def run_flow(tmp_path):
             await asyncio.sleep(.05)
 
     rclpy.init(args=['--ros-args', '-r', '__ns:=/dori', '-p', 'playback_mode:=publish_only',
-                    '-p', 'use_external_llm:=false'])
+                    '-p', 'use_external_llm:=false', '-r', 'NAVIGATION_MODE:=/NAVIGATION_MODE'])
     manager = bridge.SessionManager()
     manager.main_loop = asyncio.get_running_loop()
     follow_requests = []
@@ -48,6 +55,8 @@ async def run_flow(tmp_path):
         return str(path)
     with patch.object(bridge, 'session_manager', manager), patch.object(TTSNode, '_synthesize_gtts', synthesize), patch.object(TTSNode, '_on_audio_cue', lambda *_: None):
         node, llm, tts, probe = bridge.BridgeNode(), LLMNode(), TTSNode(), Node('visitor_probe')
+        backend, adapter, named = Backend(), Nav2Adapter(), NamedGoalAdapter()
+        nodes = (node, llm, tts, probe, backend, adapter, named)
         bridge.ros_node = node
         publisher = probe.create_publisher(String, 'stt/visitor_result', 10)
         def transcribe(message):
@@ -64,14 +73,30 @@ async def run_flow(tmp_path):
             response.success = True
             return response
         probe.create_service(SetBool, 'hri/set_follow_mode', follow)
-        executor = MultiThreadedExecutor(num_threads=8)
-        for n in (node, llm, tts, probe): executor.add_node(n)
+        latch = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
+        hardware = probe.create_publisher(Int32, '/system/action_state', latch)
+        maps = probe.create_publisher(OccupancyGrid, '/map', latch)
+        executor = MultiThreadedExecutor(num_threads=12)
+        for n in nodes: executor.add_node(n)
         worker = threading.Thread(target=executor.spin, daemon=True)
         worker.start()
         log = (tmp_path / 'bt.log').open('w')
         bt = subprocess.Popen(['ros2', 'run', 'dori_bt', 'dori_tree_executor', '--ros-args', '-r', '__ns:=/dori', '-p', 'visitor_mode:=true'], stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
         try:
             await until(lambda: node.cli_stt_reset.service_is_ready() and node.cli_visitor_ready.service_is_ready() and node.cli_tts_reset.service_is_ready() and node.cli_llm_reset.service_is_ready() and node.cli_bt_clear.service_is_ready() and node.voice.llm.server_is_ready() and node.voice.tts.server_is_ready() and node.voice.audio_pub.get_subscription_count())
+            hardware.publish(Int32(data=1))
+            map_msg = OccupancyGrid()
+            map_msg.header.frame_id = 'map'
+            map_msg.info.width = map_msg.info.height = 100
+            map_msg.info.resolution = .1
+            map_msg.info.origin.orientation.w = 1.
+            map_msg.data = [0] * 10000
+            maps.publish(map_msg)
+            await until(lambda: named._key is not None and not adapter._inhibited)
+            store = GoalStore(tmp_path / 'goals.json')
+            destination = store.save(named._key, 'stair', [1., 0., 0.])
+            named.set_parameters([Parameter('goals_file', value=str(store.path))])
+            await until(lambda: len(llm.registered) == 1 and len(node.destinations) == 1 and node.voice.nav.server_is_ready())
             assert await node.prepare_visitor()
             await manager.start_session()
             manager.active_ws = SimpleNamespace(send_json=AsyncMock(), close=AsyncMock())
@@ -103,6 +128,42 @@ async def run_flow(tmp_path):
             node.voice.playback({'id': node.voice.audio_id, 'status': 'ended'})
             await until(lambda: not node.voice.draining)
             assert llm.conversation_history[-1]['user'] == '안녕하세요'
+
+            # A destination question and Korean follow-up reach the same saved
+            # pose as the navigation web, through the real named/Nav2 adapters.
+            node.voice.start_text({'text': '길안내 해줘'})
+            await until(lambda: bool(node.voice.media))
+            node.voice.playback({'id': node.voice.audio_id, 'status': 'ended'})
+            await until(lambda: not node.voice.draining)
+            assert llm.conversation_history[-1]['awaiting_destination']
+            assert backend.accepted == 0
+            node.voice.start_text({'text': '계단'})
+            await until(lambda: bool(node.voice.media))
+            assert backend.accepted == 0  # Departure playback gates motion.
+            node.voice.playback({'id': node.voice.audio_id, 'status': 'ended'})
+            await until(lambda: backend.active == 1)
+            assert node.voice.draining
+            backend.finish = True
+            await until(lambda: bool(node.voice.media))
+            events = [c.args[0] for c in manager.active_ws.send_json.call_args_list]
+            assert any(e.get('status') == 'NAVIGATING' for e in events)
+            assert any(e.get('status') == 'ARRIVED' for e in events)
+            assert not any(e['type'] == 'error' for e in events)
+            node.voice.playback({'id': node.voice.audio_id, 'status': 'ended'})
+            await until(lambda: not node.voice.draining)
+
+            # Selecting by ID starts exactly one action; disconnect cancels it
+            # through the same drain barrier before another session can start.
+            backend.finish = False
+            node.voice.start_navigation({'destination_id': destination['id']})
+            await until(lambda: bool(node.voice.media))
+            node.voice.playback({'id': node.voice.audio_id, 'status': 'ended'})
+            await until(lambda: backend.active == 1 and backend.accepted == 2)
+            await manager.handle_disconnect()
+            await until(lambda: backend.cancel_seen and not node.voice.draining and not named._busy)
+            assert backend.max_active == 1
+            store.delete(named._key, destination['id'])
+            await until(lambda: not node.destinations and not llm.registered)
             assert await manager.end_session()
             assert manager.state == bridge.SessionState.IDLE
             assert not llm.conversation_history
@@ -110,6 +171,7 @@ async def run_flow(tmp_path):
             assert bt.poll() is None
         finally:
             node.cancel_visitor()
+            backend.finish = True
             await manager._cancel_session_timers()
             if bt.poll() is None:
                 os.killpg(bt.pid, signal.SIGINT)
@@ -119,7 +181,7 @@ async def run_flow(tmp_path):
                     bt.wait(timeout=2)
             executor.shutdown(timeout_sec=3)
             worker.join(timeout=3)
-            for n in (probe, tts, llm, node): n.destroy_node()
+            for n in reversed(nodes): n.destroy_node()
             rclpy.shutdown()
             log.close()
             bridge.ros_node = None
