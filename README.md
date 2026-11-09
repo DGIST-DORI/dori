@@ -320,8 +320,10 @@ Run as the same user that launched DORI. This stops the server processes;
 stop movement before shutting down the stack; forced process termination cannot
 perform hardware cleanup.
 
-Open `http://127.0.0.1:3001/display` on the robot screen and scan its QR code
-with the phone. The public app uses `https://app.dgist-dori.xyz` through the
+On a connected robot display, follow the [kiosk setup](#connected-display-automatic-kiosk)
+below to open `http://127.0.0.1:3001/display` automatically after bringup, or open
+it manually and scan its QR code with the phone. The public app uses
+`https://app.dgist-dori.xyz` through the
 configured tunnel to loopback port 3100; the dashboard uses port 3000. See
 [access and authentication](web/README.md#access-and-authentication) for dashboard
 authentication and tunnel setup.
@@ -338,6 +340,83 @@ ros2 launch dori_bringup bringup.launch.py visitor_stt:=whisper
 is selected. Whisper mode automatically enables topic STT and uses the prepared
 `.state/voice/whisper-small` model. `enable_stt` and `stt_audio_input_mode` default
 to `auto`, so switching profiles keeps the voice node and gateway consistent.
+
+### Connected Display: Automatic Kiosk
+
+The connected robot screen shows the visitor pairing and connection screen at
+`http://127.0.0.1:3001/display`; visitors use the public app on their phones.
+Bringup starts the display server. Complete this one-time desktop setup to also
+open its screen automatically in Chromium kiosk mode when the server is ready.
+
+Log in to the robot's graphical desktop on the connected display and run the
+setup as that desktop user. A connected monitor alone is not enough: an active
+X11 or Wayland session is required. Use a terminal in that desktop for setup so
+the browser inherits the correct display environment.
+
+Install curl and [Chromium for Ubuntu](https://snapcraft.io/install/chromium/ubuntu):
+
+```bash
+sudo apt update
+sudo apt install -y curl snapd
+sudo snap install chromium
+```
+
+Create a launcher that waits for the local display page before opening the browser,
+and register it with [desktop autostart](https://specifications.freedesktop.org/autostart/latest/):
+
+```bash
+mkdir -p "$HOME/.local/bin" "$HOME/.config/autostart" "$HOME/.local/state/dori"
+
+cat > "$HOME/.local/bin/dori-kiosk" <<'KIOSK'
+#!/usr/bin/env bash
+set -euo pipefail
+
+url='http://127.0.0.1:3001/display'
+until curl --noproxy '*' --fail --silent --max-time 2 --output /dev/null "$url"; do
+    sleep 1
+done
+
+exec /snap/bin/chromium \
+    --kiosk \
+    --no-first-run \
+    --no-default-browser-check \
+    --user-data-dir="$HOME/snap/chromium/common/dori-kiosk" \
+    "$url"
+KIOSK
+chmod +x "$HOME/.local/bin/dori-kiosk"
+
+cat > "$HOME/.config/autostart/dori-kiosk.desktop" <<AUTOSTART
+[Desktop Entry]
+Type=Application
+Name=DORI Kiosk
+Exec="$HOME/.local/bin/dori-kiosk"
+Terminal=false
+AUTOSTART
+```
+
+The separate Chromium profile keeps the kiosk independent of ordinary browser
+windows. Start the launcher once for the current desktop session, then run the
+usual bringup from the repository root with the terminal environment and
+credentials configured above:
+
+```bash
+nohup "$HOME/.local/bin/dori-kiosk" > "$HOME/.local/state/dori/kiosk.log" 2>&1 &
+export DORI_INTERNAL_TOKEN="$(openssl rand -hex 32)"
+ros2 launch dori_bringup bringup.launch.py
+```
+
+On subsequent desktop logins, the launcher starts automatically and waits for
+bringup. Once `/display` responds successfully, Chromium opens it full-screen.
+Keep `enable_dashboard:=true` and `visitor_mode:=true` for phone pairing. Bringup
+can also be started over SSH while the local desktop and its launcher are running.
+
+Press **Ctrl+C once** in the ROS terminal to stop bringup. The kiosk stays open,
+shows its disconnected state, and reconnects when bringup restarts. **Alt+F4**
+closes the kiosk; rerun the `nohup` command to reopen it in the current desktop
+session. Remove `~/.config/autostart/dori-kiosk.desktop` to disable future autostart.
+For an unattended display, disable screen blanking and automatic suspend in the
+desktop settings. If no window appears, check `~/.local/state/dori/kiosk.log`
+for a manually started launcher and confirm that the display URL opens locally.
 
 ### Local Robot Microphone / Simulation Mode (without Actuators)
 
