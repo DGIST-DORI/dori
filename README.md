@@ -346,20 +346,55 @@ to `auto`, so switching profiles keeps the voice node and gateway consistent.
 The connected robot screen shows the visitor pairing and connection screen at
 `http://127.0.0.1:3001/display`; visitors use the public app on their phones.
 Bringup starts the display server. Complete this one-time desktop setup to also
-open its screen automatically in Chromium kiosk mode when the server is ready.
+open its screen automatically in [Firefox kiosk mode](https://support.mozilla.org/en-US/kb/firefox-enterprise-kiosk-mode)
+when the server is ready. This setup uses the native DEB package and does not
+require Chromium or Snap.
 
 Log in to the robot's graphical desktop on the connected display and run the
 setup as that desktop user. A connected monitor alone is not enough: an active
 X11 or Wayland session is required. Use a terminal in that desktop for setup so
 the browser inherits the correct display environment.
 
-Install curl and [Chromium for Ubuntu](https://snapcraft.io/install/chromium/ubuntu):
+Install Firefox using [Mozilla's official APT repository](https://support.mozilla.org/en-US/kb/install-firefox-linux),
+which provides ARM64 and AMD64 packages. Ubuntu 22.04's default `firefox` package
+is a Snap launcher, so configure the repository and package priorities first:
 
 ```bash
 sudo apt update
-sudo apt install -y curl snapd
-sudo snap install chromium
+sudo apt install -y curl ca-certificates
+sudo install -d -m 0755 /etc/apt/keyrings
+sudo curl --fail --show-error --silent --location \
+  https://packages.mozilla.org/apt/repo-signing-key.gpg \
+  --output /etc/apt/keyrings/packages.mozilla.org.asc
+sudo chmod 644 /etc/apt/keyrings/packages.mozilla.org.asc
+
+sudo tee /etc/apt/sources.list.d/mozilla.list > /dev/null <<'MOZILLA_APT'
+deb [signed-by=/etc/apt/keyrings/packages.mozilla.org.asc] https://packages.mozilla.org/apt mozilla main
+MOZILLA_APT
+
+sudo tee /etc/apt/preferences.d/mozilla > /dev/null <<'MOZILLA_PIN'
+Package: firefox firefox-l10n-*
+Pin: origin packages.mozilla.org
+Pin-Priority: 1001
+
+Package: firefox
+Pin: release o=Ubuntu
+Pin-Priority: -1
+MOZILLA_PIN
+
+sudo apt update
+apt-cache policy firefox
 ```
+
+Confirm that the candidate comes from `packages.mozilla.org`, then install it:
+
+```bash
+sudo apt install firefox
+/usr/bin/firefox --version
+```
+
+The priority of 1001 allows APT to replace an installed `1:1snap...` transitional
+package with Mozilla's native package. APT may describe this as a downgrade.
 
 Create a launcher that waits for the local display page before opening the browser,
 and register it with [desktop autostart](https://specifications.freedesktop.org/autostart/latest/):
@@ -371,17 +406,18 @@ cat > "$HOME/.local/bin/dori-kiosk" <<'KIOSK'
 #!/usr/bin/env bash
 set -euo pipefail
 
+profile="$HOME/.local/state/dori/firefox-kiosk"
+mkdir -p "$profile"
 url='http://127.0.0.1:3001/display'
 until curl --noproxy '*' --fail --silent --max-time 2 --output /dev/null "$url"; do
     sleep 1
 done
 
-exec /snap/bin/chromium \
+exec /usr/bin/firefox \
+    --no-remote \
+    --profile "$profile" \
     --kiosk \
-    --no-first-run \
-    --no-default-browser-check \
-    --user-data-dir="$HOME/snap/chromium/common/dori-kiosk" \
-    "$url"
+    --private-window "$url"
 KIOSK
 chmod +x "$HOME/.local/bin/dori-kiosk"
 
@@ -394,10 +430,11 @@ Terminal=false
 AUTOSTART
 ```
 
-The separate Chromium profile keeps the kiosk independent of ordinary browser
-windows. Start the launcher once for the current desktop session, then run the
-usual bringup from the repository root with the terminal environment and
-credentials configured above:
+The separate Firefox profile and `--no-remote` keep the kiosk independent of
+ordinary browser windows. If you used the earlier Chromium setup, recreate the
+launcher above to switch browsers. Start it once for the current desktop session,
+then run the usual bringup from the repository root with the terminal environment
+and credentials configured above:
 
 ```bash
 nohup "$HOME/.local/bin/dori-kiosk" > "$HOME/.local/state/dori/kiosk.log" 2>&1 &
@@ -406,7 +443,7 @@ ros2 launch dori_bringup bringup.launch.py
 ```
 
 On subsequent desktop logins, the launcher starts automatically and waits for
-bringup. Once `/display` responds successfully, Chromium opens it full-screen.
+bringup. Once `/display` responds successfully, Firefox opens it full-screen.
 Keep `enable_dashboard:=true` and `visitor_mode:=true` for phone pairing. Bringup
 can also be started over SSH while the local desktop and its launcher are running.
 
