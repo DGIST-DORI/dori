@@ -280,6 +280,7 @@ class VoiceTurnTests(IsolatedAsyncioTestCase):
         self.voice.audio_pub.get_subscription_count.return_value = 0
         self.voice._action = AsyncMock(side_effect=[
             SimpleNamespace(intent='navigation', response_text='Go to library'),
+            SimpleNamespace(intent='follow', response_text='Follow user'),
             SimpleNamespace(success=True),
         ])
         self.voice.start_text({'text': '  도서관으로 안내해 주세요  '})
@@ -292,11 +293,41 @@ class VoiceTurnTests(IsolatedAsyncioTestCase):
         self.assertNotIn('stt_text', [event['type'] for event in events])
         reply = next(event['data'] for event in events if event['type'] == 'llm_text')
         self.assertIn('이동 안내와 추종은 아직 지원하지 않아요', reply)
+        self.assertIn('추종은 지원하지 않아요', reply)
         calls = self.voice._action.call_args_list
         self.assertEqual(calls[0].args[2].text, '도서관으로 안내해 주세요')
         self.assertEqual(calls[1].args[2].text, reply)
         self.assertTrue(calls[1].kwargs['remote'])
         self.assertEqual(events[-1], {'type': 'robot_state', 'status': 'READY'})
+
+    async def test_navigation_intent_dispatches_named_goal(self):
+        self.voice.audio_pub.get_subscription_count.return_value = 0
+        self.voice._action = AsyncMock(side_effect=[
+            SimpleNamespace(intent='navigation', target_location='lobby', response_text='로비(으)로 안내하겠습니다.'),
+            SimpleNamespace(success=True),
+        ])
+        self.voice.nav = SimpleNamespace(
+            server_is_ready=Mock(return_value=True),
+            send_goal_async=Mock(),
+        )
+        handle = SimpleNamespace(accepted=True, get_result_async=Mock())
+        send_fut = asyncio.get_running_loop().create_future()
+        send_fut.set_result(handle)
+        self.voice.nav.send_goal_async.return_value = send_fut
+        res_fut = asyncio.get_running_loop().create_future()
+        res_fut.set_result(SimpleNamespace(status=4, result=SimpleNamespace(code=0)))
+        handle.get_result_async.return_value = res_fut
+
+        self.voice.start_text({'text': '로비로 안내해줘'})
+        await self.voice.task
+
+        self.voice.nav.send_goal_async.assert_called_once()
+        events = [call.args[0] for call in self.manager.active_ws.send_json.call_args_list]
+        reply = next(event['data'] for event in events if event['type'] == 'llm_text')
+        self.assertEqual(reply, '로비(으)로 안내하겠습니다.')
+        states = [event.get('status') for event in events if event['type'] == 'robot_state']
+        self.assertIn('NAVIGATING', states)
+        self.assertIn('ARRIVED', states)
 
     async def test_text_cannot_overlap_audio_and_cancel_prevents_dispatch(self):
         self.voice.start(wav_payload())

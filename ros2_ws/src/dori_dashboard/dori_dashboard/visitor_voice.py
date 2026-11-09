@@ -16,6 +16,11 @@ except ImportError:
 
 from rclpy.action import ActionClient
 from dori_msgs.action import LLMQuery, Speak
+try:
+    from dori_msgs.action import LLMQuery, Speak, NavigateNamed
+except ImportError:
+    from dori_msgs.action import LLMQuery, Speak
+    NavigateNamed = None
 from std_msgs.msg import String
 from unique_identifier_msgs.msg import UUID
 
@@ -88,6 +93,8 @@ class VisitorVoice:
         self.stream_sequence = 0
         self.llm = ActionClient(node, LLMQuery, 'llm/query')
         self.tts = ActionClient(node, Speak, 'tts/speak_remote')
+        self.nav = ActionClient(node, NavigateNamed, 'nav/navigate_named') if NavigateNamed else None
+        self.nav_goal = None
         self.audio_pub = node.create_publisher(String, 'stt/audio_input', 1)
         self.playback_pub = node.create_publisher(String, 'tts/remote_playback', 10)
         node.create_subscription(String, 'stt/visitor_result', self._stt, 10)
@@ -201,6 +208,12 @@ class VisitorVoice:
             self.stream.cancel()
         if self.goal:
             self.goal.cancel_goal_async()
+        if self.nav_goal:
+            try:
+                self.nav_goal.cancel_goal_async()
+            except Exception:
+                pass
+            self.nav_goal = None
         if self.stt_waiter and not self.stt_waiter.done():
             self.stt_waiter.cancel()
 
@@ -239,6 +252,33 @@ class VisitorVoice:
         if result.status != 4:
             raise ValueError('Voice request canceled or failed')
         return result.result
+
+    async def _dispatch_navigation(self, turn, destination):
+        if turn != self.turn or not self.nav:
+            return
+        if not self.nav.server_is_ready():
+            self.node.get_logger().warn("NavigateNamed action server is not ready")
+            return
+        goal_msg = NavigateNamed.Goal(destination=destination)
+        try:
+            goal_id = secrets.token_bytes(16)
+            handle = await ros_future(self.nav.send_goal_async(goal_msg, goal_uuid=UUID(uuid=list(goal_id))))
+            if not handle or not handle.accepted:
+                self.node.get_logger().warn(f"Navigation goal to {destination} rejected")
+                return
+            self.nav_goal = handle
+            await self.emit(turn, 'robot_state', status='NAVIGATING', destination=destination)
+            result = await ros_future(handle.get_result_async())
+            if turn == self.turn and result.status == 4 and getattr(result.result, 'code', 0) == 0:
+                arrived_text = "목적지에 도착했습니다."
+                await self.emit(turn, 'llm_text', data=arrived_text)
+                await self.emit(turn, 'robot_state', status='ARRIVED')
+                if self.tts.server_is_ready():
+                    await self._action(turn, self.tts, Speak.Goal(text=arrived_text), remote=True)
+        except Exception as exc:
+            self.node.get_logger().warn(f"Navigation error: {exc}")
+        finally:
+            self.nav_goal = None
 
     async def _stream_ended(self, turn, stream_id, reason):
         await self.emit(turn, 'stt_closed', id=stream_id, reason=reason)
@@ -304,12 +344,17 @@ class VisitorVoice:
             if answer.intent in ('navigation', 'follow'):
                 answer.response_text = '현재 스마트폰 연결에서는 캠퍼스에 관한 대화만 가능합니다. 이동 안내와 추종은 아직 지원하지 않아요.'
             # Intents are deliberately never dispatched to robot motion in visitor v1.
+            if answer.intent == 'follow':
+                answer.response_text = '현재 스마트폰 연결에서는 캠퍼스에 관한 대화와 길안내만 가능합니다. 추종은 지원하지 않아요.'
             await self.emit(turn, 'llm_text', data=answer.response_text)
             stage = 'tts'
             await self.emit(turn, 'robot_state', status='SPEAKING')
             spoken = await self._action(turn, self.tts, Speak.Goal(text=answer.response_text), remote=True)
             if not spoken.success:
                 raise ValueError('Phone playback failed')
+
+            if answer.intent == 'navigation' and getattr(answer, 'target_location', None) and self.nav:
+                await self._dispatch_navigation(turn, answer.target_location)
         except asyncio.CancelledError:
             pass
         except Exception as exc:

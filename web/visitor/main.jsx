@@ -6,6 +6,7 @@ import doriLogo from '../src/assets/logo/logo-full.svg';
 import './style.css';
 
 const labels = { READY: '무엇이 궁금하세요?', TRANSCRIBING: '말씀을 글로 바꾸고 있어요', THINKING: '답변을 생각하고 있어요', SPEAKING: 'DORI가 답하고 있어요' };
+const labels = { READY: '무엇이 궁금하세요?', TRANSCRIBING: '말씀을 글로 바꾸고 있어요', THINKING: '답변을 생각하고 있어요', SPEAKING: 'DORI가 답하고 있어요', NAVIGATING: '목적지로 안내하고 있어요', ARRIVED: '목적지에 도착했어요' };
 const MAX_TEXT_LENGTH = 1000;
 const initialNonce = location.hash.slice(1);
 if (initialNonce) history.replaceState(null, '', location.pathname);
@@ -19,6 +20,7 @@ export default function App() {
   const [phase, setPhase] = useState('loading'), [status, setStatus] = useState('READY');
   const [consent, setConsent] = useState(false), [error, setError] = useState('');
   const [messages, setMessages] = useState([]), [recording, setRecording] = useState(false);
+  const [destinations, setDestinations] = useState([]);
   const [draft, setDraft] = useState('');
   const pendingText = useRef(null), composing = useRef(false);
   const [scanState, setScanState] = useState('checking'), [claimDeadline, setClaimDeadline] = useState(0);
@@ -146,10 +148,13 @@ export default function App() {
     socket.onopen = () => {
       reconnectStarted.current = 0; setPhase('active'); setError(''); acquireWake();
       clearInterval(heartbeat.current); heartbeat.current = setInterval(() => send({ type: 'heartbeat' }), 5000);
+      fetch('/api/destinations').then(r => r.json()).then(d => { if (d.destinations) setDestinations(d.destinations); }).catch(() => {});
     };
     socket.onmessage = ({ data }) => {
       if (ws.current !== socket || closed.current) return;
       const message = JSON.parse(data);
+      if (message.destinations) setDestinations(message.destinations);
+      if (message.type === 'destinations') setDestinations(message.destinations);
       if (message.stt_provider) provider.current = message.stt_provider;
       if (message.type === 'stt_ready' && message.id === streamTurn.current?.id) {
         streamTurn.current.ready = true; flushStream();
@@ -263,6 +268,21 @@ export default function App() {
       {scanState === 'expired' && <p className="hint">QR 화면의 새 코드를 스캔해 주세요. 이 페이지를 새로고침해도 시간이 연장되지는 않습니다.</p>}
       {scanState === 'error' && <button onClick={retryScan}>QR 확인 다시 시도</button>}</section>}
     {['active', 'reconnecting'].includes(phase) && <><section className="conversation"><div className="badge"><i />{phase === 'reconnecting' ? '다시 연결하는 중' : 'DORI와 연결됨'}</div><h1>{phase === 'reconnecting' ? '잠시만 기다려 주세요' : recording ? '말씀을 듣고 있어요' : labels[status]}</h1><p className="hint">말을 마치면 자동으로 전송해요 · 최대 10초</p><div className="messages" aria-live="polite">{messages.length ? messages.map((message, i) => <article key={i} className={message.who === '나' ? 'mine' : ''}><small>{message.who}</small><p>{message.text}</p></article>) : <p className="empty">“DGIST는 어떤 곳인가요?”<br/>궁금한 이야기로 시작해 보세요.</p>}</div></section><div className="controls">{audioUrl && needsPlay && <button onClick={() => { audio.current.play().then(() => setNeedsPlay(false)).catch(() => setError('재생 버튼을 다시 눌러 주세요.')); }}>답변 음성 재생 ▶</button>}
+      {destinations.length > 0 && <div className="destinations" aria-label="안내 가능한 목적지">
+        <span className="destinations-title">안내 가능한 목적지</span>
+        <div className="destination-chips">
+          {destinations.map(dest => <button key={dest.id || dest.name} type="button" className="destination-chip"
+            disabled={recording || phase !== 'active' || (status !== 'READY' && status !== 'NAVIGATING')}
+            onClick={() => {
+              const text = `${dest.name} 안내해줘`;
+              unlock(); setError('');
+              if (send({ type: 'text', text })) {
+                pendingText.current = text;
+                setStatus('THINKING');
+              }
+            }}>{dest.name} ↗</button>)}
+        </div>
+      </div>}
       <form className="text-composer" onSubmit={sendText}>
         <label htmlFor="visitor-text">텍스트로 이야기하기</label>
         <div className="text-composer-row">

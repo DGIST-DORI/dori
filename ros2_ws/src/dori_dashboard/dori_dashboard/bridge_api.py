@@ -134,6 +134,48 @@ class BridgeNode(HardwareControlMixin, Node):
         self.cli_tts_reset = self.create_client(Trigger, "tts/remote_reset")
         self.cli_llm_reset = self.create_client(Trigger, "llm/reset")
         self.cli_bt_clear = self.create_client(Trigger, "bt/clear_session")
+        self.destinations = self._load_saved_destinations()
+        self.create_subscription(String, "nav/locations", self._on_locations, latch)
+
+    def _load_saved_destinations(self):
+        candidates = [
+            Path(os.environ.get("DORI_SESSION_ROOT", ".")) / "maps/web_goals.json",
+            Path(os.environ.get("DORI_SESSION_ROOT", ".")) / "maps/web_goals.example.json",
+            Path(__file__).parents[4] / "maps/web_goals.json",
+            Path(__file__).parents[4] / "maps/web_goals.example.json",
+        ]
+        for candidate in candidates:
+            try:
+                if candidate.is_file():
+                    data = json.loads(candidate.read_text())
+                    goals = []
+                    for map_goals in data.get("maps", {}).values():
+                        if isinstance(map_goals, list):
+                            goals.extend(map_goals)
+                    if goals:
+                        return [{"id": g["id"], "name": g["name"]} for g in goals]
+            except Exception:
+                pass
+        return []
+
+    def _on_locations(self, msg):
+        try:
+            data = json.loads(msg.data)
+            goals = data.get("goals", [])
+            if goals:
+                self.destinations = [{"id": g["id"], "name": g["name"]} for g in goals]
+                if session_manager.active_ws:
+                    loop = session_manager.main_loop
+                    if loop and not loop.is_closed():
+                        loop.call_soon_threadsafe(
+                            lambda: asyncio.create_task(
+                                session_manager.active_ws.send_json(
+                                    {"type": "destinations", "destinations": self.destinations}
+                                )
+                            )
+                        )
+        except Exception:
+            pass
 
     def _on_mode(self, msg):
         with self._control_lock:
@@ -579,6 +621,12 @@ async def session_status(dori_session: Optional[str] = Cookie(None)):
     return {"state": session_manager.state.value, "expires_at": session_manager.session_expires_at}
 
 
+@app_public.get("/api/destinations")
+async def get_destinations(dori_session: Optional[str] = Cookie(None)):
+    require_session(dori_session)
+    return {"destinations": getattr(ros_node, "destinations", []) if ros_node else []}
+
+
 @app_public.get("/api/audio/{audio_key}")
 async def session_audio(audio_key: str, dori_session: Optional[str] = Cookie(None)):
     require_session(dori_session)
@@ -716,6 +764,12 @@ async def websocket_user(websocket: WebSocket):
 
     await websocket.send_json({"type": "robot_state", "status": "READY",
                                "stt_provider": getattr(ros_node.voice, 'provider', 'whisper')})
+    await websocket.send_json({
+        "type": "robot_state",
+        "status": "READY",
+        "stt_provider": getattr(ros_node.voice, 'provider', 'whisper') if ros_node else 'whisper',
+        "destinations": getattr(ros_node, 'destinations', []) if ros_node else [],
+    })
     try:
         while True:
             # 연결 생존 확인은 사용자 활동과 별개다. ASGI에는 프로토콜 ping이
