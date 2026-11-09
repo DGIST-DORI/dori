@@ -45,7 +45,7 @@ Humble 액션 basename remap의 제약 때문에 내부 Nav2 액션의 send_goal
 
 **선행조건:** 로봇 정지, 기존 제어 세션 종료, 비상 정지 장치 접근 가능, 주행 구역 확보.
 
-**주의:** 실물 hardware/robot launch와 매핑용 하드웨어 launch는 구동기를 실행한다. `enable_stt:=false`는 마이크만 끈다. CAN/장치 준비는 아래 관리 명령으로 별도 수행하며, launch가 자동으로 준비하지 않는다.
+**주의:** 실물 hardware/robot launch와 매핑용 하드웨어 launch는 구동기를 실행한다. `enable_stt:=false`는 마이크만 끈다. CAN 자동 준비 서비스는 아래 절차로 한 번 설치한다. 이후 장치 연결 시 서비스가 CAN을 준비하며, 통합 bringup은 준비 완료를 기다린다.
 
 1. 차체·바퀴·변형 기구 주변에서 사람과 장애물을 제거한다.
 2. 배터리, CANable, 서보, IMU, LiDAR의 전원·결선·커넥터를 확인한다.
@@ -71,7 +71,7 @@ ip -details link show can1
 ls -l /dev/serial/by-id/ /dev/slamtec_c1
 ```
 
-**합격기준:** 하드웨어 실행 파일 6개(DXL 2개, IMU/자세 4개), 제어 10개, 진단 1개가 설치돼 있고 AMM 72-10의 비구동 시험 통과. 현장에서는 can1의 UP 상태, 설정한 serial 장치의 존재·읽기/쓰기 권한, 단일 제어 세션도 확인한다. 장치 없는 개발 PC에서는 CAN/serial 항목을 실물 검증으로 보고하지 않는다.
+**합격기준:** 하드웨어 실행 파일 8개(DXL 드라이버/브리지/상태 3개, CAN motor4 1개, IMU/자세 4개), 제어 10개, 진단 1개가 설치돼 있고 AMM 72-10의 비구동 시험 통과. 현장에서는 can1의 UP 상태, 설정한 serial 장치의 존재·읽기/쓰기 권한, 단일 제어 세션도 확인한다. 장치 없는 개발 PC에서는 CAN/serial 항목을 실물 검증으로 보고하지 않는다.
 
 설치된 Python 파일을 import하는 검사와 launch 경로 검사는 실제 장치 연결·음성 모델 준비를 대신하지 않는다.
 
@@ -221,19 +221,39 @@ sudo udevadm control --reload-rules
 sudo udevadm trigger --subsystem-match=tty
 ```
 
-현재 실물의 CANable2는 SLCAN 방식이다. **can1과 해당 어댑터를 소유한 slcand가 모두 없는 경우에만** 실제 by-id 경로를 넣어 생성한다. 이미 연결돼 있으면 재생성하지 않는다.
+현재 실물의 CANable2는 SLCAN 방식이다. **최초 한 번**, CANable2를 연결하고 로봇 구동 노드가 종료된 상태에서 다음 명령을 실행한다. ROS 환경 설정이나 FTDI 연결은 설치에 필요하지 않다.
 
 ```bash
-CAN_SERIAL=/dev/serial/by-id/실제_CANable2_ID
-sudo modprobe slcan
-sudo slcand -o -s8 -t hw -S 3000000 "$CAN_SERIAL" can1
-sudo ip link set can1 up
+# 선택할 USB 고유 ID와 설치 위치를 먼저 조회할 수 있다.
+/usr/bin/python3 ros2_ws/src/dori_hardware/scripts/install_can_service.py --dry-run
+sudo /usr/bin/python3 ros2_ws/src/dori_hardware/scripts/install_can_service.py
+systemctl status dori-can.service --no-pager
 ip -details link show can1
+```
+
+설치기는 연결된 CANable2가 정확히 하나인지 확인하고 USB vendor/product/serial을 저장한다. 여러 개라면 `--device /dev/serial/by-id/실제_CANable2_ID`로 명시한다. 기본 인터페이스는 `can1`이며 변경하려면 설치기의 `--interface`와 launch의 `can_interface`를 함께 맞춘다.
+
+서비스 실행 파일은 `/usr/local/libexec/dori-can`, 설정은 `/etc/dori/can.json`, unit은 `/etc/systemd/system/dori-can.service`, udev 규칙은 `/etc/udev/rules.d/99-dori-can.rules`에 설치된다. ROS 빌드는 이 시스템 파일을 설치하거나 서비스를 시작하지 않는다. 설치 명령은 준비된 시스템 파일을 복사하고 현재 연결된 장치에 한해 서비스를 시작한다. `--output-dir /임시/디렉터리`는 설치할 파일만 생성하며 관리자 권한이나 장치 변경이 필요 없다.
+
+이후 부팅·USB 연결 시 udev가 해당 고유 ID에 대해 서비스를 시작한다. 서비스는 foreground `slcand` 하나를 소유하고 기존 설정(CAN 1 Mbit/s, UART 3000000, hardware flow control)으로 인터페이스를 준비한 후 READY를 알린다. USB 분리 시 자신이 시작한 프로세스를 정리하며, 재연결하면 다시 시작한다. 서비스는 모터 명령이나 ROS 노드를 실행하지 않는다. 장치에 의해 시작되는 static unit이므로 `systemctl enable`은 필요 없다.
+
+다른 실행기가 만든 `can1`이나 이미 열린 CANable 포트가 있으면 이를 종료·재사용하지 않고 충돌을 기록한다. 기존 수동 `slcand`가 있다면 로봇을 정지하고 그 연결을 관리하던 실행기에서 종료한 뒤 서비스를 시작한다. 서비스 설정을 바꿀 때도 먼저 로봇과 서비스를 정지한다. 같은 설정으로 설치 명령을 다시 실행해도 동작 중인 서비스를 재시작하지 않는다.
+
+```bash
+journalctl -u dori-can.service -b --no-pager
+# 설정 오류를 수정한 뒤, 로봇이 정지한 상태에서만 재시작
+sudo systemctl restart dori-can.service
 ```
 
 IMU 포트는 `dori_hardware`의 IMU 노드 파라미터, DXL 포트는 Dynamixel 드라이버 설정과 대조한다. 조이스틱을 사용할 때는 xpad 바인딩·입력 장치 접근 권한과 축/버튼을 먼저 확인한다. 이 절차는 이전 자동 xpad 재바인딩을 수행하지 않는다. 장치 식별이나 드라이버 상태가 맞지 않으면 기동하지 않고 해당 장치를 정비한다.
 
-**합격기준:** can1 UP, 실제 설정과 일치하는 시리얼 장치 및 접근 권한 확보. launch는 CAN 연결이나 권한을 자동으로 수정하지 않는다.
+**합격기준:** `dori-can.service` active, can1 UP, 실제 설정과 일치하는 시리얼 장치 및 접근 권한 확보. CAN 준비는 시스템 서비스가 소유하며 launch는 sudo나 장치 권한 변경을 실행하지 않는다.
+
+`hardware.launch.py`는 프로세스를 시작하기 전에 CAN의 UP 플래그를 기본 10초 동안 기다린다. `can_wait_timeout`으로 0–30초 범위에서 조정하며, `bringup.launch.py dori_mode:=real`에서는 `real_can_wait_timeout`을 사용한다. CAN이 준비되면 즉시 다음 검사로 진행한다. 시리얼 장치 존재·접근 권한·동일 장치 중복 지정도 검사하고, 실패 항목과 CAN 서비스 상태를 함께 표시한다. 이 검사는 장치를 열거나 통신 명령을 보내지 않으므로 전원·응답·센서 데이터 정상 여부까지 보장하지 않는다.
+
+DXL은 `dori_hardware/dxl_driver_node`를 사용하며 기본 포트는 `/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTAU591Z-if00-port0`이다. 범용 `dynamixel_sdk_examples/read_write_node`는 사용하지 않는다. 범용 예제의 `/dev/ttyUSB0`이 LiDAR와 겹치면 통신 속도가 바뀌어 LiDAR 시간 초과와 전체 세션 종료가 발생한다. DORI 드라이버는 ID 1/3만 사용하며, 통신 오류를 위치 0으로 전달하지 않는다. 제어 모드와 signed 위치 처리는 [XH540 문서](https://emanual.robotis.com/docs/en/dxl/x/xh540-v270/)와 [XH430 문서](https://emanual.robotis.com/docs/en/dxl/x/xh430-v350/)를 따른다.
+
+교체 장치는 `hardware.launch.py`의 `can_interface`, `dxl_port`, `imu_port`, `lidar_port`로 지정한다. `bringup.launch.py dori_mode:=real`에서는 각각 `real_` 접두사를 붙인다. CANable을 교체했다면 새 장치 ID로 설치기를 다시 실행한다. CAN 준비가 실패했다면 다른 인터페이스로 임의 변경하지 않고 서비스 로그를 확인한다.
 
 ## AMM 30 — 시스템 및 신호 흐름
 
@@ -317,7 +337,7 @@ ros2 launch dori_bringup hardware.launch.py \
   whisper_model:="$DORI_ROOT/.state/voice/whisper-small"
 ```
 
-새 지도에는 별도 목적지 저장소를 사용한다. 예제 파일을 다른 지도에 그대로 적용하지 않는다. `named_goals_file`을 생략하면 웹에서 사용하는 기본 저장 경로에 의존하므로 운용에서는 쓰기 가능한 절대 경로를 명시한다. 직접 launch는 CAN이나 모델을 준비하지 않고, 기존 제어 세션도 재사용하지 않는다.
+새 지도에는 별도 목적지 저장소를 사용한다. 예제 파일을 다른 지도에 그대로 적용하지 않는다. `named_goals_file`을 생략하면 웹에서 사용하는 기본 저장 경로에 의존하므로 운용에서는 쓰기 가능한 절대 경로를 명시한다. 직접 launch는 CAN 서비스의 준비 완료를 기다리며, 모델 준비나 기존 제어 세션 재사용은 수행하지 않는다.
 
 마이크 없이 HRI와 브라우저 발화를 사용하려면 같은 명령에 `enable_stt:=false tts_playback_mode:=publish_only`를 추가한다. 이 옵션에서도 실물 구동은 켜진다. 인지는 준비 후 `enable_perception:=true require_user_tracking:=true person_model:=/절대경로/person.pt front_serial:=장치번호`로 선택한다.
 

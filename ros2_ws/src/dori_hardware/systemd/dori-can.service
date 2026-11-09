@@ -1,0 +1,27 @@
+# Managed by DORI CAN setup.
+[Unit]
+Description=DORI CANable SocketCAN interface
+BindsTo=dev-dori_canable.device
+After=dev-dori_canable.device
+StartLimitIntervalSec=0
+
+[Service]
+Type=notify
+NotifyAccess=main
+ExecStart=/usr/bin/python3 /usr/local/libexec/dori-can
+Restart=on-failure
+RestartSec=2
+RestartPreventExitStatus=78
+TimeoutStartSec=20
+TimeoutStopSec=8
+KillMode=mixed
+RuntimeDirectory=dori-can
+RuntimeDirectoryMode=0755
+User=root
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+# Started by the matching USB device's SYSTEMD_WANTS, including at boot.
+# No multi-user.target dependency: an unplugged adapter must not delay boot.

@@ -1,5 +1,6 @@
 <?xml version="1.0"?>
 <robot name="cubemars_mit" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:arg name="can_interface" default="can1"/>
 
   <link name="base_link"/>
   <link name="left_wheel_link"/>
@@ -22,7 +23,7 @@
   <ros2_control name="CubeMarsSystem" type="system">
     <hardware>
       <plugin>cubemars_hardware/CubeMarsSystemHardware</plugin>
-      <param name="can_interface">can1</param>
+      <param name="can_interface">$(arg can_interface)</param>
       <param name="protocol_mode">mit</param>
     </hardware>
 

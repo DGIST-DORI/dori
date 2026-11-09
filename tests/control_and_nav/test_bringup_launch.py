@@ -118,6 +118,14 @@ def test_hardware_requires_explicit_mode_and_receives_voice_profile(
     assert includes["hardware.launch.py"]["enable_dashboard"] == "true"
 
 
+def test_real_device_overrides_reach_hardware_launch(bringup, monkeypatch):
+    monkeypatch.setattr(bringup, "check_visitor", Mock())
+    ports = dict(can_interface="can7", can_wait_timeout="2.5", dxl_port="/dev/dxl", imu_port="/dev/imu", lidar_port="/dev/lidar")
+    _, includes = describe(bringup, dori_mode="real", **{"real_" + k: v for k, v in ports.items()})
+    for key, value in ports.items():
+        assert includes["hardware.launch.py"][key] == value
+
+
 @pytest.mark.parametrize("overrides,match", [
     ({"stt_audio_input_mode": "microphone"}, "requires stt_audio_input_mode"),
     ({"visitor_stt": "whisper", "enable_stt": "false"}, "requires enable_stt"),

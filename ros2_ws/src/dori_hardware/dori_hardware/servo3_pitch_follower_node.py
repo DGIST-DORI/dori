@@ -3,6 +3,7 @@
 import math
 
 import rclpy
+from rclpy.executors import ExternalShutdownException
 
 from rclpy.node import Node
 from std_msgs.msg import Float64
@@ -469,7 +470,7 @@ def main(args=None):
 
         rclpy.spin(node)
 
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
 
         pass
 
@@ -477,7 +478,7 @@ def main(args=None):
 
         node.destroy_node()
 
-        rclpy.shutdown()
+        rclpy.try_shutdown()
 
 
 if __name__ == "__main__":

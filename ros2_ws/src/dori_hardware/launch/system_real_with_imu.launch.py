@@ -5,6 +5,7 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 import os
+from dori_hardware.startup_checks import CAN_INTERFACE, DXL_PORT, IMU_PORT
 
 
 def generate_launch_description():
@@ -31,6 +32,7 @@ def generate_launch_description():
             "use_wheel_odometry": LaunchConfiguration("use_wheel_odometry"),
             "odom_publish_tf": LaunchConfiguration("odom_publish_tf"),
             "odom_scale": LaunchConfiguration("odom_scale"),
+            **{k: LaunchConfiguration(k) for k in ("can_interface", "dxl_port")},
         }.items(),
     )
 
@@ -39,7 +41,8 @@ def generate_launch_description():
     # ============================================================
 
     imu_node = Node(
-        package="dori_hardware", executable="imu_node", name="imu_node", output="screen"
+        package="dori_hardware", executable="imu_node", name="imu_node", output="screen",
+        parameters=[{"port": LaunchConfiguration("imu_port")}],
     )
 
     # ============================================================
@@ -182,6 +185,9 @@ def generate_launch_description():
 
     return LaunchDescription(
         [
+            DeclareLaunchArgument("can_interface", default_value=CAN_INTERFACE),
+            DeclareLaunchArgument("dxl_port", default_value=DXL_PORT),
+            DeclareLaunchArgument("imu_port", default_value=IMU_PORT),
             DeclareLaunchArgument("use_wheel_odometry", default_value="false"),
             DeclareLaunchArgument("odom_publish_tf", default_value="false"),
             DeclareLaunchArgument("odom_scale", default_value="1.0"),

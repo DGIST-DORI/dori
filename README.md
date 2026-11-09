@@ -480,6 +480,32 @@ phone pairing; use the default bringup for the complete app session.
 
 For complete robot operation with hardware drivers, LiDAR, Nav2, HRI, and web viewer:
 
+Install CAN auto-setup **once**, with the CANable2 connected and robot nodes stopped:
+
+```bash
+sudo /usr/bin/python3 ros2_ws/src/dori_hardware/scripts/install_can_service.py
+```
+
+This identifies the connected CANable2 by USB serial and installs
+`dori-can.service` plus its udev rule. At boot and on USB reconnect, the service
+creates and activates `can1`; unplugging the adapter stops its service.
+It does not launch ROS nodes or issue motor commands. The FTDI adapter is not
+required for this installation. No `systemctl enable` or per-session sudo is needed.
+Use `--dry-run` to review the device and paths without changing the system.
+
+Bringup waits up to 10 seconds for CAN to become UP, then checks that the
+Dynamixel, IMU and LiDAR ports exist, are accessible, and refer to different
+devices. `real_can_wait_timeout:=20` changes this wait (0–30 seconds);
+`hardware.launch.py` uses `can_wait_timeout`. Failure reports the CAN service
+state and all missing devices before starting robot nodes. Full device setup
+and troubleshooting are in [AMM 20-30](docs/user/DORI-AMM.md#task-20-30-00--현장-장치-준비).
+
+```bash
+systemctl status dori-can.service --no-pager
+journalctl -u dori-can.service -b --no-pager
+ip -details link show can1
+```
+
 ```bash
 ros2 launch dori_bringup hardware.launch.py \
   map:=$(pwd)/maps/live_navigation_20261023_1938.yaml \
@@ -499,6 +525,20 @@ ros2 launch dori_bringup bringup.launch.py \
 
 Omit `visitor_mode:=false` to keep the default visitor app profile on the
 physical robot. Hardware still requires the map and device preparation above.
+
+The DORI Dynamixel driver uses the FTDI adapter's stable `/dev/serial/by-id/`
+path. Do not run the upstream `dynamixel_sdk_examples/read_write_node` alongside
+bringup: its fixed `/dev/ttyUSB0` can open the LiDAR port, change its baud rate,
+and cause `SL_RESULT_OPERATION_TIMEOUT`. The DORI driver handles only DXL IDs
+1 and 3; motor 4 uses CubeMars CAN ID 4. Failed DXL reads are rejected as invalid
+feedback instead of being reported as position zero.
+
+To use different hardware paths, set `real_can_interface`, `real_dxl_port`,
+`real_imu_port` and `real_lidar_port` on `bringup.launch.py`. On
+`hardware.launch.py`, use the same argument names without `real_`. Specify the
+actual devices; changing `can1` to the onboard `can0` is not a substitute for
+preparing the connected CANable adapter. A missing FTDI path means that adapter
+must be connected or its replacement's path explicitly configured.
 
 ### Topic Namespace (Default vs Multi-Robot)
 

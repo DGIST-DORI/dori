@@ -128,7 +128,7 @@ def test_source_install_and_dependency_graph():
                 "virtual_vlm_input_node",
             ),
         ),
-        ("dori_hardware", ("dxl_bridge_node", "dxl_state_publisher_node", *IMU_NODES)),
+        ("dori_hardware", ("dxl_driver_node", "dxl_bridge_node", "dxl_state_publisher_node", *IMU_NODES)),
         ("dori_diagnostics", ("error_manager_node",)),
         ("dori_navigation", ("nav2_adapter", "named_goal_adapter", "web_viewer.py")),
     ],
@@ -264,6 +264,9 @@ def inspect_launch(package, filename, overrides):
 
 @pytest.fixture
 def no_process_launch(monkeypatch, tmp_path):
+    # Device readiness is exercised separately without hardware. Here only
+    # expand the descriptions and verify installed programs/parameters.
+    monkeypatch.setattr("dori_hardware.startup_checks.validate_devices", lambda *args, **kwargs: None)
     monkeypatch.setenv("DORI_INTERNAL_TOKEN", "test-only-internal-secret-32-characters")
     # Launch preflight validates SDK/config only; it never contacts Azure.
     monkeypatch.delenv("DORI_VISITOR_STT", raising=False)
@@ -324,6 +327,8 @@ def test_full_robot_resolves_and_excludes_inherited_virtual_inputs(no_process_la
     executables = [exe for _, exe, _ in nodes]
     assert executables.count("drive_controller_node") == 1
     assert executables.count("mode_manager_node") == 1
+    assert executables.count("dxl_driver_node") == 1
+    assert "read_write_node" not in executables
     assert set(IMU_NODES) <= set(executables)
     assert not {
         "virtual_vlm_input_node",
@@ -341,6 +346,29 @@ def test_full_robot_resolves_and_excludes_inherited_virtual_inputs(no_process_la
         "stt_node",
         "tts_node",
     } <= set(executables)
+
+
+def test_physical_device_parameters_reach_every_driver(no_process_launch):
+    nodes = inspect_launch("dori_bringup", "bringup.launch.py", {
+        "dori_mode": "real",
+        "real_map": str(ROOT / "maps/live_navigation_20261023_1938.yaml"),
+        "real_can_interface": "can7",
+        "real_dxl_port": "/dev/serial/by-id/test-dxl",
+        "real_imu_port": "/dev/serial/by-id/test-imu",
+        "real_lidar_port": "/dev/test-lidar",
+    })
+    def parameters(executable):
+        return next(params for _, exe, params in nodes if exe == executable)
+    for exe, key, expected in (
+        ("dxl_driver_node", "device_name", "/dev/serial/by-id/test-dxl"),
+        ("imu_node", "port", "/dev/serial/by-id/test-imu"),
+        ("sllidar_node", "serial_port", "/dev/test-lidar"),
+        ("motor4_servo_node", "can_interface", "can7"),
+    ):
+        assert any(isinstance(p, dict) and p.get(key) == expected for p in parameters(exe)), exe
+    description = next(p["robot_description"] for p in parameters("ros2_control_node")
+                       if isinstance(p, dict) and "robot_description" in p)
+    assert ET.fromstring(description).find("ros2_control/hardware/param[@name='can_interface']").text == "can7"
 
 
 def test_dashboard_and_native_plugin_assets_installed():

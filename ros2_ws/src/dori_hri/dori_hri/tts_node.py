@@ -34,6 +34,7 @@ from datetime import datetime
 import json
 
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from ament_index_python.packages import get_package_share_directory
 from rclpy.node import Node
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
@@ -585,11 +586,11 @@ def main(args=None):
     executor.add_node(node)
     try:
         executor.spin()
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        rclpy.try_shutdown()
 
 
 if __name__ == "__main__":

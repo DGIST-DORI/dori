@@ -17,8 +17,9 @@ topics, and `dori_msgs` messages/actions are unchanged by this consolidation.
 
 `dori_control` installs 10 native executables, its headers under
 `include/dori_control`, and drive/kinematics/odometry/transform configuration.
-`dori_hardware` is an `ament_cmake` + `ament_cmake_python` package. It installs two
-DXL executables and four Python entry points: `imu_node`, `body_pitch_node`,
+`dori_hardware` is an `ament_cmake` + `ament_cmake_python` package. It installs three
+DXL executables (`dxl_driver_node`, `dxl_bridge_node`, `dxl_state_publisher_node`)
+and five Python entry points: `motor4_servo_node`, `imu_node`, `body_pitch_node`,
 `body_stabilizer_node`, `servo3_pitch_follower_node`. Python imports use
 `dori_hardware.<module>`; there is no separate `imu_serial` package registration.
 
@@ -33,7 +34,7 @@ that system with navigation/HRI/web. Lower packages do not depend on bringup.
 | --------------------------------- | -------------------------------------------------------------------- |
 | `dori_bringup`                    | Top-level launch composition                                         |
 | `dori_control`                    | Drive, input and transformation control                              |
-| `dori_hardware`                   | Physical launch, DXL bridges, IMU and body/pitch processing          |
+| `dori_hardware`                   | Physical launch/checks, DXL driver/bridges, CAN motor4, IMU and pitch |
 | `dori_supervisor`                 | Manual/AUTO authority, stop and transform gating                     |
 | `dori_diagnostics`                | Hardware/system error logging                                        |
 | `dori_mapping`                    | LiDAR odometry, extrinsics and Cartographer                          |
@@ -51,7 +52,7 @@ that system with navigation/HRI/web. Lower packages do not depend on bringup.
 | `sllidar_ros2`                    | LiDAR device driver                                                  |
 | `dynamixel_sdk`                   | Dynamixel SDK                                                        |
 | `dynamixel_sdk_custom_interfaces` | Dynamixel interfaces                                                 |
-| `dynamixel_sdk_examples`          | Physical servo driver                                                |
+| `dynamixel_sdk_examples`          | Upstream SDK examples only; not used by physical bringup              |
 
 ## Upgrade contract and validation
 

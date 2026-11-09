@@ -10,6 +10,7 @@ from launch.substitutions import (
 )
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
+from dori_hardware.startup_checks import CAN_INTERFACE, DXL_PORT
 
 
 def generate_launch_description():
@@ -59,7 +60,9 @@ def generate_launch_description():
 
     robot_description = {
         "robot_description": ParameterValue(
-            Command([FindExecutable(name="xacro"), " ", urdf_file]), value_type=str
+            Command([FindExecutable(name="xacro"), " ", urdf_file,
+                     " can_interface:=", LaunchConfiguration("can_interface", default=CAN_INTERFACE)]),
+            value_type=str
         )
     }
 
@@ -73,6 +76,8 @@ def generate_launch_description():
             # Launch arguments
             # --------------------------------------------------------
             DeclareLaunchArgument("use_input_nodes", default_value="false"),
+            DeclareLaunchArgument("can_interface", default_value=CAN_INTERFACE),
+            DeclareLaunchArgument("dxl_port", default_value=DXL_PORT),
             DeclareLaunchArgument("use_joystick", default_value="false"),
             DeclareLaunchArgument("use_wheel_odometry", default_value="false"),
             DeclareLaunchArgument("odom_publish_tf", default_value="false"),
@@ -197,9 +202,9 @@ def generate_launch_description():
             # Dynamixel
             # ========================================================
             Node(
-                package="dynamixel_sdk_examples",
-                executable="read_write_node",
-                parameters=[{"servo2_position_p_gain": 0}],
+                package="dori_hardware",
+                executable="dxl_driver_node",
+                parameters=[{"device_name": LaunchConfiguration("dxl_port")}],
                 output="screen",
             ),
             Node(
@@ -222,7 +227,7 @@ def generate_launch_description():
                 executable="motor4_servo_node",
                 parameters=[PathJoinSubstitution(
                     [FindPackageShare("dori_hardware"), "config", "motor4_servo.yaml"]
-                )],
+                ), {"can_interface": LaunchConfiguration("can_interface")}],
                 output="screen",
             ),
             Node(
