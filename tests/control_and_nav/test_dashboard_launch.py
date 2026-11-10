@@ -148,19 +148,22 @@ def test_external_viewer_disables_dashboard_owner(monkeypatch):
 def test_hardware_launch_keeps_exactly_one_viewer(monkeypatch):
     from launch.actions import DeclareLaunchArgument
 
-    path = ROOT / 'ros2_ws/src/dori_bringup/launch/hardware.launch.py'
+    path = ROOT / 'ros2_ws/src/dori_bringup/launch/robot.launch.py'
     spec = importlib.util.spec_from_file_location('hardware_viewer_ownership', path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     monkeypatch.setattr(module, 'get_package_share_directory',
                         lambda name: str(ROOT / 'ros2_ws/src' / name))
     context = LaunchContext()
+    context.launch_configurations["visitor_mode"] = "false"
+    monkeypatch.setattr(module, "validate_devices", lambda *args, **kwargs: None)
     context.launch_configurations['map'] = str(ROOT / 'maps/live_navigation_20261023_1938.yaml')
     for action in module.generate_launch_description().entities:
         if isinstance(action, DeclareLaunchArgument):
             action.execute(context)
-    includes = Mock(wraps=module.include)
-    monkeypatch.setattr(module, 'include', includes)
+    from dori_bringup import launch_support
+    includes = Mock(wraps=launch_support.include)
+    monkeypatch.setattr(launch_support, 'include', includes)
     actions = module.setup(context)
     includes.assert_any_call('dori_dashboard', 'dashboard.launch.py',
                              {'enable_navigation_viewer': 'false'})

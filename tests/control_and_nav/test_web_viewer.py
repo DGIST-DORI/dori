@@ -50,6 +50,17 @@ class WebViewer(unittest.TestCase):
         self.assertIsNone(self.node.snapshot['values']['pitch_deg'])
         json.dumps(self.node.snapshot, allow_nan=False)
 
+    def test_bringup_status_exposes_freshness_without_claiming_navigation_is_ready(self):
+        from std_msgs.msg import String
+        report = dict(state='waiting_initial_pose', components={'navigation': {'state': 'waiting_initial_pose'}}, errors=[])
+        self.node.value('bringup', String(data=json.dumps(report)))
+        self.node.refresh()
+        self.assertEqual(json.loads(self.node.snapshot['values']['bringup']), report)
+        self.assertLess(self.node.snapshot['bringup_age'], 1)
+        self.node.arrivals['bringup'] -= 10
+        self.node.refresh()
+        self.assertGreater(self.node.snapshot['bringup_age'], 10)
+
     def test_commands_require_navigation_mode_and_valid_pose(self):
         with self.assertRaises(ValueError):self.node.command(dict(action='goal',client='test-browser',x=0.,y=0.,yaw=0.))
         for pose in [dict(x=float('nan'),y=0,yaw=0),dict(x=True,y=0,yaw=0),dict(x=0,y=0)]:

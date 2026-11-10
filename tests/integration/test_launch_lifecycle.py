@@ -22,11 +22,12 @@ ROOT=Path(__file__).resolve().parents[2]
     ('spawner_probe',0,'test deadline'),
 ])
 def test_process_exit_propagates_to_session_shutdown(name,code,expected,monkeypatch):
-    path=ROOT/'ros2_ws/src/dori_bringup/launch/hardware.launch.py'
+    path=ROOT/'ros2_ws/src/dori_bringup/launch/robot.launch.py'
     spec=importlib.util.spec_from_file_location('dori_launch_under_test',path)
     module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
     monkeypatch.setattr(module, 'validate_devices', lambda *args, **kwargs: None)
     context=LaunchContext()
+    context.launch_configurations["visitor_mode"]="false"
     context.launch_configurations['map']=str(ROOT/'maps/live_navigation_20261023_1938.yaml')
     for action in module.generate_launch_description().entities:
         if isinstance(action,DeclareLaunchArgument): action.execute(context)

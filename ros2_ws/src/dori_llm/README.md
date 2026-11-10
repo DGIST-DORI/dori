@@ -26,7 +26,7 @@ ros2 launch dori_bringup voice.launch.py \
   use_external_llm:=true llm_model:=gemini-3.5-flash-lite
 ```
 
-`bringup.launch.py` and `hardware.launch.py` accept the same `use_external_llm` and `llm_model`
+`bringup.launch.py` and `robot.launch.py` accept the same `use_external_llm` and `llm_model`
 arguments. For only the LLM node:
 
 ```bash

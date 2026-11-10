@@ -5,16 +5,16 @@
 
 ```bash
 # Use external LLM instead of local model
-ros2 launch dori_bringup bringup.launch.py use_external_llm:=true
+ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop use_external_llm:=true
 
 # SW development without navigation hardware
-ros2 launch dori_bringup bringup.launch.py enable_navigation:=false
+ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop
 
 # Change Whisper model size (tiny / base / small / medium)
-ros2 launch dori_bringup bringup.launch.py whisper_model:=base
+ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop visitor_mode:=false whisper_model:=base
 
 # Change TTS language
-ros2 launch dori_bringup bringup.launch.py tts_language:=ko
+ros2 launch dori_bringup voice.launch.py tts_language:=ko
 ```
 
 ### Sub-system Launch (Development)

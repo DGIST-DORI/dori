@@ -118,9 +118,14 @@ PYVOICE
 Alternatively, use `scripts/prepare_voice.sh`. For visitor input using local
 Whisper, use `scripts/prepare_voice.sh --topic-only`.
 
-### 3-2. (Optional) Download Perception & Vision Models
+### 3-2. Prepare Perception for the Robot Profile
 
-If `enable_perception:=true` is used, gesture and expression nodes require MediaPipe Task models:
+The robot profile requires a front RealSense camera, the `ultralytics` dependency,
+and person-detection weights. Prepare a local model before deployment and set
+`person_model` to its path in the deployment YAML. Desktop perception is optional.
+
+MediaPipe Task models are only needed when explicitly enabling gesture or
+expression recognition (`enable_gesture:=true` / `enable_expression:=true`):
 
 1. Create the model asset directory:
 
@@ -266,18 +271,22 @@ export ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}"
 export PYTHONNOUSERSITE=1
 ```
 
-### Default Bringup: Smartphone Visitor App + Dashboard
+### Default Bringup: Physical Robot + Smartphone Visitor App + Dashboard
 
-After building, sourcing the environment, and configuring the credentials above,
-start the default bringup:
+After building, sourcing the environment, configuring the credentials above, and
+completing the [hardware preparation](#physical-robot-hardware-launch), start the
+default bringup with the map for the operating area:
 
 ```bash
 # Shared secret for the dashboard and visitor gateway; keep it private.
 export DORI_INTERNAL_TOKEN="$(openssl rand -hex 32)"
-ros2 launch dori_bringup bringup.launch.py
+ros2 launch dori_bringup bringup.launch.py \
+  map:=$(pwd)/maps/live_navigation_20261023_1938.yaml \
+  named_goals_file:=$(pwd)/maps/web_goals.json
 ```
 
-This is the standard entrypoint for both apps, LLM/TTS and the interaction tree.
+This is the standard entrypoint for hardware drivers, LiDAR, Nav2, both apps,
+LLM/TTS and the interaction tree.
 External LLM conversation is enabled by default (`use_external_llm:=true`), using
 `gemini-3.5-flash-lite`. Set `GEMINI_API_KEY` in the launch environment; the standard
 build installs its SDK. Use `use_external_llm:=false` for local-only responses or
@@ -286,11 +295,76 @@ For campus-document RAG, install `.venv/bin/python -s -m pip install -r requirem
 and run `scripts/refresh_knowledge.sh`. This collects official source records,
 validates retrieval, and atomically activates a new index; failed refreshes keep
 the previous index. See the [RAG workflow](ros2_ws/src/dori_llm/README.md#source-backed-rag-pipeline).
-It defaults to desktop mode, `enable_dashboard:=true`, `visitor_mode:=true`, and
+It defaults to `dori_mode:=robot`, `enable_dashboard:=true`, `visitor_mode:=true`, and
 Azure STT in the gateway. Local microphone STT is disabled automatically. The
 launch checks the SDK and F0 settings using the gateway's Python before starting
 the session. No separate app launcher or visitor flags are needed. Stop any
 existing desktop/dashboard session before starting it.
+
+For app and HRI development without hardware, explicitly select desktop mode;
+it does not require a map:
+
+```bash
+ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop
+```
+
+The former `real`/`hardware` modes are now `dori_mode:=robot`; `sim` was removed.
+Use `bringup.launch.py` as the standard user entrypoint. It selects
+`robot.launch.py` by default, or `desktop.launch.py` with `dori_mode:=desktop`.
+These two files implement the profiles; `robot.launch.py` replaces the former
+`hardware.launch.py`, not `bringup.launch.py`. Replace former `real_`-prefixed
+arguments with `map`, `named_goals_file`, `use_joystick`, and the plain device names.
+
+The supported modes are `robot` and `desktop`. Both use the same visitor,
+voice, LLM, interaction and optional perception settings. Robot mode starts the
+robot drivers, LiDAR odometry, Nav2 and required front camera/person detection,
+checks the map/devices, and stops the
+session when a critical process exits. Its map viewer runs in navigation mode;
+desktop's map backend monitors available ROS data without starting navigation.
+`visitor_mode` selects phone versus local microphone input independently of
+`dori_mode`.
+
+Robot mode requires the `/dori` namespace and front color/depth frames plus
+person-detection results, including frames containing no people. Its perception
+cannot be disabled. Desktop mode defaults to no perception; explicitly enable
+it with `enable_perception:=true` when a camera is available. Gesture, expression
+and landmark detection default to disabled in both profiles and can be enabled
+individually. Prepare the vision dependencies and model before robot operation.
+The C++ camera build requires the RealSense SDK (`librealsense2`, installed by
+rosdep); a missing SDK now fails the build instead of silently omitting the node.
+
+Store site/device settings in one deployment file:
+
+```bash
+mkdir -p .state
+cp -n ros2_ws/src/dori_bringup/config/robot.example.yaml .state/robot.yaml
+# Edit the map, destination file, device identities, front camera serial and model.
+ros2 launch dori_bringup bringup.launch.py config_file:=$(pwd)/.state/robot.yaml
+```
+
+The file has `common`, `robot` and `desktop` sections. Precedence is explicit
+launch argument > selected profile section > common section > built-in default.
+File paths in YAML are relative to that YAML file; `${DORI_ROOT}` expands to
+the checkout without depending on the shell environment. Bare model IDs such
+as `yolov8n.pt` remain model IDs; use an absolute path or `./models/person.pt`
+for local weights. `config_file` is optional, and `map:=...` still works.
+Unknown options, invalid booleans and malformed sections fail before launch.
+
+Robot startup reports separate sensor/feedback, odometry, perception, controller,
+localization, navigation-service, HRI and app readiness in the dashboard's
+navigation panel and on `/dori/bringup/status`:
+
+```bash
+ros2 topic echo /dori/bringup/status --once
+```
+
+Required startup checks have `startup_timeout:=120.0` seconds by default
+(configurable from 1 to 600). Missing data or inactive services stop the complete
+robot session. `waiting_initial_pose` is a normal, unlimited wait: once fresh
+localization is available, navigation gets its own activation deadline. After
+startup, status continues to report freshness; these startup deadlines do not
+replace the existing runtime controller/navigation fault handling. The monitor
+only observes data and queries state; it does not send goals or motor commands.
 
 If the previous terminal was closed or shutdown was interrupted, use the recovery
 command from this checkout before launching again:
@@ -298,7 +372,9 @@ command from this checkout before launching again:
 ```bash
 scripts/stop_dori.sh --dry-run  # Inspect the processes that will be stopped
 scripts/stop_dori.sh           # Stop and verify that they have exited
-ros2 launch dori_bringup bringup.launch.py
+ros2 launch dori_bringup bringup.launch.py \
+  map:=$(pwd)/maps/live_navigation_20261023_1938.yaml \
+  named_goals_file:=$(pwd)/maps/web_goals.json
 ```
 
 Normally, press **Ctrl+C once** in the launch terminal and wait for it to exit.
@@ -333,7 +409,10 @@ local Whisper for phone input, prepare its model once with
 `scripts/prepare_voice.sh --topic-only`, then run:
 
 ```bash
-ros2 launch dori_bringup bringup.launch.py visitor_stt:=whisper
+ros2 launch dori_bringup bringup.launch.py \
+  map:=$(pwd)/maps/live_navigation_20261023_1938.yaml \
+  named_goals_file:=$(pwd)/maps/web_goals.json \
+  visitor_stt:=whisper
 ```
 
 `visitor_stt` takes precedence over `DORI_VISITOR_STT`; if neither is set, Azure
@@ -449,7 +528,9 @@ and credentials configured above:
 ```bash
 nohup "$HOME/.local/bin/dori-kiosk" > "$HOME/.local/state/dori/kiosk.log" 2>&1 &
 export DORI_INTERNAL_TOKEN="$(openssl rand -hex 32)"
-ros2 launch dori_bringup bringup.launch.py
+ros2 launch dori_bringup bringup.launch.py \
+  map:=$(pwd)/maps/live_navigation_20261023_1938.yaml \
+  named_goals_file:=$(pwd)/maps/web_goals.json
 ```
 
 On subsequent desktop logins, the launcher starts automatically and waits for
@@ -465,18 +546,20 @@ For an unattended display, disable screen blanking and automatic suspend in the
 desktop settings. If no window appears, check `~/.local/state/dori/kiosk.log`
 for a manually started launcher and confirm that the display URL opens locally.
 
-### Local Robot Microphone / Simulation Mode (without Actuators)
+### Optional Desktop Test: Local Microphone (without Actuators)
 
+Normal operation uses `visitor_mode:=true`, including map-based navigation.
+The following examples are only for explicitly testing local microphone HRI.
 After preparing the optional local voice assets in step 3-1, run desktop HRI
 with or without the dashboard on a development PC. Set `DORI_INTERNAL_TOKEN`
 as above when starting the dashboard:
 
 ```bash
 # Local robot microphone HRI + Dashboard
-ros2 launch dori_bringup bringup.launch.py visitor_mode:=false
+ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop visitor_mode:=false
 
 # Local robot microphone HRI without Dashboard
-ros2 launch dori_bringup bringup.launch.py visitor_mode:=false enable_dashboard:=false
+ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop visitor_mode:=false enable_dashboard:=false
 
 # Dashboard Standalone
 ros2 launch dori_dashboard dashboard.launch.py
@@ -484,7 +567,8 @@ ros2 launch dori_dashboard dashboard.launch.py
 
 `visitor_mode:=false` enables microphone STT automatically and disables phone
 pairing. A standalone dashboard also needs the voice/interaction nodes for
-phone pairing; use the default bringup for the complete app session.
+phone pairing; use `bringup.launch.py dori_mode:=desktop` for the complete app
+session without hardware.
 
 ### Physical Robot (Hardware Launch)
 
@@ -492,7 +576,7 @@ For complete robot operation with hardware drivers, LiDAR, Nav2, HRI, and web vi
 
 **1. Install CAN auto-setup once on each robot computer.** Connect the CANable2,
 stop robot nodes, and run the following from the repository root. This host
-installation is required before the first `dori_mode:=real` bringup;
+installation is required before the first `dori_mode:=robot` bringup (the default);
 `colcon build` does not install or start the system service.
 
 ```bash
@@ -546,30 +630,21 @@ initial pose` is expected until then; bringup does not assign an arbitrary pose.
 
 Bringup waits up to 10 seconds for CAN to become UP, then checks that the
 Dynamixel, IMU and LiDAR ports exist, are accessible, and refer to different
-devices. `real_can_wait_timeout:=20` changes this wait (0–30 seconds);
-`hardware.launch.py` uses `can_wait_timeout`. Failure reports the CAN service
+devices. `can_wait_timeout:=20` changes this wait (0–30 seconds) in both
+`bringup.launch.py` and `robot.launch.py`. Failure reports the CAN service
 state and all missing devices before starting robot nodes. Full device setup
 and troubleshooting are in [AMM 20-30](docs/user/DORI-AMM.md#task-20-30-00--현장-장치-준비).
 
 ```bash
-ros2 launch dori_bringup hardware.launch.py \
+ros2 launch dori_bringup bringup.launch.py \
   map:=$(pwd)/maps/live_navigation_20261023_1938.yaml \
   named_goals_file:=$(pwd)/maps/web_goals.json
 ```
 
-Or using the standard bringup entrypoint with local robot microphone input:
-
-```bash
-ros2 launch dori_bringup bringup.launch.py \
-  dori_mode:=real \
-  visitor_mode:=false \
-  real_map:=$(pwd)/maps/live_navigation_20261023_1938.yaml \
-  real_named_goals_file:=$(pwd)/maps/web_goals.json \
-  enable_dashboard:=true
-```
-
-Omit `visitor_mode:=false` to keep the default visitor app profile on the
-physical robot. Hardware still requires the map and device preparation above.
+This starts the complete robot with the visitor app. `dori_mode:=robot`,
+`visitor_mode:=true`, and `enable_dashboard:=true` are defaults and can be
+omitted. Loading a map does not change the interaction profile. The map and
+device preparation above remain required.
 
 The Dynamixel port defaults to `auto`: a read-only Protocol 2 PING identifies
 ID 1/model 1140 and ID 3/model 1040 on a unique USB serial bus at 57600 baud.
@@ -583,30 +658,30 @@ and cause `SL_RESULT_OPERATION_TIMEOUT`. The DORI driver handles only DXL IDs
 1 and 3; motor 4 uses CubeMars CAN ID 4. Failed DXL reads are rejected as invalid
 feedback instead of being reported as position zero.
 
-To use different hardware paths, set `real_can_interface`, `real_dxl_port`, `real_dxl_baudrate`,
-`real_imu_port` and `real_lidar_port` on `bringup.launch.py`. On
-`hardware.launch.py`, use the same argument names without `real_`. Specify the
+To use different hardware paths, set `can_interface`, `dxl_port`, `dxl_baudrate`,
+`imu_port` and `lidar_port` on either `bringup.launch.py` or
+`robot.launch.py`. Specify the
 actual devices; changing `can1` to the onboard `can0` is not a substitute for
 preparing the connected CANable adapter. No responding Dynamixel bus means
-checking its USB connection, servo power, baudrate and IDs. Full real bringup
+checking its USB connection, servo power, baudrate and IDs. Full hardware bringup
 still requires this bus; it does not silently skip the servos. An explicit
-`real_dxl_port:=/dev/serial/by-id/...` bypasses discovery; the driver still
+`dxl_port:=/dev/serial/by-id/...` bypasses discovery; the driver still
 validates servo models before enabling torque.
 
 ### Topic Namespace (Default vs Multi-Robot)
 
-- Default (single robot): `namespace:=/dori`
-- Multi Robot: Set the `namespace` launch argument to expand to `/dori1/...`, `/dori2/...`
+- Robot mode uses `namespace:=/dori`; isolate physical robots with `ROS_DOMAIN_ID`.
+- Desktop HRI sessions can use `namespace:=/dori1`, `namespace:=/dori2`, etc.
 
 ```bash
-# Default topic namespace
-ros2 launch dori_bringup bringup.launch.py namespace:=/dori
+# Default topic namespace for desktop HRI
+ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop namespace:=/dori
 
 # Robot 1
-ros2 launch dori_bringup bringup.launch.py namespace:=/dori1
+ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop namespace:=/dori1
 
 # Robot 2
-ros2 launch dori_bringup bringup.launch.py namespace:=/dori2
+ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop namespace:=/dori2
 ```
 
 ### Dashboard Access

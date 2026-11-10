@@ -28,7 +28,7 @@ def check(map_file, voice=False):
         errors.append(str(exc))
     executables = [('dori_bt','dori_tree_executor'), ('dori_navigation','nav2_adapter'),
         ('dori_navigation','named_goal_adapter'), ('dori_navigation','web_viewer.py'),
-        ('dori_hri','tts_node'), ('dori_llm','llm_node'), ('dori_drive','drive_controller_node')]
+        ('dori_hri','tts_node'), ('dori_llm','llm_node'), ('dori_control','drive_controller_node')]
     for package, executable in executables:
         try:
             prefix = Path(get_package_prefix(package))

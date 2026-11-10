@@ -86,6 +86,7 @@ class WebBridge(Node):
             ("hri_status", "/dori/hri/status", String, latch),
             ("retry", "/navigation/retry_status", String, latch),
             ("odometry", "/lidar_odometry/status", String, latch),
+            ("bringup", "/dori/bringup/status", String, latch),
             ("action", "/system/action_state", Int32, latch),
             ("control", "/system/control_mode", Int32, latch),
             ("active", "/navigation/goal_active", Bool, latch),
@@ -171,6 +172,8 @@ class WebBridge(Node):
 
     def value(self, key, message):
         self.values[key] = message.data
+        if key == "bringup":
+            self.arrivals[key] = time.monotonic()
         if key == "goal_status":
             self.goal_revision += 1
         self.arrivals[key] = time.monotonic()
@@ -411,6 +414,8 @@ class WebBridge(Node):
             hardware=hardware,
             connected=True,
             mode=self.mode,
+            bringup_age=(time.monotonic() - self.arrivals["bringup"]
+                         if "bringup" in self.arrivals else None),
             frame=frame,
             robot=robot,
             map=self.map_info if frame == "map" else None,

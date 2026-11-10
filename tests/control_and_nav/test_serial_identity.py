@@ -132,7 +132,7 @@ def test_no_candidate_has_actionable_neutral_error(tmp_path, monkeypatch):
     lidar = candidate(tmp_path, "usb-CP2102N-lidar", "/dev/ttyUSB0")
     with pytest.raises(RuntimeError, match="No unassigned USB serial ports") as exc:
         identity.resolve_dxl_port("auto", excluded_ports=[lidar], by_id_dir=tmp_path)
-    assert "real_dxl_port" in str(exc.value)
+    assert "dxl_port/dxl_baudrate" in str(exc.value)
     assert "FTDI" not in str(exc.value)
 
 

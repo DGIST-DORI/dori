@@ -249,13 +249,13 @@ IMU 포트는 `dori_hardware`의 IMU 노드 파라미터, DXL 포트는 Dynamixe
 
 **합격기준:** `dori-can.service` active, can1 UP, 실제 설정과 일치하는 시리얼 장치 및 접근 권한 확보. CAN 준비는 시스템 서비스가 소유하며 launch는 sudo나 장치 권한 변경을 실행하지 않는다.
 
-`hardware.launch.py`는 프로세스를 시작하기 전에 CAN의 UP 플래그를 기본 10초 동안 기다린다. `can_wait_timeout`으로 0–30초 범위에서 조정하며, `bringup.launch.py dori_mode:=real`에서는 `real_can_wait_timeout`을 사용한다. CAN이 준비되면 즉시 다음 검사로 진행한다. 시리얼 장치 존재·접근 권한·동일 장치 중복 지정도 검사하고, 실패 항목과 CAN 서비스 상태를 함께 표시한다. 명시한 시리얼 경로는 파일 정보와 접근 권한을 검사하고, `dxl_port:=auto`일 때는 아래의 PING 조회도 수행한다. 이 검사만으로 지속적인 센서 데이터 수신까지 보장하지 않는다.
+`robot.launch.py`는 프로세스를 시작하기 전에 CAN의 UP 플래그를 기본 10초 동안 기다린다. `can_wait_timeout`으로 0–30초 범위에서 조정하며, `bringup.launch.py`의 기본 모드인 `dori_mode:=robot`에서도 같은 인자를 사용한다. CAN이 준비되면 즉시 다음 검사로 진행한다. 시리얼 장치 존재·접근 권한·동일 장치 중복 지정도 검사하고, 실패 항목과 CAN 서비스 상태를 함께 표시한다. 명시한 시리얼 경로는 파일 정보와 접근 권한을 검사하고, `dxl_port:=auto`일 때는 아래의 PING 조회도 수행한다. 이 검사만으로 지속적인 센서 데이터 수신까지 보장하지 않는다.
 
 DXL은 `dori_hardware/dxl_driver_node`를 사용하며 기본 포트는 `auto`이다. 특정 FTDI 칩이나 과거 USB 일련번호를 요구하지 않는다. 설정된 LiDAR·IMU와 CANable 포트를 제외한 USB by-id 포트에서 Protocol 2 PING으로 ID 1/model 1140, ID 3/model 1040의 응답을 확인한다. 토크·위치·서보 설정은 변경하지 않으며 사용 중인 포트는 탐색하지 않는다. 기본 통신 속도는 57600 baud이며, 일치하는 버스가 없거나 여러 개면 노드를 시작하기 전에 원인을 출력한다. 범용 `dynamixel_sdk_examples/read_write_node`는 사용하지 않는다. 범용 예제의 `/dev/ttyUSB0`이 LiDAR와 겹치면 통신 속도가 바뀌어 LiDAR 시간 초과와 전체 세션 종료가 발생한다. DORI 드라이버는 ID 1/3만 사용하며, 통신 오류를 위치 0으로 전달하지 않는다. 제어 모드와 signed 위치 처리는 [XH540 문서](https://emanual.robotis.com/docs/en/dxl/x/xh540-v270/)와 [XH430 문서](https://emanual.robotis.com/docs/en/dxl/x/xh430-v350/)를 따른다.
 
-교체 장치는 `hardware.launch.py`의 `can_interface`, `dxl_port`, `dxl_baudrate`, `imu_port`, `lidar_port`로 지정한다. `bringup.launch.py dori_mode:=real`에서는 각각 `real_` 접두사를 붙인다. CANable을 교체했다면 새 장치 ID로 설치기를 다시 실행한다. CAN 준비가 실패했다면 다른 인터페이스로 임의 변경하지 않고 서비스 로그를 확인한다.
+교체 장치는 `robot.launch.py`의 `can_interface`, `dxl_port`, `dxl_baudrate`, `imu_port`, `lidar_port`로 지정한다. `bringup.launch.py`에서도 접두사 없이 같은 이름을 사용하며, 지도와 목적지 파일은 `map`, `named_goals_file`로 지정한다. 하드웨어 없이 앱·HRI만 실행할 때는 `dori_mode:=desktop`을 명시한다. CANable을 교체했다면 새 장치 ID로 설치기를 다시 실행한다. CAN 준비가 실패했다면 다른 인터페이스로 임의 변경하지 않고 서비스 로그를 확인한다.
 
-2026-11-09 장치 조회에서 USB 일련번호 `82c0f09f3531f111bc58935f30d20014`인 CP2102N은 SLAMTEC `GET_DEVICE_INFO`에 응답했다(펌웨어 1.2, 센서 일련번호 `6509e18ac1ea9ed2b29c92f5e6ad466c`). 따라서 이 장치는 LiDAR로 지정하고 Dynamixel 탐색에서 제외한다. bringup의 LiDAR 기본값은 이 장치의 by-id 경로다. 기존 `/dev/slamtec_c1` 규칙은 CP210x 전체를 매칭하므로 서보 어댑터 식별 근거로 사용하지 않는다. LiDAR 교체 시 `real_lidar_port`도 새 장치 경로로 지정한다.
+2026-11-09 장치 조회에서 USB 일련번호 `82c0f09f3531f111bc58935f30d20014`인 CP2102N은 SLAMTEC `GET_DEVICE_INFO`에 응답했다(펌웨어 1.2, 센서 일련번호 `6509e18ac1ea9ed2b29c92f5e6ad466c`). 따라서 이 장치는 LiDAR로 지정하고 Dynamixel 탐색에서 제외한다. bringup의 LiDAR 기본값은 이 장치의 by-id 경로다. 기존 `/dev/slamtec_c1` 규칙은 CP210x 전체를 매칭하므로 서보 어댑터 식별 근거로 사용하지 않는다. LiDAR 교체 시 `lidar_port`도 새 장치 경로로 지정한다.
 
 Dynamixel 버스가 발견되지 않으면 USB 어댑터 연결뿐 아니라 서보 전원·ID·통신 속도를 확인한다. 직접 실행 시에는 `dxl_driver_node`의 `device_name`을 명시한다. `scripts/run_dori_control.sh`에서는 `DORI_DXL_PORT`, `DORI_DXL_BAUDRATE` 환경 변수로 지정할 수 있다.
 
@@ -348,15 +348,20 @@ TF는 `map → odom → base_link → laser`를 사용한다. `/odom`과 odom TF
 ```bash
 # 예제 지도를 사용할 때만 그 지도에 맞는 목적지 예제를 복사한다.
 cp -n maps/web_goals.example.json maps/web_goals.json
-ros2 launch dori_bringup hardware.launch.py \
+ros2 launch dori_bringup bringup.launch.py \
   map:="$DORI_ROOT/maps/live_navigation_20261023_1938.yaml" \
-  named_goals_file:="$DORI_ROOT/maps/web_goals.json" \
-  whisper_model:="$DORI_ROOT/.state/voice/whisper-small"
+  named_goals_file:="$DORI_ROOT/maps/web_goals.json"
 ```
 
 새 지도에는 별도 목적지 저장소를 사용한다. 예제 파일을 다른 지도에 그대로 적용하지 않는다. `named_goals_file`을 생략하면 웹에서 사용하는 기본 저장 경로에 의존하므로 운용에서는 쓰기 가능한 절대 경로를 명시한다. 직접 launch는 CAN 서비스의 준비 완료를 기다리며, 모델 준비나 기존 제어 세션 재사용은 수행하지 않는다.
 
-마이크 없이 HRI와 브라우저 발화를 사용하려면 같은 명령에 `enable_stt:=false tts_playback_mode:=publish_only`를 추가한다. 이 옵션에서도 실물 구동은 켜진다. 인지는 준비 후 `enable_perception:=true require_user_tracking:=true person_model:=/절대경로/person.pt front_serial:=장치번호`로 선택한다.
+일반 운용 진입점은 `bringup.launch.py`이며 기본 `dori_mode:=robot`, `visitor_mode:=true`를 그대로 사용한다. 지도 로딩은 방문자 모드와 독립적이다. 방문자 음성은 기본 Azure gateway에서 처리하므로 로봇의 로컬 마이크 STT와 Whisper 모델은 필요하지 않다. `robot.launch.py`는 이 진입점이 선택하는 로봇 구성 파일이다.
+
+`robot` 프로필은 전방 카메라와 사람 인식을 필수로 시작한다. 모델과 카메라는 `person_model:=/절대경로/person.pt front_serial:=장치번호`로 지정한다. 제스처·표정·랜드마크는 두 프로필 모두 기본 비활성이며 각각 `enable_gesture`, `enable_expression`, `enable_landmark`로 선택한다. 사람 추적을 상호작용 조건으로 요구할 때는 `require_user_tracking:=true`를 지정한다.
+
+지도·목적지·장치·센서 장착값은 `ros2_ws/src/dori_bringup/config/robot.example.yaml`을 `.state/robot.yaml`로 복사해 편집하고 `config_file:="$DORI_ROOT/.state/robot.yaml"`로 지정할 수 있다. 명령행 지정값이 파일보다 우선하며, 파일은 `common`과 `robot`/`desktop` 구역으로 구성한다. 파일 내 상대 경로는 YAML 위치를 기준으로 해석하고 `${DORI_ROOT}`는 저장소 경로로 치환한다. 기존 `hardware.launch.py`와 `real`/`hardware` 모드는 `robot.launch.py`와 `robot`으로 변경되었으며 `sim`은 지원하지 않는다.
+
+기동 준비는 대시보드 내비게이션 패널과 `/dori/bringup/status`에 센서·제어기·인식·HRI·앱·내비게이션별로 표시한다. 기본 `startup_timeout:=120.0`초 내 필수 데이터와 서비스가 준비되지 않으면 미준비 항목을 표시하고 전체 세션을 종료한다. 초기 위치 입력 대기는 시간 제한이 없으며, 위치 추정이 확인된 뒤 내비게이션 활성화 제한 시간을 별도로 적용한다. 준비 확인은 실제 데이터 수신과 상태 조회만 수행하며 주행 명령을 발행하지 않는다.
 
 대시보드는 3000, 지도 제어는 8080, 사용자 웹은 7070, 사용자 세션 gateway는 3100을 사용한다. 내부 세션 API(3001)와 rosbridge(9090)는 loopback 전용이다. 브라우저는 인증된 대시보드의 `/ws/admin`과 `/navigation/` 프록시로 접근한다. 기동 전 공유 내부 토큰과 인증 설정은 [대시보드 인증 절차](../../web/README.md#access-and-authentication)를 따른다.
 

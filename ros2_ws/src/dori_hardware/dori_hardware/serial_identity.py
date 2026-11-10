@@ -143,7 +143,7 @@ def resolve_dxl_port(port, *, excluded_ports=(), baudrate=57600,
     raise RuntimeError(
         f"No DORI Dynamixel bus found at {baudrate} baud (expected ID 1/model 1140, ID 3/model 1040). "
         "Check adapter connection, servo power and baudrate; set dxl_port/dxl_baudrate "
-        "(real_dxl_port/real_dxl_baudrate in bringup) for a manual selection. "
+        "for a manual selection. "
         "No specific USB chip manufacturer is required. "
         + ("Probe results: " + "; ".join(failures) if failures else "No unassigned USB serial ports.")
         + (" Excluded sensor/CAN ports: " + ", ".join(skipped) if skipped else "")

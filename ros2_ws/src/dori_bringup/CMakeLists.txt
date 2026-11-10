@@ -7,6 +7,9 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
+ament_python_install_package(${PROJECT_NAME})
+install(PROGRAMS scripts/readiness_monitor DESTINATION lib/${PROJECT_NAME})
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
@@ -14,6 +17,7 @@ find_package(ament_cmake REQUIRED)
 # Install launch files
 # Remove the retired entrypoint from existing overlays on incremental builds.
 install(CODE "file(REMOVE \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}/launch/bringup_dev.launch.py\")")
+install(CODE "file(REMOVE \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}/launch/hardware.launch.py\")")
 install(DIRECTORY
   launch
   DESTINATION share/${PROJECT_NAME}/

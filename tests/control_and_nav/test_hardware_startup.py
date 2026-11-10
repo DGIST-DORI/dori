@@ -113,11 +113,12 @@ def test_rejects_regular_file_and_permission_denied(devices, monkeypatch):
 
 
 def test_hardware_checks_run_before_constructing_includes(monkeypatch):
-    path = ROOT / "ros2_ws/src/dori_bringup/launch/hardware.launch.py"
+    path = ROOT / "ros2_ws/src/dori_bringup/launch/robot.launch.py"
     spec = importlib.util.spec_from_file_location("hardware_checks_under_test", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     context = LaunchContext()
+    context.launch_configurations["visitor_mode"] = "false"
     context.launch_configurations["map"] = str(ROOT / "maps/live_navigation_20261023_1938.yaml")
     for action in module.generate_launch_description().entities:
         if isinstance(action, DeclareLaunchArgument):

@@ -1,0 +1,35 @@
+# Copy to .state/robot.yaml and select with config_file:=... .
+# Relative file paths resolve beside this YAML; ${DORI_ROOT} is the checkout.
+# CLI values override the selected profile, then common settings, then defaults.
+common:
+  visitor_mode: true
+  visitor_stt: azure
+  use_external_llm: true
+  llm_model: gemini-3.5-flash-lite
+  enable_gesture: false
+  enable_expression: false
+  enable_landmark: false
+  person_model: yolov8n.pt
+  # Use a local trained model or a pre-downloaded YOLO model for deployment.
+  # person_model: ${DORI_ROOT}/.state/vision/person.pt
+
+robot:
+  map: ${DORI_ROOT}/maps/live_navigation_20261023_1938.yaml
+  named_goals_file: ${DORI_ROOT}/maps/web_goals.json
+  can_interface: can1
+  can_wait_timeout: 10.0
+  dxl_port: auto
+  dxl_baudrate: 57600
+  imu_port: /dev/serial/by-id/usb-Arduino_Nano_33_BLE_B9CD51D670B512DB-if00
+  lidar_port: /dev/serial/by-id/usb-Silicon_Labs_CP2102N_USB_to_UART_Bridge_Controller_82c0f09f3531f111bc58935f30d20014-if00-port0
+  front_serial: ""
+  laser_x: 0.0
+  laser_y: 0.0
+  laser_z: 0.0
+  laser_roll: 0.0
+  laser_pitch: 0.0
+  laser_yaw: 3.141592653589793
+  startup_timeout: 120.0
+
+desktop:
+  enable_perception: false

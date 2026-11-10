@@ -1,4 +1,4 @@
-"""Start the default visitor voice core in isolation and check the pairing barrier."""
+"""Start the desktop visitor voice core in isolation and check the pairing barrier."""
 import os
 from pathlib import Path
 import signal
@@ -9,7 +9,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_default_bringup_passes_real_pairing_readiness(tmp_path):
+def test_desktop_bringup_passes_pairing_readiness(tmp_path):
     env = dict(os.environ, ROS_DOMAIN_ID="197", ROS_LOCALHOST_ONLY="1",
                ROS_LOG_DIR=str(tmp_path / "ros-logs"))
     for name in ("DORI_VISITOR_STT", "FASTRTPS_DEFAULT_PROFILES_FILE",
@@ -20,7 +20,8 @@ def test_default_bringup_passes_real_pairing_readiness(tmp_path):
     # runs voice/BT services, on a domain separate from the physical robot.
     with log_path.open("w") as log:
         process = subprocess.Popen(
-            ["ros2", "launch", "dori_bringup", "bringup.launch.py", "enable_dashboard:=false"],
+            ["ros2", "launch", "dori_bringup", "bringup.launch.py",
+             "dori_mode:=desktop", "enable_dashboard:=false"],
             cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT,
         )
         try:
@@ -52,8 +53,8 @@ async def main():
             await asyncio.sleep(.1)
         assert node.voice.provider == 'azure'
         assert not node.cli_stt_reset.service_is_ready(), 'Local microphone STT unexpectedly started'
-        assert await node.prepare_visitor(), 'Default bringup would reject app pairing with 503'
-        print('Default visitor mode, LLM, TTS and cleanup barriers are ready')
+        assert await node.prepare_visitor(), 'Desktop bringup would reject app pairing with 503'
+        print('Desktop visitor mode, LLM, TTS and cleanup barriers are ready')
     finally:
         rclpy.shutdown()
         worker.join(timeout=3)

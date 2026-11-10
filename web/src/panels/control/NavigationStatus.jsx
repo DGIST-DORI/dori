@@ -8,6 +8,12 @@ const velocity = (value, normalized = false) => value
 export default function NavigationStatus({ state }) {
   const v = state?.values || {}, joints = state?.joints || {}, wheelControl = state?.wheel_control || {};
   const quality = parse(v.odometry), motion = parse(v.motion), hri = parse(v.hri_state), retry = parse(v.retry);
+  const startup = parse(v.bringup);
+  const startupFresh = Number.isFinite(state?.bringup_age) && state.bringup_age < 5;
+  const startupLabels = { sensors: '센서·모터 피드백', odometry: '오도메트리', perception: '카메라·사람 인식',
+    controllers: '제어기', localization: '지도·위치 추정', navigation_services: '내비게이션 서비스',
+    hri: '음성·상호작용', apps: '앱·대시보드', navigation: '내비게이션' };
+  const startupStates = { ready: '준비 완료', starting: '준비 중', waiting_initial_pose: '초기 위치 입력 대기', failed: '준비 실패', not_ready: '준비 미충족' };
   const pair = field => ['left_wheel_joint', 'right_wheel_joint'].map(name => number(wheelControl[name]?.[field])).join(' / ');
   const wheels = ['left_wheel_joint', 'right_wheel_joint'].map(name =>
     state?.hardware?.fresh && joints[name]?.age < .5 ? number(joints[name].velocity) : '—').join(' / ');
@@ -25,6 +31,18 @@ export default function NavigationStatus({ state }) {
     ['짐벌 실제 각도', `${joints.motor_5_joint?.age < .5 ? number(joints.motor_5_joint.position * 180 / Math.PI, 1) : '—'}°`],
   ];
   return <>
+    {startup.components && <section className="nav-card" aria-label="로봇 기동 준비 상태">
+      <h3>기동 준비 <span>{startupFresh ? startupStates[startup.state] || startup.state : '상태 수신 끊김'}</span></h3>
+      <dl>{Object.entries(startup.components).map(([name, item]) => <div key={name}>
+        <dt>{startupLabels[name] || name}</dt>
+        <dd className={startupFresh && item.state === 'ready' ? 'nav-ok' : 'nav-warning'}>
+          {startupFresh ? startupStates[item.state] || item.state : '미수신'}
+        </dd>
+      </div>)}</dl>
+      {startupFresh && startup.components.navigation?.state === 'waiting_initial_pose' &&
+        <p>지도에서 로봇의 실제 초기 위치를 지정하면 내비게이션 준비가 진행됩니다.</p>}
+      {!!startup.errors?.length && <p className="nav-error">{startup.errors.join(' · ')}</p>}
+    </section>}
     <section className="nav-card">
       <h3>로봇 상태 <span>{['대기', '주행', '변형', '일시정지', '비상정지', '오류'][v.action] || '미수신'}</span></h3>
       <div className="nav-pose">{['X · m', 'Y · m', '방향 · °'].map((label, index) => <div key={label}>

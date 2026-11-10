@@ -1,0 +1,5 @@
+#!/usr/bin/python3
+from dori_bringup.readiness_monitor import main
+
+if __name__ == "__main__":
+    raise SystemExit(main())

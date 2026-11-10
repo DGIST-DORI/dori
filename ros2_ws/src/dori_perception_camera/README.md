@@ -1,5 +1,9 @@
 # dori_perception_camera
 
+The `robot` bringup profile requires this camera driver by default. Install the
+`librealsense2` dependency with rosdep before building. A missing SDK is a build
+error; the package no longer silently omits `depth_camera_node`.
+
 ## Depth camera topic policy
 
 `src/depth_camera_node.cpp` follows the same rule as Python implementation:

@@ -18,25 +18,32 @@ web build. For package migrations, follow the clean-overlay procedure in AMM 20-
 
 ## Launch
 
-The default bringup starts the visitor app, Azure voice gateway, LLM/TTS,
-interaction tree, dashboard and map backend in desktop mode. The map backend starts automatically with the dashboard
+The default bringup (`dori_mode:=robot`) starts hardware drivers, LiDAR, Nav2,
+the required front camera/person detector, visitor app, Azure voice gateway, LLM/TTS, interaction tree, dashboard and
+navigation viewer. It requires `map:=...` and the device preparation in AMM 40-10.
+For frontend/HRI development, use `dori_mode:=desktop` as shown below.
+In desktop mode, the map backend starts automatically with the dashboard
 and restarts after an unexpected exit. It listens only on `127.0.0.1:8080`; it
 does not open the standalone user port or start hardware/Nav2. Without a running
 robot/map source, the panel connects in monitor mode and waits for data.
-For hardware + Nav2 + map viewer + HRI, use `dori_bringup hardware.launch.py`
-with the device preparation and arguments in AMM 40-10.
+Use `bringup.launch.py` for normal operation; it selects the `robot.launch.py`
+profile by default. Map-based operation keeps `visitor_mode:=true`.
+`config_file` selects deployment YAML;
+explicit arguments override it. The navigation panel shows component startup
+readiness from `/dori/bringup/status`, including normal initial-pose waiting and
+missing/stale data. Robot startup stops the session on required readiness timeout.
 
 After configuring the Azure F0 settings and shared authentication below:
 
 ```bash
-# Visitor app + dashboard (default; no local microphone or hardware)
-ros2 launch dori_bringup bringup.launch.py
+# Visitor app + dashboard on a development PC
+ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop
 
 # Explicit local robot microphone HRI + dashboard (requires local voice assets)
-ros2 launch dori_bringup bringup.launch.py visitor_mode:=false
+ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop visitor_mode:=false
 
 # Local robot microphone HRI without dashboard
-ros2 launch dori_bringup bringup.launch.py visitor_mode:=false enable_dashboard:=false
+ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop visitor_mode:=false enable_dashboard:=false
 ```
 
 If you need to run the dashboard standalone (without the desktop HRI stack):
@@ -46,7 +53,7 @@ ros2 launch dori_dashboard dashboard.launch.py
 ```
 
 If a separately managed viewer already owns port 8080, launch the dashboard with
-`enable_navigation_viewer:=false`. The integrated `hardware.launch.py` sets this
+`enable_navigation_viewer:=false`. The integrated `robot.launch.py` sets this
 automatically because it supplies its own navigation-mode viewer. Stop a desktop
 dashboard session before switching to the full hardware launch.
 
@@ -401,10 +408,10 @@ scripts/build.sh
 source scripts/env.sh
 # Stop any existing desktop/dashboard session first, then:
 export DORI_INTERNAL_TOKEN="$(openssl rand -hex 32)"
-ros2 launch dori_bringup bringup.launch.py
+ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop
 ```
 
-`bringup.launch.py` defaults to `visitor_mode:=true`, `enable_dashboard:=true`
+`bringup.launch.py` defaults to `dori_mode:=robot`, `visitor_mode:=true`, `enable_dashboard:=true`
 and Azure STT. It sets `DORI_VISITOR_STT` for the gateway and automatically
 disables the local Whisper STT node. Azure recognition runs in the gateway;
 the launch checks the SDK and local F0 settings with the same Python environment
@@ -414,7 +421,7 @@ entrypoint for the app and dashboard.
 
 To explicitly use the previous local provider, first run
 `scripts/prepare_voice.sh --topic-only`, then
-`ros2 launch dori_bringup bringup.launch.py visitor_stt:=whisper`. This enables
+`ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop visitor_stt:=whisper`. This enables
 topic STT and selects `.state/voice/whisper-small` automatically. The
 `visitor_stt` argument overrides `DORI_VISITOR_STT`; Azure is the default when
 neither is set. There is no automatic cloud
@@ -424,9 +431,10 @@ The normal dashboard authentication variables, a random `DORI_INTERNAL_TOKEN`
 remain required; Azure visitor mode does not require a Whisper model. Azure keys
 stay in `.state/voice/azure.env`, or the file named by `DORI_AZURE_ENV_FILE` (see
 the F0 configuration below). The file is read as data and never sourced as shell.
-To use the legacy local STT with the real hardware profile,
-pass `visitor_mode:=true stt_audio_input_mode:=topic` to `hardware.launch.py`
-alongside its required map and hardware settings. Do not start duplicate HRI
+To use local Whisper for visitor input with the robot profile,
+pass `visitor_stt:=whisper` to `bringup.launch.py`
+alongside its required map and hardware settings. Visitor mode remains enabled.
+Do not start duplicate HRI
 nodes. Pairing returns 503 unless `bt/visitor_ready` confirms the voice-only
 profile and BT, LLM and TTS cleanup succeeds. Local STT mode also requires its
 STT reset; Azure mode drains its own per-turn stream instead. Starting the dashboard alone does

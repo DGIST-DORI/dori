@@ -78,7 +78,9 @@ ros2_ws/src/
 ├── dori_navigation/        # Navigation execution node
 ├── dori_dashboard/         # ROS ↔ web dashboard bridge
 └── dori_bringup/           # Launch files
-    ├── bringup.launch.py           # Visitor app + dashboard by default; explicit hardware mode
+    ├── bringup.launch.py           # Select robot (default) or desktop profile; optional deployment YAML
+    ├── robot.launch.py           # Drivers + navigation + required perception + shared services
+    ├── desktop.launch.py         # Shared services for development
     ├── perception.launch.py      # Perception only
     ├── interaction.launch.py     # HRI manager/state machine only
     └── voice.launch.py # Voice pipeline only
@@ -147,8 +149,8 @@ ros2_ws/src/
 | `nav/cancel` | `std_msgs/msg/Bool` | external/nav client node | navigator_node | Cancel signal for current navigation task. |
 | `system/metrics` | `std_msgs/msg/String` | system_monitor_node | - | Periodic system metrics JSON (CPU/RAM/Disk/GPU). |
 | `/map` | `nav_msgs/msg/OccupancyGrid` | SLAM / map server | navigator_node | Occupancy map used for global path planning. |
-| `dori/stt/audio_input` | `std_msgs/msg/String` | dashboard_frontend | - | Dashboard/client microphone STT input (robot+sim profile canonical). |
-| `dori/perception/vision/image/compressed` | `sensor_msgs/msg/CompressedImage` | dashboard_frontend | - | Dashboard/client camera compressed image input (robot+sim profile canonical). |
+| `dori/stt/audio_input` | `std_msgs/msg/String` | dashboard_frontend | - | Dashboard/client microphone STT input (robot/desktop profiles). |
+| `dori/perception/vision/image/compressed` | `sensor_msgs/msg/CompressedImage` | dashboard_frontend | - | Dashboard/client camera compressed image input (robot/desktop profiles). |
 | `dori/audio/output` | `audio_common_msgs/msg/AudioData` | dashboard_frontend | - | ROS audio output stream for dashboard ros_audio playback mode. |
 <!-- TOPIC:END -->
 

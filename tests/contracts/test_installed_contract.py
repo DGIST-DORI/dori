@@ -316,24 +316,65 @@ def test_installed_launch_paths(no_process_launch, package, filename, options):
     assert nodes
 
 
-def test_default_bringup_is_visitor_ready_without_robot_microphone(no_process_launch):
-    nodes = inspect_launch("dori_bringup", "bringup.launch.py", {})
+@pytest.mark.parametrize("hardware", [True, False])
+def test_bringup_is_visitor_ready_with_robot_by_default(no_process_launch, hardware):
+    options = {"map": str(ROOT / "maps/live_navigation_20261023_1938.yaml")} if hardware else {"dori_mode": "desktop"}
+    nodes = inspect_launch("dori_bringup", "bringup.launch.py", options)
     executables = {exe for _, exe, _ in nodes}
     assert {"llm_node", "tts_node", "dori_tree_executor", "rosbridge_websocket"} <= executables
-    assert not {"stt_node", "ros2_control_node", "nav2_adapter"} & executables
+    assert "stt_node" not in executables
+    if hardware:
+        assert {"ros2_control_node", "nav2_adapter", "named_goal_adapter", "sllidar_node", "dxl_driver_node", "depth_camera_node", "person_detection_node", "readiness_monitor"} <= executables
+    else:
+        assert not {"ros2_control_node", "nav2_adapter", "sllidar_node", "dxl_driver_node"} & executables
     bt_params = next(params for _, exe, params in nodes if exe == "dori_tree_executor")
     assert any(params.get("visitor_mode") is True for params in bt_params)
     retired = Path(get_package_share_directory("dori_bringup")) / "launch/bringup_dev.launch.py"
     assert not retired.exists() and not retired.is_symlink()
+    retired = retired.with_name("hardware.launch.py")
+    assert not retired.exists() and not retired.is_symlink()
+
+
+def test_profile_yaml_and_cli_reach_installed_nodes(no_process_launch, tmp_path):
+    config = tmp_path / "robot.yaml"
+    config.write_text(f"""common:
+  llm_model: from-yaml
+robot:
+  map: {ROOT / 'maps/live_navigation_20261023_1938.yaml'}
+  front_serial: 'camera-123'
+  dxl_baudrate: 115200
+""")
+    nodes = inspect_launch("dori_bringup", "bringup.launch.py", {
+        "config_file": str(config), "llm_model": "from-cli",
+    })
+    for executable, key, expected in (
+        ("llm_node", "model_name", "from-cli"),
+        ("depth_camera_node", "serial_number", "camera-123"),
+        ("dxl_driver_node", "baudrate", 115200),
+    ):
+        parameters = next(params for _, exe, params in nodes if exe == executable)
+        assert any(isinstance(p, dict) and p.get(key) == expected for p in parameters)
+
+
+def test_profiles_share_voice_hri_and_perception_parameters(no_process_launch):
+    common = {"map": str(ROOT / "maps/live_navigation_20261023_1938.yaml"),
+              "enable_perception": "true", "require_user_tracking": "true"}
+    selected = {"llm_node", "tts_node", "dori_tree_executor", "person_detection_node", "depth_camera_node"}
+    def parameters(mode):
+        nodes = inspect_launch("dori_bringup", "bringup.launch.py", {**common, "dori_mode": mode})
+        assert not {"gesture_recognition_node", "facial_expression_node", "landmark_detection_node"} & {exe for _, exe, _ in nodes}
+        return {exe: params for _, exe, params in nodes if exe in selected}
+    assert parameters("robot") == parameters("desktop")
 
 
 def test_full_robot_resolves_and_excludes_inherited_virtual_inputs(no_process_launch):
     nodes = inspect_launch(
         "dori_bringup",
-        "hardware.launch.py",
+        "robot.launch.py",
         {
             "map": str(ROOT / "maps/live_navigation_20261023_1938.yaml"),
             "use_input_nodes": "true",
+            "visitor_mode": "false",
         },
     )
     executables = [exe for _, exe, _ in nodes]
@@ -362,13 +403,13 @@ def test_full_robot_resolves_and_excludes_inherited_virtual_inputs(no_process_la
 
 def test_physical_device_parameters_reach_every_driver(no_process_launch):
     nodes = inspect_launch("dori_bringup", "bringup.launch.py", {
-        "dori_mode": "real",
-        "real_map": str(ROOT / "maps/live_navigation_20261023_1938.yaml"),
-        "real_can_interface": "can7",
-        "real_dxl_port": "/dev/serial/by-id/test-dxl",
-        "real_dxl_baudrate": "115200",
-        "real_imu_port": "/dev/serial/by-id/test-imu",
-        "real_lidar_port": "/dev/test-lidar",
+        "dori_mode": "robot",
+        "map": str(ROOT / "maps/live_navigation_20261023_1938.yaml"),
+        "can_interface": "can7",
+        "dxl_port": "/dev/serial/by-id/test-dxl",
+        "dxl_baudrate": "115200",
+        "imu_port": "/dev/serial/by-id/test-imu",
+        "lidar_port": "/dev/test-lidar",
     })
     def parameters(executable):
         return next(params for _, exe, params in nodes if exe == executable)
@@ -397,8 +438,7 @@ def test_discovered_port_reaches_driver_without_a_second_probe(no_process_launch
     monkeypatch.setattr("dori_hardware.startup_checks.validate_devices", validate)
     monkeypatch.setattr("dori_hardware.serial_identity.resolve_dxl_port", resolved_only)
     nodes = inspect_launch("dori_bringup", "bringup.launch.py", {
-        "dori_mode": "real",
-        "real_map": str(ROOT / "maps/live_navigation_20261023_1938.yaml"),
+        "map": str(ROOT / "maps/live_navigation_20261023_1938.yaml"),
     })
     params = next(params for _, exe, params in nodes if exe == "dxl_driver_node")
     assert any(isinstance(p, dict) and p.get("device_name") ==
@@ -408,8 +448,7 @@ def test_discovered_port_reaches_driver_without_a_second_probe(no_process_launch
 def test_real_nav2_does_not_inherit_lidar_odometry_parameters(no_process_launch):
     import yaml
     nodes = inspect_launch("dori_bringup", "bringup.launch.py", {
-        "dori_mode": "real",
-        "real_map": str(ROOT / "maps/live_navigation_20261023_1938.yaml"),
+        "map": str(ROOT / "maps/live_navigation_20261023_1938.yaml"),
     })
     for _, executable, parameters in nodes:
         if executable == "lifecycle_manager":
