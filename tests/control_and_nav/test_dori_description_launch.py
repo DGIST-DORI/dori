@@ -12,7 +12,7 @@ from launch_ros.utilities import evaluate_parameters, normalize_parameters
 class RobotDescriptionLaunchTest(unittest.TestCase):
     def test_installed_descriptions_are_explicit_strings(self):
         root=Path(get_package_share_directory('dori_hardware'))/'launch'
-        for name in ['system_real.launch.py']:
+        for name in ['actuation.launch.py']:
             with self.subTest(launch=name):
                 tree=ast.parse((root/name).read_text())
                 fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='generate_launch_description')

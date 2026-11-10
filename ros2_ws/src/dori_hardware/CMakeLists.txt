@@ -53,8 +53,13 @@ install(DIRECTORY include/
   DESTINATION include/
 )
 
+# Remove renamed launch files from existing overlays, including dangling symlinks.
+foreach(retired_launch real_hardware system_real system_real_with_imu)
+  install(CODE "file(REMOVE \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}/launch/${retired_launch}.launch.py\")")
+endforeach()
 install(DIRECTORY launch config
   DESTINATION share/${PROJECT_NAME}
+  PATTERN "__pycache__" EXCLUDE
 )
 
 # Installable host service assets. Building ROS never changes /etc or starts CAN.

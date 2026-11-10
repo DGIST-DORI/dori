@@ -14,20 +14,20 @@ ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop
 ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop visitor_mode:=false whisper_model:=base
 
 # Change TTS language
-ros2 launch dori_bringup voice.launch.py tts_language:=ko
+ros2 launch dori_hri voice.launch.py tts_language:=ko
 ```
 
 ### Sub-system Launch (Development)
 
 ```bash
 # Perception only (cameras + detection nodes)
-ros2 launch dori_bringup perception.launch.py visualize:=true
+ros2 launch dori_perception perception.launch.py visualize:=true
 
 # Interaction state machine only
-ros2 launch dori_bringup interaction.launch.py
+ros2 launch dori_bt interaction.launch.py
 
 # Voice pipeline only (no cameras needed)
-ros2 launch dori_bringup voice.launch.py
+ros2 launch dori_hri voice.launch.py
 ```
 
 ### Testing Without Hardware

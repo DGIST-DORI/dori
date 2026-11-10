@@ -58,7 +58,7 @@ def setup(context):
         RegisterEventHandler(OnProcessExit(on_exit=failed)),
         include(
             "dori_hardware",
-            "real_hardware.launch.py",
+            "hardware.launch.py",
             {k: value(k) for k in ("use_joystick", "can_interface", "can_wait_timeout", "dxl_port", "dxl_baudrate", "imu_port")},
         ),
         include(
@@ -81,7 +81,7 @@ def setup(context):
         ),
         include(
             "dori_navigation",
-            "real_nav2.launch.py",
+            "nav2.launch.py",
             {
                 "map": value("map"),
                 "named_goals_file": value("named_goals_file"),

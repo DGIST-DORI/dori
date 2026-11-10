@@ -15,12 +15,14 @@ install(PROGRAMS scripts/readiness_monitor DESTINATION lib/${PROJECT_NAME})
 # find_package(<dependency> REQUIRED)
 
 # Install launch files
-# Remove the retired entrypoint from existing overlays on incremental builds.
-install(CODE "file(REMOVE \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}/launch/bringup_dev.launch.py\")")
-install(CODE "file(REMOVE \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}/launch/hardware.launch.py\")")
+# Remove retired/moved entrypoints from existing overlays on incremental builds.
+foreach(retired_launch bringup_dev hardware voice interaction perception)
+  install(CODE "file(REMOVE \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}/launch/${retired_launch}.launch.py\")")
+endforeach()
 install(DIRECTORY
   launch
   DESTINATION share/${PROJECT_NAME}/
+  PATTERN "__pycache__" EXCLUDE
 )
 
 # Install config files

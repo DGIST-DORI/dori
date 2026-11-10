@@ -84,17 +84,17 @@ def services(context, *, robot=False):
     actions = []
     if value("enable_hri") == "true":
         actions += [
-            include("dori_bringup", "voice.launch.py", params((
+            include("dori_hri", "voice.launch.py", params((
                 "namespace", "enable_stt", "stt_audio_input_mode", "whisper_model", "whisper_device",
                 "tts_playback_mode", "tts_engine", "tts_language", "use_external_llm", "llm_model",
                 "knowledge_file", "rag_index_dir", "rag_top_k",
             ))),
-            include("dori_bringup", "interaction.launch.py", params((
+            include("dori_bt", "interaction.launch.py", params((
                 "namespace", "visitor_mode", "require_user_tracking", "require_mic_return", "tree_xml_file",
             ))),
         ]
     if value("enable_perception") == "true":
-        actions.append(include("dori_bringup", "perception.launch.py", {
+        actions.append(include("dori_perception", "perception.launch.py", {
             "device": value("perception_device"),
             **params(("namespace", "enable_gesture", "enable_expression", "enable_landmark",
                       "front_serial", "rear_serial", "enable_rear_camera", "use_cpp_depth_camera",

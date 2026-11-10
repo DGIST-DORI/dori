@@ -209,7 +209,7 @@ If using external LLM features, install the LLM requirements:
 After building and sourcing the workspace, enable the external LLM explicitly:
 
 ```bash
-ros2 launch dori_bringup voice.launch.py \
+ros2 launch dori_hri voice.launch.py \
   use_external_llm:=true llm_model:=gemini-3.5-flash-lite
 ```
 
@@ -311,9 +311,17 @@ ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop
 The former `real`/`hardware` modes are now `dori_mode:=robot`; `sim` was removed.
 Use `bringup.launch.py` as the standard user entrypoint. It selects
 `robot.launch.py` by default, or `desktop.launch.py` with `dori_mode:=desktop`.
-These two files implement the profiles; `robot.launch.py` replaces the former
-`hardware.launch.py`, not `bringup.launch.py`. Replace former `real_`-prefixed
+These two files implement the profiles; `dori_bringup/launch/robot.launch.py` replaces
+the former `dori_bringup/launch/hardware.launch.py`. Replace former `real_`-prefixed
 arguments with `map`, `named_goals_file`, `use_joystick`, and the plain device names.
+
+Subsystem launch files live in their owning packages: `dori_hardware` for
+actuation/IMU, `dori_navigation` for navigation, `dori_hri` for voice, `dori_bt`
+for interaction, and `dori_perception` for cameras/vision. The current
+`dori_hardware hardware.launch.py` starts only the actuator/IMU subsystem.
+See [launch ownership and renamed commands](docs/dev/package-ownership.md#launch-ownership)
+for the complete inventory and migration table. Normal map-loading examples use
+the default `visitor_mode:=true`.
 
 The supported modes are `robot` and `desktop`. Both use the same visitor,
 voice, LLM, interaction and optional perception settings. Robot mode starts the

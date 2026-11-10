@@ -135,7 +135,7 @@ and the ROS hardware driver's temperature state.
 Motor 4 uses CAN ID 4 in **Servo mode**. On 2026-11-04 the passive inspection
 received 250 extended `0x2904` frames in five seconds, with position 0.0 degrees
 and error 0. The replacement is excluded from Dynamixel commands and polling.
-`system_real.launch.py` starts `motor4_servo_node` with
+`actuation.launch.py` starts `motor4_servo_node` with
 [`motor4_servo.yaml`](../../ros2_ws/src/dori_hardware/config/motor4_servo.yaml).
 It publishes `/motor4/joint_states` and accepts output-shaft degrees on
 `/motor4/position_cmd`; `/motor4/stop` requests zero speed.

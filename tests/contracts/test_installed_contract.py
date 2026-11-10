@@ -101,6 +101,8 @@ def test_source_install_and_dependency_graph():
         dependencies = {c.text for c in manifest if c.tag.endswith("depend")}
         assert not dependencies & (REMOVED | {name}), (name, dependencies)
         graph[name] = dependencies & EXPECTED
+        if name != "dori_bringup":
+            assert "dori_bringup" not in dependencies, name
     assert set(TopologicalSorter(graph).static_order()) == EXPECTED
     installed = get_packages_with_prefixes()
     assert (
@@ -299,11 +301,17 @@ def no_process_launch(monkeypatch, tmp_path):
 @pytest.mark.parametrize(
     "package,filename,options",
     [
-        ("dori_hardware", "system_real_with_imu.launch.py", {"use_joystick": "true"}),
+        ("dori_hardware", "actuation.launch.py", {}),
+        ("dori_hardware", "body_control.launch.py", {"use_joystick": "true"}),
+        ("dori_hardware", "hardware.launch.py", {}),
         ("dori_control", "odometry.launch.py", {}),
         ("dori_mapping", "lidar_odometry.launch.py", {}),
         ("dori_mapping", "lidar_only_cartographer.launch.py", {}),
-        ("dori_navigation", "real_nav2.launch.py", {}),
+        ("dori_navigation", "nav2.launch.py", {}),
+        ("dori_navigation", "navigation_adapters.launch.py", {}),
+        ("dori_hri", "voice.launch.py", {}),
+        ("dori_bt", "interaction.launch.py", {}),
+        ("dori_perception", "perception.launch.py", {}),
         ("dori_bringup", "bringup.launch.py", {}),
     ],
 )
@@ -314,6 +322,33 @@ def test_installed_launch_paths(no_process_launch, package, filename, options):
         {"map": str(ROOT / "maps/live_navigation_20261023_1938.yaml"), **options},
     )
     assert nodes
+
+
+@pytest.mark.parametrize("package,filenames", [
+    ("dori_bringup", {"bringup", "robot", "desktop"}),
+    ("dori_hardware", {"hardware", "body_control", "actuation"}),
+    ("dori_navigation", {"nav2", "navigation_adapters"}),
+    ("dori_hri", {"voice"}),
+    ("dori_bt", {"interaction"}),
+    ("dori_perception", {"perception"}),
+])
+def test_launch_ownership_and_no_stale_installed_entrypoints(package, filenames):
+    expected = {name + ".launch.py" for name in filenames}
+    for root in (ROOT / "ros2_ws/src" / package, Path(get_package_share_directory(package))):
+        paths = list((root / "launch").glob("*.launch.py"))
+        assert {path.name for path in paths} == expected, root
+        assert all(path.is_file() for path in paths), "Dangling installed launch symlink"
+    if package == "dori_navigation":
+        config = Path(get_package_share_directory(package)) / "config"
+        assert (config / "nav2_params.yaml").is_file()
+        retired = config / "nav2_real.yaml"
+        assert not retired.exists() and not retired.is_symlink()
+
+
+def test_standalone_interaction_defaults_to_visitor_mode(no_process_launch):
+    nodes = inspect_launch("dori_bt", "interaction.launch.py", {})
+    parameters = next(params for _, exe, params in nodes if exe == "dori_tree_executor")
+    assert any(isinstance(p, dict) and p.get("visitor_mode") is True for p in parameters)
 
 
 @pytest.mark.parametrize("hardware", [True, False])
@@ -445,7 +480,7 @@ def test_discovered_port_reaches_driver_without_a_second_probe(no_process_launch
                "/dev/serial/by-id/usb-CP2102N-servos" for p in params)
 
 
-def test_real_nav2_does_not_inherit_lidar_odometry_parameters(no_process_launch):
+def test_navigation_does_not_inherit_lidar_odometry_parameters(no_process_launch):
     import yaml
     nodes = inspect_launch("dori_bringup", "bringup.launch.py", {
         "map": str(ROOT / "maps/live_navigation_20261023_1938.yaml"),
@@ -460,7 +495,7 @@ def test_real_nav2_does_not_inherit_lidar_odometry_parameters(no_process_launch)
         if executable == "lidar_odometry_node.py":
             assert [p.name for p in paths] == ["lidar_odometry.yaml"]
         else:
-            assert [p.name for p in paths] == ["nav2_real.yaml"]
+            assert [p.name for p in paths] == ["nav2_params.yaml"]
             config = yaml.safe_load(paths[0].read_text())[executable]["ros__parameters"]
             if executable == "amcl":
                 assert config["base_frame_id"] == "base_link"

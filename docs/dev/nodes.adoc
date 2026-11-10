@@ -40,7 +40,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 *Package*:: `dori_perception` (Python), `dori_perception_camera` (C++)
 *Executable*:: `depth_camera_node`
 *Language*:: Python / C++
-*Launch*:: `dori_bringup/launch/perception.launch.py` (`depth_camera_front`, `depth_camera_rear`)
+*Launch*:: `dori_perception/launch/perception.launch.py` (`depth_camera_front`, `depth_camera_rear`)
 *Subscriptions*:: (none)
 *Publications*:: <<topics.adoc#topic-dori-camera-front-color-image-raw,/camera/front/color/image_raw>> (`sensor_msgs/msg/Image`), <<topics.adoc#topic-dori-camera-front-depth-image-raw,/camera/front/depth/image_raw>> (`sensor_msgs/msg/Image`), <<topics.adoc#topic-dori-camera-front-depth-image_colormap,/camera/front/depth/image_colormap>> (`sensor_msgs/msg/Image`, Python impl), <<topics.adoc#topic-dori-camera-front-color-camera_info,/camera/front/color/camera_info>> (`sensor_msgs/msg/CameraInfo`), <<topics.adoc#topic-dori-camera-front-depth-camera_info,/camera/front/depth/camera_info>> (`sensor_msgs/msg/CameraInfo`), <<topics.adoc#topic-dori-camera-front-depth-scale,/camera/front/depth/scale>> (`std_msgs/msg/Float32`)
 *Services (server)*:: -
@@ -60,7 +60,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 *Package*:: `dori_perception`
 *Executable*:: `person_detection_node`
 *Language*:: Python
-*Launch*:: `dori_bringup/launch/perception.launch.py`
+*Launch*:: `dori_perception/launch/perception.launch.py`
 *Subscriptions*:: <<topics.adoc#topic-dori-camera-front-color-image-raw,/camera/front/color/image_raw>> (`sensor_msgs/msg/Image`), <<topics.adoc#topic-dori-camera-front-depth-image-raw,/camera/front/depth/image_raw>> (`sensor_msgs/msg/Image`), <<topics.adoc#topic-dori-camera-front-depth-scale,/camera/front/depth/scale>> (`std_msgs/msg/Float32`)
 *Publications*:: <<topics.adoc#topic-dori-hri-persons,/hri/persons>> (`std_msgs/msg/String`), <<topics.adoc#topic-dori-hri-interaction_trigger,/hri/interaction_trigger>> (`std_msgs/msg/Bool`), <<topics.adoc#topic-dori-hri-tracking_state,/hri/tracking_state>> (`std_msgs/msg/String`), <<topics.adoc#topic-dori-follow-target_offset,/follow/target_offset>> (`geometry_msgs/msg/Point`), <<topics.adoc#topic-dori-hri-annotated_image,/hri/annotated_image>> (`sensor_msgs/msg/Image`)
 *Services (server)*:: <<services.adoc#service-dori-hri-set_follow_mode,/hri/set_follow_mode>> (`std_srvs/srv/SetBool`)
@@ -80,7 +80,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 *Package*:: `dori_perception`
 *Executable*:: `landmark_detection_node`
 *Language*:: Python
-*Launch*:: `dori_bringup/launch/perception.launch.py`
+*Launch*:: `dori_perception/launch/perception.launch.py`
 *Subscriptions*:: <<topics.adoc#topic-dori-camera-front-color-image-raw,/camera/front/color/image_raw>> (`sensor_msgs/msg/Image`), <<topics.adoc#topic-dori-camera-front-depth-image-raw,/camera/front/depth/image_raw>> (`sensor_msgs/msg/Image`), <<topics.adoc#topic-dori-camera-front-color-camera_info,/camera/front/color/camera_info>> (`sensor_msgs/msg/CameraInfo`)
 *Publications*:: <<topics.adoc#topic-dori-landmark-detections,/landmark/detections>> (`std_msgs/msg/String`), <<topics.adoc#topic-dori-landmark-localization,/landmark/localization>> (`std_msgs/msg/String`), <<topics.adoc#topic-dori-landmark-context,/landmark/context>> (`std_msgs/msg/String`), <<topics.adoc#topic-dori-hri-annotated_landmark,/hri/annotated_landmark>> (`sensor_msgs/msg/Image`)
 *Services (server)*:: -
@@ -100,7 +100,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 *Package*:: `dori_perception`
 *Executable*:: `gesture_recognition_node`
 *Language*:: Python
-*Launch*:: `dori_bringup/launch/perception.launch.py`
+*Launch*:: `dori_perception/launch/perception.launch.py`
 *Subscriptions*:: <<topics.adoc#topic-dori-camera-front-color-image-raw,/camera/front/color/image_raw>> (`sensor_msgs/msg/Image`), <<topics.adoc#topic-dori-hri-interaction_trigger,/hri/interaction_trigger>> (`std_msgs/msg/Bool`)
 *Publications*:: <<topics.adoc#topic-dori-hri-gesture,/hri/gesture>> (`std_msgs/msg/String`), <<topics.adoc#topic-dori-hri-gesture_command,/hri/gesture_command>> (`std_msgs/msg/String`), <<topics.adoc#topic-dori-stt-wake_word_detected,/stt/wake_word_detected>> (`std_msgs/msg/Bool`), <<topics.adoc#topic-dori-hri-annotated_gesture,/hri/annotated_gesture>> (`sensor_msgs/msg/Image`)
 *Services (server)*:: -
@@ -120,7 +120,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 *Package*:: `dori_perception`
 *Executable*:: `facial_expression_node`
 *Language*:: Python
-*Launch*:: `dori_bringup/launch/perception.launch.py`
+*Launch*:: `dori_perception/launch/perception.launch.py`
 *Subscriptions*:: <<topics.adoc#topic-dori-camera-front-color-image-raw,/camera/front/color/image_raw>> (`sensor_msgs/msg/Image`), <<topics.adoc#topic-dori-hri-interaction_trigger,/hri/interaction_trigger>> (`std_msgs/msg/Bool`)
 *Publications*:: <<topics.adoc#topic-dori-hri-expression,/hri/expression>> (`std_msgs/msg/String`), <<topics.adoc#topic-dori-hri-expression_command,/hri/expression_command>> (`std_msgs/msg/String`), <<topics.adoc#topic-dori-hri-annotated_expression,/hri/annotated_expression>> (`sensor_msgs/msg/Image`)
 *Services (server)*:: -
@@ -142,7 +142,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 *Package*:: `dori_bt`
 *Executable*:: `dori_tree_executor`
 *Language*:: C++
-*Launch*:: `dori_bringup/launch/interaction.launch.py`
+*Launch*:: `dori_bt/launch/interaction.launch.py`
 *Subscriptions*:: <<topics.adoc#topic-dori-stt-result,/stt/result>> (`std_msgs/msg/String`), <<topics.adoc#topic-dori-hri-tracking_state,/hri/tracking_state>> (`std_msgs/msg/String`), `/hri/audio_cue` (`std_msgs/msg/String`)
 *Publications*:: <<topics.adoc#topic-dori-hri-manager-state,/hri/manager_state>> (`std_msgs/msg/String`)
 *Services (server)*:: -
@@ -162,7 +162,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 *Package*:: `dori_hri`
 *Executable*:: `stt_node`
 *Language*:: Python
-*Launch*:: `dori_bringup/launch/voice.launch.py`
+*Launch*:: `dori_hri/launch/voice.launch.py`
 *Subscriptions*:: <<topics.adoc#topic-dori-tts-speaking,/tts/speaking>> (`std_msgs/msg/Bool`)
 *Publications*:: <<topics.adoc#topic-dori-stt-wake_word_detected,/stt/wake_word_detected>> (`std_msgs/msg/Bool`), <<topics.adoc#topic-dori-stt-result,/stt/result>> (`std_msgs/msg/String`)
 *Services (server)*:: -
@@ -182,7 +182,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 *Package*:: `dori_llm`
 *Executable*:: `llm_node`
 *Language*:: Python
-*Launch*:: `dori_bringup/launch/voice.launch.py`
+*Launch*:: `dori_hri/launch/voice.launch.py`
 *Subscriptions*:: -
 *Publications*:: -
 *Services (server)*:: -
@@ -202,7 +202,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 *Package*:: `dori_hri`
 *Executable*:: `tts_node`
 *Language*:: Python
-*Launch*:: `dori_bringup/launch/voice.launch.py`
+*Launch*:: `dori_hri/launch/voice.launch.py`
 *Subscriptions*:: <<topics.adoc#topic-dori-tts-text,/tts/text>> (`std_msgs/msg/String`), `/hri/audio_cue` (`std_msgs/msg/String`)
 *Publications*:: <<topics.adoc#topic-dori-tts-speaking,/tts/speaking>> (`std_msgs/msg/Bool`), <<topics.adoc#topic-dori-tts-done,/tts/done>> (`std_msgs/msg/Bool`), `/tts/audio_event` (`std_msgs/msg/String`)
 *Services (server)*:: -
@@ -224,7 +224,8 @@ This document is the SSOT for ROS2 node details in the current workspace.
 *Package*:: `dori_navigation`
 *Executable*:: `navigator_node`
 *Language*:: Python
-*Launch*:: `dori_navigation/launch/navigation.launch.py`
+*Status*:: Removed legacy node; the interfaces below describe the old implementation.
+*Launch*:: The old `navigation.launch.py` was removed. The current stack is `dori_navigation/launch/nav2.launch.py`, which includes `navigation_adapters.launch.py` (`nav2_adapter` and `named_goal_adapter`).
 *Subscriptions*:: `/dori/odom` (`nav_msgs/msg/Odometry`), `/dori/scan` (`sensor_msgs/msg/LaserScan`), `/map` (`nav_msgs/msg/OccupancyGrid`)
 *Publications*:: `/dori/cmd_vel` (`geometry_msgs/msg/Twist`), <<topics.adoc#topic-dori-nav-global_path,/nav/global_path>> (`nav_msgs/msg/Path`), <<topics.adoc#topic-dori-nav-local_path,/nav/local_path>> (`nav_msgs/msg/Path`)
 *Services (server)*:: -

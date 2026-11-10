@@ -44,7 +44,7 @@ def test_nav2_waits_for_localization_then_activates_without_motor_processes(tmp_
     log = tmp_path / 'navigation.log'
     # This entrypoint launches only navigation; no CAN/serial driver or actuator
     # exists in this ROS domain. No goal or velocity command is sent by the test.
-    command = ['ros2', 'launch', 'dori_navigation', 'real_nav2.launch.py',
+    command = ['ros2', 'launch', 'dori_navigation', 'nav2.launch.py',
                'map:=' + str(root / 'maps/live_navigation_20261023_1938.yaml'),
                'sigterm_timeout:=15']
     with log.open('w') as output:

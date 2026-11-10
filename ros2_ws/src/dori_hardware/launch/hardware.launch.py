@@ -1,4 +1,8 @@
-"""Start DORI's physical actuators, sensors and safety supervisor."""
+"""Validate and start the actuator/IMU subsystem for the robot profile.
+
+LiDAR, cameras and navigation are composed separately by dori_bringup. This
+entrypoint excludes test inputs and wheel odometry to keep one command/TF owner.
+"""
 
 import os
 
@@ -35,7 +39,7 @@ def generate_launch_description():
                     os.path.join(
                         get_package_share_directory("dori_hardware"),
                         "launch",
-                        "system_real_with_imu.launch.py",
+                        "body_control.launch.py",
                     )
                 ),
                 launch_arguments={

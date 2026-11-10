@@ -1,4 +1,4 @@
-"""Real ROS 2 Humble Nav2 with explicit velocity routing and named-goal control."""
+"""Nav2 localization/navigation, DORI action adapters and the drive bridge."""
 
 from pathlib import Path
 import sys
@@ -159,7 +159,7 @@ def setup(context):
             PythonLaunchDescriptionSource(
                 str(
                     Path(get_package_share_directory("dori_navigation"))
-                    / "launch/real_navigation.launch.py"
+                    / "launch/navigation_adapters.launch.py"
                 )
             ),
             launch_arguments={"named_goals_file": value("named_goals_file")}.items(),
@@ -183,7 +183,7 @@ def generate_launch_description():
         DeclareLaunchArgument("map"),
         DeclareLaunchArgument("named_goals_file", default_value=""),
         DeclareLaunchArgument(
-            "params_file", default_value=str(root / "config/nav2_real.yaml")
+            "params_file", default_value=str(root / "config/nav2_params.yaml")
         ),
         DeclareLaunchArgument("publish_laser_tf", default_value="false"),
         DeclareLaunchArgument("rviz", default_value="false"),

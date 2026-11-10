@@ -22,6 +22,6 @@ def test_adapter_keeps_dori_action_and_uses_nav2():
     assert 'GoalStatus.STATUS_SUCCEEDED' in source
 
 
-def test_real_profile_uses_the_adapter():
-    launch = (ROOT / 'launch' / 'real_navigation.launch.py').read_text()
+def test_navigation_launch_uses_the_adapter():
+    launch = (ROOT / 'launch' / 'navigation_adapters.launch.py').read_text()
     assert "executable='nav2_adapter'" in launch or 'executable="nav2_adapter"' in launch

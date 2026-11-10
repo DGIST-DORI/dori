@@ -63,30 +63,35 @@ boundaries are defined in [`package-ownership.md`](package-ownership.md).
 ```
 ros2_ws/src/
 ├── dori_msgs/              # ROS 2 custom message and action definitions
-├── dori_perception/        # Perception Python vision nodes, config, and models
-├── dori_perception_camera/ # Perception C++ RealSense camera adapter
-├── dori_hri/      # Interaction coordinator (HRI manager state machine) + STT + TTS
-├── dori_core/
-├── dori_llm/              # Intent classification + RAG + LLM response
-├── dori_navigation/       # Navigation execution node
-├── dori_dashboard/        # ROS ↔ web dashboard bridge
-└── dori_bringup/              # Launch files
-├── dori_hri/               # Voice I/O (STT, TTS, emotion publishing)
-├── dori_bt/                # BehaviorTree.CPP v3 robot decision orchestration
-├── dori_core/              # Shared utilities and SQLite DB management
-├── dori_llm/               # Intent classification + RAG + LLM Query Action Server
-├── dori_navigation/        # Navigation execution node
-├── dori_dashboard/         # ROS ↔ web dashboard bridge
-└── dori_bringup/           # Launch files
-    ├── bringup.launch.py           # Select robot (default) or desktop profile; optional deployment YAML
-    ├── robot.launch.py           # Drivers + navigation + required perception + shared services
-    ├── desktop.launch.py         # Shared services for development
-    ├── perception.launch.py      # Perception only
-    ├── interaction.launch.py     # HRI manager/state machine only
-    └── voice.launch.py # Voice pipeline only
-    ├── interaction.launch.py     # BehaviorTree (dori_bt) orchestration only
-    └── voice.launch.py           # Voice pipeline only
+├── dori_hardware/          # Physical actuation and IMU subsystem
+│   └── launch/            # hardware → body_control → actuation
+├── dori_control/           # Drive, input, transform control; launch/odometry.launch.py
+├── dori_supervisor/        # Control authority and stop/transform gating
+├── dori_diagnostics/       # Hardware/system error logging
+├── dori_mapping/           # launch/lidar_odometry.launch.py, lidar_only_cartographer.launch.py
+├── dori_navigation/        # Nav2, action adapters, drive bridge and map viewer
+│   └── launch/            # nav2.launch.py, navigation_adapters.launch.py
+├── dori_perception/        # Python vision nodes, config and models
+│   └── launch/perception.launch.py
+├── dori_perception_camera/ # Native RealSense camera adapter
+├── dori_hri/               # STT, TTS and emotion I/O
+│   └── launch/voice.launch.py
+├── dori_bt/                # BehaviorTree.CPP v3 decision orchestration
+│   └── launch/interaction.launch.py
+├── dori_core/              # Shared application contracts
+├── dori_llm/               # Intent classification, RAG and LLM query action
+├── dori_dashboard/         # App services; launch/dashboard.launch.py
+├── dori_observability/     # Runtime metrics
+├── dori_bringup/           # Deployment profiles and readiness
+│   └── launch/
+│       ├── bringup.launch.py  # Standard entrypoint; robot by default
+│       ├── robot.launch.py    # Physical subsystems and shared app services
+│       └── desktop.launch.py  # App/HRI development profile
+└── third_party/            # CAN, LiDAR and Dynamixel drivers/SDK
 ```
+
+The [launch inventory and migration table](package-ownership.md#launch-ownership)
+records subsystem owners, callers and renamed files.
 
 ### ROS2 Topic List (Actual Nodes)
 

@@ -1,3 +1,5 @@
+"""Actuation plus IMU/pitch control; also used by the control-only workflow."""
+
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -18,14 +20,14 @@ def generate_launch_description():
     # Base robot system
     #
     # 주의:
-    # drive_controller_node는 system_real.launch.py 안에서 실행됨.
+    # drive_controller_node는 actuation.launch.py 안에서 실행됨.
     # 따라서 drive controller 관련 파라미터는
-    # system_real.launch.py 쪽 Node 정의에 넣어야 함.
+    # actuation.launch.py 쪽 Node 정의에 넣어야 함.
     # ============================================================
 
     dori_system = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(share, "launch", "system_real.launch.py")
+            os.path.join(share, "launch", "actuation.launch.py")
         ),
         launch_arguments={
             "use_joystick": use_joystick,

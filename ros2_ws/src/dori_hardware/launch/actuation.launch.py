@@ -1,3 +1,5 @@
+"""Motor drivers, drive/transform controllers and safety authority, without IMU."""
+
 from launch_ros.parameter_descriptions import ParameterValue
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction

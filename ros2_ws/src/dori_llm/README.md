@@ -22,7 +22,7 @@ a built and sourced workspace:
 
 ```bash
 export GEMINI_API_KEY="your_key_here"
-ros2 launch dori_bringup voice.launch.py \
+ros2 launch dori_hri voice.launch.py \
   use_external_llm:=true llm_model:=gemini-3.5-flash-lite
 ```
 

@@ -1,4 +1,4 @@
-"""Launch the DORI/Nav2 action boundary for a real robot profile."""
+"""Expose DORI navigation actions backed by a separately launched Nav2 stack."""
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument

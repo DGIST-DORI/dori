@@ -17,7 +17,6 @@ from launch.actions import DeclareLaunchArgument, GroupAction
 from launch.conditions import IfCondition, UnlessCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
-from dori_bringup.configuration import DEFAULTS
 
 
 def _topic(ns, suffix: str):
@@ -46,9 +45,9 @@ def generate_launch_description():
         DeclareLaunchArgument("hand_model_path", default_value=""),
         DeclareLaunchArgument("face_model_path", default_value=""),
         DeclareLaunchArgument("visualize", default_value="false"),
-        DeclareLaunchArgument("enable_landmark", default_value=DEFAULTS["enable_landmark"]),
-        DeclareLaunchArgument("enable_gesture", default_value=DEFAULTS["enable_gesture"]),
-        DeclareLaunchArgument("enable_expression", default_value=DEFAULTS["enable_expression"]),
+        DeclareLaunchArgument("enable_landmark", default_value="false"),
+        DeclareLaunchArgument("enable_gesture", default_value="false"),
+        DeclareLaunchArgument("enable_expression", default_value="false"),
         DeclareLaunchArgument("camera_fps", default_value="15"),
         DeclareLaunchArgument("camera_width", default_value="640"),
         DeclareLaunchArgument("camera_height", default_value="480"),

@@ -19,5 +19,6 @@ ament_target_dependencies(dori_tree_executor rclcpp rclcpp_action ament_index_cp
   std_msgs std_srvs nav2_msgs behaviortree_cpp_v3 dori_msgs)
 target_link_libraries(dori_tree_executor nlohmann_json::nlohmann_json)
 install(TARGETS dori_tree_executor DESTINATION lib/${PROJECT_NAME})
-install(DIRECTORY behavior_trees DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY behavior_trees launch DESTINATION share/${PROJECT_NAME}
+  PATTERN "__pycache__" EXCLUDE)
 ament_package()

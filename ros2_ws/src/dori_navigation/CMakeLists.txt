@@ -13,6 +13,11 @@ install(TARGETS relaxed_heading_planner LIBRARY DESTINATION lib)
 find_package(ament_cmake_python REQUIRED)
 ament_python_install_package(dori_web)
 ament_python_install_package(dori_navigation)
+# Remove renamed resources from existing overlays, including dangling symlinks.
+foreach(retired_resource launch/real_nav2.launch.py launch/real_navigation.launch.py
+    launch/navigation.launch.py config/nav2_real.yaml)
+  install(CODE "file(REMOVE \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}/${retired_resource}\")")
+endforeach()
 install(DIRECTORY launch config scripts dori_web/static DESTINATION share/${PROJECT_NAME}
   USE_SOURCE_PERMISSIONS PATTERN "__pycache__" EXCLUDE)
 install(PROGRAMS scripts/web_viewer.py scripts/nav2_adapter scripts/named_goal_adapter

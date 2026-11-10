@@ -252,7 +252,7 @@ fi
 cd "$DORI_CONTROL_WS"
 printf '전체 제어 시작 (조이스틱: %s). 종료: Ctrl+C\n' "$DORI_CONTROL_JOYSTICK"
 # 하위 노드를 따로 중복 실행하지 않고 기존 통합 launch가 수명주기를 관리한다.
-exec ros2 launch dori_hardware system_real_with_imu.launch.py \
+exec ros2 launch dori_hardware body_control.launch.py \
     "use_joystick:=$DORI_CONTROL_JOYSTICK" \
     "dxl_port:=${DORI_DXL_PORT:-auto}" \
     "dxl_baudrate:=${DORI_DXL_BAUDRATE:-57600}" \

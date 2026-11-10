@@ -13,6 +13,10 @@
   <depend>std_srvs</depend>
   <depend>geometry_msgs</depend>
   <depend>cv_bridge</depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>dori_perception_camera</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

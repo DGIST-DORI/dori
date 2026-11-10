@@ -66,7 +66,7 @@ ros2 pkg executables dori_hardware
 ros2 pkg executables dori_control
 ros2 pkg executables dori_diagnostics
 ros2 interface show dori_msgs/msg/MitCommand
-ros2 launch dori_hardware system_real_with_imu.launch.py --show-args
+ros2 launch dori_hardware body_control.launch.py --show-args
 ip -details link show can1
 ls -l /dev/serial/by-id/ /dev/slamtec_c1
 ```
@@ -359,7 +359,7 @@ ros2 launch dori_bringup bringup.launch.py \
 
 `robot` 프로필은 전방 카메라와 사람 인식을 필수로 시작한다. 모델과 카메라는 `person_model:=/절대경로/person.pt front_serial:=장치번호`로 지정한다. 제스처·표정·랜드마크는 두 프로필 모두 기본 비활성이며 각각 `enable_gesture`, `enable_expression`, `enable_landmark`로 선택한다. 사람 추적을 상호작용 조건으로 요구할 때는 `require_user_tracking:=true`를 지정한다.
 
-지도·목적지·장치·센서 장착값은 `ros2_ws/src/dori_bringup/config/robot.example.yaml`을 `.state/robot.yaml`로 복사해 편집하고 `config_file:="$DORI_ROOT/.state/robot.yaml"`로 지정할 수 있다. 명령행 지정값이 파일보다 우선하며, 파일은 `common`과 `robot`/`desktop` 구역으로 구성한다. 파일 내 상대 경로는 YAML 위치를 기준으로 해석하고 `${DORI_ROOT}`는 저장소 경로로 치환한다. 기존 `hardware.launch.py`와 `real`/`hardware` 모드는 `robot.launch.py`와 `robot`으로 변경되었으며 `sim`은 지원하지 않는다.
+지도·목적지·장치·센서 장착값은 `ros2_ws/src/dori_bringup/config/robot.example.yaml`을 `.state/robot.yaml`로 복사해 편집하고 `config_file:="$DORI_ROOT/.state/robot.yaml"`로 지정할 수 있다. 명령행 지정값이 파일보다 우선하며, 파일은 `common`과 `robot`/`desktop` 구역으로 구성한다. 파일 내 상대 경로는 YAML 위치를 기준으로 해석하고 `${DORI_ROOT}`는 저장소 경로로 치환한다. 기존 `dori_bringup/launch/hardware.launch.py`와 `real`/`hardware` 모드는 `robot.launch.py`와 `robot`으로 변경되었으며 `sim`은 지원하지 않는다. 현재 `dori_hardware/launch/hardware.launch.py`는 구동계·IMU만 시작하는 하위 구성이다. [launch 소유권과 이름 변경표](../dev/package-ownership.md#launch-ownership)를 참고한다.
 
 기동 준비는 대시보드 내비게이션 패널과 `/dori/bringup/status`에 센서·제어기·인식·HRI·앱·내비게이션별로 표시한다. 기본 `startup_timeout:=120.0`초 내 필수 데이터와 서비스가 준비되지 않으면 미준비 항목을 표시하고 전체 세션을 종료한다. 초기 위치 입력 대기는 시간 제한이 없으며, 위치 추정이 확인된 뒤 내비게이션 활성화 제한 시간을 별도로 적용한다. 준비 확인은 실제 데이터 수신과 상태 조회만 수행하며 주행 명령을 발행하지 않는다.
 
@@ -433,7 +433,7 @@ ros2 topic pub --once /dori/hri/cancel std_msgs/msg/Bool '{data: true}'
 
 ```bash
 # 터미널 A: 실제 하드웨어와 검증된 수동 조이스틱
-ros2 launch dori_hardware system_real_with_imu.launch.py \
+ros2 launch dori_hardware body_control.launch.py \
   use_joystick:=true use_wheel_odometry:=false odom_publish_tf:=false
 # 터미널 B: LiDAR
 ros2 launch sllidar_ros2 sllidar_c1_launch.py serial_port:=/dev/slamtec_c1 \
