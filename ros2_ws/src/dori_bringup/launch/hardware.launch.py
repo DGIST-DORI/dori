@@ -10,6 +10,7 @@ from launch.actions import (
     OpaqueFunction,
     RegisterEventHandler,
     EmitEvent,
+    GroupAction,
 )
 from launch.event_handlers import OnProcessExit
 from launch.events import Shutdown
@@ -22,12 +23,14 @@ from dori_hardware.startup_checks import (
 
 
 def include(package, filename, arguments):
-    return IncludeLaunchDescription(
+    # IncludeLaunchDescription alone shares launch configurations with siblings.
+    # In particular, lidar_odometry's params_file must not replace Nav2's YAML.
+    return GroupAction(scoped=True, actions=[IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             str(Path(get_package_share_directory(package)) / "launch" / filename)
         ),
         launch_arguments=arguments.items(),
-    )
+    )])
 
 
 def setup(context):
@@ -197,6 +200,9 @@ def generate_launch_description():
         visitor_mode="false",
         named_goals_file="",
         use_joystick="false",
+        # Many DDS participants close together; allow graceful teardown before
+        # launch escalates to SIGTERM (the upstream default is only 5 seconds).
+        sigterm_timeout="15.0",
         rviz="false",
         can_interface=CAN_INTERFACE,
         can_wait_timeout=CAN_WAIT_TIMEOUT,

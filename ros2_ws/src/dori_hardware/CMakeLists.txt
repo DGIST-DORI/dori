@@ -65,6 +65,7 @@ install(PROGRAMS scripts/can_service.py scripts/install_can_service.py
 
 ament_python_install_package(${PROJECT_NAME})
 install(PROGRAMS
+  scripts/controller_spawner
   scripts/motor4_servo_node
   scripts/imu_node
   scripts/body_pitch_node

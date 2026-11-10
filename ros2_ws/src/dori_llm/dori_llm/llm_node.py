@@ -788,16 +788,21 @@ class LLMNode(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = LLMNode()
-    executor = MultiThreadedExecutor()
-    executor.add_node(node)
-
+    node = None
     try:
+        node = LLMNode()
+        executor = MultiThreadedExecutor()
+        executor.add_node(node)
         executor.spin()
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
+    except RuntimeError:
+        # Context shutdown can race a callback or take_message in Humble.
+        if rclpy.ok():
+            raise
     finally:
-        node.destroy_node()
+        if node is not None:
+            node.destroy_node()
         rclpy.try_shutdown()
 
 

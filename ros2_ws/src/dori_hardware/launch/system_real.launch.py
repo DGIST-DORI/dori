@@ -12,6 +12,7 @@ from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from dori_hardware.startup_checks import CAN_INTERFACE, DXL_PORT, DXL_BAUDRATE, IMU_PORT, LIDAR_PORT
 from dori_hardware.serial_identity import resolve_dxl_port
+from dori_hardware.controller_startup import controller_startup_actions
 
 
 def identify_dynamixel(context):
@@ -128,81 +129,7 @@ def generate_launch_description():
                 parameters=[robot_description],
                 output="screen",
             ),
-            Node(
-                package="controller_manager",
-                executable="spawner",
-                arguments=[
-                    "joint_state_broadcaster",
-                    "--controller-manager",
-                    "/controller_manager",
-                ],
-                output="screen",
-            ),
-            # ========================================================
-            # MIT SPEED MODE controllers
-            # ========================================================
-            Node(
-                package="controller_manager",
-                executable="spawner",
-                arguments=[
-                    "left_bldc_drive_controller",
-                    "--controller-manager",
-                    "/controller_manager",
-                ],
-                output="screen",
-            ),
-            Node(
-                package="controller_manager",
-                executable="spawner",
-                arguments=[
-                    "right_bldc_drive_controller",
-                    "--controller-manager",
-                    "/controller_manager",
-                ],
-                output="screen",
-            ),
-            # ========================================================
-            # Effort-only controllers
-            #
-            # 필요할 때만 switch해서 사용
-            # 현재는 inactive
-            # ========================================================
-            Node(
-                package="controller_manager",
-                executable="spawner",
-                arguments=[
-                    "left_bldc_effort_controller",
-                    "--controller-manager",
-                    "/controller_manager",
-                    "--inactive",
-                ],
-                output="screen",
-            ),
-            Node(
-                package="controller_manager",
-                executable="spawner",
-                arguments=[
-                    "right_bldc_effort_controller",
-                    "--controller-manager",
-                    "/controller_manager",
-                    "--inactive",
-                ],
-                output="screen",
-            ),
-            # ========================================================
-            # Position controller
-            # ========================================================
-            Node(
-                package="controller_manager",
-                executable="spawner",
-                arguments=[
-                    "bldc_position_controller",
-                    "--controller-manager",
-                    "/controller_manager",
-                    "--inactive",
-                ],
-                output="screen",
-            ),
+            *controller_startup_actions(),
             # ========================================================
             # BLDC command bridge
             # ========================================================

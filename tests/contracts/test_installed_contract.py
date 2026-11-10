@@ -28,6 +28,11 @@ from launch.actions import (
     RegisterEventHandler,
     SetLaunchConfiguration,
     SetEnvironmentVariable,
+    GroupAction,
+    PushLaunchConfigurations,
+    PopLaunchConfigurations,
+    PushEnvironment,
+    PopEnvironment,
 )
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.utilities import normalize_to_list_of_substitutions, perform_substitutions
@@ -245,6 +250,11 @@ def inspect_launch(package, filename, overrides):
                     SetEnvironmentVariable,
                     IncludeLaunchDescription,
                     OpaqueFunction,
+                    GroupAction,
+                    PushLaunchConfigurations,
+                    PopLaunchConfigurations,
+                    PushEnvironment,
+                    PopEnvironment,
                 ),
             ):
                 expand(action.execute(context) or [])
@@ -393,6 +403,31 @@ def test_discovered_port_reaches_driver_without_a_second_probe(no_process_launch
     params = next(params for _, exe, params in nodes if exe == "dxl_driver_node")
     assert any(isinstance(p, dict) and p.get("device_name") ==
                "/dev/serial/by-id/usb-CP2102N-servos" for p in params)
+
+
+def test_real_nav2_does_not_inherit_lidar_odometry_parameters(no_process_launch):
+    import yaml
+    nodes = inspect_launch("dori_bringup", "bringup.launch.py", {
+        "dori_mode": "real",
+        "real_map": str(ROOT / "maps/live_navigation_20261023_1938.yaml"),
+    })
+    for _, executable, parameters in nodes:
+        if executable == "lifecycle_manager":
+            config = next(p for p in parameters if isinstance(p, dict) and "node_names" in p)
+            assert config["autostart"] == ("controller_server" not in config["node_names"])
+        if executable not in {"amcl", "controller_server", "lidar_odometry_node.py"}:
+            continue
+        paths = [Path(p) for p in parameters if isinstance(p, (str, Path))]
+        if executable == "lidar_odometry_node.py":
+            assert [p.name for p in paths] == ["lidar_odometry.yaml"]
+        else:
+            assert [p.name for p in paths] == ["nav2_real.yaml"]
+            config = yaml.safe_load(paths[0].read_text())[executable]["ros__parameters"]
+            if executable == "amcl":
+                assert config["base_frame_id"] == "base_link"
+            else:
+                assert config["FollowPath"]["plugin"] == (
+                    "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController")
 
 
 def test_dashboard_and_native_plugin_assets_installed():

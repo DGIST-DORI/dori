@@ -161,8 +161,11 @@ def main(args=None):
         rclpy.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
+    except RuntimeError:
+        # Context shutdown can race a callback or take_message in Humble.
+        if rclpy.ok():
+            raise
     finally:
         node.close()
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.try_shutdown()
+        rclpy.try_shutdown()

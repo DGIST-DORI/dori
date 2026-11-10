@@ -23,6 +23,7 @@ from typing import Dict, Optional, Set
 import rclpy
 from rclpy.node import Node
 from rclpy.signals import SignalHandlerOptions
+from rclpy.executors import SingleThreadedExecutor
 from rclpy.qos import QoSProfile, DurabilityPolicy
 from std_msgs.msg import Bool, String, Int32
 from std_srvs.srv import Trigger
@@ -519,24 +520,33 @@ async def public_lifespan(app: FastAPI):
         # Uvicorn owns process shutdown; ROS must not replace its handlers.
         rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
     ros_node = BridgeNode()
-    ros_thread = threading.Thread(target=lambda: rclpy.spin(ros_node), daemon=True)
+    executor = SingleThreadedExecutor()
+    executor.add_node(ros_node)
+    ros_thread = threading.Thread(target=executor.spin)
     ros_thread.start()
 
     # 2. 메인 이벤트 루프 확보
     session_manager.main_loop = asyncio.get_running_loop()
-    yield
-
-    # 3. 앱 종료 시 ROS 2 안전하게 정리
-    if ros_node:
-        ros_node.cancel_visitor()
-        await session_manager._cancel_session_timers()
-        if session_manager.cleanup_task:
-            session_manager.cleanup_task.cancel()
-        if ros_node._move_command is not None:
-            ros_node.request_stop()
-        ros_node.destroy_node()
-    if rclpy.ok():
-        rclpy.shutdown()
+    try:
+        yield
+    finally:
+        # Keep ROS alive while stopping the session, then stop/join its executor
+        # before destroying handles. A live daemon spin thread can abort Python
+        # during context/interpreter destruction.
+        try:
+            ros_node.cancel_visitor()
+            await session_manager._cancel_session_timers()
+            if session_manager.cleanup_task:
+                session_manager.cleanup_task.cancel()
+                await asyncio.gather(session_manager.cleanup_task, return_exceptions=True)
+            if ros_node._move_command is not None:
+                ros_node.request_stop()
+        finally:
+            executor.shutdown()
+            ros_thread.join()
+            ros_node.destroy_node()
+            rclpy.try_shutdown()
+            ros_node = None
 
 
 # ─── FastAPI 1: Public App (Port 3100) ─────────────────────────────────────

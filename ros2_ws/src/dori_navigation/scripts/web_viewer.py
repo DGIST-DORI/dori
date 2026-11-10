@@ -7,6 +7,7 @@ import threading
 import os
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from dori_web.bridge import WebBridge
 from dori_web.http_server import ViewerServer
 
@@ -39,16 +40,19 @@ def main():
         if os.getenv('DORI_USER_HTTPS_URL'):print(f'Dori user page: {os.environ["DORI_USER_HTTPS_URL"]}',flush=True)
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
+    except RuntimeError:
+        # Humble can invalidate a subscription while take_message is running.
+        if rclpy.ok():
+            raise
     finally:
         if node.owner and rclpy.ok():
             node.stop()
         for server in servers:server.shutdown();server.server_close()
         for worker in workers:worker.join(timeout=2)
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        rclpy.try_shutdown()
 
 
 if __name__ == '__main__':

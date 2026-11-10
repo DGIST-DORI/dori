@@ -249,7 +249,7 @@ IMU 포트는 `dori_hardware`의 IMU 노드 파라미터, DXL 포트는 Dynamixe
 
 **합격기준:** `dori-can.service` active, can1 UP, 실제 설정과 일치하는 시리얼 장치 및 접근 권한 확보. CAN 준비는 시스템 서비스가 소유하며 launch는 sudo나 장치 권한 변경을 실행하지 않는다.
 
-`hardware.launch.py`는 프로세스를 시작하기 전에 CAN의 UP 플래그를 기본 10초 동안 기다린다. `can_wait_timeout`으로 0–30초 범위에서 조정하며, `bringup.launch.py dori_mode:=real`에서는 `real_can_wait_timeout`을 사용한다. CAN이 준비되면 즉시 다음 검사로 진행한다. 시리얼 장치 존재·접근 권한·동일 장치 중복 지정도 검사하고, 실패 항목과 CAN 서비스 상태를 함께 표시한다. 이 검사는 장치를 열거나 통신 명령을 보내지 않으므로 전원·응답·센서 데이터 정상 여부까지 보장하지 않는다.
+`hardware.launch.py`는 프로세스를 시작하기 전에 CAN의 UP 플래그를 기본 10초 동안 기다린다. `can_wait_timeout`으로 0–30초 범위에서 조정하며, `bringup.launch.py dori_mode:=real`에서는 `real_can_wait_timeout`을 사용한다. CAN이 준비되면 즉시 다음 검사로 진행한다. 시리얼 장치 존재·접근 권한·동일 장치 중복 지정도 검사하고, 실패 항목과 CAN 서비스 상태를 함께 표시한다. 명시한 시리얼 경로는 파일 정보와 접근 권한을 검사하고, `dxl_port:=auto`일 때는 아래의 PING 조회도 수행한다. 이 검사만으로 지속적인 센서 데이터 수신까지 보장하지 않는다.
 
 DXL은 `dori_hardware/dxl_driver_node`를 사용하며 기본 포트는 `auto`이다. 특정 FTDI 칩이나 과거 USB 일련번호를 요구하지 않는다. 설정된 LiDAR·IMU와 CANable 포트를 제외한 USB by-id 포트에서 Protocol 2 PING으로 ID 1/model 1140, ID 3/model 1040의 응답을 확인한다. 토크·위치·서보 설정은 변경하지 않으며 사용 중인 포트는 탐색하지 않는다. 기본 통신 속도는 57600 baud이며, 일치하는 버스가 없거나 여러 개면 노드를 시작하기 전에 원인을 출력한다. 범용 `dynamixel_sdk_examples/read_write_node`는 사용하지 않는다. 범용 예제의 `/dev/ttyUSB0`이 LiDAR와 겹치면 통신 속도가 바뀌어 LiDAR 시간 초과와 전체 세션 종료가 발생한다. DORI 드라이버는 ID 1/3만 사용하며, 통신 오류를 위치 0으로 전달하지 않는다. 제어 모드와 signed 위치 처리는 [XH540 문서](https://emanual.robotis.com/docs/en/dxl/x/xh540-v270/)와 [XH430 문서](https://emanual.robotis.com/docs/en/dxl/x/xh430-v350/)를 따른다.
 
@@ -258,6 +258,19 @@ DXL은 `dori_hardware/dxl_driver_node`를 사용하며 기본 포트는 `auto`�
 2026-11-09 장치 조회에서 USB 일련번호 `82c0f09f3531f111bc58935f30d20014`인 CP2102N은 SLAMTEC `GET_DEVICE_INFO`에 응답했다(펌웨어 1.2, 센서 일련번호 `6509e18ac1ea9ed2b29c92f5e6ad466c`). 따라서 이 장치는 LiDAR로 지정하고 Dynamixel 탐색에서 제외한다. bringup의 LiDAR 기본값은 이 장치의 by-id 경로다. 기존 `/dev/slamtec_c1` 규칙은 CP210x 전체를 매칭하므로 서보 어댑터 식별 근거로 사용하지 않는다. LiDAR 교체 시 `real_lidar_port`도 새 장치 경로로 지정한다.
 
 Dynamixel 버스가 발견되지 않으면 USB 어댑터 연결뿐 아니라 서보 전원·ID·통신 속도를 확인한다. 직접 실행 시에는 `dxl_driver_node`의 `device_name`을 명시한다. `scripts/run_dori_control.sh`에서는 `DORI_DXL_PORT`, `DORI_DXL_BAUDRATE` 환경 변수로 지정할 수 있다.
+
+기동 시 `controller_spawner`가 컨트롤러를 한 번씩 순서대로 로드·설정한다. `joint_state_broadcaster`와 좌우 주행 컨트롤러를 함께 활성화한 뒤, effort/position 컨트롤러는 비활성 상태로 준비한다. `DORI controllers ready: drive active; effort/position inactive` 메시지와 `ros2 control list_controllers` 결과를 확인한다. 서비스 응답 대기는 요청마다 최대 60초이며, 시간 초과 시 같은 변경 요청을 재전송하지 않고 세션을 종료한다.
+
+LiDAR odometry와 Nav2의 launch 인자는 각각 별도 범위에서 적용한다. `No critics defined for FollowPath` 또는 `base_footprint` 관련 오류가 발생하면 아래 값으로 올바른 Nav2 설정이 적용됐는지 확인한다.
+
+```bash
+ros2 param get /amcl base_frame_id
+# base_link
+ros2 param get /controller_server FollowPath.plugin
+# nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController
+```
+
+지도 서버와 AMCL은 먼저 활성화되며, 나머지 Nav2 노드는 실제 초기 위치 설정 후 최신 `map -> base_link` TF가 확인되면 활성화된다. `Navigation waiting for initial pose` 안내가 남아 있으면 AMM 40-20에 따라 실제 위치를 지정한다. 초기 위치를 설정하기 전에 종료해도 대기 중인 costmap 활성화가 종료 처리를 막지 않는다. 기동 검증에서 임의의 초기 위치나 주행 목표를 발행하지 않는다.
 
 ## AMM 30 — 시스템 및 신호 흐름
 

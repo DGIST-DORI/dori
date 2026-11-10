@@ -372,6 +372,9 @@ def main():
     rclpy.init(); node = NavDriveBridge()
     try: rclpy.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException): pass
+    except RuntimeError:
+        # A signal can invalidate the context while a callback is publishing.
+        if rclpy.ok(): raise
     finally:
         if rclpy.ok():
             try:
@@ -379,7 +382,7 @@ def main():
             except RCLError:
                 if rclpy.ok(): raise
         node.destroy_node()
-        if rclpy.ok(): rclpy.shutdown()
+        rclpy.try_shutdown()
 
 
 if __name__ == '__main__': main()

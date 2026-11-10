@@ -75,6 +75,26 @@ class DisplayRotationTests(unittest.IsolatedAsyncioTestCase):
 
 
 class GatewayShutdownTests(unittest.IsolatedAsyncioTestCase):
+    async def test_lifespan_joins_ros_thread_before_destroying_handles(self):
+        order = []
+        node, executor, thread = Mock(), Mock(), Mock()
+        node._move_command = None
+        node.destroy_node.side_effect = lambda: order.append('destroy')
+        executor.shutdown.side_effect = lambda: order.append('stop_executor')
+        thread.join.side_effect = lambda: order.append('join')
+        manager = SimpleNamespace(cleanup_task=None, _cancel_session_timers=AsyncMock())
+        with patch.object(bridge, 'internal_token', Mock()), \
+             patch.object(bridge, 'BridgeNode', Mock(return_value=node)), \
+             patch.object(bridge, 'SingleThreadedExecutor', Mock(return_value=executor)), \
+             patch.object(bridge.threading, 'Thread', Mock(return_value=thread)), \
+             patch.object(bridge, 'session_manager', manager), \
+             patch.object(bridge.rclpy, 'ok', Mock(return_value=True)), \
+             patch.object(bridge.rclpy, 'try_shutdown', Mock(side_effect=lambda: order.append('shutdown'))):
+            async with bridge.public_lifespan(bridge.app_public):
+                pass
+        self.assertEqual(order, ['stop_executor', 'join', 'destroy', 'shutdown'])
+        self.assertIsNone(bridge.ros_node)
+
     async def test_sigterm_stops_both_listeners_and_restores_handler(self):
         listeners = []
 

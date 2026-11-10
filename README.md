@@ -532,6 +532,18 @@ CANable2 or updating the service implementation, stop robot nodes and run
 
 **3. Start bringup as the normal user.**
 
+Controller setup runs in sequence: the joint-state broadcaster and both drive
+controllers are prepared and activated together, then the effort and position
+controllers are prepared in the inactive state. Wait for
+`DORI controllers ready: drive active; effort/position inactive` before using
+the robot. A failed setup stops the session. Do not start additional controller
+spawners alongside bringup.
+
+Map publication and AMCL start immediately. Navigation waits for the actual
+initial pose to be set in the map viewer, then activates once a fresh
+`map -> base_link` transform is available. The message `Navigation waiting for
+initial pose` is expected until then; bringup does not assign an arbitrary pose.
+
 Bringup waits up to 10 seconds for CAN to become UP, then checks that the
 Dynamixel, IMU and LiDAR ports exist, are accessible, and refer to different
 devices. `real_can_wait_timeout:=20` changes this wait (0–30 seconds);

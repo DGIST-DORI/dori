@@ -100,11 +100,16 @@ def setup(context):
                 executable="lifecycle_manager",
                 name="lifecycle_manager_" + group,
                 parameters=[
-                    {"use_sim_time": False, "autostart": True, "node_names": managed}
+                    {"use_sim_time": False, "autostart": group != "navigation", "node_names": managed}
                 ],
                 output="screen",
             )
         )
+    # Starting the global costmap before localization blocks its activation
+    # callback, including during shutdown. Keep map/AMCL available for setting
+    # the real initial pose, then activate navigation through its manager.
+    nodes.append(ExecuteProcess(
+        cmd=["/usr/bin/python3", str(root / "scripts/navigation_startup.py")], output="screen"))
     nodes.append(
         Node(
             package="tf2_ros",

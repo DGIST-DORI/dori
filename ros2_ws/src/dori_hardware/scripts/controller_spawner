@@ -1,0 +1,5 @@
+#!/usr/bin/python3
+from dori_hardware.controller_startup import main
+
+if __name__ == '__main__':
+    raise SystemExit(main())

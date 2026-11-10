@@ -7,6 +7,7 @@ import serial
 
 import rclpy
 from rclpy.executors import ExternalShutdownException
+from rclpy._rclpy_pybind11 import RCLError
 from rclpy.node import Node
 
 from sensor_msgs.msg import Imu
@@ -125,9 +126,14 @@ class ImuSerialNode(Node):
 
                 continue
 
-            self.publish_data(
-                ax_g, ay_g, az_g, gx_dps, gy_dps, gz_dps, mx_uT, my_uT, mz_uT
-            )
+            try:
+                self.publish_data(
+                    ax_g, ay_g, az_g, gx_dps, gy_dps, gz_dps, mx_uT, my_uT, mz_uT
+                )
+            except RCLError:
+                if rclpy.ok():
+                    raise
+                break  # SIGINT can invalidate publishers during serial input.
 
     # ================================================================
     # Publish
@@ -224,6 +230,10 @@ def main(args=None):
 
         pass
 
+    except RuntimeError:
+        # Context shutdown can race a callback or take_message in Humble.
+        if rclpy.ok():
+            raise
     finally:
 
         node.destroy_node()

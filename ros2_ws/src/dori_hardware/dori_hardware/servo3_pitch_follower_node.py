@@ -474,6 +474,11 @@ def main(args=None):
 
         pass
 
+    except RuntimeError:
+        # SIGINT may invalidate a subscription during take_message in Humble.
+        if rclpy.ok():
+            raise
+
     finally:
 
         node.destroy_node()
