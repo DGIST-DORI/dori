@@ -61,8 +61,9 @@
 |===
 | Field | Type | Unit | Description
 | intent | string | - | Recognized intent enum/name (`QA`, `GUIDE`, `CHAT`, etc.).
-| response_text | string | - | Generated natural-language answer text.
+| response_text | string | - | Spoken answer only; excludes source citations and metadata.
 | target_location | string | - | Destination name or coordinates extracted for navigation.
+| sources_json | string | - | Display-only JSON array of retrieved sources (`title`, optional `url`, `edition`, `page_number`, `page_label`). Never pass to TTS. Empty array when no source was used.
 |===
 
 

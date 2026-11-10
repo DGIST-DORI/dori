@@ -65,7 +65,7 @@ NONCE_GRACE = 5  # 스캔 지연 오차 허용 (초)
 GRACE_TIMEOUT = 90  # WS 끊김 후 재연결 유예 시간 (초)
 PAIR_CLAIM_TTL = 120  # Time to review consent after scanning a live QR.
 SESSION_MAX_TIME = 900  # 최대 세션 시간 (15분)
-MAX_WS_MSG_SIZE = 450000
+MAX_WS_MSG_SIZE = 5_130_000  # 120 s PCM WAV, base64 and JSON envelope
 
 _DEV_MODE = os.environ.get("DORI_DEV_MODE", "").strip().lower() in ("1", "true", "yes")
 PUBLIC_HOST = "0.0.0.0" if _DEV_MODE else "127.0.0.1"
@@ -384,7 +384,7 @@ class SessionManager:
         self.session_timer_task: Optional[asyncio.Task] = None
         self.idle_task: Optional[asyncio.Task] = None
         self.cleanup_task = None
-        self.idle_timeout = 120.0  # 2분 무조작 시 강제 종료
+        self.idle_timeout = 180.0  # Allow a 120 s capture plus permission/upload time.
 
     async def _cancel_session_timers(self):
         # watcher가 직접 종료를 요청한 경우 자기 자신은 취소하지 않는다.
@@ -763,6 +763,7 @@ async def websocket_user(websocket: WebSocket):
         "status": "READY",
         "stt_provider": getattr(ros_node.voice, 'provider', 'whisper') if ros_node else 'whisper',
         "destinations": getattr(ros_node, 'destinations', []) if ros_node else [],
+        "navigation": getattr(ros_node.voice, 'navigation', {'status': 'IDLE'}) if ros_node else {'status': 'IDLE'},
     })
     try:
         while True:
@@ -808,6 +809,22 @@ async def websocket_user(websocket: WebSocket):
                 session_manager.last_activity = time.monotonic()
                 await websocket.send_json({"type": "command_result", "action": "STOP", "ok": True})
                 await websocket.send_json({"type": "robot_state", "status": "READY"})
+                await websocket.send_json({'type': 'navigation_state', **getattr(ros_node.voice, 'navigation', {'status': 'IDLE'})})
+            elif cmd_type == "command" and payload.get("action") == "CANCEL_RESPONSE":
+                ros_node.voice.cancel_response(notify=True)
+                session_manager.last_activity = time.monotonic()
+                await websocket.send_json({'type': 'command_result', 'action': 'CANCEL_RESPONSE', 'ok': True})
+                await websocket.send_json({'type': 'robot_state', 'status': 'CANCELING' if ros_node.voice.conversation_busy else 'READY'})
+            elif cmd_type == "command" and payload.get("action") == "CANCEL_NAVIGATION":
+                ros_node.voice.cancel_navigation()
+                session_manager.last_activity = time.monotonic()
+                await websocket.send_json({'type': 'command_result', 'action': 'CANCEL_NAVIGATION', 'ok': True})
+                await websocket.send_json({'type': 'navigation_state', **ros_node.voice.navigation})
+            elif cmd_type == "ptt_start":
+                # Legacy audio arrives only after capture. Count the explicit
+                # microphone gesture so a long recording isn't treated as idle.
+                if ros_node.voice.provider == 'whisper' and not ros_node.voice.conversation_busy:
+                    session_manager.last_activity = time.monotonic()
             elif cmd_type == "ptt_audio":
                 try:
                     ros_node.voice.start(payload)

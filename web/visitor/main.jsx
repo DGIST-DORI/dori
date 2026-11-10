@@ -1,11 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { ArrowUp, Mic, Square, Check, MapPin, ChevronDown, BookOpen, Volume2 } from 'lucide-react';
 import { Microphone, StreamingMicrophone, encodeWav, toBase64 } from './audio';
 import { confirmPairingScan, pairingError } from './pairing';
 import doriLogo from '../src/assets/logo/logo-full.svg';
 import './style.css';
 
-const labels = { READY: '무엇이 궁금하세요?', TRANSCRIBING: '말씀을 글로 바꾸고 있어요', THINKING: '답변을 생각하고 있어요', SPEAKING: 'DORI가 답하고 있어요', NAVIGATING: '목적지로 안내하고 있어요', ARRIVED: '목적지에 도착했어요' };
+const labels = { TRANSCRIBING: '말씀을 글로 바꾸고 있어요', THINKING: '답변을 생각하고 있어요', SPEAKING: '답변을 읽고 있어요', CANCELING: '대화를 중지하고 있어요' };
 const MAX_TEXT_LENGTH = 1000;
 const initialNonce = location.hash.slice(1);
 if (initialNonce) history.replaceState(null, '', location.pathname);
@@ -15,13 +16,26 @@ window.addEventListener('hashchange', () => {
   if (location.hash.length > 1) location.reload();
 });
 
+function ReplyStatus({ state }) {
+  return <div className="reply-status" role="status" aria-atomic="true">
+    {state === 'SPEAKING' ? <Volume2 size={15} aria-hidden="true" /> : <span className="status-dots" aria-hidden="true"><i /><i /><i /></span>}
+    <span>{labels[state]}</span>
+  </div>;
+}
+
 export default function App() {
   const [phase, setPhase] = useState('loading'), [status, setStatus] = useState('READY');
   const [consent, setConsent] = useState(false), [error, setError] = useState('');
   const [messages, setMessages] = useState([]), [recording, setRecording] = useState(false);
+  const [introDismissed, setIntroDismissed] = useState(false), [replyReceived, setReplyReceived] = useState(false);
   const [destinations, setDestinations] = useState([]);
+  const [navigation, setNavigation] = useState({ status: 'IDLE' });
   const [draft, setDraft] = useState('');
+  const [destinationsOpen, setDestinationsOpen] = useState(false);
+  const [notice, setNotice] = useState('');
   const pendingText = useRef(null), composing = useRef(false);
+  const responseCanceled = useRef(false);
+  const messageList = useRef(null), controls = useRef(null), followReplies = useRef(true);
   const [scanState, setScanState] = useState('checking'), [claimDeadline, setClaimDeadline] = useState(0);
   const [claimSeconds, setClaimSeconds] = useState(0);
   const [audioUrl, setAudioUrl] = useState(''), [needsPlay, setNeedsPlay] = useState(false);
@@ -75,8 +89,9 @@ export default function App() {
       try { wake.current = await navigator.wakeLock?.request('screen'); wake.current?.addEventListener('release', () => { wake.current = null; }); } catch { /* optional */ }
     }
   }
-  function finish() {
+  function finish(reason) {
     if (!capture.current) return;
+    if (reason === 'limit') setNotice('2분 동안의 말씀을 전송했어요. 답변 후 이어서 말씀해 주세요.');
     if (streamTurn.current) {
       if (!streamTurn.current.started) { abortStream(); return; }
       microphone.current.finish();
@@ -94,7 +109,8 @@ export default function App() {
   async function record() {
     if (capture.current) { finish(); return; }
     if (pendingText.current !== null || phase !== 'active' || status !== 'READY') return;
-    unlock(); setError(''); capture.current = true; setRecording(true);
+    followReplies.current = true;
+    unlock(); setError(''); setNotice(''); setDestinationsOpen(false); setReplyReceived(false); capture.current = true; setRecording(true);
     if (provider.current === 'azure') {
       const turn = { id: crypto.randomUUID(), seq: 0, pending: [], ready: false, ended: false };
       streamTurn.current = turn;
@@ -116,6 +132,7 @@ export default function App() {
       return;
     }
     microphone.current = new Microphone();
+    send({ type: 'ptt_start' });
     try { if (!await microphone.current.start(finish)) setRecording(false); }
     catch { capture.current = false; setRecording(false); setError('마이크를 사용할 수 없습니다. 브라우저의 마이크 권한을 확인한 뒤 다시 시도해 주세요.'); }
   }
@@ -124,17 +141,21 @@ export default function App() {
     const text = draft.trim();
     if (!text || draft.length > MAX_TEXT_LENGTH || composing.current || pendingText.current !== null
       || capture.current || phase !== 'active' || status !== 'READY') return;
-    unlock(); setError('');
+    unlock(); setError(''); setNotice(''); setDestinationsOpen(false);
     if (send({ type: 'text', text })) {
+      followReplies.current = true;
       pendingText.current = draft;
+      setReplyReceived(false);
       setStatus('THINKING');
     } else setError('연결이 끊겼습니다. 다시 연결한 뒤 보내 주세요.');
   }
   function navigate(destination) {
     if (pendingText.current !== null || capture.current || phase !== 'active' || status !== 'READY') return;
-    unlock(); setError('');
+    unlock(); setError(''); setNotice(''); setDestinationsOpen(false);
     if (send({ type: 'navigate', destination_id: destination.id })) {
+      followReplies.current = true;
       pendingText.current = ''; // Keep any drafted question when the selection is echoed.
+      setReplyReceived(false);
       setStatus('THINKING');
     } else setError('연결이 끊겼습니다. 다시 연결한 뒤 보내 주세요.');
   }
@@ -146,7 +167,8 @@ export default function App() {
   }
   function showEnded() {
     closed.current = true; pendingText.current = null;
-    setDraft(''); setMessages([]); setDestinations([]); setPhase('ended');
+    setIntroDismissed(false); setReplyReceived(false);
+    setDraft(''); setMessages([]); setDestinations([]); setNavigation({ status: 'IDLE' }); setPhase('ended');
   }
   function connect() {
     if (closed.current) return;
@@ -161,15 +183,32 @@ export default function App() {
       const message = JSON.parse(data);
       if (Array.isArray(message.destinations)) setDestinations(message.destinations);
       if (message.stt_provider) provider.current = message.stt_provider;
+      if (message.navigation) setNavigation(message.navigation);
+      if (message.type === 'navigation_state') setNavigation(message);
+      if (responseCanceled.current) {
+        if (message.type === 'robot_state' && message.status === 'READY') responseCanceled.current = false;
+        else if (['stt_ready', 'stt_closed', 'stt_text', 'user_text', 'llm_text', 'tts_audio', 'robot_state', 'error'].includes(message.type)) return;
+      }
       if (message.type === 'stt_ready' && message.id === streamTurn.current?.id) {
         streamTurn.current.ready = true; flushStream();
       }
       if (message.type === 'stt_closed' && message.id === streamTurn.current?.id) {
+        if (message.reason === 'limit') setNotice('2분 동안의 말씀을 전송했어요. 답변 후 이어서 말씀해 주세요.');
         streamTurn.current = null; capture.current = false;
         microphone.current.cancel(); setRecording(false); setStatus('TRANSCRIBING');
       }
-      if (message.type === 'robot_state') setStatus(message.status);
-      if (['stt_text', 'user_text', 'llm_text'].includes(message.type)) setMessages(old => [...old, { who: message.type === 'llm_text' ? 'DORI' : '나', text: message.data }].slice(-40));
+      if (message.type === 'robot_state') {
+        setStatus(message.status);
+        if (message.status === 'READY') setReplyReceived(false);
+      }
+      if (['stt_text', 'user_text', 'llm_text'].includes(message.type)) {
+        setIntroDismissed(true);
+        setReplyReceived(message.type === 'llm_text');
+        setMessages(old => [...old, {
+          who: message.type === 'llm_text' ? 'DORI' : '나', text: message.data,
+          sources: message.type === 'llm_text' && Array.isArray(message.sources) ? message.sources : [],
+        }].slice(-40));
+      }
       if (message.type === 'user_text') {
         const accepted = pendingText.current;
         setDraft(current => current === accepted ? '' : current);
@@ -184,6 +223,7 @@ export default function App() {
     socket.onclose = async event => {
       if (ws.current !== socket || closed.current) return;
       pendingText.current = null;
+      responseCanceled.current = false;
       clearInterval(heartbeat.current); stopMedia(); await wake.current?.release(); wake.current = null;
       if ([1000, 1008, 4000].includes(event.code)) { showEnded(); return; }
       setPhase('reconnecting');
@@ -228,7 +268,15 @@ export default function App() {
       closed.current = false; connect();
     } catch (err) { setError(err.message); setPhase('pair'); }
   }
-  function stop() { pendingText.current = null; stopMedia(); send({ type: 'command', action: 'STOP' }); setStatus('READY'); }
+  function stopResponse() {
+    pendingText.current = null; stopMedia(); setNotice('');
+    if (send({ type: 'command', action: 'CANCEL_RESPONSE' })) { responseCanceled.current = true; setStatus('CANCELING'); }
+    else setError('연결이 끊겼습니다. 다시 연결한 뒤 시도해 주세요.');
+  }
+  function stopNavigation() {
+    if (send({ type: 'command', action: 'CANCEL_NAVIGATION' })) setNavigation(current => ({ ...current, status: 'STOPPING' }));
+    else setError('연결이 끊겼습니다. 다시 연결한 뒤 시도해 주세요.');
+  }
   async function end() {
     closed.current = true; clearTimeout(retry.current); clearInterval(heartbeat.current);
     stopMedia(); send({ type: 'end' }); ws.current?.close(); wake.current?.release();
@@ -263,6 +311,29 @@ export default function App() {
     // Connection lifecycle is owned by refs; renders must not reopen the socket.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  const hasDraft = Boolean(draft.trim());
+  const ready = phase === 'active' && status === 'READY';
+  const responding = !recording && ['TRANSCRIBING', 'THINKING', 'SPEAKING', 'CANCELING'].includes(status);
+  const navigating = ['STARTING', 'NAVIGATING', 'STOPPING'].includes(navigation.status);
+  const actionLabel = recording ? '말하기 마치기' : responding ? '대화 중지' : hasDraft ? '전송' : '눌러서 말하기';
+  const showReplyStatus = phase === 'active' && !recording && Boolean(labels[status]);
+  const showPendingReply = showReplyStatus && !replyReceived;
+  useEffect(() => {
+    const trackScroll = () => {
+      if (messageList.current && controls.current) {
+        followReplies.current = messageList.current.getBoundingClientRect().bottom <= controls.current.getBoundingClientRect().top + 80;
+      }
+    };
+    window.addEventListener('scroll', trackScroll, { passive: true });
+    return () => window.removeEventListener('scroll', trackScroll);
+  }, []);
+  useLayoutEffect(() => {
+    if (!followReplies.current || !messageList.current || !controls.current) return;
+    // Keep new replies above the sticky composer, unless the visitor scrolled
+    // back to read earlier messages. Sending a new question resumes following.
+    const overlap = messageList.current.getBoundingClientRect().bottom - controls.current.getBoundingClientRect().top;
+    if (overlap > 0) window.scrollBy(0, overlap);
+  }, [messages, status, recording, navigation.status, phase]);
   return <main>
     <header><a href="/" aria-label="DORI 홈"><img src={doriLogo} alt="DORI" className="brand-logo" /></a><span>DGIST CAMPUS COMPANION</span></header>
     <audio ref={audio} onEnded={() => playback('ended')} onError={() => { if (audioId.current) playback('failed'); }} />
@@ -272,28 +343,56 @@ export default function App() {
       {scanState === 'ready' && <p className="hint">QR 확인 완료 · 연결 가능 시간 {Math.floor(claimSeconds / 60)}:{String(claimSeconds % 60).padStart(2, '0')}</p>}
       {scanState === 'expired' && <p className="hint">QR 화면의 새 코드를 스캔해 주세요. 이 페이지를 새로고침해도 시간이 연장되지는 않습니다.</p>}
       {scanState === 'error' && <button onClick={retryScan}>QR 확인 다시 시도</button>}</section>}
-    {['active', 'reconnecting'].includes(phase) && <><section className="conversation"><div className="badge"><i />{phase === 'reconnecting' ? '다시 연결하는 중' : 'DORI와 연결됨'}</div><h1>{phase === 'reconnecting' ? '잠시만 기다려 주세요' : recording ? '말씀을 듣고 있어요' : labels[status]}</h1><p className="hint">말을 마치면 자동으로 전송해요 · 최대 10초</p><div className="messages" aria-live="polite">{messages.length ? messages.map((message, i) => <article key={i} className={message.who === '나' ? 'mine' : ''}><small>{message.who}</small><p>{message.text}</p></article>) : <p className="empty">“DGIST는 어떤 곳인가요?”<br/>궁금한 이야기로 시작해 보세요.</p>}</div></section><div className="controls">{audioUrl && needsPlay && <button onClick={() => { audio.current.play().then(() => setNeedsPlay(false)).catch(() => setError('재생 버튼을 다시 눌러 주세요.')); }}>답변 음성 재생 ▶</button>}
-      {destinations.length > 0 && <div className="destinations" aria-label="안내 가능한 목적지">
-        <span className="destinations-title">안내 가능한 목적지</span>
-        <div className="destination-chips">
-          {destinations.map(dest => <button key={dest.id} type="button" className="destination-chip"
-            disabled={recording || phase !== 'active' || status !== 'READY'}
-            onClick={() => navigate(dest)}>{dest.name} ↗</button>)}
+    {['active', 'reconnecting'].includes(phase) && <><section className="conversation">
+      <div className="badge" role="status"><i />{phase === 'reconnecting' ? '다시 연결하는 중' : 'DORI와 연결됨'}</div>
+      <div className={`conversation-intro ${introDismissed ? 'is-dismissed' : ''}`} aria-hidden={introDismissed}>
+        <div><h1>무엇이 궁금하세요?</h1><p className="hint">궁금한 내용을 적거나 마이크를 눌러 이야기해 주세요.</p></div>
+      </div>
+      <div className="messages" ref={messageList}>
+        <div className="message-history" role="log" aria-label="DORI와 대화" aria-relevant="additions">
+        {messages.map((message, i) => <div key={i} className={`message ${message.who === '나' ? 'mine' : ''}`}><article><small>{message.who}</small><p>{message.text}</p>
+          {i === messages.length - 1 && message.who === 'DORI' && replyReceived && showReplyStatus && status !== 'THINKING' && <ReplyStatus state={status} />}
+        </article>
+        {message.sources.length > 0 && <details className="message-sources"><summary><BookOpen size={14} aria-hidden="true" />참고자료 {message.sources.length}개</summary><ul>{message.sources.map((source, index) => <li key={index}>
+          {/^https?:\/\//i.test(source.url || '') ? <a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a> : <span>{source.title}</span>}
+          <small>{[source.edition && `${source.edition}년판`, source.page_label ? `${source.page_label}쪽` : source.page_number && `PDF ${source.page_number}쪽`].filter(Boolean).join(' · ')}</small>
+        </li>)}</ul></details>}
+        </div>)}
         </div>
+        {showPendingReply && <div className="message pending-reply"><article><small>DORI</small><ReplyStatus state={status} /></article></div>}
+        {!messages.length && !showPendingReply && !recording && <p className="empty">“DGIST는 어떤 곳인가요?”<br/>궁금한 이야기로 시작해 보세요.</p>}
+      </div>
+    </section><div className="controls" ref={controls}>{audioUrl && needsPlay && <button onClick={() => { audio.current.play().then(() => setNeedsPlay(false)).catch(() => setError('재생 버튼을 다시 눌러 주세요.')); }}>답변 음성 재생 ▶</button>}
+      {navigation.status !== 'IDLE' && <div className="navigation-status">
+        <div role="status"><MapPin size={18} aria-hidden="true" /><span><strong>{navigation.status === 'ARRIVED' ? `${navigation.name || '목적지'}에 도착했어요` : navigation.status === 'FAILED' ? '길안내를 완료하지 못했어요' : navigation.status === 'STOPPING' ? '길안내를 중지하고 있어요' : `${navigation.name || '목적지'}${navigation.status === 'STARTING' ? ' 안내를 시작하고 있어요' : '(으)로 안내 중'}`}</strong><small>{navigating ? '이동 중에도 편하게 질문하세요' : navigation.status === 'FAILED' ? '목적지를 다시 선택해 주세요' : '계속 이야기할 수 있어요'}</small></span></div>
+        {navigating && <button type="button" onClick={stopNavigation} disabled={phase !== 'active' || navigation.status === 'STOPPING'}>길안내 중지</button>}
+      </div>}
+      {destinations.length > 0 && <div className="destinations">
+        <button type="button" className="destinations-toggle" aria-expanded={destinationsOpen} aria-controls="destination-options" disabled={!ready || recording || navigating} onClick={() => setDestinationsOpen(open => !open)}><MapPin size={16} aria-hidden="true" />목적지 선택<ChevronDown size={16} aria-hidden="true" /></button>
+        {destinationsOpen && <div id="destination-options" className="destination-chips" aria-label="안내 가능한 목적지">
+          {destinations.map(dest => <button key={dest.id} type="button" className="destination-chip"
+            disabled={recording || phase !== 'active' || status !== 'READY' || navigating}
+            onClick={() => navigate(dest)}>{dest.name} ↗</button>)}
+        </div>}
       </div>}
       <form className="text-composer" onSubmit={sendText}>
-        <label htmlFor="visitor-text">텍스트로 이야기하기</label>
-        <div className="text-composer-row">
-          <textarea id="visitor-text" rows={2} maxLength={MAX_TEXT_LENGTH} value={draft}
-            placeholder="DORI에게 하고 싶은 말을 적어 주세요"
-            disabled={phase !== 'active' || recording} aria-describedby="text-length"
+        <label className="sr-only" htmlFor="visitor-text">텍스트로 이야기하기</label>
+        <div className={`text-composer-row ${recording ? 'is-recording' : ''}`}>
+          <textarea id="visitor-text" rows={1} maxLength={MAX_TEXT_LENGTH} value={draft}
+            placeholder={recording ? '듣고 있어요…' : 'DORI에게 물어보세요'}
+            disabled={phase !== 'active' || recording} aria-describedby="composer-hint"
             onChange={event => setDraft(event.target.value)} onKeyDown={textKeyDown}
             onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }} />
-          <button type="submit" disabled={!draft.trim() || recording || phase !== 'active' || status !== 'READY'}>전송</button>
+          <button type={hasDraft && !recording && !responding ? 'submit' : 'button'} className={`composer-action ${recording ? 'recording' : responding ? 'stopping' : ''}`}
+            disabled={phase !== 'active' || status === 'CANCELING'} aria-label={actionLabel}
+            onClick={responding ? stopResponse : recording || !hasDraft ? () => record() : undefined}>
+            {recording ? <Check size={22} aria-hidden="true" /> : responding ? <Square size={20} fill="currentColor" aria-hidden="true" /> : hasDraft ? <ArrowUp size={22} aria-hidden="true" /> : <Mic size={22} aria-hidden="true" />}<span>{recording ? '완료' : responding ? '중지' : hasDraft ? '전송' : '말하기'}</span>
+          </button>
         </div>
-        <small id="text-length">{draft.length.toLocaleString()} / 1,000자</small>
+        <div className="composer-meta"><small id="composer-hint" role={recording ? 'status' : undefined}>{recording ? '말씀을 듣고 있어요 · 말이 끝나면 전송 · 최대 2분' : responding ? '중지를 누르면 현재 대화만 멈춰요' : hasDraft ? 'Enter로 전송 · Shift+Enter로 줄바꿈' : '글이나 음성으로 편하게 질문하세요'}</small>{draft.length > 0 && <small>{draft.length.toLocaleString()} / 1,000자</small>}</div>
       </form>
-      <button className={`primary ${recording ? 'recording' : ''}`} disabled={phase !== 'active' || (status !== 'READY' && !recording)} aria-pressed={recording} onClick={record}>{recording ? '말하기 마치기 ■' : '눌러서 말하기 🎙'}</button><div className="secondary"><button onClick={stop} disabled={phase !== 'active'}>현재 작업 취소</button><button onClick={end}>연결 종료</button></div></div></>}
+      {notice && <p className="hint" role="status">{notice}</p>}
+      <div className="secondary">{recording && <button onClick={stopResponse} disabled={phase !== 'active'}>녹음 취소</button>}<button onClick={end}>연결 종료</button></div></div></>}
     {phase === 'ended' && <section className="welcome"><div className="orb">또 봐요</div><h1>대화를 마쳤어요.</h1><p>다시 이야기하려면<br/>로봇 화면의 새 QR을 스캔해 주세요.</p></section>}
     {error && <p className="error" role="alert">{error}</p>}
     <footer>함께 걷는 캠퍼스, DORI</footer>

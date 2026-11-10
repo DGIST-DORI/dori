@@ -134,7 +134,9 @@ class BridgeAPITests(unittest.IsolatedAsyncioTestCase):
             prepare_visitor=AsyncMock(return_value=True),
             request_stop=Mock(),
             cancel_visitor=Mock(),
-            voice=SimpleNamespace(start=Mock(), start_text=Mock(), start_navigation=Mock(), playback=Mock(), media={}),
+            voice=SimpleNamespace(start=Mock(), start_text=Mock(), start_navigation=Mock(), playback=Mock(), media={},
+                                  provider='whisper', draining=False, conversation_busy=False, navigation={'status': 'IDLE'},
+                                  cancel_response=Mock(), cancel_navigation=Mock()),
             destinations=[{'id': 'lobby', 'name': '로비'}],
             execute_cleanup=AsyncMock(return_value=True),
         )
@@ -201,6 +203,22 @@ class BridgeAPITests(unittest.IsolatedAsyncioTestCase):
         self.ros.cancel_visitor.assert_called_once_with()
         self.assertEqual(self.manager.last_activity, 110.0)
 
+    async def test_scoped_cancel_commands_do_not_publish_global_stop(self):
+        connection = await self.connect()
+        self.ros.voice.conversation_busy = True
+        self.ros.voice.navigation = {'status': 'NAVIGATING', 'name': '로비'}
+        await connection.feed({'type': 'websocket.receive', 'text': '{"type":"command","action":"CANCEL_RESPONSE"}'})
+        self.ros.voice.cancel_response.assert_called_once_with(notify=True)
+        self.ros.voice.cancel_navigation.assert_not_called()
+        self.assertEqual(json.loads((await connection.outgoing.get())['text'])['action'], 'CANCEL_RESPONSE')
+        self.assertEqual(json.loads((await connection.outgoing.get())['text'])['status'], 'CANCELING')
+        await connection.feed({'type': 'websocket.receive', 'text': '{"type":"command","action":"CANCEL_NAVIGATION"}'})
+        self.ros.voice.cancel_navigation.assert_called_once()
+        self.assertEqual(self.ros.voice.cancel_response.call_count, 1)
+        self.assertEqual(json.loads((await connection.outgoing.get())['text'])['action'], 'CANCEL_NAVIGATION')
+        self.assertEqual(json.loads((await connection.outgoing.get())['text'])['type'], 'navigation_state')
+        self.ros.cancel_visitor.assert_not_called()
+
     async def test_text_dispatch_counts_only_accepted_messages_as_activity(self):
         connection = await self.connect()
         self.clock.return_value = 110.0
@@ -263,7 +281,7 @@ class BridgeAPITests(unittest.IsolatedAsyncioTestCase):
         connection = await self.connect()
         idle_task = self.manager.idle_task
         max_task = self.manager.session_timer_task
-        self.clock.return_value = 221.0
+        self.clock.return_value = 281.0
         await asyncio.wait_for(idle_task, timeout=2)
         self.assertEqual(self.manager.state, bridge.SessionState.IDLE)
         self.assertIsNone(self.manager.current_token)
@@ -275,29 +293,43 @@ class BridgeAPITests(unittest.IsolatedAsyncioTestCase):
 
     async def test_heartbeat_does_not_prevent_idle_expiry(self):
         connection = await self.connect()
-        for now in (130.0, 160.0, 190.0, 219.0):
+        for now in (130.0, 160.0, 190.0, 279.0):
             self.clock.return_value = now
             await connection.feed({
                 "type": "websocket.receive", "text": '{"type": "heartbeat"}',
             })
         self.assertEqual(self.manager.last_activity, 100.0)
-        self.clock.return_value = 221.0
+        self.clock.return_value = 281.0
         await asyncio.wait_for(self.manager.idle_task, timeout=2)
         self.assertEqual(self.manager.state, bridge.SessionState.IDLE)
 
+    async def test_legacy_recording_gesture_allows_full_capture_near_idle_deadline(self):
+        connection = await self.connect()
+        self.clock.return_value = 279.0
+        await connection.feed({'type': 'websocket.receive', 'text': '{"type":"ptt_start"}'})
+        self.assertEqual(self.manager.last_activity, 279.0)
+        self.clock.return_value = 399.0
+        with self.assertRaises(asyncio.TimeoutError):
+            await asyncio.wait_for(self.manager._idle_watcher(), timeout=.02)
+        self.assertEqual(self.manager.state, bridge.SessionState.ACTIVE)
+        self.ros.voice.start.assert_not_called()
+        self.ros.voice.conversation_busy = True
+        await connection.feed({'type': 'websocket.receive', 'text': '{"type":"ptt_start"}'})
+        self.assertEqual(self.manager.last_activity, 279.0)
+
     async def test_stop_extends_idle_deadline(self):
         connection = await self.connect()
-        self.clock.return_value = 219.0
+        self.clock.return_value = 279.0
         await connection.feed({
             "type": "websocket.receive",
             "text": '{"type": "command", "action": "STOP"}',
         })
-        self.clock.return_value = 221.0
+        self.clock.return_value = 281.0
         # Run an independent watcher check beyond the original idle deadline.
         with self.assertRaises(asyncio.TimeoutError):
             await asyncio.wait_for(self.manager._idle_watcher(), timeout=0.02)
         self.assertEqual(self.manager.state, bridge.SessionState.ACTIVE)
-        self.clock.return_value = 340.0
+        self.clock.return_value = 460.0
         await asyncio.wait_for(self.manager.idle_task, timeout=2)
         self.assertEqual(self.manager.state, bridge.SessionState.IDLE)
 

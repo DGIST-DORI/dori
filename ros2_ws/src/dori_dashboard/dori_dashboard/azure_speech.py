@@ -5,10 +5,50 @@ import os
 from pathlib import Path
 import re
 import shlex
+import math
+import struct
 
-MAX_SECONDS = 10
+MAX_SECONDS = 120
 MAX_PCM_BYTES = 16000 * 2 * MAX_SECONDS
 MAX_CHUNK_BYTES = 8000
+
+
+class SpeechEndpoint:
+    """PCM audio clock endpoint; provider phrase boundaries never end a turn.
+
+    Keep 20 ms energy windows across network chunks, reject DC/clicks and allow
+    1.5 s pauses. This is an energy detector, not a semantic end-of-turn model.
+    """
+    def __init__(self):
+        self.samples = self.count = self.total = self.squares = self.voiced = 0
+        self.last_voice = 0
+        self.has_speech = False
+        self.noise = .002
+
+    def push(self, pcm):
+        for (value,) in struct.iter_unpack('<h', pcm):
+            sample = value / 32768
+            self.samples += 1
+            self.count += 1
+            self.total += sample
+            self.squares += sample * sample
+            if self.count < 320:
+                continue
+            rms = math.sqrt(max(0, self.squares / self.count - (self.total / self.count) ** 2))
+            self.count = self.total = self.squares = 0
+            if rms > max(.008, self.noise * 3):
+                self.last_voice = self.samples
+                self.voiced += 320
+                self.has_speech |= self.voiced >= 1920
+            else:
+                self.noise = .95 * self.noise + .05 * rms
+                if not self.has_speech and self.samples - self.last_voice >= 4800:
+                    self.voiced = 0
+            if self.has_speech and self.samples - self.last_voice >= 24000:
+                return 'speech_end'
+            if not self.has_speech and self.samples >= 128000:
+                return 'no_speech'
+        return None
 
 
 class AzureSpeechError(ValueError):
@@ -54,9 +94,8 @@ def load_config():
 class AzureSpeechStream:
     """All state/callback delivery belongs to the owning asyncio loop.
 
-    Azure's first final stops input. Already-buffered final segments are drained
-    before returning one text turn. A manual finish/ten-second cap may also close
-    input; there is no client silence endpoint or paid language-ID fallback.
+    Collect Azure final segments until PCM silence, manual finish or the two-minute
+    resource cap closes input, then drain results into a single text turn.
     """
     def __init__(self, config, on_endpoint, *, sdk=None):
         self.config, self.on_endpoint = config, on_endpoint
@@ -75,6 +114,7 @@ class AzureSpeechStream:
         self.input_closed = self.canceled = self.closed = False
         self.ready = False
         self.bytes_received = 0
+        self.speech_endpoint = SpeechEndpoint()
         self.limit_timer = self.idle_timer = None
 
     def _open(self):
@@ -82,7 +122,7 @@ class AzureSpeechStream:
             sdk = self.sdk
             config = sdk.SpeechConfig(subscription=self.config.key, region=self.config.region)
             config.set_property(sdk.PropertyId.SpeechServiceConnection_LanguageIdMode, 'AtStart')
-            config.set_property(sdk.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs, '5000')
+            config.set_property(sdk.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs, '8000')
             config.set_property(sdk.PropertyId.SpeechServiceConnection_EnableAudioLogging, 'false')
             self.stream = sdk.audio.PushAudioInputStream(stream_format=sdk.audio.AudioStreamFormat(
                 samples_per_second=16000, bits_per_sample=16, channels=1))
@@ -135,7 +175,12 @@ class AzureSpeechStream:
             self.fail('stt_failed')
             return
         self._reset_idle()
-        if self.bytes_received == MAX_PCM_BYTES:
+        reason = self.speech_endpoint.push(pcm)
+        if reason == 'no_speech':
+            self.fail('stt_unclear')
+        elif reason:
+            self.finish(reason)
+        elif self.bytes_received == MAX_PCM_BYTES:
             self.finish('limit')
 
     def finish(self, reason='manual'):
@@ -174,9 +219,8 @@ class AzureSpeechStream:
                 if result.reason == self.sdk.ResultReason.RecognizedSpeech and result.text.strip():
                     language = self.sdk.AutoDetectSourceLanguageResult(result).language
                     self.segments[(result.offset, result.duration)] = (result.text.strip(), language)
-                    self.finish('azure_final')
-                elif result.reason == self.sdk.ResultReason.NoMatch:
-                    self.finish('azure_no_match')
+                # NoMatch is a phrase-level event too; PCM silence owns the
+                # endpoint and prevents one empty segment from losing a turn.
             elif kind == 'canceled' and event.cancellation_details.reason == self.sdk.CancellationReason.Error:
                 self.fail('stt_failed')
             elif kind in ('session_stopped', 'canceled'):

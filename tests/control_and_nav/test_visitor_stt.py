@@ -3,6 +3,9 @@ import asyncio
 import importlib.util
 import json
 import math
+import base64
+import io
+import wave
 import sys
 from pathlib import Path
 from types import MethodType, SimpleNamespace
@@ -94,6 +97,19 @@ class TranscriptionTests(TestCase):
         self.node._on_audio_input_topic(SimpleNamespace(data=json.dumps({'request_id': 'old', 'created_at': 0})))
         self.node.visitor_result_pub.publish.assert_not_called()
         self.node.whisper.transcribe.assert_not_called()
+
+    def test_long_phone_wav_reaches_transcription_without_truncation(self):
+        output = io.BytesIO()
+        with wave.open(output, 'wb') as wav:
+            wav.setparams((1, 2, 16000, 0, 'NONE', ''))
+            wav.writeframes(b'\0\0' * 16000 * 120)
+        captured = []
+        self.node._transcribe = lambda **kw: captured.append((len(self.node.buffer[0]), kw))
+        payload = {'request_id': 'long-phone', 'created_at': 2, 'format': 'wav_pcm16',
+                   'audio_b64': base64.b64encode(output.getvalue()).decode()}
+        self.node._on_audio_input_topic(SimpleNamespace(data=json.dumps(payload)))
+        self.assertEqual(captured, [(16000 * 120, {'request_id': 'long-phone'})])
+        self.assertFalse(self.node.buffer)
 
 
 class TurnFailureTests(IsolatedAsyncioTestCase):

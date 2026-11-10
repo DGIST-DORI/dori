@@ -56,7 +56,7 @@ SAMPLE_RATE = 16000
 FRAME_LENGTH = 512  # Porcupine frame size (fixed)
 CHANNELS = 1
 
-MAX_BUFFER_SEC = 10.0
+MAX_BUFFER_SEC = 120.0
 MIN_SPEECH_SEC = 0.5
 
 
@@ -109,7 +109,7 @@ class STTNode(Node):
         self.declare_parameter("whisper_model", "small")
         self.declare_parameter("whisper_device", "cpu")
         self.declare_parameter("vad_threshold", 0.5)
-        self.declare_parameter("silence_duration", 1.2)
+        self.declare_parameter("silence_duration", 1.5)
         self.declare_parameter("topics.wake_word_pub", "stt/wake_word_detected")
         self.declare_parameter("topics.result_pub", "stt/result")
         self.declare_parameter("min_confidence", 0.55)

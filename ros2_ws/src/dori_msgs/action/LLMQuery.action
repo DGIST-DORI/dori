@@ -6,6 +6,8 @@ string location_context
 string intent
 string response_text
 string target_location
+# JSON array of retrieved source metadata; display only, never pass to TTS.
+string sources_json
 ---
 # Feedback (LLM -> 클라이언트, 현재 상태)
 string status

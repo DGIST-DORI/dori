@@ -1,6 +1,8 @@
 """Production Azure session lifecycle with native-thread callback simulation."""
 import asyncio
 import os
+import math
+import struct
 from pathlib import Path
 import sys
 import tempfile
@@ -10,7 +12,11 @@ from unittest import IsolatedAsyncioTestCase, TestCase
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'ros2_ws/src/dori_dashboard/dori_dashboard'))
-from azure_speech import AzureConfig, AzureSpeechError, AzureSpeechStream, load_config
+from azure_speech import AzureConfig, AzureSpeechError, AzureSpeechStream, load_config, MAX_SECONDS
+
+
+def speech_chunk():
+    return b''.join(struct.pack('<h', int(3000 * math.sin(2 * math.pi * 220 * i / 16000))) for i in range(1600))
 
 
 class Signal:
@@ -60,16 +66,21 @@ class StreamingTests(IsolatedAsyncioTestCase):
         self.stream = AzureSpeechStream(AzureConfig('private-key', 'koreacentral'), self.endpoints.append, sdk=self.sdk)
     async def asyncTearDown(self): await self.stream.close()
 
-    async def test_final_stops_capture_and_drains_all_buffered_segments(self):
+    async def test_finals_keep_capture_open_and_drain_all_segments_at_silence(self):
         await self.stream.start()
         self.stream.write(bytes(3200))
         self.sdk.suffix = '도서관은 어디인가요?'
         await asyncio.to_thread(self.sdk.final, '잠시만요.')
+        await asyncio.sleep(0)
+        self.assertFalse(self.stream.input_closed)
+        for _ in range(120): self.stream.write(speech_chunk())
+        self.assertFalse(self.stream.input_closed)
+        for _ in range(15): self.stream.write(bytes(3200))
         self.assertEqual(await self.stream.result(), '잠시만요. 도서관은 어디인가요?')
-        self.assertEqual(self.endpoints, ['azure_final'])
+        self.assertEqual(self.endpoints, ['speech_end'])
         self.stream.write(bytes(3200))
-        self.assertEqual(len(self.sdk.writes), 1)
-        self.assertEqual(self.sdk.properties, {'lid': 'AtStart', 'initial': '5000', 'logging': 'false'})
+        self.assertEqual(len(self.sdk.writes), 136)
+        self.assertEqual(self.sdk.properties, {'lid': 'AtStart', 'initial': '8000', 'logging': 'false'})
 
     async def test_cancel_during_native_start_never_accepts_late_text(self):
         self.sdk.gate = threading.Event()
@@ -88,12 +99,15 @@ class StreamingTests(IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(AzureSpeechError, '^stt_failed$'):
             await self.stream.result()
 
-    async def test_no_match_is_a_recoverable_empty_turn(self):
+    async def test_no_match_does_not_close_input_but_initial_silence_does(self):
         await self.stream.start()
         self.sdk.recognized.emit(NS(result=NS(reason='no_match')))
+        await asyncio.sleep(0)
+        self.assertFalse(self.stream.input_closed)
+        for _ in range(80): self.stream.write(bytes(3200))
         with self.assertRaisesRegex(AzureSpeechError, 'stt_unclear'):
             await self.stream.result()
-        self.assertEqual(self.endpoints, ['azure_no_match'])
+        self.assertEqual(self.endpoints, ['error'])
 
     async def test_missing_phone_frames_abort_without_waiting_for_speech_endpoint(self):
         await self.stream.start()
@@ -111,11 +125,11 @@ class StreamingTests(IsolatedAsyncioTestCase):
     async def test_audio_budget_closes_stream_without_silence_detection(self):
         await self.stream.start()
         self.sdk.suffix = '긴 발화'
-        for _ in range(100): self.stream.write(bytes(3200))
+        for _ in range(MAX_SECONDS * 10): self.stream.write(speech_chunk())
         self.assertEqual(await self.stream.result(), '긴 발화')
         self.assertEqual(self.endpoints, ['limit'])
         self.stream.write(bytes(3200))
-        self.assertEqual(len(self.sdk.writes), 100)
+        self.assertEqual(len(self.sdk.writes), MAX_SECONDS * 10)
 
     async def test_late_callbacks_after_disposal_are_ignored(self):
         await self.stream.start()

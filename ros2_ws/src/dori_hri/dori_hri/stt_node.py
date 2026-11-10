@@ -54,7 +54,7 @@ SAMPLE_RATE = 16000
 FRAME_LENGTH = 1280  # openWakeWord: 1280
 CHANNELS = 1
 
-MAX_BUFFER_SEC = 10.0
+MAX_BUFFER_SEC = 120.0
 MIN_SPEECH_SEC = 0.5
 
 
@@ -73,7 +73,7 @@ class STTNode(Node):
         self.declare_parameter("whisper_model", "small")
         self.declare_parameter("whisper_device", "cpu")
         self.declare_parameter("vad_threshold", 0.5)
-        self.declare_parameter("silence_duration", 1.2)
+        self.declare_parameter("silence_duration", 1.5)
         self.declare_parameter("topics.wake_word_pub", "stt/wake_word_detected")
         self.declare_parameter("topics.result_pub", "stt/result")
         self.declare_parameter("min_confidence", 0.55)
@@ -267,8 +267,8 @@ class STTNode(Node):
             audio_b64 = payload.get("audio_b64")
             if not audio_b64:
                 raise ValueError("Missing audio")
-            if not isinstance(audio_b64, str) or len(audio_b64) > 500000:
-                raise ValueError("Audio message exceeds 10 seconds")
+            if not isinstance(audio_b64, str) or len(audio_b64) > ((44 + SAMPLE_RATE * 2 * int(MAX_BUFFER_SEC) + 2) // 3 * 4):
+                raise ValueError("Audio message exceeds 120 seconds")
             wav_bytes = base64.b64decode(audio_b64, validate=True)
             with wave.open(BytesIO(wav_bytes), "rb") as wf:
                 sr = wf.getframerate()
@@ -280,7 +280,7 @@ class STTNode(Node):
                 raise ValueError("Expected complete 16000Hz mono 16-bit PCM")
             audio = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
             if not MIN_SPEECH_SEC <= len(audio) / SAMPLE_RATE <= MAX_BUFFER_SEC:
-                raise ValueError("Audio duration must be 0.5 to 10 seconds")
+                raise ValueError("Audio duration must be 0.5 to 120 seconds")
             self.buffer = [audio]
             self._transcribe(request_id=request_id)
         except Exception as e:

@@ -478,19 +478,21 @@ running the bridge directly from an installed location without dashboard launch.
 The user protocol is JSON over `/ws/user`, protected by the session cookie and
 an exact Origin check. Supported input messages:
 
-- `heartbeat` every 5 seconds; it does not extend the 120-second idle deadline.
+- `heartbeat` every 5 seconds; it does not extend the 180-second idle deadline.
+- `ptt_start` marks a microphone gesture in legacy Whisper mode as user activity,
+  before recording is uploaded. It never opens a server microphone.
 - `ptt_audio` with `audio_b64`, `format: "wav_pcm16"`, `sample_rate: 16000`,
-  `channels: 1`; legacy Whisper mode only, 0.5–10 seconds, one outstanding turn,
-  450,000-byte WS limit.
+  `channels: 1`; legacy Whisper mode only, 0.5–120 seconds, one outstanding turn,
+  5,130,000-byte WS limit.
 - `stt_start` with a fresh `id` (16–64 letters/digits/underscore/hyphen),
   `format: "pcm16"`, `sample_rate: 16000`, `channels: 1`; Azure mode only.
   Wait for `stt_ready` with the same ID before sending audio.
 - `stt_chunk` with the same `id`, consecutive integer `seq` starting at 0, and
   `audio_b64`: raw little-endian PCM16, **no WAV header**. The browser sends
   100 ms / 3200-byte chunks; the gateway accepts at most 8000 bytes per frame and
-  320000 bytes per turn. Stale IDs cannot feed or finish another turn.
+  3,840,000 bytes per turn. Stale IDs cannot feed or finish another turn.
 - `stt_end` with `id` and the next `seq` closes input on manual finish or the
-  ten-second capture limit; `stt_cancel` with `id` discards that turn.
+  two-minute capture limit; `stt_cancel` with `id` discards that turn.
 - `text` with `text`: a nonblank string of at most 1,000 characters. The gateway
   trims surrounding whitespace, echoes accepted input as `user_text`, skips STT,
   and uses the same LLM and remote TTS actions as microphone input. Audio and text
@@ -498,14 +500,23 @@ an exact Origin check. Supported input messages:
 - `navigate` with `destination_id`: selects an ID from the current destination
   snapshot. The gateway validates the ID and skips LLM interpretation for buttons.
   The named action server revalidates the destination against the active map.
-- `command` with `action: "STOP"` cancels the current task without clearing an
-  operator emergency stop. Unsupported commands, including GUIDE/FOLLOW, fail.
+- `command` with `action: "CANCEL_RESPONSE"` cancels only STT/LLM/TTS. The app
+  immediately stops local playback, keeps the draft, and waits in `CANCELING`
+  until the action drains. In-flight reply/media events are ignored during that wait.
+- `command` with `action: "CANCEL_NAVIGATION"` cancels only the named navigation
+  action, including late goal acceptance. Conversation and phone playback continue.
+- Legacy `command` with `action: "STOP"` cancels both scopes without clearing an
+  operator emergency stop. The app's two scoped controls do not use global STOP.
+  Unsupported commands, including GUIDE/FOLLOW, fail.
 - `playback` with the issued audio `id` and `status: "ended" | "failed" | "canceled"`.
 - `end` closes and cleans up the session; `DELETE /api/session` is also available.
 
-Outputs are `robot_state` (READY/TRANSCRIBING/THINKING/SPEAKING/NAVIGATING/ARRIVED), `stt_text`, `user_text`,
-`llm_text`, `tts_audio` (id and authenticated URL), `command_result`, and `error`.
-The initial READY snapshot includes `stt_provider` and `destinations` (ID/name).
+Outputs are `robot_state` (READY/TRANSCRIBING/THINKING/SPEAKING/CANCELING), `stt_text`, `user_text`,
+`llm_text` (spoken `data` plus optional display-only `sources`), `tts_audio` (id and authenticated URL), `command_result`, and `error`.
+The initial READY snapshot includes `stt_provider`, `destinations` (ID/name), and
+a separate `navigation` snapshot. `navigation_state` events contain `status`
+(IDLE/STARTING/NAVIGATING/STOPPING/ARRIVED/FAILED), `destination` (ID), and `name`
+when a destination is known. They never reset the conversation state.
 Subsequent `destinations` events replace the whole list, including empty lists
 after a map change or deletion. `GET /api/destinations` exposes the same snapshot
 with session authentication. The app uses the WebSocket snapshot to avoid races
@@ -523,10 +534,14 @@ requesting motion.
 “길안내 해줘” asks for a destination; a subsequent name such as “e6 gate” or
 “계단” resolves only against the active registry. Ambiguous/unknown destinations
 do not produce a motion target. A successful departure announcement must finish
-playing before dispatch. While navigating, new requests are disabled; STOP,
-disconnect and session end cancel the action and wait for its terminal result,
-including late goal acceptance. Rejection/failure appears as an app error;
-arrival is announced only after successful completion.
+playing before dispatch. Navigation then runs independently, so text and voice
+questions remain available during movement. There is at most one conversation
+and one navigation action; choosing a different destination requires stopping
+the existing navigation first. Each scope owns its action handle and drain
+barrier. Disconnect, session end and global STOP cancel both and cleanup waits
+for both terminal results, including late acceptance. A separate navigation
+banner shows progress, failure and successful arrival. Arrival is visual and
+does not interrupt microphone capture or speak over a conversational answer.
 
 Azure additionally sends
 `stt_ready` and `stt_closed` with the client stream ID. On `stt_closed`, the app
@@ -538,25 +553,73 @@ cancellation. Pairing uses a global limit of 30 attempts/minute, intentionally
 independent of untrusted forwarding headers. Responses include 409 busy, 410
 expired nonce, 429 throttled, and 503 voice profile unavailable.
 
+UX references for the November 2026 update:
+[Apple data entry guidance](https://developer.apple.com/design/human-interface-guidelines/entering-data)
+supports preserving available input methods;
+[Azure continuous recognition documentation](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/how-to-recognize-speech?pivots=programming-language-python)
+distinguishes segmentation from continuous input and explains the pause/latency
+tradeoff. These support the integrated composer and multiple-segment turn design;
+the 1.5-second threshold and two-minute cap are project choices to validate on phones.
+
 The visitor composer accepts text without requesting microphone permission.
 Send with the button or Enter; Shift+Enter inserts a newline and IME composition
 does not send. Drafts remain until the server accepts them, survive a transient
 connection loss, and are cleared with the conversation when the session ends.
 
-In Azure mode, the phone streams while the user speaks and **waits for Azure's
-first final result or NoMatch to stop recording**. There is no 800 ms client
-silence cutoff and no custom server segmentation-silence override. AtStart
-language identification selects Korean or English per turn; within-sentence
-mixing remains a known limitation. The finish button and ten-second overall
-capture limit remain available. Three seconds without PCM frames is a transport
-failure, not a speech-silence decision; silent microphone frames continue flowing.
+The visitor app keeps a visible text field with a single trailing action: a
+microphone for an empty/whitespace-only draft, Send for text, Finish during
+recording, and Stop while transcribing/generating/speaking. Stop takes priority
+even if the visitor is drafting the next question; Enter never cancels a reply.
+Recording has a separate discard action. A distinct Stop navigation button lives
+in the navigation banner. Destination choices open on demand and collapse after
+selection; drafting remains possible while a reply is in progress. The action has an
+explicit accessible name and a visible label, with a 60px touch height.
+
+The initial question heading and input instructions collapse after the first
+accepted `user_text`/`stt_text` (or answer) in the current page session. Typing,
+opening the microphone and rejected input do not dismiss them. Once dismissed,
+they stay hidden after completion, cancellation, errors and transient reconnects.
+Transcription/generation/cancellation feedback appears in a transient answer
+bubble at the end of the conversation. Received answers replace that placeholder;
+playback status appears inside the current answer. Recording feedback stays by
+the composer. Status text is never added to the message history or passed to TTS.
+New replies stay above the sticky composer while following the conversation;
+scrolling back to earlier messages preserves the reading position. Sending a new
+question resumes following. The collapse and activity dots respect reduced-motion
+preferences. This follows
+[Apple's guidance on contextual help](https://developer.apple.com/design/human-interface-guidelines/offering-help):
+show instructions only while they remain useful.
+
+Answers and provenance are separate throughout the pipeline. The model returns
+JSON (`answer`, `source_ids`); source IDs resolve only against that turn's
+retrieved documents. Titles, editions and pages come from verified retrieval
+metadata, never model-written URLs. `LLMQuery.Result.sources_json` carries these
+records to the gateway, and `llm_text.sources` displays them in a collapsible
+reference area below the speech bubble. Both phone and robot TTS receive only
+`response_text`. Invalid structured output uses the localized fallback. Rebuild
+`dori_msgs` and its consumers together before restarting the stack.
+
+In Azure mode the phone streams continuously; **a final recognition segment is
+not the end of the visitor's turn**. The gateway collects all final segments and
+closes input after 1.5 seconds of quiet PCM audio following speech, manual finish,
+or the 120-second resource cap. Eight seconds without detected speech produces a
+recoverable empty-input error. The browser reports the resource cap explicitly.
+The energy detector rejects DC offset and isolated clicks, but is not semantic
+turn detection: loud background sound and very quiet speech still require field
+testing. These thresholds are initial UX choices, not measured accuracy claims.
+AtStart language identification selects Korean or English per turn;
+within-sentence mixing remains a known limitation. Three seconds without PCM
+frames is a transport failure; silent microphone frames continue flowing.
 The gateway allows eight seconds to drain final results after input closes.
 STOP, backgrounding and disconnect cancel capture and prevent late text from
 starting a reply. The browser limits queued audio and fails visibly on congestion.
 The consent screen discloses transmission to Microsoft Azure Speech.
 
-In the explicitly selected legacy Whisper mode, the previous 800 ms local
-endpoint, 200 ms edge padding and local silence rejection are retained. Local
+In explicitly selected legacy Whisper mode, the same 1.5-second quiet interval,
+eight-second initial silence and 120-second cap apply locally, with 200 ms edge
+padding and local silence rejection. The WAV encoder, gateway size limit and
+STT decoder all accept the full duration. The idle deadline is 180 seconds to
+leave room for capture and upload; heartbeats alone cannot extend it. Local
 visitor transcription uses Silero filtering, greedy decoding,
 and `visitor_min_confidence=0.4` for short utterances; the robot STT threshold
 remains `min_confidence=0.55`. No-speech segments are still rejected. Recognition
@@ -604,7 +667,7 @@ GUIDE and FOLLOW are deferred.
 
 Before a visitor rollout, verify on physical Android Chrome and iPhone Safari:
 QR pairing, permissions denied/retried, first-gesture audio playback, the manual
-play fallback, 10-second recording cutoff, background/lock/foreground, network
+play fallback, long speech beyond 10 seconds and the two-minute recording cutoff, background/lock/foreground, network
 switch, STOP during each voice phase, session expiry and a second visitor with
 no previous visitor's audio or history. Software tests do not establish physical
 stopping behavior or mobile autoplay compatibility.
@@ -613,10 +676,13 @@ An optional desktop Chromium smoke test is retained at
 `tests/browser/visitor.spec.mjs`. With Playwright and its Chromium runtime installed,
 run it from the repository root using `node tests/browser/visitor.spec.mjs`.
 Set `DORI_PLAYWRIGHT_MODULE` to a Playwright module path if installed outside the
-repository. The test starts a local static server, mocks the API/WebSocket,
+repository; `DORI_CHROMIUM_EXECUTABLE` can select an already installed Chromium.
+The test starts a local static server, mocks the API/WebSocket,
 uses a fake microphone, and checks consent, pairing, legacy WAV capture, Azure PCM
-streaming through a long silence, service endpoint events, stale IDs, manual
-finish, recognition-error recovery, playback, STOP, end and mobile-width layout.
+streaming beyond ten seconds and through pauses, server endpoint events, stale
+IDs, manual finish, recognition-error recovery, playback, scoped stop, end, input action
+switching, parallel conversation/navigation, draft preservation, stale reply
+suppression, collapsible destinations/references and 320px/390px mobile layouts.
 It does not contact the robot or Azure.
 
 The standalone robot display has a separate Chromium check:
@@ -625,6 +691,16 @@ The standalone robot display has a separate Chromium check:
 checks QR expiry/loading races and session transitions, and captures six viewport
 sizes under `/tmp/dori-display-*.png`. Set `DORI_DISPLAY_QR_FIXTURE` to a local
 SVG QR image for realistic screenshots; the default is a placeholder image.
+
+UX update verification (2026-11-10): frontend audio tests, gateway/LLM/RAG
+regressions, mobile Chromium smoke checks, ESLint and the visitor production
+bundle passed. The generated action, LLM, HRI, gateway and BT packages built;
+an isolated ROS domain-96 integration test verified provenance crossing the real
+LLM action and answer-only text reaching synthesis. A follow-up verified
+conversation during movement, independent response/navigation cancellation,
+arrival during playback, and disconnect cleanup across both actions. These checks use mocked
+cloud services and synthetic audio; they do not measure physical phone or live
+Azure performance. Restart the stack together to load the rebuilt action type.
 
 Azure app integration verification (2026-11-05): 53 gateway/visitor tests,
 9 native-session lifecycle tests, 16 frontend tests, one isolated ROS visitor
@@ -648,7 +724,8 @@ visitor app. It streams 16 kHz mono PCM16 in 100 ms chunks at capture speed,
 collects interim and final results, and records language and latency evidence.
 It does not select the app's provider or start any ROS nodes.
 
-The selected approach is **Azure-controlled endpoint detection**. By default,
+The standalone evaluator retains its historical **Azure-controlled endpoint
+detection** baseline. It does not implement the current app turn endpoint. By default,
 `--endpoint-mode azure` keeps sending microphone-equivalent audio until Azure
 emits its first final result (or NoMatch), then closes input and drains any
 remaining results. There is no client 800 ms silence cutoff in this mode.
@@ -657,7 +734,8 @@ reaching the input limit is reported as `azure_endpoint_timeouts`, not successfu
 Azure endpoint detection. Reports also flag `speech_truncated` if the service
 stops input before the labeled end of speech in the source file.
 
-The app integration uses the same endpoint ownership with live PCM streaming.
+The app integration now collects multiple Azure segments using the turn endpoint
+described above. Evaluator results below describe earlier endpoint strategies.
 Azure segmentation can still split a speaker's pause; a
 service endpoint is not a guarantee that the user has finished their whole turn.
 
@@ -737,7 +815,8 @@ For representative phone recordings, use a manifest with relative WAV paths:
 ]
 ```
 
-Recordings must be 0.5–10 seconds, matching the visitor app. Label the actual end
+Evaluator recordings must be 0.5–10 seconds; this historical corpus limit is
+independent of the visitor app’s 120-second capture limit. Label the actual end
 of speech in the source audio for `speech_end_seconds`; omit it if unknown.
 For silence, use an empty reference and omit the speech-end label.
 
@@ -832,7 +911,7 @@ two finalized segments; forwarding the first would lose the question. Collect
 **all** buffered final segments until session completion after closing input.
 This configuration did not demonstrate useful interim text while speaking.
 
-The current decision is to wait for Azure endpoint detection; the 800 ms client
+The decision at the time was to wait for Azure endpoint detection; the 800 ms client
 experiment is retained only as historical evidence. Its results do not meet a
 strict P95 <1500 ms target or establish phone accuracy. The
 repeated synthetic corpus is too small to establish production percentiles.

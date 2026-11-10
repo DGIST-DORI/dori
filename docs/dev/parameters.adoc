@@ -215,7 +215,7 @@ This document is the SSOT for ROS2 parameter details in the current workspace.
 | whisper_model | string | `small` | whisper model size | - | STT model size.
 | whisper_device | string | `cpu` | `cpu/cuda` | - | STT inference device.
 | vad_threshold | double | 0.5 | [0,1] | - | Voice activity threshold.
-| silence_duration | double | 1.2 | >0 | s | End-of-utterance silence duration.
+| silence_duration | double | 1.5 | >0 | s | End-of-utterance silence duration for the local robot microphone. Phone endpoints use the same initial threshold independently.
 | visitor_min_confidence | double | 0.4 | [0,1] | - | Confidence floor for phone turns on `stt/visitor_result`; robot STT keeps its separate 0.55 threshold.
 | topics.wake_word_pub | string | `/stt/wake_word_detected` | topic path | - | Wake event output.
 | topics.result_pub | string | `/stt/result` | topic path | - | STT result output.

@@ -37,8 +37,8 @@ class AudioValidationTests(TestCase):
                 with self.assertRaises(ValueError): validate_text({'text': value})
 
     def test_valid_and_invalid_audio(self):
-        self.assertEqual(validate_audio(wav_payload(10))['sample_rate'], 16000)
-        for payload in [wav_payload(.1), wav_payload(10.1), wav_payload(1, 48000),
+        self.assertEqual(validate_audio(wav_payload(120))['sample_rate'], 16000)
+        for payload in [wav_payload(.1), wav_payload(120.1), wav_payload(1, 48000),
                         {**wav_payload(), 'audio_b64': '%%%%'},
                         {**wav_payload(), 'channels': 2}]:
             with self.subTest(payload_size=len(payload['audio_b64'])):
@@ -56,6 +56,7 @@ class VisitorAssetsTests(IsolatedAsyncioTestCase):
              patch.object(bridge, 'ros_node', None), \
              patch.object(bridge, 'internal_token'), \
              patch.object(bridge, 'BridgeNode', return_value=node), \
+             patch.object(bridge, 'SingleThreadedExecutor'), \
              patch.object(bridge.threading, 'Thread'), \
              patch.object(bridge.rclpy, 'ok', side_effect=[False, True]), \
              patch.object(bridge.rclpy, 'init') as initialize, \
@@ -278,15 +279,32 @@ class VoiceTurnTests(IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         self.voice.cancel()
-        if self.voice.task:
-            self.voice.task.cancel()
-            await asyncio.gather(self.voice.task, return_exceptions=True)
+        for task in (self.voice.task, self.voice.navigation_task):
+            if task:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
 
     async def test_cancel_before_scheduled_turn_does_not_publish_audio(self):
         self.voice.start(wav_payload())
         self.voice.cancel()
         await self.voice.task
         self.voice.audio_pub.publish.assert_not_called()
+
+    async def test_sources_are_display_only_and_never_passed_to_tts(self):
+        sources = [{'title': 'DGIST 가이드북', 'edition': '2026', 'page_number': 15}]
+        self.voice._action = AsyncMock(side_effect=[
+            SimpleNamespace(intent='information', response_text='도서관은 E8에 있습니다.',
+                            sources_json=json.dumps(sources)), SimpleNamespace(success=True),
+        ])
+        self.voice.start_text({'text': '도서관은 어디야?'})
+        await self.voice.task
+        events = [call.args[0] for call in self.manager.active_ws.send_json.call_args_list]
+        reply = next(event for event in events if event['type'] == 'llm_text')
+        self.assertEqual(reply['sources'], sources)
+        self.assertEqual(reply['data'], '도서관은 E8에 있습니다.')
+        spoken = self.voice._action.call_args_list[1].args[2].text
+        self.assertEqual(spoken, reply['data'])
+        self.assertNotIn('가이드북', spoken)
 
     async def test_text_skips_stt_and_follow_remains_unsupported(self):
         self.voice.audio_pub.get_subscription_count.return_value = 0
@@ -328,20 +346,106 @@ class VoiceTurnTests(IsolatedAsyncioTestCase):
         self.action_result(self.voice.tts, SimpleNamespace(success=True))
         return self.action_result(self.voice.nav, SimpleNamespace(code=0), **kwargs)
 
+    async def moving(self):
+        terminal = asyncio.get_running_loop().create_future()
+        handle = self.prepare_navigation(pending=terminal)
+        self.voice.start_navigation({'destination_id': 'lobby'})
+        await self.voice.task
+        while self.voice.navigation_goal is not handle:
+            await asyncio.sleep(0)
+        return handle, terminal
+
+    async def test_text_and_audio_turns_are_accepted_while_navigation_continues(self):
+        handle, terminal = await self.moving()
+        self.action_result(self.voice.llm, SimpleNamespace(intent='qa', response_text='캠퍼스 정보입니다.'))
+        self.action_result(self.voice.tts, SimpleNamespace(success=True))
+        self.voice.start_text({'text': '캠퍼스를 소개해줘'})
+        await self.voice.task
+        self.voice.start(wav_payload())
+        await asyncio.sleep(0)
+        self.voice._receive_stt({'request_id': self.voice.turn, 'event': 'stt_result', 'text': '안녕'})
+        await self.voice.task
+        handle.cancel_goal_async.assert_not_called()
+        self.assertTrue(self.voice.navigation_busy)
+        self.assertFalse(self.voice.conversation_busy)
+        with self.assertRaises(ValueError): self.voice.start_navigation({'destination_id': 'lobby'})
+        terminal.set_result(SimpleNamespace(status=4, result=SimpleNamespace(code=0)))
+        await self.voice.navigation_task
+        self.assertEqual(self.voice.navigation['status'], 'ARRIVED')
+
+    async def test_cancel_response_drains_llm_or_tts_without_canceling_navigation(self):
+        nav_handle, nav_terminal = await self.moving()
+        for stage in ('llm', 'tts'):
+            terminal = asyncio.get_running_loop().create_future()
+            llm = self.action_result(self.voice.llm, SimpleNamespace(intent='qa', response_text='답변'),
+                                     pending=terminal if stage == 'llm' else None)
+            tts = self.action_result(self.voice.tts, SimpleNamespace(success=True),
+                                     pending=terminal if stage == 'tts' else None)
+            target = llm if stage == 'llm' else tts
+            self.voice.start_text({'text': '질문'})
+            while self.voice.goal is not target:
+                await asyncio.sleep(0)
+            self.manager.active_ws.send_json.reset_mock()
+            self.voice.cancel_response(notify=True)
+            target.cancel_goal_async.assert_called_once()
+            nav_handle.cancel_goal_async.assert_not_called()
+            self.assertTrue(self.voice.conversation_busy)
+            with self.assertRaises(ValueError): self.voice.start_text({'text': '다음 질문'})
+            self.manager.active_ws.send_json.assert_not_awaited()
+            terminal.set_result(SimpleNamespace(status=5, result=None))
+            await self.voice.task
+            self.manager.active_ws.send_json.assert_awaited_once_with({'type': 'robot_state', 'status': 'READY'})
+        nav_terminal.set_result(SimpleNamespace(status=4, result=SimpleNamespace(code=0)))
+        await self.voice.navigation_task
+
+    async def test_navigation_stop_and_arrival_do_not_reset_an_active_answer(self):
+        for cancel in (True, False):
+            nav_handle, nav_terminal = await self.moving()
+            terminal = asyncio.get_running_loop().create_future()
+            self.action_result(self.voice.llm, SimpleNamespace(intent='qa', response_text='답변'))
+            tts = self.action_result(self.voice.tts, SimpleNamespace(success=True), pending=terminal)
+            self.voice.start_text({'text': '질문'})
+            while self.voice.goal is not tts:
+                await asyncio.sleep(0)
+            self.manager.active_ws.send_json.reset_mock()
+            if cancel:
+                self.voice.cancel_navigation()
+                nav_handle.cancel_goal_async.assert_called_once()
+            nav_terminal.set_result(SimpleNamespace(status=5 if cancel else 4, result=SimpleNamespace(code=0)))
+            await self.voice.navigation_task
+            tts.cancel_goal_async.assert_not_called()
+            self.assertTrue(self.voice.conversation_busy)
+            events = [c.args[0] for c in self.manager.active_ws.send_json.call_args_list]
+            self.assertTrue(all(e['type'] == 'navigation_state' for e in events))
+            self.assertEqual(events[-1]['status'], 'IDLE' if cancel else 'ARRIVED')
+            terminal.set_result(SimpleNamespace(status=4, result=SimpleNamespace(success=True)))
+            await self.voice.task
+
+    async def test_canceled_navigation_cannot_send_late_events_to_replacement_session(self):
+        handle, terminal = await self.moving()
+        self.voice.cancel()
+        replacement = SimpleNamespace(send_json=AsyncMock())
+        self.manager.active_ws = replacement
+        terminal.set_result(SimpleNamespace(status=4, result=SimpleNamespace(code=0)))
+        await self.voice.navigation_task
+        handle.cancel_goal_async.assert_called_once()
+        replacement.send_json.assert_not_awaited()
+
     async def test_navigation_intent_dispatches_named_goal(self):
         self.prepare_navigation()
         self.voice.start_text({'text': '로비로 안내해줘'})
         await self.voice.task
+        await self.voice.navigation_task
         self.voice.nav.send_goal_async.assert_called_once()
         self.assertEqual(self.voice.nav.send_goal_async.call_args.args[0].destination, 'lobby')
         events = [call.args[0] for call in self.manager.active_ws.send_json.call_args_list]
         reply = next(event['data'] for event in events if event['type'] == 'llm_text')
         self.assertEqual(reply, '로비(으)로 안내하겠습니다.')
-        states = [event.get('status') for event in events if event['type'] == 'robot_state']
+        states = [event.get('status') for event in events if event['type'] == 'navigation_state']
         self.assertIn('NAVIGATING', states)
         self.assertIn('ARRIVED', states)
         self.assertNotIn('error', [event['type'] for event in events])
-        self.assertEqual(self.voice.tts.send_goal_async.call_count, 2)
+        self.assertEqual(self.voice.tts.send_goal_async.call_count, 1)
 
     async def test_destination_button_skips_llm_and_uses_registered_id(self):
         self.prepare_navigation()
@@ -350,6 +454,7 @@ class VoiceTurnTests(IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             self.voice.start_navigation({'destination_id': 'lobby'})
         await self.voice.task
+        await self.voice.navigation_task
         self.voice.llm.send_goal_async.assert_not_called()
         self.voice.nav.send_goal_async.assert_called_once()
         self.assertEqual(self.voice.nav.send_goal_async.call_args.args[0].destination, 'lobby')
@@ -373,8 +478,9 @@ class VoiceTurnTests(IsolatedAsyncioTestCase):
             self.manager.active_ws.send_json.reset_mock()
             self.voice.start_text({'text': '로비로 안내해줘'})
             await self.voice.task
+            await self.voice.navigation_task
             events = [call.args[0] for call in self.manager.active_ws.send_json.call_args_list]
-            self.assertIn('navigation_failed', [e.get('code') for e in events])
+            self.assertIn('FAILED', [e.get('status') for e in events if e['type'] == 'navigation_state'])
             self.assertNotIn('ARRIVED', [e.get('status') for e in events])
 
     async def test_failed_departure_playback_does_not_dispatch_motion(self):
@@ -397,7 +503,7 @@ class VoiceTurnTests(IsolatedAsyncioTestCase):
             while not self.voice.nav.send_goal_async.called:
                 await asyncio.sleep(0)
             if not late:
-                while self.voice.goal is not handle:
+                while self.voice.navigation_goal is not handle:
                     await asyncio.sleep(0)
             self.voice.cancel()
             if late:
@@ -405,9 +511,10 @@ class VoiceTurnTests(IsolatedAsyncioTestCase):
                 for _ in range(6): await asyncio.sleep(0)
             handle.cancel_goal_async.assert_called_once()
             self.assertTrue(self.voice.draining)
-            with self.assertRaises(ValueError): self.voice.start_text({'text': '새 요청'})
+            with self.assertRaises(ValueError): self.voice.start_navigation({'destination_id': 'lobby'})
             terminal.set_result(SimpleNamespace(status=5, result=SimpleNamespace(code=1)))
             await self.voice.task
+            await self.voice.navigation_task
             self.assertFalse(self.voice.draining)
             events = [call.args[0] for call in self.manager.active_ws.send_json.call_args_list]
             self.assertNotIn('ARRIVED', [e.get('status') for e in events])

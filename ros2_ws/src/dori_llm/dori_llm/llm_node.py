@@ -28,6 +28,7 @@ from dori_msgs.action import LLMQuery
 
 from dori_llm.paths import get_knowledge_file, get_rag_index_dir
 from dori_llm.index_store import active_directory
+from dori_llm.response import parse_response, source_metadata
 
 
 @dataclass
@@ -207,10 +208,10 @@ class VectorRetriever:
         if not results:
             return ""
         parts = []
-        for r in results:
+        for source_id, r in enumerate(results, 1):
             src = r.get("source_url") or r.get("source_file") or r["source"]
             timestamp = r.get("fetched_at") or r.get("parsed_at") or "unknown"
-            provenance = [f"Source: {src}", f"Collected: {timestamp}"]
+            provenance = [f"Source ID: {source_id}", f"Source: {src}", f"Collected: {timestamp}"]
             if r.get("page_number") is not None:
                 provenance.append(f'PDF page: {r["page_number"]}')
                 if r.get("page_label"):
@@ -426,6 +427,7 @@ class LLMNode(Node):
             result.intent = response_data["intent"]
             result.response_text = response_data["text"]
             result.target_location = response_data["target"]
+            result.sources_json = json.dumps(response_data.get("sources", []), ensure_ascii=False)
             self.get_logger().info(
                 f"Result -> Intent: {response_data['intent']}, Target: {response_data['target']}"
             )
@@ -531,8 +533,12 @@ class LLMNode(Node):
                 return {"intent": intent, "text": self._localized(intent), "target": ""}
 
         # RAG 처리 등 일반 응답
-        response_text = self._handle_with_rag(user_text, location_context)
-        return {"intent": intent, "text": response_text, "target": ""}
+        sources = []
+        response_text = self._handle_with_rag(user_text, location_context, sources=sources)
+        response = {"intent": intent, "text": response_text, "target": ""}
+        if sources:
+            response["sources"] = sources
+        return response
 
     def _handle_navigation(self, text: str, matches: list = None) -> dict:
         """직접 주행하지 않고 목적지 이름(ID)만 추출하여 반환"""
@@ -610,7 +616,7 @@ class LLMNode(Node):
             self.get_logger().error(f"LLM client init failed: {e}")
             self.use_external = False
 
-    def _handle_with_rag(self, text: str, location_context: str) -> str:
+    def _handle_with_rag(self, text: str, location_context: str, sources=None) -> str:
         """
         Two-stage retrieval:
           1. Structured KB  — fast, exact (JSON) from campus_knowledge.json
@@ -643,6 +649,8 @@ class LLMNode(Node):
                 return struct_context
             if vec_results:
                 # Return the top chunk text directly (trimmed)
+                if sources is not None:
+                    sources.append(source_metadata(vec_results[0]))
                 return vec_results[0]["text"][:200]
             return self._localized("no_understand")
 
@@ -654,7 +662,17 @@ class LLMNode(Node):
             context_parts.append(f"[Documents]\n{vec_context}")
         combined_context = "\n\n".join(context_parts)
 
-        return self._call_llm_with_context(text, combined_context, location_context)
+        raw = self._call_llm_with_context(text, combined_context, location_context)
+        if raw == self._localized("llm_unavailable"):
+            return raw
+        try:
+            answer, references = parse_response(raw, vec_results)
+        except (ValueError, TypeError):
+            self.get_logger().warn("Invalid structured LLM answer; using localized fallback")
+            return self._localized("llm_unavailable")
+        if sources is not None:
+            sources.extend(references)
+        return answer
 
     # LLM call
 
@@ -677,7 +695,7 @@ class LLMNode(Node):
                 resp = self.llm_client.models.generate_content(
                     model=self.model_name,
                     contents=contents,
-                    config={"system_instruction": system_prompt},
+                    config={"system_instruction": system_prompt, "response_mime_type": "application/json"},
                 )
                 response_text = (resp.text or "").strip()
                 if response_text:
@@ -725,7 +743,10 @@ class LLMNode(Node):
                 f"Today is {today} (Asia/Seoul). "
                 f"Answer concisely (1-3 sentences). Use only the reference information below "
                 f"for campus facts; if it is missing, say that you cannot verify them. "
-                f"When using a guidebook, preserve its edition and page as the source. "
+                f'Return only JSON: {{"answer": "spoken answer", "source_ids": [1]}}. '
+                f"source_ids must contain only Source IDs of documents actually used, or [] when none are used. "
+                f"The UI displays source titles, editions and pages separately. Never put citations, source labels, "
+                f"URLs or bibliographies in answer; answer is read aloud. Preserve as-of years when needed for accuracy. "
                 f"Collection time is not publication time. Do not combine conflicting schedules. "
                 f"For conflicting facts on the same topic, prefer the most recent applicable authoritative evidence, "
                 f"regardless of language. Answer in the requested language; English retrieval headings are labels, not a newer source. "
@@ -737,7 +758,10 @@ class LLMNode(Node):
             f"오늘은 {today}입니다(Asia/Seoul). "
             f"친절하고 간결하게 1-3문장으로 답변하세요. "
             f"캠퍼스 관련 사실은 아래 자료에 있는 내용만 답하고, 없으면 확인할 수 없다고 안내하세요. "
-            f"가이드북을 근거로 답할 때는 판본 연도와 페이지를 출처로 유지하세요. "
+            f'반드시 JSON만 반환하세요: {{"answer": "말로 전달할 답변", "source_ids": [1]}}. '
+            f"source_ids에는 실제 답변에 사용한 문서의 Source ID만 넣고, 없으면 []로 두세요. "
+            f"출처의 제목·판본·페이지는 화면에 별도로 표시됩니다. answer에는 출처 표기·인용 번호·URL·참고문헌을 넣지 마세요. "
+            f"answer는 그대로 음성으로 읽습니다. 사실의 시점을 한정하는 연도는 필요한 경우 답변에 유지하세요. "
             f"자료 수집일은 발행일이 아닙니다. 서로 충돌하는 운영시간을 섞어 답하지 마세요. "
             f"동일 주제의 사실이 충돌하면 언어에 관계없이 더 최근의 해당 공식 근거를 우선하세요. "
             f"사용자가 요청한 언어로 답하되 영문 검색용 제목을 새로운 사실 출처로 간주하지 마세요. "

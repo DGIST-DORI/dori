@@ -49,7 +49,9 @@ async def run_flow(tmp_path):
     manager.main_loop = asyncio.get_running_loop()
     follow_requests = []
     stt_requests = []
+    spoken_texts = []
     def synthesize(_self, _text):
+        spoken_texts.append(_text)
         path = tmp_path / 'reply.mp3'
         path.write_bytes(b'test-mp3')
         return str(path)
@@ -129,6 +131,19 @@ async def run_flow(tmp_path):
             await until(lambda: not node.voice.draining)
             assert llm.conversation_history[-1]['user'] == '안녕하세요'
 
+            # Exercise the actual generated ROS result, gateway and Speak goal.
+            sources = [{'title': 'DGIST 가이드북', 'edition': '2026', 'page_number': 15}]
+            with patch.object(llm, '_generate_response', return_value={
+                'intent': 'information', 'text': '도서관은 E8에 있습니다.', 'target': '', 'sources': sources,
+            }):
+                node.voice.start_text({'text': '도서관에 대해 알려줘'})
+                await until(lambda: bool(node.voice.media))
+                events = [c.args[0] for c in manager.active_ws.send_json.call_args_list]
+                assert {'type': 'llm_text', 'data': '도서관은 E8에 있습니다.', 'sources': sources} in events
+                assert spoken_texts[-1] == '도서관은 E8에 있습니다.'
+                node.voice.playback({'id': node.voice.audio_id, 'status': 'ended'})
+                await until(lambda: not node.voice.draining)
+
             # A destination question and Korean follow-up reach the same saved
             # pose as the navigation web, through the real named/Nav2 adapters.
             node.voice.start_text({'text': '길안내 해줘'})
@@ -143,8 +158,19 @@ async def run_flow(tmp_path):
             node.voice.playback({'id': node.voice.audio_id, 'status': 'ended'})
             await until(lambda: backend.active == 1)
             assert node.voice.draining
-            backend.finish = True
+            await until(lambda: not node.voice.conversation_busy)
+            # A real conversation/TTS can run during navigation, and canceling
+            # that answer must leave the named navigation goal active.
+            node.voice.start_text({'text': '안녕하세요'})
             await until(lambda: bool(node.voice.media))
+            node.voice.cancel_response(notify=True)
+            await until(lambda: not node.voice.conversation_busy)
+            assert backend.active == 1 and not backend.cancel_seen
+            node.voice.start_text({'text': '안녕하세요'})
+            await until(lambda: bool(node.voice.media))
+            backend.finish = True
+            await until(lambda: node.voice.navigation['status'] == 'ARRIVED' and not node.voice.navigation_busy)
+            assert node.voice.conversation_busy and node.voice.media
             events = [c.args[0] for c in manager.active_ws.send_json.call_args_list]
             assert any(e.get('status') == 'NAVIGATING' for e in events)
             assert any(e.get('status') == 'ARRIVED' for e in events)
@@ -159,6 +185,19 @@ async def run_flow(tmp_path):
             await until(lambda: bool(node.voice.media))
             node.voice.playback({'id': node.voice.audio_id, 'status': 'ended'})
             await until(lambda: backend.active == 1 and backend.accepted == 2)
+            await until(lambda: not node.voice.conversation_busy)
+            node.voice.start_text({'text': '안녕하세요'})
+            await until(lambda: bool(node.voice.media))
+            node.voice.cancel_navigation()
+            await until(lambda: not node.voice.navigation_busy and not named._busy)
+            assert node.voice.conversation_busy and node.voice.media
+            node.voice.playback({'id': node.voice.audio_id, 'status': 'ended'})
+            await until(lambda: not node.voice.draining)
+
+            node.voice.start_navigation({'destination_id': destination['id']})
+            await until(lambda: bool(node.voice.media))
+            node.voice.playback({'id': node.voice.audio_id, 'status': 'ended'})
+            await until(lambda: backend.active == 1 and backend.accepted == 3)
             await manager.handle_disconnect()
             await until(lambda: backend.cancel_seen and not node.voice.draining and not named._busy)
             assert backend.max_active == 1

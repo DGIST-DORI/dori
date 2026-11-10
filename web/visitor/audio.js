@@ -1,5 +1,9 @@
+export const MAX_RECORDING_SECONDS = 120;
+export const END_SILENCE_SECONDS = 1.5;
+export const NO_SPEECH_SECONDS = 8;
+
 export function encodeWav(samples, rate) {
-  const count = Math.min(160000, Math.floor(samples.length * 16000 / rate));
+  const count = Math.min(16000 * MAX_RECORDING_SECONDS, Math.floor(samples.length * 16000 / rate));
   const wav = new ArrayBuffer(44 + count * 2), view = new DataView(wav);
   const text = (at, value) => [...value].forEach((c, i) => view.setUint8(at + i, c.charCodeAt(0)));
   text(0, 'RIFF'); view.setUint32(4, 36 + count * 2, true); text(8, 'WAVE'); text(12, 'fmt ');
@@ -47,9 +51,9 @@ export class SpeechEndpoint {
           this.voiced = 0; this.firstVoice = null;
         }
       }
-      if (this.hasSpeech && this.samples - this.lastVoice >= this.rate * 0.8) this.reason = 'speech_end';
-      else if (!this.hasSpeech && this.samples >= this.rate * 5) this.reason = 'no_speech';
-      else if (this.samples >= this.rate * 10) this.reason = 'limit';
+      if (this.hasSpeech && this.samples - this.lastVoice >= this.rate * END_SILENCE_SECONDS) this.reason = 'speech_end';
+      else if (!this.hasSpeech && this.samples >= this.rate * NO_SPEECH_SECONDS) this.reason = 'no_speech';
+      else if (this.samples >= this.rate * MAX_RECORDING_SECONDS) this.reason = 'limit';
       if (this.reason) return this.reason;
     }
     return null;
@@ -80,19 +84,20 @@ export class Microphone {
       this.chunks = []; this.length = 0;
       this.endpoint = new SpeechEndpoint(this.context.sampleRate);
       let completed = false;
-      const complete = () => {
+      const complete = (reason = 'limit') => {
         if (seq !== this.sequence || completed) return;
-        completed = true; onComplete();
+        completed = true; onComplete(reason);
       };
       this.node = new AudioWorkletNode(this.context, 'dori-recorder');
       this.node.port.onmessage = ({ data }) => {
         if (seq !== this.sequence || completed) return;
         this.chunks.push(data); this.length += data.length;
-        if (this.endpoint.push(data)) complete();
+        const reason = this.endpoint.push(data);
+        if (reason) complete(reason);
       };
       this.source = this.context.createMediaStreamSource(stream);
       this.source.connect(this.node); this.node.connect(this.context.destination);
-      this.timer = setTimeout(complete, 10000);
+      this.timer = setTimeout(complete, MAX_RECORDING_SECONDS * 1000);
       return true;
     } catch (error) {
       if (seq !== this.sequence) return false;
@@ -156,11 +161,11 @@ export class StreamingMicrophone extends Microphone {
       await this.context.audioWorklet.addModule('/recorder.js');
       if (seq !== this.sequence) return false;
       this.pcm = new PcmChunks(this.context.sampleRate, onChunk);
-      const maximum = this.context.sampleRate * 10;
+      const maximum = this.context.sampleRate * MAX_RECORDING_SECONDS;
       let received = 0, completed = false;
       const complete = () => {
         if (seq !== this.sequence || completed) return;
-        completed = true; onLimit();
+        completed = true; onLimit('limit');
       };
       this.node = new AudioWorkletNode(this.context, 'dori-recorder');
       this.node.port.onmessage = ({ data }) => {
@@ -171,7 +176,7 @@ export class StreamingMicrophone extends Microphone {
       };
       this.source = this.context.createMediaStreamSource(stream);
       this.source.connect(this.node); this.node.connect(this.context.destination);
-      this.timer = setTimeout(complete, 10000);
+      this.timer = setTimeout(complete, MAX_RECORDING_SECONDS * 1000);
       return true;
     } catch (error) {
       if (seq === this.sequence) this.cancel();

@@ -1,6 +1,7 @@
 """Gemini SDK contract, credentials, and conversation behavior without API calls."""
 
 import sys
+import json
 import threading
 from types import ModuleType, SimpleNamespace
 from unittest.mock import Mock
@@ -15,7 +16,7 @@ from dori_llm.llm_node import CampusKnowledgeBase, LLMNode, VectorRetriever
 def backend(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-    generate = Mock(return_value=SimpleNamespace(text="  도서관은 E8에 있습니다.\n"))
+    generate = Mock(return_value=SimpleNamespace(text=json.dumps({"answer": "도서관은 E8에 있습니다.", "source_ids": []})))
     # Deliberately expose only the new SDK surface, so start_chat cannot pass.
     client = SimpleNamespace(models=SimpleNamespace(generate_content=generate))
     sdk = ModuleType("google.genai")
