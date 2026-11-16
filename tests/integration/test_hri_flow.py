@@ -74,7 +74,7 @@ def flow(tmp_path, request):
     wait(lambda: len(llm.registered)==1)
     logfile = (tmp_path/'bt.log').open('w')
     proc = subprocess.Popen(['ros2','run','dori_bt','dori_tree_executor','--ros-args',
-        '-r','__ns:=/dori','-p','require_mic_return:=true',
+        '-r','__ns:=/dori','-p','visitor_mode:=false','-p','require_mic_return:=true',
         '-p','require_user_tracking:='+str(getattr(request,'param',False)).lower()], stdout=logfile, stderr=subprocess.STDOUT,
         start_new_session=True)
     try:

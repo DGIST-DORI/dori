@@ -102,3 +102,34 @@ def test_failed_report_is_published_before_monitor_exits():
     assert node.failure == "perception: missing frames"
     node.status.publish.assert_called_once()
     node.timer.cancel.assert_called_once()
+
+
+def test_rgb_profile_readiness_requires_both_cameras_and_inference_without_depth():
+    node = Mock()
+    names = ('lidar', 'imu', 'wheels', 'servos', 'can_feedback', 'odometry',
+             'front_color', 'rear_color', 'persons', 'rear_persons')
+    node.samples = {name: 10.0 for name in names}
+    node.limits = {name: 2.0 for name in names}
+    node.settings = {'enable_rear_camera': True, 'enable_hri': False}
+    node.result.return_value = None
+    node.fresh_transform.return_value = True
+    node.actions, node.hri_services = {}, []
+    node.http_result, node.http_at = [], 10.0
+    node.gate = StartupReadiness(120, 0)
+    report = ReadinessMonitor.snapshot(node, 10.0)
+    assert report['components']['perception']['state'] == 'ready'
+    node.samples.pop('rear_color')
+    node.samples.pop('rear_persons')
+    report = ReadinessMonitor.snapshot(node, 10.1)
+    assert report['components']['perception']['state'] != 'ready'
+    detail = str(report['components']['perception'])
+    assert 'rear_color' in detail and 'rear_persons' in detail
+    assert 'depth' not in detail
+
+
+def test_rear_inference_requires_a_valid_detection_payload():
+    node = receiver()
+    ReadinessMonitor.receive(node, 'rear_persons', String(data='{}'))
+    assert 'rear_persons' not in node.samples
+    ReadinessMonitor.receive(node, 'rear_persons', String(data='{"detections": []}'))
+    assert 'rear_persons' in node.samples

@@ -85,3 +85,24 @@ def test_browser_only_mode_does_not_require_cloud_or_gtts(backend, monkeypatch):
     tts_node.TTSNode._init_engine(backend.node)
     assert backend.node.gcp_client is None
     backend.sdk.TextToSpeechClient.assert_not_called()
+
+
+def test_remote_only_keeps_server_synthesis_enabled(backend):
+    backend.node.playback_mode = 'remote_only'
+    tts_node.TTSNode._init_engine(backend.node)
+    backend.sdk.TextToSpeechClient.assert_called_once_with()
+    assert backend.node.gcp_client is not None
+
+
+def test_remote_only_refuses_unscoped_requests_and_local_cues(monkeypatch):
+    from rclpy.action import GoalResponse
+    node = SimpleNamespace(playback_mode='remote_only', get_logger=Mock())
+    player = Mock()
+    monkeypatch.setattr(tts_node.subprocess, 'Popen', player)
+    monkeypatch.setattr(tts_node.subprocess, 'run', player)
+    assert tts_node.TTSNode.goal_callback(node, SimpleNamespace(text='Hello')) == GoalResponse.REJECT
+    tts_node.TTSNode._on_tts_text(node, SimpleNamespace(data='Hello'))
+    tts_node.TTSNode._play_direct_text(node, 'Hello')
+    tts_node.TTSNode._on_audio_cue(node, SimpleNamespace(data='wake_chime'))
+    tts_node.TTSNode._play_audio_cue(node, 'wake_chime')
+    player.assert_not_called()

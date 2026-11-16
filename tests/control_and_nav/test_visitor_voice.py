@@ -603,7 +603,7 @@ class RemoteTTSTests(TestCase):
             goal.goal_id.uuid = list(range(16))
             node = SimpleNamespace(
                 _speech_lock=threading.Lock(), _remote_results={}, _remote_cancel=False,
-                playback_mode='publish_only', gcp_client=None,
+                playback_mode='remote_only', gcp_client=None,
                 _pub_speaking=Mock(), _finish_speaking=Mock(), get_logger=Mock(),
                 _synthesize_gtts=Mock(return_value=str(path)),
             )
@@ -666,3 +666,19 @@ class STTDrainTests(TestCase):
         # No decoder/model/logger is needed: stale queued audio must return first.
         STTNode._on_audio_input_topic(node, SimpleNamespace(data=json.dumps({'request_id': 'old', 'created_at': 0})))
         self.assertFalse(node.buffer)
+
+
+class PhoneInteractionTests(TestCase):
+    def test_optional_vision_activation_follows_phone_connection_not_person_range(self):
+        node = SimpleNamespace(pub_interaction=Mock())
+        manager = bridge.SessionManager()
+        with patch.object(bridge, 'session_manager', manager):
+            for state, websocket, expected in [
+                (bridge.SessionState.IDLE, None, False),
+                (bridge.SessionState.ACTIVE, None, False),
+                (bridge.SessionState.ACTIVE, Mock(), True),
+                (bridge.SessionState.GRACE, None, False),
+            ]:
+                manager.state, manager.active_ws = state, websocket
+                bridge.BridgeNode._publish_interaction_state(node)
+                self.assertEqual(node.pub_interaction.publish.call_args.args[0].data, expected)

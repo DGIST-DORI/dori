@@ -55,7 +55,7 @@ class ReadinessMonitor(Node):
     def __init__(self):
         super().__init__("bringup_readiness")
         settings = {"startup_timeout": 120.0, "enable_hri": True, "enable_dashboard": True,
-                    "enable_stt": False, "visitor_mode": True, "enable_rear_camera": False}
+                    "enable_stt": False, "visitor_mode": True, "enable_rear_camera": True}
         for key, default in settings.items():
             settings[key] = self.declare_parameter(key, default).value
         self.settings = settings
@@ -80,13 +80,12 @@ class ReadinessMonitor(Node):
             ("can_feedback", "/dynamic_joint_states", DynamicJointState, 1.0),
             ("servos", "/dxl_joint_states", JointState, 1.0),
             ("front_color", self.ns + "/camera/front/color/image_raw", Image, 2.0),
-            ("front_depth", self.ns + "/camera/front/depth/image_raw", Image, 2.0),
             ("persons", self.ns + "/hri/persons", String, 5.0),
         ):
             self.subscribe(name, topic, typ, limit)
         if settings["enable_rear_camera"]:
             self.subscribe("rear_color", self.ns + "/camera/rear/color/image_raw", Image, 2.0)
-            self.subscribe("rear_depth", self.ns + "/camera/rear/depth/image_raw", Image, 2.0)
+            self.subscribe("rear_persons", self.ns + "/hri/rear/persons", String, 5.0)
         for name, service, typ in (
             ("controllers", "/controller_manager/list_controllers", ListControllers),
             ("hardware", "/controller_manager/list_hardware_components", ListHardwareComponents),
@@ -97,7 +96,8 @@ class ReadinessMonitor(Node):
         self.actions = {}
         self.hri_services = []
         if settings["enable_hri"]:
-            for name, typ in (("llm/query", LLMQuery), ("tts/speak", Speak), ("nav/navigate_named", NavigateNamed)):
+            speech_action = "tts/speak_remote" if settings["visitor_mode"] else "tts/speak"
+            for name, typ in (("llm/query", LLMQuery), (speech_action, Speak), ("nav/navigate_named", NavigateNamed)):
                 self.actions[name] = ActionClient(self, typ, self.ns + "/" + name)
             names = ["llm/reset", "tts/remote_reset", "bt/clear_session"]
             if settings["enable_stt"]:
@@ -141,7 +141,7 @@ class ReadinessMonitor(Node):
                 return
         if isinstance(msg, Image) and (not msg.width or not msg.height or not msg.data):
             return
-        if name == "persons":
+        if name in ("persons", "rear_persons"):
             try:
                 data = json.loads(msg.data)
                 if not isinstance(data, dict) or not isinstance(data.get("detections"), list):
@@ -216,9 +216,9 @@ class ReadinessMonitor(Node):
         if not self.fresh_transform("odom", "base_link"):
             odometry.append("odom -> base_link TF missing/stale")
         components["odometry"] = component(odometry)
-        perception = ["front_color", "front_depth", "persons"]
+        perception = ["front_color", "persons"]
         if self.settings["enable_rear_camera"]:
-            perception += ["rear_color", "rear_depth"]
+            perception += ["rear_color", "rear_persons"]
         components["perception"] = component(missing(perception))
         controllers = self.result("controllers", now)
         states = {c.name: c.state for c in controllers.controller} if controllers else {}

@@ -79,7 +79,7 @@ class TTSNode(Node):
         self.declare_parameter("topics.tts_text_sub", "tts/text")
         self.declare_parameter("action_name", "tts/speak")
         self.declare_parameter("sfx.base_path", "")
-        self.declare_parameter("playback_mode", "local_and_publish")
+        self.declare_parameter("playback_mode", "remote_only")
         self.declare_parameter("topics.audio_event_pub", "tts/audio_event")
 
         # New parameters for Google Cloud TTS limits
@@ -104,12 +104,9 @@ class TTSNode(Node):
             self.get_parameter("sfx.base_path").value
         )
         self.playback_mode = self.get_parameter("playback_mode").value
-        valid_playback_modes = {"local_only", "publish_only", "local_and_publish"}
+        valid_playback_modes = {"remote_only", "local_only", "publish_only", "local_and_publish"}
         if self.playback_mode not in valid_playback_modes:
-            self.get_logger().warn(
-                f"Invalid playback_mode: {self.playback_mode} — fallback to local_and_publish"
-            )
-            self.playback_mode = "local_and_publish"
+            raise ValueError(f"Invalid playback_mode: {self.playback_mode}")
 
         speaking_topic = self.get_parameter("topics.speaking_pub").value
         done_topic = self.get_parameter("topics.done_pub").value
@@ -216,6 +213,8 @@ class TTSNode(Node):
 
     # --- Action Server Callbacks ---
     def goal_callback(self, goal_request):
+        if self.playback_mode == "remote_only":
+            return GoalResponse.REJECT
         with self._speech_lock:
             if self._busy or not 0 < len(goal_request.text.strip()) <= 4000:
                 return GoalResponse.REJECT
@@ -293,6 +292,8 @@ class TTSNode(Node):
         goal_handle.publish_feedback(feedback)
 
         try:
+            if self.playback_mode == "remote_only" and not remote:
+                raise RuntimeError("Use the paired phone session and tts/speak_remote")
             if goal_handle.is_cancel_requested or (remote and self._remote_cancel):
                 goal_handle.canceled() if goal_handle.is_cancel_requested else goal_handle.abort()
                 result.success = False
@@ -387,6 +388,9 @@ class TTSNode(Node):
         self._pub_done(success=success, error=error, text=text)
 
     def _on_tts_text(self, msg: String):
+        if self.playback_mode == "remote_only":
+            self.get_logger().warning("Unscoped TTS ignored; use the paired phone session")
+            return
         text = msg.data.strip()
         if not text:
             return
@@ -396,6 +400,8 @@ class TTSNode(Node):
         ).start()
 
     def _play_direct_text(self, text: str):
+        if self.playback_mode == "remote_only":
+            return
         with self._speech_lock:
             if self._busy:
                 self.get_logger().warning("TTS busy; direct request ignored")
@@ -493,6 +499,8 @@ class TTSNode(Node):
 
     # --- SFX & Publishers 유지 ---
     def _on_audio_cue(self, msg: String):
+        if self.playback_mode == "remote_only":
+            return  # Wake-word/microphone cues have no role in phone sessions.
         cue_name = msg.data.strip()
         if cue_name:
             self.sfx_queue.put(cue_name)
@@ -506,6 +514,8 @@ class TTSNode(Node):
                 continue
 
     def _play_audio_cue(self, cue_name: str):
+        if self.playback_mode == "remote_only":
+            return
         if cue_name != "wake_chime":
             return
 

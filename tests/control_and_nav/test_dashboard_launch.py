@@ -155,7 +155,8 @@ def test_hardware_launch_keeps_exactly_one_viewer(monkeypatch):
     monkeypatch.setattr(module, 'get_package_share_directory',
                         lambda name: str(ROOT / 'ros2_ws/src' / name))
     context = LaunchContext()
-    context.launch_configurations["visitor_mode"] = "false"
+    context.launch_configurations["visitor_mode"] = "true"
+    monkeypatch.setattr("dori_bringup.launch_support.check_visitor", Mock())
     monkeypatch.setattr(module, "validate_devices", lambda *args, **kwargs: None)
     context.launch_configurations['map'] = str(ROOT / 'maps/live_navigation_20261023_1938.yaml')
     for action in module.generate_launch_description().entities:

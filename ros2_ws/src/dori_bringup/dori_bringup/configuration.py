@@ -15,14 +15,16 @@ DEFAULTS = dict(
     namespace="/dori", visitor_mode="true", visitor_stt="azure",
     enable_hri="true", enable_dashboard="true", enable_stt="auto",
     stt_audio_input_mode="auto", whisper_model="", whisper_device="cpu",
-    tts_playback_mode="local_only", tts_engine="gcp", tts_language="ko",
+    tts_playback_mode="remote_only", tts_engine="gcp", tts_language="ko",
     use_external_llm="true", llm_model="gemini-3.5-flash-lite",
     knowledge_file="", rag_index_dir="", rag_top_k="3",
     require_user_tracking="false", require_mic_return="false", tree_xml_file="",
     enable_perception="auto", perception_device="cpu",
     enable_gesture="false", enable_expression="false", enable_landmark="false",
-    front_serial="", rear_serial="", enable_rear_camera="false",
-    use_cpp_depth_camera="true", hand_model_path="", face_model_path="",
+    front_device="/dev/video0", rear_device="/dev/video2", enable_rear_camera="true",
+    front_calibration_file="", rear_calibration_file="",
+    camera_width="640", camera_height="480", camera_fps="15", camera_pixel_format="MJPG",
+    hand_model_path="", face_model_path="",
     person_model="yolov8n.pt", landmark_model="yolov8n.pt",
     map="", named_goals_file="", use_joystick="false", rviz="false",
     can_interface=CAN_INTERFACE, can_wait_timeout=CAN_WAIT_TIMEOUT,
@@ -37,10 +39,10 @@ CHOICES = {
 CHOICES.update(
     enable_stt=["auto", "true", "false"], enable_perception=["auto", "true", "false"],
     visitor_stt=["azure", "whisper"], stt_audio_input_mode=["auto", "microphone", "topic"],
-    tts_playback_mode=["local_only", "publish_only", "local_and_publish"],
+    tts_playback_mode=["remote_only", "local_only", "publish_only", "local_and_publish"],
 )
 PATHS = {"map", "named_goals_file", "knowledge_file", "rag_index_dir", "tree_xml_file",
-         "hand_model_path", "face_model_path"}
+         "hand_model_path", "face_model_path", "front_calibration_file", "rear_calibration_file"}
 MODELS = {"person_model", "landmark_model", "whisper_model"}
 
 

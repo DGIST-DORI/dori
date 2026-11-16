@@ -19,7 +19,7 @@ web build. For package migrations, follow the clean-overlay procedure in AMM 20-
 ## Launch
 
 The default bringup (`dori_mode:=robot`) starts hardware drivers, LiDAR, Nav2,
-the required front camera/person detector, visitor app, Azure voice gateway, LLM/TTS, interaction tree, dashboard and
+the required front/rear USB RGB cameras and person detectors, visitor app, Azure voice gateway, LLM/TTS, interaction tree, dashboard and
 navigation viewer. It requires `map:=...` and the device preparation in AMM 40-10.
 For frontend/HRI development, use `dori_mode:=desktop` as shown below.
 In desktop mode, the map backend starts automatically with the dashboard
@@ -40,10 +40,10 @@ After configuring the Azure F0 settings and shared authentication below:
 ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop
 
 # Explicit local robot microphone HRI + dashboard (requires local voice assets)
-ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop visitor_mode:=false
+ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop visitor_mode:=false tts_playback_mode:=publish_only
 
 # Local robot microphone HRI without dashboard
-ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop visitor_mode:=false enable_dashboard:=false
+ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop visitor_mode:=false tts_playback_mode:=publish_only enable_dashboard:=false
 ```
 
 If you need to run the dashboard standalone (without the desktop HRI stack):
@@ -374,7 +374,7 @@ System panels include `Event Log` and `Topic Publisher`, located at
 | -------- | --------------- | -------------- | ---------------------------------------------------------------------------------------- |
 | A        | PC 브라우저     | `browser_tts`  | **해당 PC의 스피커**에서 소리가 나야 한다.                                               |
 | B        | 모바일 브라우저 | `browser_tts`  | **해당 모바일 기기 스피커**에서 소리가 나야 한다.                                        |
-| C        | 모바일 브라우저 | `ros_audio`    | **ROS 오디오 출력이 연결된 외부/로봇 스피커**에서 소리가 나야 한다 (모바일 스피커 아님). |
+| C        | 모바일 브라우저 | `ros_audio`    | **해당 모바일 브라우저**에서 수신 오디오가 재생된다. 운영 방문자 앱은 별도의 세션별 재생 경로를 사용한다. |
 
 ### 실패 시 점검 항목
 
@@ -415,8 +415,8 @@ ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop
 and Azure STT. It sets `DORI_VISITOR_STT` for the gateway and automatically
 disables the local Whisper STT node. Azure recognition runs in the gateway;
 the launch checks the SDK and local F0 settings with the same Python environment
-before starting the session. `visitor_mode:=false` explicitly selects robot
-microphone input and disables visitor pairing. There is one standard bringup
+before starting the session. `visitor_mode:=false` is supported only for legacy desktop microphone testing
+and disables visitor pairing; production robot mode rejects it. There is one standard bringup
 entrypoint for the app and dashboard.
 
 To explicitly use the previous local provider, first run
@@ -630,8 +630,10 @@ The gateway assigns per-turn request IDs to local STT JSON and uses ROS action U
 for LLM/TTS work; it never adds a ROS session ID. Visitor STT replies use
 `stt/visitor_result`, separate from the BT's `stt/result`. `tts/speak_remote`
 synthesizes MP3 and waits for `tts/remote_playback` acknowledgment (90-second
-limit). It never plays visitor answers on the robot speaker. Wake chimes remain
-local. The existing `tts/speak` and legacy `publish_only` behavior are preserved.
+limit). It never plays visitor answers on the robot speaker. Wake chimes are
+disabled in the production `remote_only` mode. `tts/speak_remote` still initializes
+server synthesis and waits for the paired phone; unscoped `tts/speak`, direct text
+and robot sound effects are disabled. Legacy `publish_only` is desktop-only.
 
 TTS selects the voice for each reply: Korean-containing text uses `ko-KR`,
 Latin-only text uses `en-US`, and numbers/punctuation use the node's `language`

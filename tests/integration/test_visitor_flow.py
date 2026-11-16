@@ -43,8 +43,8 @@ async def run_flow(tmp_path):
                 raise AssertionError('ROS condition timed out')
             await asyncio.sleep(.05)
 
-    rclpy.init(args=['--ros-args', '-r', '__ns:=/dori', '-p', 'playback_mode:=publish_only',
-                    '-p', 'use_external_llm:=false', '-r', 'NAVIGATION_MODE:=/NAVIGATION_MODE'])
+    rclpy.init(args=['--ros-args', '-r', '__ns:=/dori', '-p', 'playback_mode:=remote_only',
+                    '-p', 'tts_engine:=gtts', '-p', 'use_external_llm:=false', '-r', 'NAVIGATION_MODE:=/NAVIGATION_MODE'])
     manager = bridge.SessionManager()
     manager.main_loop = asyncio.get_running_loop()
     follow_requests = []

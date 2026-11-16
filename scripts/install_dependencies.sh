@@ -3,20 +3,21 @@
 set -eo pipefail
 export PYTHONNOUSERSITE=1
 DORI_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-with_voice=true
+with_voice=false
 with_vision=false
 for arg in "$@"; do
     case "$arg" in
         --no-voice) with_voice=false ;;
+        --whisper) with_voice=true ;;
         --vision) with_vision=true ;;
-        *) echo 'Usage: install_dependencies.sh [--no-voice] [--vision]' >&2; exit 2 ;;
+        *) echo 'Usage: install_dependencies.sh [--whisper] [--vision]' >&2; exit 2 ;;
     esac
 done
 [[ -f /opt/ros/humble/setup.bash ]] || { echo 'Install ROS 2 Humble first.' >&2; exit 1; }
 sudo apt-get update
 sudo apt-get install -y python3.10-venv python3-pip python3-rosdep \
     python3-colcon-common-extensions python3-serial python3-numpy python3-scipy python3-pil \
-    libportaudio2 portaudio19-dev ffmpeg mpg123 can-utils nlohmann-json3-dev \
+    ffmpeg v4l-utils can-utils nlohmann-json3-dev \
     ros-humble-navigation2 ros-humble-nav2-bringup ros-humble-cartographer-ros \
     ros-humble-rosbridge-server
 source /opt/ros/humble/setup.bash

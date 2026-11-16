@@ -107,7 +107,7 @@ commands continue to work.
 | `dori_dashboard`                  | HTTP API, ROS/WebSocket composition and installed dashboard          |
 | `dori_observability`              | Runtime metrics                                                      |
 | `dori_perception`                 | Person, gesture, expression and landmark processing                  |
-| `dori_perception_camera`          | Optional native RealSense camera adapter                             |
+| `dori_perception_camera`          | Native front/rear USB RGB camera adapter                             |
 | `cubemars_hardware`               | MIT CAN hardware plugin and CAN fault regression test                |
 | `sllidar_ros2`                    | LiDAR device driver                                                  |
 | `dynamixel_sdk`                   | Dynamixel SDK                                                        |

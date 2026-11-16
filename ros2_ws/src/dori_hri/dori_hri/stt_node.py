@@ -81,7 +81,7 @@ class STTNode(Node):
         self.declare_parameter("visitor_min_confidence", 0.4)
         self.declare_parameter("topics.tts_speaking_sub", "tts/speaking")
         self.declare_parameter("topics.audio_input_sub", "stt/audio_input")
-        self.declare_parameter("audio_input_mode", "microphone")
+        self.declare_parameter("audio_input_mode", "topic")
 
         wake_word = self.get_parameter("wake_word").value
         wake_word_models = [w.strip() for w in wake_word.split(",")]

@@ -9,26 +9,33 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
-find_package(cv_bridge REQUIRED)
-find_package(OpenCV REQUIRED COMPONENTS core imgproc)
-find_package(realsense2 REQUIRED)
+find_package(OpenCV REQUIRED COMPONENTS core videoio)
+find_package(yaml-cpp REQUIRED)
 
-add_executable(depth_camera_node src/depth_camera_node.cpp)
-ament_target_dependencies(depth_camera_node
+add_executable(rgb_camera_node src/rgb_camera_node.cpp)
+ament_target_dependencies(rgb_camera_node
   rclcpp
   sensor_msgs
   std_msgs
-  cv_bridge
 )
-target_link_libraries(depth_camera_node
+target_link_libraries(rgb_camera_node
   ${OpenCV_LIBRARIES}
-  realsense2::realsense2
+  yaml-cpp
 )
 
-target_compile_features(depth_camera_node PUBLIC cxx_std_17)
+target_compile_features(rgb_camera_node PUBLIC cxx_std_17)
 
-install(TARGETS depth_camera_node
+install(TARGETS rgb_camera_node
   DESTINATION lib/${PROJECT_NAME}
 )
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_camera_calibration test/test_camera_calibration.cpp)
+  ament_target_dependencies(test_camera_calibration sensor_msgs)
+  target_include_directories(test_camera_calibration PRIVATE src)
+  target_link_libraries(test_camera_calibration yaml-cpp)
+  target_compile_features(test_camera_calibration PUBLIC cxx_std_17)
+endif()
 
 ament_package()

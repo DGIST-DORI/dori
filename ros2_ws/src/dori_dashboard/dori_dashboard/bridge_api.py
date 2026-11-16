@@ -112,8 +112,8 @@ class BridgeNode(HardwareControlMixin, Node):
         self.voice = VisitorVoice(self, session_manager)
 
         # 상향(WS -> ROS) & 제어용 Publishers
-        self.pub_wake = self.create_publisher(Bool, "stt/wake_word_detected", 10)
-        self.pub_chime = self.create_publisher(String, "hri/audio_cue", 10)
+        self.pub_interaction = self.create_publisher(Bool, "hri/interaction_trigger", 10)
+        self.create_timer(0.5, self._publish_interaction_state)
         self.pub_manual = self.create_publisher(Twist, "manual/cmd_vel", 10)
         self.pub_stop = self.create_publisher(Bool, "emergency_stop", 10)
         self.pub_mode = self.create_publisher(Int32, "control_mode_cmd", 10)
@@ -250,10 +250,14 @@ class BridgeNode(HardwareControlMixin, Node):
             return False
 
     def trigger_pairing_success(self):
-        """페어링 성공 시 웨이크워드 감지 및 차임벨 발생"""
-        self.pub_wake.publish(Bool(data=True))
-        self.pub_chime.publish(String(data="wake_chime"))
-        logger.info("[ROS] Pairing success triggered to HRI")
+        """Pairing is a phone session, not a microphone wake/follow event."""
+        logger.info("[ROS] Smartphone session paired")
+
+    def _publish_interaction_state(self):
+        # Optional gesture/expression inference follows the connected phone session.
+        # This does not associate a camera track with the session owner.
+        self.pub_interaction.publish(Bool(data=(session_manager.state == SessionState.ACTIVE
+                                               and session_manager.active_ws is not None)))
 
     async def execute_cleanup(self, timeout_sec: float = 5.0) -> bool:
         """Cancel visitor work and wait for LLM, BT and TTS cleanup barriers."""

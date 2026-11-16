@@ -78,7 +78,7 @@ class Navigate : public dori_bt::RosAction<dori_msgs::action::NavigateNamed> {
 class DoriTreeExecutor : public rclcpp::Node {
   public:
     DoriTreeExecutor() : Node("dori_tree_executor") {
-        visitor_mode_ = declare_parameter("visitor_mode", false);
+        visitor_mode_ = declare_parameter("visitor_mode", true);
         auto xml = declare_parameter<std::string>("tree_xml_file", "");
         tracking_required_ = declare_parameter("require_user_tracking", false);
         mic_required_ = declare_parameter("require_mic_return", false);
@@ -264,7 +264,9 @@ class DoriTreeExecutor : public rclcpp::Node {
                 try {
                     auto j = Json::parse(m->data);
                     visible_ = j.value("state", std::string{}) == "tracking";
-                    distance_ = j.value("last_distance_m", 0.);
+                    const auto range = j.find("last_distance_m");
+                    distance_ = range != j.end() && range->is_number() ? range->get<double>() : 0.;
+                    if (!j.value("metric_tracking_available", true)) visible_ = false;
                     tracking_time_ = Clock::now();
                 } catch (...) {
                     visible_ = false;

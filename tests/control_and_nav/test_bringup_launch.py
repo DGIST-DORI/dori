@@ -148,7 +148,7 @@ def test_voice_without_gateway_needs_no_cloud_credentials(bringup, monkeypatch):
 
 
 @pytest.mark.parametrize("visitor,enable_stt,mode", [
-    ("true", "false", "topic"), ("false", "true", "microphone"),
+    ("true", "false", "topic"),
 ])
 def test_robot_receives_voice_profile(
         bringup, monkeypatch, visitor, enable_stt, mode):
@@ -240,3 +240,34 @@ def test_robot_cannot_disable_required_front_perception(bringup, monkeypatch):
     with pytest.raises(ValueError, match="requires front camera"):
         describe(bringup, map="/maps/campus.yaml", enable_perception="false")
     check.assert_not_called()
+
+
+@pytest.mark.parametrize("overrides,match", [
+    ({"visitor_mode": "false"}, "requires visitor_mode"),
+    ({"enable_rear_camera": "false"}, "requires enable_rear_camera"),
+    ({"tts_playback_mode": "local_only"}, "requires tts_playback_mode"),
+    ({"tts_playback_mode": "publish_only"}, "requires tts_playback_mode"),
+    ({"enable_dashboard": "false"}, "smartphone gateway"),
+    ({"require_user_tracking": "true"}, "metric user tracking"),
+    ({"require_mic_return": "true"}, "microphone return"),
+    ({"rear_device": "/dev/video0"}, "different devices"),
+    ({"front_calibration_file": "/no-such-calibration.yaml"}, "does not exist"),
+])
+def test_robot_rejects_incompatible_hardware_profile(bringup, monkeypatch, overrides, match):
+    check = Mock()
+    monkeypatch.setattr(bringup, "check_visitor", check)
+    with pytest.raises(ValueError, match=match):
+        describe(bringup, map="/maps/campus.yaml", **overrides)
+    check.assert_not_called()
+
+
+def test_rgb_camera_settings_reach_perception(bringup, monkeypatch):
+    monkeypatch.setattr(bringup, "check_visitor", Mock())
+    _, includes = describe(bringup, dori_mode="desktop", enable_perception="true",
+                           front_device="/dev/v4l/by-id/front", rear_device="/dev/v4l/by-id/rear",
+                           camera_width="1280", camera_height="720", camera_fps="10")
+    camera = includes["perception.launch.py"]
+    assert camera["front_device"] == "/dev/v4l/by-id/front"
+    assert camera["rear_device"] == "/dev/v4l/by-id/rear"
+    assert camera["camera_width"] == "1280" and camera["camera_fps"] == "10"
+    assert includes["voice.launch.py"]["tts_playback_mode"] == "remote_only"

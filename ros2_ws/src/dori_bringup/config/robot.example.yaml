@@ -4,6 +4,7 @@
 common:
   visitor_mode: true
   visitor_stt: azure
+  tts_playback_mode: remote_only
   use_external_llm: true
   llm_model: gemini-3.5-flash-lite
   enable_gesture: false
@@ -22,7 +23,19 @@ robot:
   dxl_baudrate: 57600
   imu_port: /dev/serial/by-id/usb-Arduino_Nano_33_BLE_B9CD51D670B512DB-if00
   lidar_port: /dev/serial/by-id/usb-Silicon_Labs_CP2102N_USB_to_UART_Bridge_Controller_82c0f09f3531f111bc58935f30d20014-if00-port0
-  front_serial: ""
+  # Replace with the two capture endpoints from /dev/v4l/by-id/ on the robot.
+  # /dev/videoN values are for initial bench testing; numbering can change.
+  front_device: /dev/video0
+  rear_device: /dev/video2
+  enable_rear_camera: true
+  camera_width: 640
+  camera_height: 480
+  camera_fps: 15
+  camera_pixel_format: MJPG
+  # ROS camera_calibration YAML at the actual capture resolution, one per lens.
+  # Empty means uncalibrated RGB only; no metric geometry is fabricated.
+  front_calibration_file: ""
+  rear_calibration_file: ""
   laser_x: 0.0
   laser_y: 0.0
   laser_z: 0.0

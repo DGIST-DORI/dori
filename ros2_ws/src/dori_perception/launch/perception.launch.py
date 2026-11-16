@@ -1,22 +1,14 @@
-"""
-Perception stack launch (camera/vision only).
-
-Nodes started:
-  depth_camera_node           (dori_perception or dori_perception_camera) x 2 - front / rear cameras
-  person_detection_node       (dori_perception)
-  landmark_detection_node     (dori_perception)
-  gesture_recognition_node    (dori_perception)
-  facial_expression_node      (dori_perception)
-"""
+"""Independent front/rear USB RGB streams and image-only perception."""
 
 import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, GroupAction
-from launch.conditions import IfCondition, UnlessCondition
+from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 
 def _topic(ns, suffix: str):
@@ -39,9 +31,12 @@ def generate_launch_description():
         DeclareLaunchArgument("landmark_model", default_value="yolov8n.pt"),
         DeclareLaunchArgument("landmark_db", default_value=landmark_db_default),
         DeclareLaunchArgument("device", default_value="cpu"),
-        DeclareLaunchArgument("front_serial", default_value=""),
-        DeclareLaunchArgument("rear_serial", default_value=""),
-        DeclareLaunchArgument("enable_rear_camera", default_value="false"),
+        DeclareLaunchArgument("front_device", default_value="/dev/video0"),
+        DeclareLaunchArgument("rear_device", default_value="/dev/video2"),
+        DeclareLaunchArgument("front_calibration_file", default_value=""),
+        DeclareLaunchArgument("rear_calibration_file", default_value=""),
+        DeclareLaunchArgument("enable_rear_camera", default_value="true"),
+        DeclareLaunchArgument("camera_pixel_format", default_value="MJPG"),
         DeclareLaunchArgument("hand_model_path", default_value=""),
         DeclareLaunchArgument("face_model_path", default_value=""),
         DeclareLaunchArgument("visualize", default_value="false"),
@@ -51,101 +46,25 @@ def generate_launch_description():
         DeclareLaunchArgument("camera_fps", default_value="15"),
         DeclareLaunchArgument("camera_width", default_value="640"),
         DeclareLaunchArgument("camera_height", default_value="480"),
-        DeclareLaunchArgument("use_cpp_depth_camera", default_value="true"),
         DeclareLaunchArgument("namespace", default_value="/dori"),
     ]
 
-    camera_params = {
-        "width": LaunchConfiguration("camera_width"),
-        "height": LaunchConfiguration("camera_height"),
-        "fps": LaunchConfiguration("camera_fps"),
-        "enable_depth": True,
-        "align_depth_to_color": True,
-    }
-
-    depth_camera_front_py = Node(
-        package="dori_perception",
-        executable="depth_camera_node",
-        name="depth_camera_front",
-        namespace="dori/camera/front",
-        output="screen",
-        parameters=[
-            {**camera_params, "serial_number": LaunchConfiguration("front_serial")}
-        ],
-        condition=UnlessCondition(LaunchConfiguration("use_cpp_depth_camera")),
-        remappings=[
-            ("color/image_raw", _topic(dori_ns, "/camera/front/color/image_raw")),
-            ("depth/image_raw", _topic(dori_ns, "/camera/front/depth/image_raw")),
-            (
-                "depth/image_colormap",
-                _topic(dori_ns, "/camera/front/depth/image_colormap"),
-            ),
-            ("color/camera_info", _topic(dori_ns, "/camera/front/color/camera_info")),
-            ("depth/camera_info", _topic(dori_ns, "/camera/front/depth/camera_info")),
-            ("depth/scale", _topic(dori_ns, "/camera/front/depth/scale")),
-        ],
-    )
-
-    depth_camera_rear_py = Node(
-        package="dori_perception",
-        executable="depth_camera_node",
-        name="depth_camera_rear",
-        namespace="dori/camera/rear",
-        output="screen",
-        parameters=[
-            {**camera_params, "serial_number": LaunchConfiguration("rear_serial")}
-        ],
-        condition=UnlessCondition(LaunchConfiguration("use_cpp_depth_camera")),
-        remappings=[
-            ("color/image_raw", _topic(dori_ns, "/camera/rear/color/image_raw")),
-            ("depth/image_raw", _topic(dori_ns, "/camera/rear/depth/image_raw")),
-            (
-                "depth/image_colormap",
-                _topic(dori_ns, "/camera/rear/depth/image_colormap"),
-            ),
-            ("color/camera_info", _topic(dori_ns, "/camera/rear/color/camera_info")),
-            ("depth/camera_info", _topic(dori_ns, "/camera/rear/depth/camera_info")),
-            ("depth/scale", _topic(dori_ns, "/camera/rear/depth/scale")),
-        ],
-    )
-
-    depth_camera_front_cpp = Node(
-        package="dori_perception_camera",
-        executable="depth_camera_node",
-        name="depth_camera_front",
-        namespace="dori/camera/front",
-        output="screen",
-        parameters=[
-            {**camera_params, "serial_number": LaunchConfiguration("front_serial")}
-        ],
-        condition=IfCondition(LaunchConfiguration("use_cpp_depth_camera")),
-        remappings=[
-            ("color/image_raw", _topic(dori_ns, "/camera/front/color/image_raw")),
-            ("depth/image_raw", _topic(dori_ns, "/camera/front/depth/image_raw")),
-            ("color/camera_info", _topic(dori_ns, "/camera/front/color/camera_info")),
-            ("depth/camera_info", _topic(dori_ns, "/camera/front/depth/camera_info")),
-            ("depth/scale", _topic(dori_ns, "/camera/front/depth/scale")),
-        ],
-    )
-
-    depth_camera_rear_cpp = Node(
-        package="dori_perception_camera",
-        executable="depth_camera_node",
-        name="depth_camera_rear",
-        namespace="dori/camera/rear",
-        output="screen",
-        parameters=[
-            {**camera_params, "serial_number": LaunchConfiguration("rear_serial")}
-        ],
-        condition=IfCondition(LaunchConfiguration("use_cpp_depth_camera")),
-        remappings=[
-            ("color/image_raw", _topic(dori_ns, "/camera/rear/color/image_raw")),
-            ("depth/image_raw", _topic(dori_ns, "/camera/rear/depth/image_raw")),
-            ("color/camera_info", _topic(dori_ns, "/camera/rear/color/camera_info")),
-            ("depth/camera_info", _topic(dori_ns, "/camera/rear/depth/camera_info")),
-            ("depth/scale", _topic(dori_ns, "/camera/rear/depth/scale")),
-        ],
-    )
+    def camera(position):
+        return Node(
+            package="dori_perception_camera", executable="rgb_camera_node",
+            name="camera_" + position, namespace=[dori_ns, "/camera/", position],
+            output="screen",
+            condition=IfCondition(LaunchConfiguration("enable_rear_camera")) if position == "rear" else None,
+            parameters=[{
+                "device": ParameterValue(LaunchConfiguration(position + "_device"), value_type=str),
+                "calibration_file": ParameterValue(LaunchConfiguration(position + "_calibration_file"), value_type=str),
+                "frame_id": "camera_" + position + "_optical_frame",
+                "width": ParameterValue(LaunchConfiguration("camera_width"), value_type=int),
+                "height": ParameterValue(LaunchConfiguration("camera_height"), value_type=int),
+                "fps": ParameterValue(LaunchConfiguration("camera_fps"), value_type=int),
+                "pixel_format": LaunchConfiguration("camera_pixel_format"),
+            }],
+        )
 
     person_detection_node = Node(
         package="dori_perception",
@@ -158,26 +77,33 @@ def generate_launch_description():
                 "confidence_threshold": 0.5,
                 "device": LaunchConfiguration("device"),
                 "visualize": LaunchConfiguration("visualize"),
-                "use_depth": True,
-                "interaction_distance_m": 2.0,
-                "lost_timeout_sec": 5.0,
+                "camera_id": "front",
                 "topics.color_image_sub": _topic(
                     dori_ns, "/camera/front/color/image_raw"
                 ),
-                "topics.depth_image_sub": _topic(
-                    dori_ns, "/camera/front/depth/image_raw"
-                ),
-                "topics.depth_scale_sub": _topic(dori_ns, "/camera/front/depth/scale"),
                 "services.follow_mode_service": _topic(dori_ns, "/hri/set_follow_mode"),
                 "topics.persons_pub": _topic(dori_ns, "/hri/persons"),
-                "topics.interaction_trigger_pub": _topic(
-                    dori_ns, "/hri/interaction_trigger"
-                ),
                 "topics.tracking_state_pub": _topic(dori_ns, "/hri/tracking_state"),
-                "topics.follow_offset_pub": _topic(dori_ns, "/follow/target_offset"),
                 "topics.annotated_pub": _topic(dori_ns, "/hri/annotated_image"),
             }
         ],
+    )
+
+    rear_person_detection_node = Node(
+        package="dori_perception", executable="person_detection_node",
+        name="person_detection_rear", output="screen",
+        condition=IfCondition(LaunchConfiguration("enable_rear_camera")),
+        parameters=[{
+            "model_path": LaunchConfiguration("person_model"),
+            "device": LaunchConfiguration("device"),
+            "visualize": LaunchConfiguration("visualize"),
+            "camera_id": "rear",
+            "topics.color_image_sub": _topic(dori_ns, "/camera/rear/color/image_raw"),
+            "topics.persons_pub": _topic(dori_ns, "/hri/rear/persons"),
+            "topics.tracking_state_pub": _topic(dori_ns, "/hri/rear/tracking_state"),
+            "topics.annotated_pub": _topic(dori_ns, "/hri/rear/annotated_image"),
+            "services.follow_mode_service": _topic(dori_ns, "/hri/rear/set_follow_mode"),
+        }],
     )
 
     landmark_detection_node = Node(
@@ -193,9 +119,6 @@ def generate_launch_description():
                 "landmark_db_path": LaunchConfiguration("landmark_db"),
                 "topics.color_image_sub": _topic(
                     dori_ns, "/camera/front/color/image_raw"
-                ),
-                "topics.depth_image_sub": _topic(
-                    dori_ns, "/camera/front/depth/image_raw"
                 ),
                 "topics.color_camera_info_sub": _topic(
                     dori_ns, "/camera/front/color/camera_info"
@@ -263,13 +186,10 @@ def generate_launch_description():
     return LaunchDescription(
         [
             *args,
-            depth_camera_front_py,
-            depth_camera_front_cpp,
-            GroupAction(
-                [depth_camera_rear_py, depth_camera_rear_cpp],
-                condition=IfCondition(LaunchConfiguration("enable_rear_camera")),
-            ),
+            camera("front"),
+            camera("rear"),
             person_detection_node,
+            rear_person_detection_node,
             landmark_detection_node,
             gesture_recognition_node,
             facial_expression_node,

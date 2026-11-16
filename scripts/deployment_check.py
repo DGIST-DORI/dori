@@ -28,7 +28,8 @@ def check(map_file, voice=False):
         errors.append(str(exc))
     executables = [('dori_bt','dori_tree_executor'), ('dori_navigation','nav2_adapter'),
         ('dori_navigation','named_goal_adapter'), ('dori_navigation','web_viewer.py'),
-        ('dori_hri','tts_node'), ('dori_llm','llm_node'), ('dori_control','drive_controller_node')]
+        ('dori_hri','tts_node'), ('dori_llm','llm_node'), ('dori_control','drive_controller_node'),
+        ('dori_perception_camera','rgb_camera_node'), ('dori_perception','person_detection_node')]
     for package, executable in executables:
         try:
             prefix = Path(get_package_prefix(package))
@@ -57,7 +58,7 @@ def check(map_file, voice=False):
     except LookupError:
         errors.append('dori_dashboard is not installed')
     if voice:
-        for module in ('openwakeword','faster_whisper','sounddevice'):
+        for module in ('faster_whisper',):
             try:
                 importlib.import_module(module)
             except Exception as exc:

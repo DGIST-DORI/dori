@@ -5,6 +5,7 @@ from pathlib import Path
 import pty
 
 import pytest
+from unittest.mock import Mock
 from launch import LaunchContext
 from launch.actions import DeclareLaunchArgument
 
@@ -118,7 +119,8 @@ def test_hardware_checks_run_before_constructing_includes(monkeypatch):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     context = LaunchContext()
-    context.launch_configurations["visitor_mode"] = "false"
+    context.launch_configurations["visitor_mode"] = "true"
+    monkeypatch.setattr("dori_bringup.launch_support.check_visitor", Mock())
     context.launch_configurations["map"] = str(ROOT / "maps/live_navigation_20261023_1938.yaml")
     for action in module.generate_launch_description().entities:
         if isinstance(action, DeclareLaunchArgument):

@@ -8,7 +8,6 @@ import cv2
 import numpy as np
 import rclpy
 from cv_bridge import CvBridge
-from geometry_msgs.msg import PoseWithCovarianceStamped
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
@@ -47,7 +46,6 @@ class LandmarkDetectionNode(Node):
         )  # max distance to consider a detection valid for localization
         self.declare_parameter("localization_confidence_threshold", 0.6)
         self.declare_parameter("topics.color_image_sub", "camera/front/color/image_raw")
-        self.declare_parameter("topics.depth_image_sub", "camera/front/depth/image_raw")
         self.declare_parameter(
             "topics.color_camera_info_sub", "camera/front/color/camera_info"
         )
@@ -111,12 +109,9 @@ class LandmarkDetectionNode(Node):
 
         # CvBridge
         self.bridge = CvBridge()
-        self._latest_depth: np.ndarray | None = None
-        self._depth_scale: float = 0.001
         self._camera_intrinsics: dict | None = None  # fx, fy, cx, cy
 
         color_image_topic = self.get_parameter("topics.color_image_sub").value
-        depth_image_topic = self.get_parameter("topics.depth_image_sub").value
         color_camera_info_topic = self.get_parameter(
             "topics.color_camera_info_sub"
         ).value
@@ -129,10 +124,6 @@ class LandmarkDetectionNode(Node):
         self.image_sub = self.create_subscription(
             Image, color_image_topic, self.image_callback, 10
         )
-        self.depth_sub = self.create_subscription(
-            Image, depth_image_topic, self.depth_callback, 10
-        )
-        # internal topic for camera intrinsics (published by camera node or DepthCamera node)
         from sensor_msgs.msg import CameraInfo
 
         self.camera_info_sub = self.create_subscription(
@@ -174,25 +165,8 @@ class LandmarkDetectionNode(Node):
         )
 
     # Callbacks
-    def depth_callback(self, msg: Image):
-        try:
-            self._latest_depth = self.bridge.imgmsg_to_cv2(
-                msg, desired_encoding="16UC1"
-            )
-        except Exception as e:
-            self.get_logger().error(f"Depth image conversion failed: {e}")
-
     def camera_info_callback(self, msg):
-        if self._camera_intrinsics is None:
-            self._camera_intrinsics = {
-                "fx": msg.k[0],
-                "fy": msg.k[4],
-                "cx": msg.k[2],
-                "cy": msg.k[5],
-                "width": msg.width,
-                "height": msg.height,
-            }
-            self.get_logger().info("Camera intrinsics received")
+        self._camera_intrinsics = msg
 
     def image_callback(self, msg: Image):
         try:
@@ -221,8 +195,8 @@ class LandmarkDetectionNode(Node):
                 x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
                 conf = float(box.conf[0])
 
-                # estimate distance using depth
-                distance_m = self._estimate_distance(x1, y1, x2, y2)
+                # Independent RGB cameras provide no metric range.
+                distance_m = None
 
                 if distance_m is not None and distance_m > self.max_dist:
                     continue
@@ -315,6 +289,9 @@ class LandmarkDetectionNode(Node):
             }
             for lm in landmarks
             if lm.get("map_position") is not None
+            and lm["distance_m"] is not None
+            and math.isfinite(lm["distance_m"]) and lm["distance_m"] > 0
+            and lm["direction"] is not None
             and lm["confidence"] >= self.loc_conf_thresh
         ]
 
@@ -344,7 +321,7 @@ class LandmarkDetectionNode(Node):
                 seen_buildings.add(f"{lm['building']} {lm['floor']} floor")
 
             dist_str = (
-                f"{lm['distance_m']:.1f}m ahead" if lm["distance_m"] else "nearby"
+                f"{lm['distance_m']:.1f}m ahead" if lm["distance_m"] else "distance unknown"
             )
             parts.append(f"{lm['display_name']}({dist_str})")
 
@@ -361,41 +338,26 @@ class LandmarkDetectionNode(Node):
         self.get_logger().debug(f"LLM context: {context}")
 
     # Utilities
-    def _estimate_distance(self, x1: int, y1: int, x2: int, y2: int) -> float | None:
-        if self._latest_depth is None:
+    def _pixel_to_direction(self, px: float, py: float, w: int, h: int):
+        info = self._camera_intrinsics
+        if info is None or info.width != w or info.height != h:
             return None
-
-        cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
-        mx = max(1, (x2 - x1) // 6)
-        my = max(1, (y2 - y1) // 6)
-
-        roi = self._latest_depth[
-            max(0, cy - my) : min(self._latest_depth.shape[0], cy + my),
-            max(0, cx - mx) : min(self._latest_depth.shape[1], cx + mx),
-        ]
-        valid = roi[roi > 0]
-        if valid.size == 0:
+        k = np.asarray(info.k, dtype=float).reshape(3, 3)
+        d = np.asarray(info.d, dtype=float)
+        if not np.isfinite(k).all() or not np.isfinite(d).all() or k[0, 0] <= 0 or k[1, 1] <= 0:
             return None
-        return float(np.median(valid)) * self._depth_scale
-
-    def _pixel_to_direction(self, px: float, py: float, w: int, h: int) -> dict:
-        if self._camera_intrinsics:
-            fx = self._camera_intrinsics["fx"]
-            fy = self._camera_intrinsics["fy"]
-            cx = self._camera_intrinsics["cx"]
-            cy = self._camera_intrinsics["cy"]
-            dx = (px - cx) / fx
-            dy = (py - cy) / fy
+        point = np.array([[[px, py]]], dtype=float)
+        if info.distortion_model == "equidistant" and d.size == 4:
+            point = cv2.fisheye.undistortPoints(point, k, d)
+        elif (info.distortion_model == "plumb_bob" and d.size == 5 or
+              info.distortion_model == "rational_polynomial" and d.size == 8):
+            point = cv2.undistortPoints(point, k, d)
         else:
-            dx = (px / w) - 0.5
-            dy = (py / h) - 0.5
-
-        norm = math.sqrt(dx * dx + dy * dy + 1.0)
-        return {
-            "x": round(dx / norm, 4),
-            "y": round(dy / norm, 4),
-            "z": round(1.0 / norm, 4),
-        }
+            return None
+        x, y = point.reshape(2)
+        if not np.isfinite([x, y]).all():
+            return None
+        return {"x": float(x), "y": float(y)}
 
     def _publish_annotated(self, image: np.ndarray, landmarks: list, original_msg):
         annotated = image.copy()

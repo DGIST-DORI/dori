@@ -78,7 +78,7 @@ export function createAudioOutputRouter({ mode, executionProfile, addLog, setAct
     const unsub = subscribeROS('/dori/tts/audio_event', 'std_msgs/msg/String', (payload) => {
       let event;
       try { event = typeof payload === 'string' ? JSON.parse(payload) : payload; } catch { return; }
-      if (event?.event_type !== 'tts_text' || event.playback_mode === 'local_only') return;
+      if (event?.event_type !== 'tts_text' || ['local_only', 'remote_only'].includes(event.playback_mode)) return;
       tts.speak({ payload: event.text, messageId: event.timestamp,
         lang: event.language, speechText: event.speech_text, source: '/dori/tts/audio_event' });
     });

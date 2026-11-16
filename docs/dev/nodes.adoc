@@ -34,24 +34,18 @@ This document is the SSOT for ROS2 node details in the current workspace.
 
 == Perception
 
-[[node-depth-camera-node]]
-=== depth_camera_node (Python/C++)
+[[node-rgb-camera-node]]
+=== rgb_camera_node
 
-*Package*:: `dori_perception` (Python), `dori_perception_camera` (C++)
-*Executable*:: `depth_camera_node`
-*Language*:: Python / C++
-*Launch*:: `dori_perception/launch/perception.launch.py` (`depth_camera_front`, `depth_camera_rear`)
-*Subscriptions*:: (none)
-*Publications*:: <<topics.adoc#topic-dori-camera-front-color-image-raw,/camera/front/color/image_raw>> (`sensor_msgs/msg/Image`), <<topics.adoc#topic-dori-camera-front-depth-image-raw,/camera/front/depth/image_raw>> (`sensor_msgs/msg/Image`), <<topics.adoc#topic-dori-camera-front-depth-image_colormap,/camera/front/depth/image_colormap>> (`sensor_msgs/msg/Image`, Python impl), <<topics.adoc#topic-dori-camera-front-color-camera_info,/camera/front/color/camera_info>> (`sensor_msgs/msg/CameraInfo`), <<topics.adoc#topic-dori-camera-front-depth-camera_info,/camera/front/depth/camera_info>> (`sensor_msgs/msg/CameraInfo`), <<topics.adoc#topic-dori-camera-front-depth-scale,/camera/front/depth/scale>> (`std_msgs/msg/Float32`)
-*Services (server)*:: -
-*Services (client)*:: -
-*Actions*:: -
-*Parameters*:: See <<parameters.adoc#param-depth_camera_node, depth_camera_node parameters>>
-*Lifecycle*:: unmanaged
-*Dependencies*:: Intel RealSense device, `pyrealsense2` (Python) or librealsense (C++)
-*Failure behavior*:: If device open/stream start fails, logs an error and the node exits.
-
-*Description*:: Source node for front/rear camera streams. In dori_bringup, the C++ implementation is selected by default and remapped to `/camera/front/...` and `/camera/rear/...`.
+*Package*:: `dori_perception_camera`
+*Executable*:: `rgb_camera_node`
+*Language*:: C++
+*Launch*:: `dori_perception/launch/perception.launch.py` (front and rear)
+*Publications*:: `/dori/camera/{front,rear}/color/image_raw`, `/dori/camera/{front,rear}/color/camera_info`
+*Parameters*:: See <<parameters.adoc#param-rgb_camera_node,rgb_camera_node parameters>>
+*Dependencies*:: USB/V4L2 camera, OpenCV, yaml-cpp
+*Failure behavior*:: Invalid calibration, resolution mismatch, open failure or repeated read failure exits nonzero.
+*Description*:: Independent raw RGB images and matching calibration; uncalibrated K=0 when no file is supplied. No depth or stereo reconstruction. Optical frame IDs distinguish front and rear.
 
 
 [[node-person-detection-node]]
@@ -61,17 +55,17 @@ This document is the SSOT for ROS2 node details in the current workspace.
 *Executable*:: `person_detection_node`
 *Language*:: Python
 *Launch*:: `dori_perception/launch/perception.launch.py`
-*Subscriptions*:: <<topics.adoc#topic-dori-camera-front-color-image-raw,/camera/front/color/image_raw>> (`sensor_msgs/msg/Image`), <<topics.adoc#topic-dori-camera-front-depth-image-raw,/camera/front/depth/image_raw>> (`sensor_msgs/msg/Image`), <<topics.adoc#topic-dori-camera-front-depth-scale,/camera/front/depth/scale>> (`std_msgs/msg/Float32`)
-*Publications*:: <<topics.adoc#topic-dori-hri-persons,/hri/persons>> (`std_msgs/msg/String`), <<topics.adoc#topic-dori-hri-interaction_trigger,/hri/interaction_trigger>> (`std_msgs/msg/Bool`), <<topics.adoc#topic-dori-hri-tracking_state,/hri/tracking_state>> (`std_msgs/msg/String`), <<topics.adoc#topic-dori-follow-target_offset,/follow/target_offset>> (`geometry_msgs/msg/Point`), <<topics.adoc#topic-dori-hri-annotated_image,/hri/annotated_image>> (`sensor_msgs/msg/Image`)
+*Subscriptions*:: <<topics.adoc#topic-dori-camera-front-color-image-raw,/camera/front/color/image_raw>> (`sensor_msgs/msg/Image`)
+*Publications*:: <<topics.adoc#topic-dori-hri-persons,/hri/persons>> (`std_msgs/msg/String`), <<topics.adoc#topic-dori-hri-tracking_state,/hri/tracking_state>> (`std_msgs/msg/String`), <<topics.adoc#topic-dori-hri-annotated_image,/hri/annotated_image>> (`sensor_msgs/msg/Image`)
 *Services (server)*:: <<services.adoc#service-dori-hri-set_follow_mode,/hri/set_follow_mode>> (`std_srvs/srv/SetBool`)
 *Services (client)*:: -
 *Actions*:: -
 *Parameters*:: See <<parameters.adoc#param-person_detection_node, person_detection_node parameters>>
 *Lifecycle*:: unmanaged
-*Dependencies*:: YOLO model file, OpenCV/NumPy, optional depth stream
-*Failure behavior*:: Model load failures raise errors; without depth input it falls back to partial 2D-only behavior.
+*Dependencies*:: YOLO model file, OpenCV/NumPy, front or rear RGB stream
+*Failure behavior*:: Model load failures raise errors; failed inference does not publish a readiness heartbeat.
 
-*Description*:: Performs person detection/tracking and evaluates HRI interaction triggers. In follow mode it publishes target offsets for follower control.
+*Description*:: Publishes camera-local 2D person tracks with null distance and no visitor target. Rear outputs use `/dori/hri/rear/`. Follow enable is rejected; phone sessions own interaction triggers.
 
 
 [[node-landmark-detection-node]]
@@ -81,7 +75,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 *Executable*:: `landmark_detection_node`
 *Language*:: Python
 *Launch*:: `dori_perception/launch/perception.launch.py`
-*Subscriptions*:: <<topics.adoc#topic-dori-camera-front-color-image-raw,/camera/front/color/image_raw>> (`sensor_msgs/msg/Image`), <<topics.adoc#topic-dori-camera-front-depth-image-raw,/camera/front/depth/image_raw>> (`sensor_msgs/msg/Image`), <<topics.adoc#topic-dori-camera-front-color-camera_info,/camera/front/color/camera_info>> (`sensor_msgs/msg/CameraInfo`)
+*Subscriptions*:: <<topics.adoc#topic-dori-camera-front-color-image-raw,/camera/front/color/image_raw>> (`sensor_msgs/msg/Image`), <<topics.adoc#topic-dori-camera-front-color-camera_info,/camera/front/color/camera_info>> (`sensor_msgs/msg/CameraInfo`)
 *Publications*:: <<topics.adoc#topic-dori-landmark-detections,/landmark/detections>> (`std_msgs/msg/String`), <<topics.adoc#topic-dori-landmark-localization,/landmark/localization>> (`std_msgs/msg/String`), <<topics.adoc#topic-dori-landmark-context,/landmark/context>> (`std_msgs/msg/String`), <<topics.adoc#topic-dori-hri-annotated_landmark,/hri/annotated_landmark>> (`sensor_msgs/msg/Image`)
 *Services (server)*:: -
 *Services (client)*:: -
@@ -91,7 +85,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 *Dependencies*:: YOLO model, landmark DB JSON, camera intrinsics
 *Failure behavior*:: DB/model load failures can degrade detection/localization quality or fail initialization.
 
-*Description*:: Detects landmark objects and applies distance-based filtering to publish location context (`context`) and localization output.
+*Description*:: Publishes semantic landmark context with unknown range. Directions require matching lens calibration and distortion correction. RGB-only observations never produce range-based localization candidates.
 
 
 [[node-gesture-recognition-node]]
@@ -101,7 +95,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 *Executable*:: `gesture_recognition_node`
 *Language*:: Python
 *Launch*:: `dori_perception/launch/perception.launch.py`
-*Subscriptions*:: <<topics.adoc#topic-dori-camera-front-color-image-raw,/camera/front/color/image_raw>> (`sensor_msgs/msg/Image`), <<topics.adoc#topic-dori-hri-interaction_trigger,/hri/interaction_trigger>> (`std_msgs/msg/Bool`)
+*Subscriptions*:: <<topics.adoc#topic-dori-camera-front-color-image-raw,/camera/front/color/image_raw>> (`sensor_msgs/msg/Image`)
 *Publications*:: <<topics.adoc#topic-dori-hri-gesture,/hri/gesture>> (`std_msgs/msg/String`), <<topics.adoc#topic-dori-hri-gesture_command,/hri/gesture_command>> (`std_msgs/msg/String`), <<topics.adoc#topic-dori-stt-wake_word_detected,/stt/wake_word_detected>> (`std_msgs/msg/Bool`), <<topics.adoc#topic-dori-hri-annotated_gesture,/hri/annotated_gesture>> (`sensor_msgs/msg/Image`)
 *Services (server)*:: -
 *Services (client)*:: -
@@ -121,7 +115,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 *Executable*:: `facial_expression_node`
 *Language*:: Python
 *Launch*:: `dori_perception/launch/perception.launch.py`
-*Subscriptions*:: <<topics.adoc#topic-dori-camera-front-color-image-raw,/camera/front/color/image_raw>> (`sensor_msgs/msg/Image`), <<topics.adoc#topic-dori-hri-interaction_trigger,/hri/interaction_trigger>> (`std_msgs/msg/Bool`)
+*Subscriptions*:: <<topics.adoc#topic-dori-camera-front-color-image-raw,/camera/front/color/image_raw>> (`sensor_msgs/msg/Image`)
 *Publications*:: <<topics.adoc#topic-dori-hri-expression,/hri/expression>> (`std_msgs/msg/String`), <<topics.adoc#topic-dori-hri-expression_command,/hri/expression_command>> (`std_msgs/msg/String`), <<topics.adoc#topic-dori-hri-annotated_expression,/hri/annotated_expression>> (`sensor_msgs/msg/Image`)
 *Services (server)*:: -
 *Services (client)*:: -

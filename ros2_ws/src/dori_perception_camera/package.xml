@@ -3,7 +3,7 @@
 <package format="3">
   <name>dori_perception_camera</name>
   <version>0.0.0</version>
-  <description>C++ RealSense camera node for DORI perception stack</description>
+  <description>USB/V4L2 RGB cameras with per-camera calibration for DORI</description>
   <maintainer email="jaewon1627@gmail.com">ofbt</maintainer>
   <license>TODO: License declaration</license>
 
@@ -12,8 +12,9 @@
   <depend>rclcpp</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
-  <depend>cv_bridge</depend>
-  <depend>librealsense2</depend>
+  <depend>libopencv-dev</depend>
+  <depend>yaml-cpp</depend>
+  <test_depend>ament_cmake_gtest</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

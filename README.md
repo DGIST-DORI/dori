@@ -41,8 +41,8 @@
 ```bash
 sudo apt update
 sudo apt install -y git build-essential python3.10-venv python3-pip python3-rosdep \
-  python3-colcon-common-extensions python3-vcstool libportaudio2 portaudio19-dev \
-  ffmpeg mpg123 can-utils nlohmann-json3-dev \
+  python3-colcon-common-extensions python3-vcstool \
+  ffmpeg v4l-utils can-utils nlohmann-json3-dev \
   ros-humble-navigation2 ros-humble-nav2-bringup ros-humble-cartographer-ros \
   ros-humble-rosbridge-server
 ```
@@ -97,32 +97,21 @@ export PYTHONNOUSERSITE=1
 .venv/bin/python -m pip install -r requirements-runtime.txt
 ```
 
-### 3-1. (Optional) Prepare Local Robot Voice Assets
+### 3-1. (Optional) Prepare Server Whisper
 
-The smartphone visitor app uses Azure Speech by default and does not need
-openWakeWord or Whisper models. For local robot microphone input, DORI uses
-openWakeWord and faster-whisper (`small` model):
-
-```bash
-.venv/bin/python -m pip install -c constraints-robot.txt 'openwakeword>=0.6,<0.7' 'faster-whisper>=1,<2'
-mkdir -p .state/voice
-.venv/bin/python - <<'PYVOICE'
-import openwakeword
-from faster_whisper.utils import download_model
-openwakeword.utils.download_models(model_names=['hey_mycroft'])
-download_model('small', output_dir='.state/voice/whisper-small')
-print('Voice assets ready.')
-PYVOICE
-```
-
-Alternatively, use `scripts/prepare_voice.sh`. For visitor input using local
-Whisper, use `scripts/prepare_voice.sh --topic-only`.
+The smartphone visitor app uses Azure Speech by default. No onboard microphone,
+speaker, wake-word model or local audio player is required. To recognize phone
+audio with server-side Whisper instead, run `scripts/prepare_voice.sh --topic-only`
+and select `visitor_stt:=whisper`. Legacy desktop microphone experiments must
+explicitly use `scripts/prepare_voice.sh --desktop-microphone` and install PortAudio;
+that mode is not supported on the robot.
 
 ### 3-2. Prepare Perception for the Robot Profile
 
-The robot profile requires a front RealSense camera, the `ultralytics` dependency,
-and person-detection weights. Prepare a local model before deployment and set
-`person_model` to its path in the deployment YAML. Desktop perception is optional.
+The robot profile requires two USB wide-angle RGB cameras (front/rear), the
+`ultralytics` dependency, and person-detection weights. Prepare a local model before deployment and set
+`person_model` to its path in the deployment YAML. Desktop perception is optional. Configure separate device paths and calibration
+files using the [camera setup guide](ros2_ws/src/dori_perception_camera/README.md).
 
 MediaPipe Task models are only needed when explicitly enabling gesture or
 expression recognition (`enable_gesture:=true` / `enable_expression:=true`):
@@ -187,8 +176,9 @@ Restart the TTS node after changing credentials or `tts_engine`. A successful
 initialization logs `Google Cloud TTS engine & DB ready`; the first synthesis
 also verifies API access. Initialization/request errors or the local daily usage
 limits fall back to gTTS and log the reason. To explicitly use gTTS, launch with
-`tts_engine:=gtts`. `tts_playback_mode:=publish_only` retains browser speech for
-local requests.
+`tts_engine:=gtts`. `tts_playback_mode:=remote_only` is the production default: server synthesis
+with playback acknowledged by the paired phone. Unscoped local requests and
+wake chimes are disabled. `publish_only` remains a legacy desktop test mode.
 
 Local rule-based intent classification and destination guidance do not require
 external LLM API keys.
@@ -323,30 +313,29 @@ See [launch ownership and renamed commands](docs/dev/package-ownership.md#launch
 for the complete inventory and migration table. Normal map-loading examples use
 the default `visitor_mode:=true`.
 
-The supported modes are `robot` and `desktop`. Both use the same visitor,
-voice, LLM, interaction and optional perception settings. Robot mode starts the
-robot drivers, LiDAR odometry, Nav2 and required front camera/person detection,
-checks the map/devices, and stops the
-session when a critical process exits. Its map viewer runs in navigation mode;
-desktop's map backend monitors available ROS data without starting navigation.
-`visitor_mode` selects phone versus local microphone input independently of
-`dori_mode`.
+The supported modes are `robot` and `desktop`. Robot mode starts the drivers,
+LiDAR odometry, Nav2, both USB RGB cameras/person detectors and the smartphone
+visitor services. It checks the map/devices and stops the session when a critical
+process exits. Desktop mode starts app services without physical hardware.
 
-Robot mode requires the `/dori` namespace and front color/depth frames plus
-person-detection results, including frames containing no people. Its perception
-cannot be disabled. Desktop mode defaults to no perception; explicitly enable
-it with `enable_perception:=true` when a camera is available. Gesture, expression
-and landmark detection default to disabled in both profiles and can be enabled
-individually. Prepare the vision dependencies and model before robot operation.
-The C++ camera build requires the RealSense SDK (`librealsense2`, installed by
-rosdep); a missing SDK now fails the build instead of silently omitting the node.
+Robot mode requires `/dori`, `visitor_mode:=true`, `tts_playback_mode:=remote_only`,
+and both camera streams plus successful inference (empty detections are valid).
+Depth frames are not required or published. Camera detections contain no metric
+range or assigned visitor identity; follow requests are rejected. Navigation
+continues to use LiDAR/IMU. Robot microphone, speaker and microphone-return modes
+are rejected. Legacy local voice is available only for explicit desktop testing.
+
+Gesture, expression and landmark detection remain optional. The phone connection
+gates optional gesture/expression inference. RGB landmarks cannot publish
+range-based localization. The camera build uses OpenCV and yaml-cpp, without a
+RealSense SDK. See [USB camera configuration and physical acceptance](ros2_ws/src/dori_perception_camera/README.md).
 
 Store site/device settings in one deployment file:
 
 ```bash
 mkdir -p .state
 cp -n ros2_ws/src/dori_bringup/config/robot.example.yaml .state/robot.yaml
-# Edit the map, destination file, device identities, front camera serial and model.
+# Edit the map, destination file, device identities, front/rear USB capture paths, calibration files and model.
 ros2 launch dori_bringup bringup.launch.py config_file:=$(pwd)/.state/robot.yaml
 ```
 
@@ -558,16 +547,16 @@ for a manually started launcher and confirm that the display URL opens locally.
 
 Normal operation uses `visitor_mode:=true`, including map-based navigation.
 The following examples are only for explicitly testing local microphone HRI.
-After preparing the optional local voice assets in step 3-1, run desktop HRI
+After explicitly preparing `scripts/prepare_voice.sh --desktop-microphone`, run desktop HRI
 with or without the dashboard on a development PC. Set `DORI_INTERNAL_TOKEN`
 as above when starting the dashboard:
 
 ```bash
-# Local robot microphone HRI + Dashboard
-ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop visitor_mode:=false
+# Legacy desktop microphone HRI + Dashboard
+ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop visitor_mode:=false tts_playback_mode:=publish_only
 
-# Local robot microphone HRI without Dashboard
-ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop visitor_mode:=false enable_dashboard:=false
+# Legacy desktop microphone HRI without Dashboard
+ros2 launch dori_bringup bringup.launch.py dori_mode:=desktop visitor_mode:=false tts_playback_mode:=publish_only enable_dashboard:=false
 
 # Dashboard Standalone
 ros2 launch dori_dashboard dashboard.launch.py

@@ -129,16 +129,13 @@ def check(sync_arch: bool, check_only: bool) -> int:
 
     arch_ok = generated in arch_text
     if sync_arch and not arch_ok:
-        new = re.sub(
-            rf"{re.escape(ARCH_START)}.*?{re.escape(ARCH_END)}\\n?",
-            generated,
-            arch_text,
-            flags=re.S,
-        )
-        if new == arch_text:
+        start = arch_text.find("#### Topic List source of truth")
+        end = arch_text.find(ARCH_END, max(start, 0))
+        if start >= 0 and end >= start:
+            new = arch_text[:start] + generated + arch_text[end + len(ARCH_END):].lstrip("\n")
+        else:
             anchor = "### ROS2 Topic List (Actual Nodes)"
-            if anchor in arch_text:
-                new = arch_text.replace(anchor, anchor + "\n\n" + generated, 1)
+            new = arch_text.replace(anchor, anchor + "\n\n" + generated, 1)
         ARCH_PATH.write_text(new, encoding="utf-8")
         arch_ok = True
 

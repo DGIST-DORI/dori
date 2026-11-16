@@ -55,7 +55,27 @@ def prepare(context):
         if not value("map"):
             raise ValueError("Robot mode requires map:=/path/to/map.yaml or a config_file with map")
         if value("enable_perception") != "true":
-            raise ValueError("Robot mode requires front camera and person detection (enable_perception:=true)")
+            raise ValueError("Robot mode requires front camera and rear camera perception (enable_perception:=true)")
+        if value("enable_rear_camera") != "true":
+            raise ValueError("Robot mode requires enable_rear_camera:=true")
+        if not visitor:
+            raise ValueError("Robot mode requires visitor_mode:=true; onboard microphone and speaker were removed")
+        if value("enable_hri") == "true" and value("enable_dashboard") != "true":
+            raise ValueError("Robot HRI requires the smartphone gateway (enable_dashboard:=true)")
+        if value("tts_playback_mode") != "remote_only":
+            raise ValueError("Robot mode requires tts_playback_mode:=remote_only")
+        if value("require_user_tracking") == "true" or value("require_mic_return") == "true":
+            raise ValueError("RGB phone profile cannot require metric user tracking or microphone return")
+    if value("enable_perception") == "true":
+        positions = ("front", "rear") if value("enable_rear_camera") == "true" else ("front",)
+        for position in positions:
+            if not value(position + "_device"):
+                raise ValueError(position + "_device must name a USB/V4L2 device")
+            calibration = value(position + "_calibration_file")
+            if calibration and not Path(calibration).is_file():
+                raise ValueError(position + "_calibration_file does not exist")
+        if len(positions) == 2 and Path(value("front_device")).resolve() == Path(value("rear_device")).resolve():
+            raise ValueError("Front and rear cameras must use different devices")
     timeout = float(value("startup_timeout"))
     if not math.isfinite(timeout) or not 1 <= timeout <= 600:
         raise ValueError("startup_timeout must be finite and between 1 and 600 seconds")
@@ -97,7 +117,9 @@ def services(context, *, robot=False):
         actions.append(include("dori_perception", "perception.launch.py", {
             "device": value("perception_device"),
             **params(("namespace", "enable_gesture", "enable_expression", "enable_landmark",
-                      "front_serial", "rear_serial", "enable_rear_camera", "use_cpp_depth_camera",
+                      "front_device", "rear_device", "enable_rear_camera",
+                      "front_calibration_file", "rear_calibration_file", "camera_width", "camera_height",
+                      "camera_fps", "camera_pixel_format",
                       "hand_model_path", "face_model_path", "person_model", "landmark_model")),
         }))
     if value("enable_dashboard") == "true":

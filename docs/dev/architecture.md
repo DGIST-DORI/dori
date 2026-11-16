@@ -8,17 +8,17 @@
 
 Based on: https://www.notion.so/2f869a97d828815ea997c18536e5388d?v=2f869a97d8288142962f000c1662184d
 
-Last updated: March 10, 2026.
+Sensor/interaction revision: November 16, 2026. Other component specifications retain their previous estimates.
 
-**Total Estimated Cost:** ₩4,387,816  
-**Total Weight (major components):** ~2,632 g
+**Total cost, weight and power:** pending recalculation after USB camera selection.
+Previous totals included RGBD cameras and onboard audio and are no longer valid.
 <details>
     <summary>Component list</summary>
     
 | Component | Spec | Weight (g) | Power (W) | Voltage (V) | Price (₩) | Stock | Notes |
 |---|---|---|---|---|---|---|---|
 | Compute | NVIDIA Jetson Orin Nano Super | 176 | 7–25 | 9–20 (19V nominal) | 480,000 | 1 | Main onboard computer |
-| Camera | Intel RealSense D435i | 72 | 2 | USB-C | 526,000 | 2 | RGB-D camera |
+| Camera | USB wide-angle RGB, model TBD | TBD | TBD | USB | TBD | 2 | Independent front/rear, no depth |
 | Motor 1–2 | CubeMars AK45-10 KV75 | 260 | 50.4 / 120 | 24 | 240,900 | 2 | Ordered |
 | Motor 3–4 | ROBOTIS Dynamixel XH430-V350-R | 82 | 1.44 / 16.8 | 24 | 387,200 | 2 | Ordered |
 | Link Component | CubeMars Rubik Link | – | – | – | 64,300 | 1 | Ordered |
@@ -26,9 +26,8 @@ Last updated: March 10, 2026.
 | Interface | ROBOTIS U2D2 Hub | – | – | – | 24,780 | 1 | Ordered |
 | CAN Adapter | Waveshare USB-CAN-A | – | – | USB | 52,700 | 1 | Ordered |
 | Jetson Power | 24V→19V Step-down Converter (10A) | 270 | – | 24→19 | 28,500 | 1 | Jetson power regulation |
-| IMU | - | - | - | - | 1 | - |
-| Microphone | Hollyland Lark M2 | 15 / 87 | <1 | USB-C | 123,000 | 1 | Wireless mic |
-| Speaker | Adafruit USB Powered Mini Speaker | 73.6 | 4 | 5 | 28,300 | 1 | USB powered |
+| IMU | Existing IMU retained | – | – | – | – | 1 | Navigation attitude sensing |
+| LiDAR | Existing LiDAR retained | – | – | – | – | 1 | Navigation ranging |
 | Ultrasonic Sensor | DFRobot Gravity URM09 (I2C) | – | – | – | – | 4 | Distance sensing |
 | Battery | HRB LiPo 6S 8000mAh (22.2V) | 1155 | – | 22.2 | 225,782 | 2 | Main battery |
 | Battery Monitor | LiPo Voltage Tester / Alarm | – | – | – | 3,100 | 1 | Battery safety |
@@ -55,6 +54,14 @@ Last updated: March 10, 2026.
 | Robot form | Spherical, 540 mm diameter, dual-shell cube mechanism |
 | Camera height | 270 mm |
 
+### Sensor and interaction responsibilities
+
+LiDAR/IMU own localization and navigation. Front/rear USB RGB cameras provide
+independent visual observations with unknown metric range. The paired smartphone
+provides all user microphone and speaker I/O via the visitor gateway; no onboard
+audio hardware is installed. Phone sessions do not identify camera tracks.
+See [camera setup and physical acceptance](../../ros2_ws/src/dori_perception_camera/README.md).
+
 ### Software Packages
 
 The package tree below reflects the current source layout. Package ownership and
@@ -73,8 +80,8 @@ ros2_ws/src/
 │   └── launch/            # nav2.launch.py, navigation_adapters.launch.py
 ├── dori_perception/        # Python vision nodes, config and models
 │   └── launch/perception.launch.py
-├── dori_perception_camera/ # Native RealSense camera adapter
-├── dori_hri/               # STT, TTS and emotion I/O
+├── dori_perception_camera/ # Native USB/V4L2 RGB camera adapter
+├── dori_hri/               # Phone STT/TTS services and emotion I/O
 │   └── launch/voice.launch.py
 ├── dori_bt/                # BehaviorTree.CPP v3 decision orchestration
 │   └── launch/interaction.launch.py
@@ -114,22 +121,13 @@ records subsystem owners, callers and renamed files.
 
 | Topic | Msg type | Publisher(s) | Subscriber(s) | Description |
 |---|---|---|---|---|
-| `camera/front/color/image_raw` | `sensor_msgs/msg/Image` | depth_camera_node | person_detection_node, gesture_recognition_node, facial_expression_node, landmark_detection_node | RGB camera stream used by all perception pipelines. |
-| `camera/front/depth/image_raw` | `sensor_msgs/msg/Image` | depth_camera_node | person_detection_node, landmark_detection_node | Raw depth frame for distance estimation and landmark range filtering. |
-| `camera/front/depth/image_colormap` | `sensor_msgs/msg/Image` | depth_camera_node | - | Colorized depth visualization stream. |
-| `camera/front/color/camera_info` | `sensor_msgs/msg/CameraInfo` | depth_camera_node | landmark_detection_node | RGB intrinsics for pixel-to-direction / localization math. |
-| `camera/front/depth/camera_info` | `sensor_msgs/msg/CameraInfo` | depth_camera_node | - | Depth intrinsics metadata stream. |
-| `camera/front/depth/scale` | `std_msgs/msg/Float32` | - | person_detection_node | Optional depth meter-per-unit scale expected by person detection. |
-| `camera/rear/color/image_raw` | `sensor_msgs/msg/Image` | depth_camera_node | - | Rear RGB camera stream. |
-| `camera/rear/depth/image_raw` | `sensor_msgs/msg/Image` | depth_camera_node | - | Rear raw depth frame. |
-| `camera/rear/depth/image_colormap` | `sensor_msgs/msg/Image` | depth_camera_node | - | Rear colorized depth visualization stream. |
-| `camera/rear/color/camera_info` | `sensor_msgs/msg/CameraInfo` | depth_camera_node | - | Rear RGB intrinsics metadata stream. |
-| `camera/rear/depth/camera_info` | `sensor_msgs/msg/CameraInfo` | depth_camera_node | - | Rear depth intrinsics metadata stream. |
-| `camera/rear/depth/scale` | `std_msgs/msg/Float32` | - | - | Optional rear depth meter-per-unit scale. |
-| `hri/persons` | `std_msgs/msg/String` | person_detection_node | - | JSON list of detected persons/tracks. |
-| `hri/interaction_trigger` | `std_msgs/msg/Bool` | person_detection_node | gesture_recognition_node, facial_expression_node | Enables gesture/expression inference only during interaction. |
-| `hri/tracking_state` | `std_msgs/msg/String` | person_detection_node | dori_tree_executor | JSON tracking state (`idle/tracking/lost`) for session/nav control. |
-| `follow/target_offset` | `geometry_msgs/msg/Point` | person_detection_node | - | Relative target offset for follow-control consumers. |
+| `camera/front/color/image_raw` | `sensor_msgs/msg/Image` | rgb_camera_node | person_detection_node, gesture_recognition_node, facial_expression_node, landmark_detection_node | RGB camera stream used by all perception pipelines. |
+| `camera/front/color/camera_info` | `sensor_msgs/msg/CameraInfo` | rgb_camera_node | landmark_detection_node | RGB intrinsics for pixel-to-direction / localization math. |
+| `camera/rear/color/image_raw` | `sensor_msgs/msg/Image` | rgb_camera_node | person_detection_rear | Rear RGB camera stream. |
+| `camera/rear/color/camera_info` | `sensor_msgs/msg/CameraInfo` | rgb_camera_node | - | Rear RGB intrinsics metadata stream. |
+| `hri/persons` | `std_msgs/msg/String` | person_detection_node | - | Front RGB person observations; camera-local track IDs, null metric range and no session target. |
+| `hri/interaction_trigger` | `std_msgs/msg/Bool` | bridge_api_node | gesture_recognition_node, facial_expression_node | Optional vision inference gate while the paired smartphone WebSocket is active. |
+| `hri/tracking_state` | `std_msgs/msg/String` | person_detection_node | dori_tree_executor | Legacy interaction tracking contract: idle, null range, metric_tracking_available=false for RGB-only perception. |
 | `hri/annotated_image` | `sensor_msgs/msg/Image` | person_detection_node | - | Person detection debug overlay image. |
 | `hri/gesture` | `std_msgs/msg/String` | gesture_recognition_node | - | Gesture detection JSON payload. |
 | `hri/gesture_command` | `std_msgs/msg/String` | gesture_recognition_node | - | Mapped high-level gesture command (`STOP`, `CALL`, etc.). |
@@ -154,17 +152,21 @@ records subsystem owners, callers and renamed files.
 | `nav/cancel` | `std_msgs/msg/Bool` | external/nav client node | navigator_node | Cancel signal for current navigation task. |
 | `system/metrics` | `std_msgs/msg/String` | system_monitor_node | - | Periodic system metrics JSON (CPU/RAM/Disk/GPU). |
 | `/map` | `nav_msgs/msg/OccupancyGrid` | SLAM / map server | navigator_node | Occupancy map used for global path planning. |
-| `dori/stt/audio_input` | `std_msgs/msg/String` | dashboard_frontend | - | Dashboard/client microphone STT input (robot/desktop profiles). |
-| `dori/perception/vision/image/compressed` | `sensor_msgs/msg/CompressedImage` | dashboard_frontend | - | Dashboard/client camera compressed image input (robot/desktop profiles). |
+| `dori/stt/audio_input` | `std_msgs/msg/String` | dashboard_frontend | - | Dashboard/client microphone STT input (robot+sim profile canonical). |
+| `dori/perception/vision/image/compressed` | `sensor_msgs/msg/CompressedImage` | dashboard_frontend | - | Dashboard/client camera compressed image input (robot+sim profile canonical). |
 | `dori/audio/output` | `audio_common_msgs/msg/AudioData` | dashboard_frontend | - | ROS audio output stream for dashboard ros_audio playback mode. |
+| `hri/rear/persons` | `std_msgs/msg/String` | person_detection_rear | - | Rear RGB person observations; independent camera-local tracks and null range. |
+| `hri/rear/tracking_state` | `std_msgs/msg/String` | person_detection_rear | - | Rear interaction tracking unavailable; idle with no assigned visitor. |
+| `hri/rear/annotated_image` | `sensor_msgs/msg/Image` | person_detection_rear | - | Optional rear person detection overlay. |
 <!-- TOPIC:END -->
 
 
-The detailed API reference for ROS2 topics is managed as a single source at [`topics.adoc`](docs/dev/topics.adoc).
 
-- Topic source of truth: [`config/ros2_topics.yaml`](config/ros2_topics.yaml)
+The detailed API reference for ROS2 topics is managed as a single source at [`topics.adoc`](topics.adoc).
+
+- Topic source of truth: [`config/ros2_topics.yaml`](../../config/ros2_topics.yaml)
 - Sync/check tool: `python3 tools/topic/topic_lint.py --sync-architecture`, `python3 tools/topic/topic_lint.py --check`
-- Detailed documentation: [`docs/dev/topics.adoc`](docs/dev/topics.adoc)
+- Detailed documentation: [`docs/dev/topics.adoc`](topics.adoc)
 
 #### Global ROS topic naming policy (all packages)
 
@@ -179,7 +181,9 @@ The detailed API reference for ROS2 topics is managed as a single source at [`to
 ## HRI Behavior Tree Architecture
 
 기존의 단순 상태 머신(`hri_manager_node.py`)에서 **BehaviorTree.CPP v3** 기반의 오케스트레이션 노드(`dori_tree_executor`, 패키지: `dori_bt`)로 전환되었습니다. ROS 2 Humble의 Nav2와 동일한 `behaviortree_cpp_v3` 시스템 패키지를 사용합니다.
-로봇의 HRI 및 가이딩 흐름은 XML 트리 정의(`dori_tree.xml`)에 의해 제어되며, 비동기 ROS 2 Action 인터페이스(`Speak`, `LLMQuery`, `Navigate`)를 통해 하위 노드들과 상호작용합니다.
+아래 도식과 XML 상태 전이는 레거시 데스크톱 HRI 경로다. 운영 방문자 모드에서는 스마트폰 gateway가 LLM, 원격 TTS 및 안내 액션을 호출하고 BT는 세션 준비·정리를 제공한다. RGB 사람 관측은 BT의 안내 대상을 선택하지 않는다.
+
+레거시 HRI 및 가이딩 흐름은 XML 트리 정의(`dori_tree.xml`)에 의해 제어되며, 비동기 ROS 2 Action 인터페이스(`Speak`, `LLMQuery`, `Navigate`)를 통해 하위 노드들과 상호작용합니다.
 
 ```mermaid
 flowchart TD

@@ -17,7 +17,7 @@ def generate_launch_description():
 
     defaults = dict(
         namespace="/dori",
-        enable_stt="true",
+        enable_stt="false",
         use_external_llm="true",
         knowledge_file="",
         rag_index_dir="",
@@ -26,10 +26,10 @@ def generate_launch_description():
         whisper_model="small",
         whisper_device="cpu",
         wake_word=custom_wake_words,
-        stt_audio_input_mode="microphone",
+        stt_audio_input_mode="topic",
         tts_engine="gcp",
         tts_language="ko",
-        tts_playback_mode="local_only",
+        tts_playback_mode="remote_only",
         sfx_base_path="",
     )
     arg = LaunchConfiguration

@@ -359,7 +359,7 @@ def test_bringup_is_visitor_ready_with_robot_by_default(no_process_launch, hardw
     assert {"llm_node", "tts_node", "dori_tree_executor", "rosbridge_websocket"} <= executables
     assert "stt_node" not in executables
     if hardware:
-        assert {"ros2_control_node", "nav2_adapter", "named_goal_adapter", "sllidar_node", "dxl_driver_node", "depth_camera_node", "person_detection_node", "readiness_monitor"} <= executables
+        assert {"ros2_control_node", "nav2_adapter", "named_goal_adapter", "sllidar_node", "dxl_driver_node", "rgb_camera_node", "person_detection_node", "readiness_monitor"} <= executables
     else:
         assert not {"ros2_control_node", "nav2_adapter", "sllidar_node", "dxl_driver_node"} & executables
     bt_params = next(params for _, exe, params in nodes if exe == "dori_tree_executor")
@@ -376,7 +376,7 @@ def test_profile_yaml_and_cli_reach_installed_nodes(no_process_launch, tmp_path)
   llm_model: from-yaml
 robot:
   map: {ROOT / 'maps/live_navigation_20261023_1938.yaml'}
-  front_serial: 'camera-123'
+  front_device: '/dev/v4l/by-id/camera-123'
   dxl_baudrate: 115200
 """)
     nodes = inspect_launch("dori_bringup", "bringup.launch.py", {
@@ -384,7 +384,7 @@ robot:
     })
     for executable, key, expected in (
         ("llm_node", "model_name", "from-cli"),
-        ("depth_camera_node", "serial_number", "camera-123"),
+        ("rgb_camera_node", "device", "/dev/v4l/by-id/camera-123"),
         ("dxl_driver_node", "baudrate", 115200),
     ):
         parameters = next(params for _, exe, params in nodes if exe == executable)
@@ -393,8 +393,8 @@ robot:
 
 def test_profiles_share_voice_hri_and_perception_parameters(no_process_launch):
     common = {"map": str(ROOT / "maps/live_navigation_20261023_1938.yaml"),
-              "enable_perception": "true", "require_user_tracking": "true"}
-    selected = {"llm_node", "tts_node", "dori_tree_executor", "person_detection_node", "depth_camera_node"}
+              "enable_perception": "true", "require_user_tracking": "false"}
+    selected = {"llm_node", "tts_node", "dori_tree_executor", "person_detection_node", "rgb_camera_node"}
     def parameters(mode):
         nodes = inspect_launch("dori_bringup", "bringup.launch.py", {**common, "dori_mode": mode})
         assert not {"gesture_recognition_node", "facial_expression_node", "landmark_detection_node"} & {exe for _, exe, _ in nodes}
@@ -409,7 +409,7 @@ def test_full_robot_resolves_and_excludes_inherited_virtual_inputs(no_process_la
         {
             "map": str(ROOT / "maps/live_navigation_20261023_1938.yaml"),
             "use_input_nodes": "true",
-            "visitor_mode": "false",
+            "visitor_mode": "true",
         },
     )
     executables = [exe for _, exe, _ in nodes]
@@ -431,9 +431,9 @@ def test_full_robot_resolves_and_excludes_inherited_virtual_inputs(no_process_la
         "named_goal_adapter",
         "web_viewer.py",
         "dori_tree_executor",
-        "stt_node",
         "tts_node",
     } <= set(executables)
+    assert "stt_node" not in executables  # Azure phone STT runs in the gateway.
 
 
 def test_physical_device_parameters_reach_every_driver(no_process_launch):
@@ -511,3 +511,23 @@ def test_dashboard_and_native_plugin_assets_installed():
     web = Path(get_package_share_directory("dori_dashboard")) / "web"
     assert (web / "index.html").is_file()
     assert list((web / "assets").glob("*.js"))
+
+
+
+def test_installed_rgb_profile_has_distinct_front_rear_nodes_and_no_depth_driver(no_process_launch):
+    nodes = inspect_launch("dori_bringup", "bringup.launch.py", {
+        "map": str(ROOT / "maps/live_navigation_20261023_1938.yaml"),
+    })
+    def parameters(executable):
+        return [{key: value for group in groups if isinstance(group, dict)
+                 for key, value in group.items()}
+                for _, exe, groups in nodes if exe == executable]
+    cameras = parameters("rgb_camera_node")
+    assert len(cameras) == 2
+    assert {p["device"] for p in cameras} == {"/dev/video0", "/dev/video2"}
+    assert {p["frame_id"] for p in cameras} == {"camera_front_optical_frame", "camera_rear_optical_frame"}
+    assert {p["camera_id"] for p in parameters("person_detection_node")} == {"front", "rear"}
+    assert parameters("tts_node")[0]["playback_mode"] == "remote_only"
+    for package in ("dori_perception", "dori_perception_camera"):
+        retired = Path(get_package_prefix(package)) / "lib" / package / "depth_camera_node"
+        assert not retired.exists() and not retired.is_symlink()

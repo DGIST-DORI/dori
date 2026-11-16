@@ -45,7 +45,7 @@ Humble 액션 basename remap의 제약 때문에 내부 Nav2 액션의 send_goal
 
 **선행조건:** 로봇 정지, 기존 제어 세션 종료, 비상 정지 장치 접근 가능, 주행 구역 확보.
 
-**주의:** 실물 hardware/robot launch와 매핑용 하드웨어 launch는 구동기를 실행한다. `enable_stt:=false`는 마이크만 끈다. CAN 자동 준비 서비스는 아래 절차로 한 번 설치한다. 이후 장치 연결 시 서비스가 CAN을 준비하며, 통합 bringup은 준비 완료를 기다린다.
+**주의:** 실물 hardware/robot launch와 매핑용 하드웨어 launch는 구동기를 실행한다. `enable_stt:=false`는 서버 Whisper 노드만 끈다. 기본 Azure 스마트폰 음성은 gateway가 처리한다. CAN 자동 준비 서비스는 아래 절차로 한 번 설치한다. 이후 장치 연결 시 서비스가 CAN을 준비하며, 통합 bringup은 준비 완료를 기다린다.
 
 1. 차체·바퀴·변형 기구 주변에서 사람과 장애물을 제거한다.
 2. 배터리, CANable, 서보, IMU, LiDAR의 전원·결선·커넥터를 확인한다.
@@ -107,14 +107,14 @@ source .venv/bin/activate
   -DPYTHON_EXECUTABLE="$VIRTUAL_ENV/bin/python")
 ```
 
-웹을 먼저 빌드해야 대시보드 설치에 최신 자산이 포함된다. 다른 PC의 `.venv`나 ROS build/install을 복사해 사용하지 않는다. RealSense SDK를 설치하지 않은 환경에서는 기존 CMake 정책에 따라 네이티브 카메라 실행 파일이 생략될 수 있다. 실제 C++ 카메라 사용 전 SDK 설치·재빌드·장치 시험을 수행한다.
+웹을 먼저 빌드해야 대시보드 설치에 최신 자산이 포함된다. 다른 PC의 `.venv`나 ROS build/install을 복사해 사용하지 않는다. 카메라는 OpenCV/V4L2와 yaml-cpp를 사용하는 `rgb_camera_node`로 빌드된다. RGBD SDK는 필요하지 않다. 두 USB 장치와 렌즈별 보정은 [카메라 설정](../../ros2_ws/src/dori_perception_camera/README.md)을 따른다.
 
 Humble colcon은 기존 `setup.py develop --editable/--uninstall` 옵션을 사용하므로
 setuptools는 `constraints-robot.txt`의 79.0.1을 유지한다. `option --uninstall not recognized`가
 나오면 저장소 루트에서 `.venv/bin/python -m pip install -c constraints-robot.txt 'setuptools>=70.3.0,<80'`을
 실행하고 다시 빌드한다. 이 오류만으로 build/install을 삭제할 필요는 없다.
 
-**합격기준:** ROS 21개 패키지 빌드 및 웹 lint/build 성공. 마이크 사용 전 AMM 20-20, 실물 기동 전 AMM 20-30을 추가 수행한다.
+**합격기준:** ROS 21개 패키지 빌드 및 웹 lint/build 성공. 스마트폰 음성 사용 전 AMM 20-20, 실물 기동 전 AMM 20-30을 추가 수행한다.
 
 ### TASK 20-12-00 — 실행 터미널 환경
 
@@ -161,15 +161,15 @@ done
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 외부 LLM/RAG     | `dori_llm/requirements.txt`를 constraints와 함께 설치; 지식 파일/색인 및 제공자 API 키 준비; `use_external_llm:=true`, `llm_model:=...`, `knowledge_file:=...`, `rag_index_dir:=...` |
 | 기본 LLM         | 키 없이 규칙 기반 QA와 등록 목적지 안내 사용. 임의 KB 좌표를 주행 목적지로 사용하지 않음                                                                                             |
-| 로봇 스피커 TTS  | 기본 `tts_engine:=gcp`, `tts_playback_mode:=local_only`; Google Cloud SDK는 runtime requirements에 포함. 서비스 계정 인증, 인터넷, mpg123 출력 장치 필요. Cloud 오류/사용량 제한 시 gTTS 대체 |
-| 브라우저 TTS     | `tts_playback_mode:=publish_only`; 대시보드 ROS 연결 및 사용자 터치/키 입력으로 브라우저 음성 허용                                                                                   |
-| 카메라/사람 추적 | 아래 vision 의존성 설치, RealSense 장치/SDK 및 YOLO 모델 준비. `enable_perception:=true person_model:=/절대경로/model.pt`                                                            |
-| 두 번째 카메라   | `enable_rear_camera:=true front_serial:=... rear_serial:=...`; 서로 다른 장치 serial 필수. 기본은 전방 한 대                                                                         |
-| 사용자 이탈 감시 | 정상적인 tracking 토픽이 있을 때 `require_user_tracking:=true`; 1초 이상 tracking 갱신이 없으면 정지·재확인                                                                          |
+| 스마트폰 TTS | `tts_engine:=gcp`, `tts_playback_mode:=remote_only`; 서버에서 합성하고 연결된 휴대폰에서 재생 완료를 확인. 로봇 스피커·mpg123 불필요 |
+| 개발용 브라우저 TTS | `desktop`의 `publish_only` 모드 전용. 운영 스마트폰 합성 경로와 다름 |
+| 카메라/사람 검출 | 전·후방 USB RGB + YOLO 모델. 두 카메라의 2D 추적 ID는 독립적이고 거리·세션 대상은 미확정 |
+| 두 카메라 설정 | `front_device`, `rear_device`에 서로 다른 USB 캡처 경로 지정. `front_calibration_file`, `rear_calibration_file`은 렌즈별 ROS YAML. 운영은 두 대 필수 |
+| 사용자 연결 감시 | 스마트폰 세션·WebSocket 단절 시 해당 대화와 안내 취소. RGB만으로 사용자 거리/신원을 확정하지 않음 |
 | 제스처           | `enable_gesture:=true hand_model_path:=/절대경로/hand_landmarker.task`                                                                                                               |
 | 표정             | `enable_expression:=true face_model_path:=/절대경로/face_landmarker.task`                                                                                                            |
 | 랜드마크         | `enable_landmark:=true landmark_model:=/절대경로/model.pt`; 인지 결과는 LLM 설명 문맥용이며 지도 위치를 덮어쓰지 않음                                                                |
-| 마이크 반환 감시 | 실제 접점/입력 장치가 `/dori/hri/mic_attached`를 발행할 때 `require_mic_return:=true`                                                                                                |
+| 추종·마이크 반환 | 운영 프로필에서 사용 불가. `require_user_tracking`과 `require_mic_return`은 false |
 
 Google Cloud TTS를 사용하려면 서비스 계정의 프로젝트에서 Cloud Text-to-Speech API와 결제를 활성화하고, 발급받은 키를 저장소 밖에 보관한다.
 
@@ -180,17 +180,11 @@ install -m 600 /절대경로/발급받은키.json "$HOME/.config/dori/google-clo
 
 TTS 노드는 위 파일을 자동으로 읽는다. 다른 위치를 쓰려면 실행 터미널에서 `export GOOGLE_APPLICATION_CREDENTIALS=/절대경로/키.json`으로 지정한다. 명시한 환경변수가 기본 파일보다 우선하고, 둘 다 없으면 Google ADC를 사용한다. JSON 내용은 저장소나 로그에 남기지 않는다. 키/엔진 변경 후 노드를 재시작하고 `Google Cloud TTS engine & DB ready` 로그와 첫 합성 성공을 확인한다. 인증 또는 합성 실패 시 gTTS로 대체하며 이유를 로그에 남긴다. 명시적으로 gTTS를 쓰려면 `tts_engine:=gtts`를 전달한다.
 
-마이크용 모델은 명시적으로 준비한다. 기본 openWakeWord `hey_mycroft`와 Whisper small을 사용하며 Porcupine `.ppn`을 이 설정에 넣지 않는다.
+기본 Azure 스마트폰 음성에는 로컬 마이크·웨이크워드 모델이 필요하지 않다.
+서버 Whisper를 선택할 때만 다음을 실행하고 `visitor_stt:=whisper`를 지정한다.
 
 ```bash
-.venv/bin/python -m pip install -c constraints-robot.txt 'openwakeword>=0.6,<0.7' 'faster-whisper>=1,<2'
-mkdir -p .state/voice
-.venv/bin/python - <<'PYVOICE'
-import openwakeword
-from faster_whisper.utils import download_model
-openwakeword.utils.download_models(model_names=['hey_mycroft'])
-download_model('small', output_dir='.state/voice/whisper-small')
-PYVOICE
+scripts/prepare_voice.sh --topic-only
 ```
 
 선택 인지·외부 LLM 의존성도 동일한 ABI 제약을 적용한다.
@@ -277,8 +271,8 @@ ros2 param get /controller_server FollowPath.plugin
 ### 30-10 주행 권한
 
 ```text
-마이크 STT / 대시보드 텍스트
-  → /dori/stt/result → dori_bt → /dori/llm/query → /dori/tts/speak
+스마트폰 음성 / 텍스트 → 방문자 gateway
+  → /dori/llm/query → /dori/tts/speak_remote → 스마트폰 재생 확인
   → /dori/nav/navigate_named → 지도별 목적지 검증
   → /dori/nav/navigate_to → nav2_adapter
   → /dori/internal/navigate_to_pose → 실제 Nav2
@@ -319,25 +313,20 @@ ros2 param get /controller_server FollowPath.plugin
 | `/scan`, `/odom`, `/imu/data_raw`                     | 기존 실측 센서 계약 유지                                         |
 | `/system/action_state`                                | 0 IDLE / 1 DRIVE에서만 주행, 변형·ESTOP·ERROR에서는 차단         |
 | `/dori/hri/manager_state`, `/dori/hri/status`         | BT 상태와 감시 조건, 웹에 전달                                   |
-| `/dori/tts/audio_event`                               | 실제 TTS 출력 이벤트. local_only에서는 브라우저 중복 재생 억제   |
+| `/dori/tts/audio_event` | `remote_audio`는 연결된 스마트폰에만 전달. `remote_only`에서 로봇/일반 대시보드 중복 재생 없음 |
 | `/dori/hri/emotion`                                   | 상태 기반 감정 표현 및 수동 override                             |
 
 TF는 `map → odom → base_link → laser`를 사용한다. `/odom`과 odom TF는 LiDAR odometry가 소유한다. 실물 launch에서는 wheel odometry TF를 동시에 켜지 않는다. LiDAR yaw 기본값은 기존 실측값 π다. 설치 방향이 다르면 실제 외부 파라미터를 측정해 적용한다.
 
-### 30-30 HRI 상태 전이
+### 30-30 스마트폰 HRI 흐름
 
-1. IDLE에서 wake word, 사람 근접의 상승 edge, CALL 제스처, 마이크 분리를 받으면 LISTENING.
-2. 신뢰도 0.55 이상의 STT 입력은 INTERACTION → LLM 결과 → RESPONDING → TTS 액션.
-3. 정보 질문은 주행하지 않고 세션 완료. 등록되지 않은 목적지는 설명 응답만 반환.
-4. 명시적인 안내 요청은 GUIDING → 실제 Nav2 결과 대기 → ARRIVED → 도착 발화 → IDLE.
-5. 마이크 반환 감시를 사용하면 세션 완료 후 WAIT_MIC_RETURN. 30초 후 알림과 세션 종료.
-6. 추적 필수 모드에서 사용자 정보가 끊기면 정지 후 USER_LOST_CONFIRM. 10초 내 복구되면 취소 완료 간격을 두고 재요청; 미복구 시 IDLE.
-7. `access_blocked=true`면 정지 후 ACCESS_HELP. 해제 후 재요청, 60초 초과 시 종료.
-8. 음성 정지·STOP 제스처·취소 토픽·비상 정지는 CANCELED. 실패는 ERROR. 도착 발화를 하지 않는다.
-9. CONFIRM·GUIDANCE_COMPLETE는 주행 성공을 만들지 않는다. DIRECTION_HINT는 목적지 이름을 요청하고 좌표 없는 이동을 실행하지 않는다. REPEAT_GUIDANCE는 설명을 반복한다.
-10. 기본 idle 순찰은 비활성이다. BT의 `idle_goals`를 명시했을 때만 등록 목적지 목록으로 순찰한다.
-
-**주의:** 시각 인식의 STOP이나 음성 정지는 물리 비상 정지 장치를 대체하지 않는다. 가려짐·인식 지연이 존재한다.
+1. QR 페어링과 활성 WebSocket이 사용자 세션을 정한다. 카메라 사람 검출은 대화나 추종을 시작하지 않는다.
+2. 스마트폰 텍스트/음성 → gateway STT → LLM → `tts/speak_remote` → 휴대폰 재생 완료/실패 응답.
+3. 명시적인 등록 목적지 요청만 `nav/navigate_named`로 전달한다. 도착 안내는 실제 주행 결과를 따른다.
+4. 대화 취소와 안내 취소는 각각 처리하고, 세션 종료·연결 단절·전체 STOP은 모두 취소한다.
+5. 전·후방 카메라는 이미지 내 사람 추적만 제공한다. 거리값은 null이고 추종 활성화 요청은 거절한다.
+6. 제스처/표정 인식은 선택 기능이며 활성 스마트폰 연결로 추론을 켠다. 방문자 BT는 제스처나 웨이크워드로 주행하지 않는다.
+7. 마이크 반환, 로봇 스피커, 거리 기반 자동 상호작용은 운영 경로에서 제거됐다. 물리 비상 정지는 기존 로봇 제어 경로가 담당한다.
 
 ## AMM 40 — 정상 운용 절차
 
@@ -357,7 +346,7 @@ ros2 launch dori_bringup bringup.launch.py \
 
 일반 운용 진입점은 `bringup.launch.py`이며 기본 `dori_mode:=robot`, `visitor_mode:=true`를 그대로 사용한다. 지도 로딩은 방문자 모드와 독립적이다. 방문자 음성은 기본 Azure gateway에서 처리하므로 로봇의 로컬 마이크 STT와 Whisper 모델은 필요하지 않다. `robot.launch.py`는 이 진입점이 선택하는 로봇 구성 파일이다.
 
-`robot` 프로필은 전방 카메라와 사람 인식을 필수로 시작한다. 모델과 카메라는 `person_model:=/절대경로/person.pt front_serial:=장치번호`로 지정한다. 제스처·표정·랜드마크는 두 프로필 모두 기본 비활성이며 각각 `enable_gesture`, `enable_expression`, `enable_landmark`로 선택한다. 사람 추적을 상호작용 조건으로 요구할 때는 `require_user_tracking:=true`를 지정한다.
+`robot` 프로필은 전·후방 USB RGB 카메라와 각 사람 검출기를 필수로 시작한다. 모델은 `person_model`, 장치는 `front_device`와 `rear_device`로 지정한다. 기동 검사는 RGB와 검출 결과를 기다리며 depth는 기다리지 않는다. 제스처·표정·랜드마크는 두 프로필 모두 기본 비활성이며 각각 `enable_gesture`, `enable_expression`, `enable_landmark`로 선택한다. 운영 프로필은 `remote_only` 음성과 스마트폰 세션을 사용하며 거리 기반 추종은 지원하지 않는다.
 
 지도·목적지·장치·센서 장착값은 `ros2_ws/src/dori_bringup/config/robot.example.yaml`을 `.state/robot.yaml`로 복사해 편집하고 `config_file:="$DORI_ROOT/.state/robot.yaml"`로 지정할 수 있다. 명령행 지정값이 파일보다 우선하며, 파일은 `common`과 `robot`/`desktop` 구역으로 구성한다. 파일 내 상대 경로는 YAML 위치를 기준으로 해석하고 `${DORI_ROOT}`는 저장소 경로로 치환한다. 기존 `dori_bringup/launch/hardware.launch.py`와 `real`/`hardware` 모드는 `robot.launch.py`와 `robot`으로 변경되었으며 `sim`은 지원하지 않는다. 현재 `dori_hardware/launch/hardware.launch.py`는 구동계·IMU만 시작하는 하위 구성이다. [launch 소유권과 이름 변경표](../dev/package-ownership.md#launch-ownership)를 참고한다.
 
@@ -395,28 +384,15 @@ ros2 topic echo /dori/nav/locations std_msgs/msg/String --once --qos-durability 
 
 ### TASK 40-30-00 — 안내 주행 및 정지
 
-웹은 주행 활성화 후 목적지를 지정한다. HRI는 “등록된이름으로 안내해줘”처럼 명시적으로 요청한다. “어디에 있나요?” 같은 정보 질문은 이동 명령으로 취급하지 않는다.
+1. 스마트폰에서 QR로 연결하고 텍스트 또는 음성으로 등록 목적지 안내를 요청한다. 마이크 권한을 거절해도 텍스트와 목적지 버튼은 사용할 수 있다.
+2. 연결된 휴대폰에 답변이 표시되고 TTS가 재생되는지 확인한다. 로봇 스피커 출력은 없다.
+3. 안내 상태 STARTING → NAVIGATING → ARRIVED는 실제 안내 액션 결과를 따른다. 도착 발화도 휴대폰에서 확인한다.
+4. 앱의 안내 정지 버튼으로 주행을 취소하고 실제 정지와 목표 해제를 확인한다. 답변 중지만 선택하면 안내는 유지될 수 있으므로 두 버튼을 구분한다.
+5. 세션 종료, 연결 단절, 전체 STOP에서는 대화와 안내가 모두 취소된다. 재접속이 이전 목표를 자동 재실행하지 않는지 확인한다.
 
-마이크 없이 전체 HRI 경로를 확인할 때는 대시보드 STT 텍스트 입력 또는 아래 형식을 사용한다. **이 명령은 실제 로봇이 켜져 있으면 주행을 요청한다.**
+운영 방문자 입력은 gateway를 통한다. `/dori/stt/result` 직접 발행은 레거시 desktop HRI 시험용이며 운영 방문자 요청을 대신하지 않는다.
 
-```bash
-ros2 topic pub --once /dori/stt/result std_msgs/msg/String \
-  '{data: "{\"text\":\"Lobby로 안내해줘\",\"confidence\":1.0,\"event\":\"stt_result\"}"}'
-```
-
-정상 정지는 웹 정지 또는 아래 명령을 사용한다.
-
-```bash
-ros2 topic pub --once /NAVIGATION_MODE std_msgs/msg/Int32 '{data: 0}'
-```
-
-HRI 세션 취소:
-
-```bash
-ros2 topic pub --once /dori/hri/cancel std_msgs/msg/Bool '{data: true}'
-```
-
-**합격기준:** 주행 중 GUIDING, 실제 도착 후 ARRIVED와 도착 발화, 취소 시 active 해제 및 차체 정지. 웹 소유 브라우저의 heartbeat/lease가 끊기면 해당 웹 제어를 종료한다. HRI 자율 안내는 브라우저를 닫았다는 이유만으로 취소되지 않는다.
+**합격기준:** 휴대폰 요청·답변·재생 확인, 실제 목적지 도착, 안내 취소와 연결 단절 시 차체 정지, 재접속 시 이전 세션 데이터나 목표가 재사용되지 않음. 화면 잠금과 네트워크 전환도 실제 휴대폰에서 시험한다.
 
 ### TASK 40-40-00 — 정상 종료
 
@@ -509,7 +485,7 @@ P1에서 복구할 범위는 합성 LiDAR 매핑/지도 저장, HRI→Nav2→TTA
 | 6    | 센서 또는 권한 노드 중단 시험   | 설정 watchdog 안에 출력 차단; 실제 관성 정지 거리 측정 | 즉시 물리 정지, 운용 중단          |
 | 7    | 전방 정체·후방 장애물           | 후방 막힘 시 후진하지 않음                             | LiDAR 외부 파라미터/후방 판정 점검 |
 | 8    | 추적 필수 모드 사용자 이탈·복귀 | 정지, 확인 상태, 복귀 후 단일 재개                     | 추적 갱신·취소 응답 점검           |
-| 9    | 마이크 반환·잡음·스피커         | echo 오인식 없음, wake/STT/발화의 실제 품질 확인       | 오디오 장치/환경 조정              |
+| 9 | 휴대폰 권한·잠금·연결 단절·재접속 | 음성/텍스트 복구, 세션 정리와 안내 정지 확인 | 휴대폰·네트워크 설정 점검 |
 | 10   | 변형·오류·비상 정지 상태        | 주행 억제 유지                                         | supervisor/CAN 경로 점검           |
 
 이 카드의 실물 결과는 현재 기록에 포함되지 않는다. 소프트웨어 시험은 실제 마찰·하중·전원·CAN 결선·센서 장착·음향 인식을 증명하지 않는다.
@@ -532,8 +508,8 @@ P1에서 복구할 범위는 합성 LiDAR 매핑/지도 저장, HRI→Nav2→TTA
 | Navigation 프록시 503                        | 로컬 8080 viewer 동작 여부 확인                                              | viewer 원인 해결 후 통합 재기동                                                   |
 | 웹 명령 403                                  | 오래된 세션, CSRF, 다른 origin 여부                                          | 동일 대시보드 주소 새로고침                                                       |
 | API가 HTML 반환                              | 오래된 dashboard 설치 자산/서버 여부                                         | frontend build → ROS build → 재기동                                               |
-| TTS 무음                                     | local_only/publish_only, 인터넷, mpg123, 브라우저 음성 허용 확인             | 출력 모드에 맞는 실제 음향 시험                                                   |
-| STT 시작 실패                                | PortAudio, 입력 장치, 모델 경로·완전성 확인                                  | AMM 20-20 모델 준비 재수행; 마이크 접근 권한 점검                                 |
+| TTS 무음 | 휴대폰 재생 권한, HTTPS, 서버 TTS 인증·인터넷 확인 | remote_only 및 재생 완료/실패 응답 확인 |
+| STT 시작 실패 | 휴대폰 마이크 권한, Azure 설정 또는 서버 Whisper 모델 확인 | 텍스트 입력으로 복구 후 재시험 |
 | 카메라 두 노드가 같은 장치 사용              | front/rear serial 중복·빈 값 확인                                            | 서로 다른 serial 지정 또는 후방 비활성                                            |
 | 소프트웨어 배포 버튼 423                     | 기본 운용 중 배포 잠금                                                       | 로봇 종료 후 터미널에서 검토된 버전 설치                                          |
 

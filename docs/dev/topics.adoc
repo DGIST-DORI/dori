@@ -1,6 +1,6 @@
 = ROS2 Topic API Reference
 
-This is a single source (SSOT) for ROS2 topic details documentation.
+The current topic inventory is `config/ros2_topics.yaml`. Front/rear USB RGB cameras have independent streams and optical frames. Person ranges are null; no depth or follow-offset topics are published. Rear person outputs use `/dori/hri/rear/`.
 
 * Topic anchors use the `topic-...` format, and `/` in topic paths is replaced with `-`.
 * The details list is not duplicated in `architecture.md`; instead, this document is referenced.
@@ -39,11 +39,11 @@ This is a single source (SSOT) for ROS2 topic details documentation.
 === /camera/front/color/image_raw
 
 *Type (msg)*:: `sensor_msgs/msg/Image`
-*Publishers*:: <<nodes.adoc#node-depth-camera-node,depth_camera_node>>
+*Publishers*:: <<nodes.adoc#node-rgb-camera-node,rgb_camera_node>>
 *Subscribers*:: <<nodes.adoc#node-person-detection-node,person_detection_node>>, <<nodes.adoc#node-gesture-recognition-node,gesture_recognition_node>>, <<nodes.adoc#node-facial-expression-node,facial_expression_node>>, <<nodes.adoc#node-landmark-detection-node,landmark_detection_node>>
 *Frequency*:: Expected: N/A, Actual: TBD
 *QoS*:: Reliability: Reliable, Durability: Volatile
-*Flow*:: <<nodes.adoc#node-depth-camera-node,depth_camera_node>> → /camera/front/color/image_raw → <<nodes.adoc#node-person-detection-node,person_detection_node>>, <<nodes.adoc#node-gesture-recognition-node,gesture_recognition_node>>, <<nodes.adoc#node-facial-expression-node,facial_expression_node>>, <<nodes.adoc#node-landmark-detection-node,landmark_detection_node>>
+*Flow*:: <<nodes.adoc#node-rgb-camera-node,rgb_camera_node>> → /camera/front/color/image_raw → <<nodes.adoc#node-person-detection-node,person_detection_node>>, <<nodes.adoc#node-gesture-recognition-node,gesture_recognition_node>>, <<nodes.adoc#node-facial-expression-node,facial_expression_node>>, <<nodes.adoc#node-landmark-detection-node,landmark_detection_node>>
 
 .Message fields
 [cols="1,1,1,3",options="header"]
@@ -61,41 +61,15 @@ This is a single source (SSOT) for ROS2 topic details documentation.
 *Description*:: RGB camera stream used by perception pipelines.
 
 
-[[topic-dori-camera-front-depth-image-raw]]
-=== /camera/front/depth/image_raw
-
-*Type (msg)*:: `sensor_msgs/msg/Image`
-*Publishers*:: <<nodes.adoc#node-depth-camera-node,depth_camera_node>>
-*Subscribers*:: <<nodes.adoc#node-person-detection-node,person_detection_node>>, <<nodes.adoc#node-landmark-detection-node,landmark_detection_node>>
-*Frequency*:: Expected: N/A, Actual: TBD
-*QoS*:: Reliability: Reliable, Durability: Volatile
-*Flow*:: <<nodes.adoc#node-depth-camera-node,depth_camera_node>> → /camera/front/depth/image_raw → <<nodes.adoc#node-person-detection-node,person_detection_node>>, <<nodes.adoc#node-landmark-detection-node,landmark_detection_node>>
-
-.Message fields
-[cols="1,1,1,3",options="header"]
-|===
-| Field | Type | Unit | Description
-| header | std_msgs/msg/Header | - | Frame timestamp and frame_id.
-| height | uint32 | px | Image height.
-| width | uint32 | px | Image width.
-| encoding | string | - | Pixel encoding format.
-| is_bigendian | uint8 | - | Endianness flag.
-| step | uint32 | bytes | Full row length in bytes.
-| data | uint8[] | bytes | Raw depth image buffer.
-|===
-
-*Description*:: Raw depth frame for distance estimation and landmark range filtering.
-
-
 [[topic-dori-camera-front-color-camera_info]]
 === /camera/front/color/camera_info
 
 *Type (msg)*:: `sensor_msgs/msg/CameraInfo`
-*Publishers*:: <<nodes.adoc#node-depth-camera-node,depth_camera_node>>
+*Publishers*:: <<nodes.adoc#node-rgb-camera-node,rgb_camera_node>>
 *Subscribers*:: <<nodes.adoc#node-landmark-detection-node,landmark_detection_node>>
 *Frequency*:: Expected: N/A, Actual: TBD
 *QoS*:: Reliability: Reliable, Durability: Volatile
-*Flow*:: <<nodes.adoc#node-depth-camera-node,depth_camera_node>> → /camera/front/color/camera_info → <<nodes.adoc#node-landmark-detection-node,landmark_detection_node>>
+*Flow*:: <<nodes.adoc#node-rgb-camera-node,rgb_camera_node>> → /camera/front/color/camera_info → <<nodes.adoc#node-landmark-detection-node,landmark_detection_node>>
 
 .Message fields
 [cols="1,1,1,3",options="header"]
@@ -105,88 +79,6 @@ This is a single source (SSOT) for ROS2 topic details documentation.
 |===
 
 *Description*:: RGB intrinsics for pixel-to-direction / localization math.
-
-
-[[topic-dori-camera-front-depth-camera_info]]
-=== /camera/front/depth/camera_info
-
-*Type (msg)*:: `sensor_msgs/msg/CameraInfo`
-*Publishers*:: <<nodes.adoc#node-depth-camera-node,depth_camera_node>>
-*Subscribers*:: (none documented)
-*Frequency*:: Expected: N/A, Actual: TBD
-*QoS*:: Reliability: Reliable, Durability: Volatile
-*Flow*:: <<nodes.adoc#node-depth-camera-node,depth_camera_node>> → /camera/front/depth/camera_info → (none documented)
-
-.Message fields
-[cols="1,1,1,3",options="header"]
-|===
-| Field | Type | Unit | Description
-| data | TBD | - | See message definition for field-level details.
-|===
-
-*Description*:: Depth intrinsics metadata stream.
-
-
-[[topic-dori-camera-front-depth-image_colormap]]
-=== /camera/front/depth/image_colormap
-
-*Type (msg)*:: `sensor_msgs/msg/Image`
-*Publishers*:: <<nodes.adoc#node-depth-camera-node,depth_camera_node>>
-*Subscribers*:: (none documented)
-*Frequency*:: Expected: N/A, Actual: TBD
-*QoS*:: Reliability: Reliable, Durability: Volatile
-*Flow*:: <<nodes.adoc#node-depth-camera-node,depth_camera_node>> → /camera/front/depth/image_colormap → (none documented)
-
-.Message fields
-[cols="1,1,1,3",options="header"]
-|===
-| Field | Type | Unit | Description
-| data | TBD | - | See message definition for field-level details.
-|===
-
-*Description*:: Colorized depth visualization stream.
-
-
-[[topic-dori-camera-front-depth-scale]]
-=== /camera/front/depth/scale
-
-*Type (msg)*:: `std_msgs/msg/Float32`
-*Publishers*:: (none documented)
-*Subscribers*:: <<nodes.adoc#node-person-detection-node,person_detection_node>>
-*Frequency*:: Expected: N/A, Actual: TBD
-*QoS*:: Reliability: Reliable, Durability: Volatile
-*Flow*:: (none documented) → /camera/front/depth/scale → <<nodes.adoc#node-person-detection-node,person_detection_node>>
-
-.Message fields
-[cols="1,1,1,3",options="header"]
-|===
-| Field | Type | Unit | Description
-| data | TBD | - | See message definition for field-level details.
-|===
-
-*Description*:: Optional depth meter-per-unit scale expected by person detection.
-
-NOTE: Rear camera topics use the same schema under `/camera/rear/...` (for example, `/camera/rear/color/image_raw`, `/camera/rear/depth/image_raw`, `/camera/rear/depth/camera_info`, `/camera/rear/depth/scale`).
-
-
-[[topic-dori-follow-target_offset]]
-=== /follow/target_offset
-
-*Type (msg)*:: `geometry_msgs/msg/Point`
-*Publishers*:: <<nodes.adoc#node-person-detection-node,person_detection_node>>
-*Subscribers*:: (none documented)
-*Frequency*:: Expected: N/A, Actual: TBD
-*QoS*:: Reliability: Reliable, Durability: Volatile
-*Flow*:: <<nodes.adoc#node-person-detection-node,person_detection_node>> → /follow/target_offset → (none documented)
-
-.Message fields
-[cols="1,1,1,3",options="header"]
-|===
-| Field | Type | Unit | Description
-| data | TBD | - | See message definition for field-level details.
-|===
-
-*Description*:: Relative target offset for follow-control consumers.
 
 
 [[topic-dori-landmark-context]]
@@ -246,7 +138,7 @@ NOTE: Rear camera topics use the same schema under `/camera/rear/...` (for examp
 | data | TBD | - | See message definition for field-level details.
 |===
 
-*Description*:: Landmark-based localization estimate JSON.
+*Description*:: Candidates require finite positive measured range and calibrated direction; RGB-only input does not publish localization candidates.
 
 
 == HRI
@@ -475,11 +367,11 @@ NOTE: Rear camera topics use the same schema under `/camera/rear/...` (for examp
 === /hri/interaction_trigger
 
 *Type (msg)*:: `std_msgs/msg/Bool`
-*Publishers*:: <<nodes.adoc#node-person-detection-node,person_detection_node>>
+*Publishers*:: `bridge_api_node`
 *Subscribers*:: <<nodes.adoc#node-gesture-recognition-node,gesture_recognition_node>>, <<nodes.adoc#node-facial-expression-node,facial_expression_node>>
 *Frequency*:: Expected: N/A, Actual: TBD
 *QoS*:: Reliability: Reliable, Durability: Volatile
-*Flow*:: <<nodes.adoc#node-person-detection-node,person_detection_node>> → /hri/interaction_trigger → <<nodes.adoc#node-gesture-recognition-node,gesture_recognition_node>>, <<nodes.adoc#node-facial-expression-node,facial_expression_node>>
+*Flow*:: `bridge_api_node` → /hri/interaction_trigger → <<nodes.adoc#node-gesture-recognition-node,gesture_recognition_node>>, <<nodes.adoc#node-facial-expression-node,facial_expression_node>>
 
 .Message fields
 [cols="1,1,1,3",options="header"]
@@ -488,7 +380,7 @@ NOTE: Rear camera topics use the same schema under `/camera/rear/...` (for examp
 | data | TBD | - | See message definition for field-level details.
 |===
 
-*Description*:: Enables gesture/expression inference only during interaction.
+*Description*:: True while the paired phone WebSocket is active; enables optional vision inference, not visitor tracking.
 
 
 [[topic-dori-hri-persons]]
@@ -508,7 +400,7 @@ NOTE: Rear camera topics use the same schema under `/camera/rear/...` (for examp
 | data | TBD | - | See message definition for field-level details.
 |===
 
-*Description*:: JSON list of detected persons/tracks.
+*Description*:: JSON list of camera-local 2D detections/tracks; distance_m=null, target_id=null.
 
 
 [[topic-dori-hri-tracking_state]]
@@ -528,7 +420,7 @@ NOTE: Rear camera topics use the same schema under `/camera/rear/...` (for examp
 | data | TBD | - | See message definition for field-level details.
 |===
 
-*Description*:: JSON tracking state (`idle/tracking/lost`) for session/nav control.
+*Description*:: RGB-only interaction tracking is idle with null range and metric_tracking_available=false.
 
 
 [[topic-dori-stt-result]]

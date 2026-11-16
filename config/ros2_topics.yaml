@@ -5,7 +5,7 @@
       "topic": "camera/front/color/image_raw",
       "msg_type": "sensor_msgs/msg/Image",
       "publishers": [
-        "depth_camera_node"
+        "rgb_camera_node"
       ],
       "subscribers": [
         "person_detection_node",
@@ -13,133 +13,46 @@
         "facial_expression_node",
         "landmark_detection_node"
       ],
-      "qos": "unknown",
+      "qos": "reliable depth 1",
       "description": "RGB camera stream used by all perception pipelines.",
-      "owner_pkg": "dori_perception"
-    },
-    {
-      "topic": "camera/front/depth/image_raw",
-      "msg_type": "sensor_msgs/msg/Image",
-      "publishers": [
-        "depth_camera_node"
-      ],
-      "subscribers": [
-        "person_detection_node",
-        "landmark_detection_node"
-      ],
-      "qos": "unknown",
-      "description": "Raw depth frame for distance estimation and landmark range filtering.",
-      "owner_pkg": "dori_perception"
-    },
-    {
-      "topic": "camera/front/depth/image_colormap",
-      "msg_type": "sensor_msgs/msg/Image",
-      "publishers": [
-        "depth_camera_node"
-      ],
-      "subscribers": [],
-      "qos": "unknown",
-      "description": "Colorized depth visualization stream.",
-      "owner_pkg": "dori_perception"
+      "owner_pkg": "dori_perception_camera"
     },
     {
       "topic": "camera/front/color/camera_info",
       "msg_type": "sensor_msgs/msg/CameraInfo",
       "publishers": [
-        "depth_camera_node"
+        "rgb_camera_node"
       ],
       "subscribers": [
         "landmark_detection_node"
       ],
-      "qos": "unknown",
+      "qos": "reliable depth 1",
       "description": "RGB intrinsics for pixel-to-direction / localization math.",
-      "owner_pkg": "dori_perception"
-    },
-    {
-      "topic": "camera/front/depth/camera_info",
-      "msg_type": "sensor_msgs/msg/CameraInfo",
-      "publishers": [
-        "depth_camera_node"
-      ],
-      "subscribers": [],
-      "qos": "unknown",
-      "description": "Depth intrinsics metadata stream.",
-      "owner_pkg": "dori_perception"
-    },
-    {
-      "topic": "camera/front/depth/scale",
-      "msg_type": "std_msgs/msg/Float32",
-      "publishers": [],
-      "subscribers": [
-        "person_detection_node"
-      ],
-      "qos": "unknown",
-      "description": "Optional depth meter-per-unit scale expected by person detection.",
-      "owner_pkg": "external"
+      "owner_pkg": "dori_perception_camera"
     },
     {
       "topic": "camera/rear/color/image_raw",
       "msg_type": "sensor_msgs/msg/Image",
       "publishers": [
-        "depth_camera_node"
+        "rgb_camera_node"
       ],
-      "subscribers": [],
-      "qos": "unknown",
+      "subscribers": [
+        "person_detection_rear"
+      ],
+      "qos": "reliable depth 1",
       "description": "Rear RGB camera stream.",
-      "owner_pkg": "dori_perception"
-    },
-    {
-      "topic": "camera/rear/depth/image_raw",
-      "msg_type": "sensor_msgs/msg/Image",
-      "publishers": [
-        "depth_camera_node"
-      ],
-      "subscribers": [],
-      "qos": "unknown",
-      "description": "Rear raw depth frame.",
-      "owner_pkg": "dori_perception"
-    },
-    {
-      "topic": "camera/rear/depth/image_colormap",
-      "msg_type": "sensor_msgs/msg/Image",
-      "publishers": [
-        "depth_camera_node"
-      ],
-      "subscribers": [],
-      "qos": "unknown",
-      "description": "Rear colorized depth visualization stream.",
-      "owner_pkg": "dori_perception"
+      "owner_pkg": "dori_perception_camera"
     },
     {
       "topic": "camera/rear/color/camera_info",
       "msg_type": "sensor_msgs/msg/CameraInfo",
       "publishers": [
-        "depth_camera_node"
+        "rgb_camera_node"
       ],
       "subscribers": [],
-      "qos": "unknown",
+      "qos": "reliable depth 1",
       "description": "Rear RGB intrinsics metadata stream.",
-      "owner_pkg": "dori_perception"
-    },
-    {
-      "topic": "camera/rear/depth/camera_info",
-      "msg_type": "sensor_msgs/msg/CameraInfo",
-      "publishers": [
-        "depth_camera_node"
-      ],
-      "subscribers": [],
-      "qos": "unknown",
-      "description": "Rear depth intrinsics metadata stream.",
-      "owner_pkg": "dori_perception"
-    },
-    {
-      "topic": "camera/rear/depth/scale",
-      "msg_type": "std_msgs/msg/Float32",
-      "publishers": [],
-      "subscribers": [],
-      "qos": "unknown",
-      "description": "Optional rear depth meter-per-unit scale.",
-      "owner_pkg": "external"
+      "owner_pkg": "dori_perception_camera"
     },
     {
       "topic": "hri/persons",
@@ -149,22 +62,22 @@
       ],
       "subscribers": [],
       "qos": "unknown",
-      "description": "JSON list of detected persons/tracks.",
+      "description": "Front RGB person observations; camera-local track IDs, null metric range and no session target.",
       "owner_pkg": "dori_perception"
     },
     {
       "topic": "hri/interaction_trigger",
       "msg_type": "std_msgs/msg/Bool",
       "publishers": [
-        "person_detection_node"
+        "bridge_api_node"
       ],
       "subscribers": [
         "gesture_recognition_node",
         "facial_expression_node"
       ],
       "qos": "unknown",
-      "description": "Enables gesture/expression inference only during interaction.",
-      "owner_pkg": "dori_perception"
+      "description": "Optional vision inference gate while the paired smartphone WebSocket is active.",
+      "owner_pkg": "dori_dashboard"
     },
     {
       "topic": "hri/tracking_state",
@@ -176,18 +89,7 @@
         "dori_tree_executor"
       ],
       "qos": "unknown",
-      "description": "JSON tracking state (`idle/tracking/lost`) for session/nav control.",
-      "owner_pkg": "dori_perception"
-    },
-    {
-      "topic": "follow/target_offset",
-      "msg_type": "geometry_msgs/msg/Point",
-      "publishers": [
-        "person_detection_node"
-      ],
-      "subscribers": [],
-      "qos": "unknown",
-      "description": "Relative target offset for follow-control consumers.",
+      "description": "Legacy interaction tracking contract: idle, null range, metric_tracking_available=false for RGB-only perception.",
       "owner_pkg": "dori_perception"
     },
     {
@@ -539,6 +441,39 @@
       "qos": "unknown",
       "description": "ROS audio output stream for dashboard ros_audio playback mode.",
       "owner_pkg": "dori_dashboard"
+    },
+    {
+      "topic": "hri/rear/persons",
+      "msg_type": "std_msgs/msg/String",
+      "publishers": [
+        "person_detection_rear"
+      ],
+      "subscribers": [],
+      "qos": "unknown",
+      "description": "Rear RGB person observations; independent camera-local tracks and null range.",
+      "owner_pkg": "dori_perception"
+    },
+    {
+      "topic": "hri/rear/tracking_state",
+      "msg_type": "std_msgs/msg/String",
+      "publishers": [
+        "person_detection_rear"
+      ],
+      "subscribers": [],
+      "qos": "unknown",
+      "description": "Rear interaction tracking unavailable; idle with no assigned visitor.",
+      "owner_pkg": "dori_perception"
+    },
+    {
+      "topic": "hri/rear/annotated_image",
+      "msg_type": "sensor_msgs/msg/Image",
+      "publishers": [
+        "person_detection_rear"
+      ],
+      "subscribers": [],
+      "qos": "unknown",
+      "description": "Optional rear person detection overlay.",
+      "owner_pkg": "dori_perception"
     }
   ],
   "services": [
