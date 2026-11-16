@@ -13,7 +13,8 @@ common:
   # pose_model_path: ${DORI_ROOT}/.state/vision/pose_landmarker_lite.task
   enable_expression: false
   enable_landmark: false
-  person_model: yolov8n.pt
+  # Prepared by: .venv/bin/python scripts/prepare_perception.py
+  person_model: ${DORI_ROOT}/.state/vision/yolov8n.pt
   person_tracker: bytetrack.yaml
   person_lost_timeout_sec: 5.0
   person_max_inference_fps: 10.0

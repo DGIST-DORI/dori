@@ -109,34 +109,58 @@ that mode is not supported on the robot.
 ### 3-2. Prepare Perception for the Robot Profile
 
 The robot profile requires two USB wide-angle RGB cameras (front/rear), the
-`ultralytics` dependency, and person-detection weights. Prepare a local model before deployment and set
-`person_model` to its path in the deployment YAML. Desktop perception is optional. Configure separate device paths and calibration
-files using the [camera setup guide](ros2_ws/src/dori_perception_camera/README.md).
+`ultralytics` dependency, `lap` for ByteTrack, and local person-detection weights.
+Desktop perception is optional. `requirements-runtime.txt` and `scripts/build.sh`
+do not install optional perception dependencies or download its models.
 
-MediaPipe Task models are only needed when explicitly enabling gesture or
-expression recognition (`enable_gesture:=true` / `enable_expression:=true`):
-Raised-hand pose observations can be selected with `gesture_backend:=pose` and
-`pose_model_path:=/path/to/pose_landmarker_lite.task`; the hand model is then
-unnecessary. See [RGB tracking and gesture configuration](ros2_ws/src/dori_perception/README.md).
-
-1. Create the model asset directory:
+First install a matching **PyTorch + torchvision** pair for the target machine.
+For an initial CPU bench test (including a Jetson being tested on CPU):
 
 ```bash
-mkdir -p ros2_ws/src/dori_perception/models
+.venv/bin/python -m pip install -c constraints-robot.txt \
+  torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu
 ```
 
-2. Download required `.task` files and place them in that directory:
-
-```text
-ros2_ws/src/dori_perception/models/hand_landmarker.task
-ros2_ws/src/dori_perception/models/face_landmarker.task
-```
-
-3. Install perception dependencies:
+For Jetson GPU deployment, follow the
+[NVIDIA JetPack-specific PyTorch instructions](https://docs.nvidia.com/deeplearning/frameworks/install-pytorch-jetson-platform/index.html)
+and install compatible torchvision instead of the CPU command. Keep that pair
+when installing the dependencies below; see the
+[perception installation guide](ros2_ws/src/dori_perception/README.md#packages-and-models)
+for verification and version constraints.
 
 ```bash
-.venv/bin/python -m pip install -c constraints-robot.txt -r ros2_ws/src/dori_perception/requirements.txt
+# NumPy/OpenCV constraints for ROS Humble are included by this requirements file.
+.venv/bin/python -m pip install -r ros2_ws/src/dori_perception/requirements.txt
+
+# Download yolov8n.pt to .state/vision and run a camera-free CPU inference check.
+.venv/bin/python scripts/prepare_perception.py
 ```
+
+For the optional raised-hand backend, additionally prepare MediaPipe and its pose
+model:
+
+```bash
+.venv/bin/python -m pip install -r ros2_ws/src/dori_perception/requirements-mediapipe.txt
+.venv/bin/python scripts/prepare_perception.py --pose
+```
+
+Configure the deployment YAML:
+
+```yaml
+common:
+  person_model: ${DORI_ROOT}/.state/vision/yolov8n.pt
+  enable_gesture: true
+  gesture_backend: pose
+  pose_model_path: ${DORI_ROOT}/.state/vision/pose_landmarker_lite.task
+```
+
+Keep `enable_gesture: false` if only testing person detection. Pose observations
+require an active smartphone session and do not command motion. The `hands`
+backend and expression recognition use different models; the
+[perception guide](ros2_ws/src/dori_perception/README.md#packages-and-models)
+lists their installation commands and a single-camera bench launch. Model weights
+are ignored by Git. Configure separate USB devices and calibration files using
+the [camera setup guide](ros2_ws/src/dori_perception_camera/README.md).
 
 ### 4. Configure Visitor Speech, TTS & Optional LLM API Keys
 

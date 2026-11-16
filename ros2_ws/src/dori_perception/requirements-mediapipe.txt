@@ -1,0 +1,5 @@
+# Optional hands, raised-hand pose, and facial expression backends.
+-c ../../../constraints-robot.txt
+# Tested on Python 3.10 / Linux aarch64 with the Tasks API used by these nodes.
+# Older 0.10.18 requires protobuf<5, conflicting with the current Google TTS SDK.
+mediapipe==1.2.3

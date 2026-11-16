@@ -1,4 +1,4 @@
-# Base runtime; voice models and optional vision setup: docs/user/DORI-AMM.md (20-20).
+# Full development libraries; model setup and optional MediaPipe: README.md (3-2).
 -r requirements-runtime.txt
 
 # Sub-package dependencies

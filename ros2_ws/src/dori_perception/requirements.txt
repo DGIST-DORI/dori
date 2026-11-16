@@ -1,3 +1,7 @@
-opencv-python
-mediapipe>=0.10.0
-ultralytics
+# RGB person detection and ByteTrack. Install a matching torch/torchvision pair
+# for the target CPU/JetPack first; see README.md. Apply the Humble NumPy ABI
+# constraints even when this file is installed directly.
+-c ../../../constraints-robot.txt
+opencv-python>=4.7,<4.12
+ultralytics>=8.3,<9
+lap>=0.5.12,<0.6

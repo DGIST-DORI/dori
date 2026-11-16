@@ -29,5 +29,7 @@ rosdep install --from-paths "$DORI_ROOT/ros2_ws/src" --ignore-src --rosdistro hu
 if [[ "$with_voice" == true ]]; then "$DORI_ROOT/scripts/prepare_voice.sh"; fi
 if [[ "$with_vision" == true ]]; then
     "$DORI_ROOT/.venv/bin/python" -m pip install -c "$DORI_ROOT/constraints-robot.txt" -r "$DORI_ROOT/ros2_ws/src/dori_perception/requirements.txt"
+    printf 'Vision packages installed. Prepare/check models: .venv/bin/python scripts/prepare_perception.py\n'
+    printf 'Optional MediaPipe backends: see ros2_ws/src/dori_perception/README.md\n'
 fi
 printf 'Dependencies installed. Next: cd %q/web && npm ci && npm run build; then scripts/build.sh\n' "$DORI_ROOT"
