@@ -65,7 +65,7 @@ This document is the SSOT for ROS2 node details in the current workspace.
 *Dependencies*:: YOLO model file, OpenCV/NumPy, front or rear RGB stream
 *Failure behavior*:: Model load failures raise errors; failed inference does not publish a readiness heartbeat.
 
-*Description*:: Publishes camera-local 2D person tracks with null distance and no visitor target. Rear outputs use `/dori/hri/rear/`. Follow enable is rejected; phone sessions own interaction triggers.
+*Description*:: Publishes camera-local 2D person tracks with null distance and no visitor target. Additive `visual_tracking` records tracking/lost/idle observations with a 5-second memory; the top-level interaction state remains idle. Reception and inference use separate callback groups and a latest-image mailbox. Stale/duplicate frames produce no heartbeat. Rear outputs use `/dori/hri/rear/`. Follow enable is rejected; phone sessions own interaction triggers.
 
 
 [[node-landmark-detection-node]]

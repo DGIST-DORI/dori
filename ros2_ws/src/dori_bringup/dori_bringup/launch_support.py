@@ -120,7 +120,9 @@ def services(context, *, robot=False):
                       "front_device", "rear_device", "enable_rear_camera",
                       "front_calibration_file", "rear_calibration_file", "camera_width", "camera_height",
                       "camera_fps", "camera_pixel_format",
-                      "hand_model_path", "face_model_path", "person_model", "landmark_model")),
+                      "hand_model_path", "face_model_path", "pose_model_path", "gesture_backend",
+                      "person_tracker", "person_lost_timeout_sec", "person_max_inference_fps",
+                      "perception_max_frame_age_sec", "person_model", "landmark_model")),
         }))
     if value("enable_dashboard") == "true":
         actions.append(include("dori_dashboard", "dashboard.launch.py", {

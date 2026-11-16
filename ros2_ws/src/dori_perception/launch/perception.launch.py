@@ -28,6 +28,10 @@ def generate_launch_description():
 
     args = [
         DeclareLaunchArgument("person_model", default_value="yolov8n.pt"),
+        DeclareLaunchArgument("person_tracker", default_value="bytetrack.yaml"),
+        DeclareLaunchArgument("person_lost_timeout_sec", default_value="5.0"),
+        DeclareLaunchArgument("person_max_inference_fps", default_value="10.0"),
+        DeclareLaunchArgument("perception_max_frame_age_sec", default_value="1.0"),
         DeclareLaunchArgument("landmark_model", default_value="yolov8n.pt"),
         DeclareLaunchArgument("landmark_db", default_value=landmark_db_default),
         DeclareLaunchArgument("device", default_value="cpu"),
@@ -38,6 +42,8 @@ def generate_launch_description():
         DeclareLaunchArgument("enable_rear_camera", default_value="true"),
         DeclareLaunchArgument("camera_pixel_format", default_value="MJPG"),
         DeclareLaunchArgument("hand_model_path", default_value=""),
+        DeclareLaunchArgument("gesture_backend", default_value="hands", choices=["hands", "pose"]),
+        DeclareLaunchArgument("pose_model_path", default_value=""),
         DeclareLaunchArgument("face_model_path", default_value=""),
         DeclareLaunchArgument("visualize", default_value="false"),
         DeclareLaunchArgument("enable_landmark", default_value="false"),
@@ -74,6 +80,10 @@ def generate_launch_description():
         parameters=[
             {
                 "model_path": LaunchConfiguration("person_model"),
+                "tracker_config": LaunchConfiguration("person_tracker"),
+                "lost_timeout_sec": ParameterValue(LaunchConfiguration("person_lost_timeout_sec"), value_type=float),
+                "max_inference_fps": ParameterValue(LaunchConfiguration("person_max_inference_fps"), value_type=float),
+                "max_frame_age_sec": ParameterValue(LaunchConfiguration("perception_max_frame_age_sec"), value_type=float),
                 "confidence_threshold": 0.5,
                 "device": LaunchConfiguration("device"),
                 "visualize": LaunchConfiguration("visualize"),
@@ -95,6 +105,10 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration("enable_rear_camera")),
         parameters=[{
             "model_path": LaunchConfiguration("person_model"),
+            "tracker_config": LaunchConfiguration("person_tracker"),
+            "lost_timeout_sec": ParameterValue(LaunchConfiguration("person_lost_timeout_sec"), value_type=float),
+            "max_inference_fps": ParameterValue(LaunchConfiguration("person_max_inference_fps"), value_type=float),
+            "max_frame_age_sec": ParameterValue(LaunchConfiguration("perception_max_frame_age_sec"), value_type=float),
             "device": LaunchConfiguration("device"),
             "visualize": LaunchConfiguration("visualize"),
             "camera_id": "rear",
@@ -141,6 +155,9 @@ def generate_launch_description():
             {
                 "visualize": LaunchConfiguration("visualize"),
                 "hand_model_path": LaunchConfiguration("hand_model_path"),
+                "gesture_backend": LaunchConfiguration("gesture_backend"),
+                "pose_model_path": LaunchConfiguration("pose_model_path"),
+                "max_frame_age_sec": ParameterValue(LaunchConfiguration("perception_max_frame_age_sec"), value_type=float),
                 "active_only_on_trigger": True,
                 "topics.color_image_sub": _topic(
                     dori_ns, "/camera/front/color/image_raw"

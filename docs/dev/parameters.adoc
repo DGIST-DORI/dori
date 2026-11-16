@@ -63,6 +63,9 @@ This document is the SSOT for ROS2 parameter details in the current workspace.
 | visualize | bool | false | true/false | - | Publish annotated image.
 | camera_id | string | front | front/rear | - | Camera-local track namespace.
 | tracker_config | string | `bytetrack.yaml` | file path/name | - | Tracker configuration.
+| lost_timeout_sec | double | 5.0 | >0, finite | s | Retain missing camera-local visual tracks; not metric interaction tracking.
+| max_inference_fps | double | 10.0 | >0, finite | Hz | Maximum inference rate; latest-frame mailbox drops intermediate images.
+| max_frame_age_sec | double | 1.0 | >0, finite | s | Reject stale input and results, including inference time.
 | topics.color_image_sub | string | `/camera/front/color/image_raw` | topic path | - | RGB input topic.
 | services.follow_mode_service | string | `/hri/set_follow_mode` | service path | - | Follow-mode SetBool service.
 | topics.persons_pub | string | `/hri/persons` | topic path | - | Detected person list topic.
@@ -111,6 +114,11 @@ This document is the SSOT for ROS2 parameter details in the current workspace.
 |===
 | Name | Type | Default | Range/Enum | Unit | Description
 | hand_model_path | string | `""` | file path or empty | - | MediaPipe hand model path.
+| gesture_backend | string | `hands` | hands/pose | - | Finger gestures or raised-hand pose observations.
+| pose_model_path | string | `""` | file path or empty | - | Pose model; empty resolves models/pose_landmarker_lite.task in package share.
+| pose_min_landmark_confidence | double | 0.6 | [0,1] | - | Minimum visibility and presence of each used pose landmark.
+| raised_hand_margin | double | 0.03 | [0,1] | normalized | Required vertical wrist-to-eye separation.
+| max_frame_age_sec | double | 1.0 | >0, finite | s | Reject stale input and results; reset confirmation across gaps.
 | num_hands | int | 1 | >=1 | - | Maximum hands to track.
 | min_hand_detection_confidence | double | 0.7 | [0,1] | - | Hand detect confidence.
 | min_hand_presence_confidence | double | 0.5 | [0,1] | - | Presence confidence threshold.

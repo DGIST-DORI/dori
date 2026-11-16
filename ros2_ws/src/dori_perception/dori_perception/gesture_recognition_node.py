@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Gesture Recognition Node (MediaPipe Hands)
+Gesture Recognition Node (MediaPipe Tasks: Hands or Pose)
 - 21-point hand landmark-based gesture classification
 - Active only when interaction_trigger is true (saves resources)
 - CPU-only (GPU reserved for YOLO)
@@ -11,6 +11,9 @@ Recognized gestures:
   WAVE      : left-right wrist motion → call robot (triggers wake word handler)
   THUMBS_UP : thumb up only → positive confirmation
   NONE      : no hand / unclassified
+
+The optional pose backend observes LEFT/RIGHT/BOTH_HANDS_RAISED. These are
+unassociated RGB observations and never emit a command or wake trigger.
 
 Publish topics:
   hri/gesture           (String) - gesture detection JSON
@@ -36,8 +39,12 @@ import rclpy
 from ament_index_python.packages import get_package_share_directory
 from cv_bridge import CvBridge
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Image
 from std_msgs.msg import Bool, String
+
+from dori_perception.pose_gestures import raised_hands
+from dori_perception.rgb_tracking import image_is_fresh, stamp_ns
 
 try:
     import mediapipe as mp
@@ -45,6 +52,8 @@ try:
     from mediapipe.tasks.python.vision import (
         HandLandmarker,
         HandLandmarkerOptions,
+        PoseLandmarker,
+        PoseLandmarkerOptions,
         RunningMode,
     )
 
@@ -59,6 +68,9 @@ class Gesture(str, Enum):
     WAVE = "WAVE"
     THUMBS_UP = "THUMBS_UP"
     NONE = "NONE"
+    LEFT_HAND_RAISED = "LEFT_HAND_RAISED"
+    RIGHT_HAND_RAISED = "RIGHT_HAND_RAISED"
+    BOTH_HANDS_RAISED = "BOTH_HANDS_RAISED"
 
 
 # MediaPipe Hands
@@ -105,9 +117,16 @@ HAND_CONNECTIONS = (
 class GestureRecognitionNode(Node):
     def __init__(self):
         super().__init__("gesture_recognition_node")
+        self.hands = None
+        self.pose = None
 
         # Parameters
         self.declare_parameter("hand_model_path", "")
+        self.declare_parameter("gesture_backend", "hands")
+        self.declare_parameter("pose_model_path", "")
+        self.declare_parameter("pose_min_landmark_confidence", 0.6)
+        self.declare_parameter("raised_hand_margin", 0.03)
+        self.declare_parameter("max_frame_age_sec", 1.0)
         self.declare_parameter("num_hands", 1)
         self.declare_parameter("min_hand_detection_confidence", 0.7)
         self.declare_parameter("min_hand_presence_confidence", 0.5)
@@ -146,57 +165,58 @@ class GestureRecognitionNode(Node):
         self.use_handedness_correction = self.get_parameter(
             "use_handedness_correction"
         ).value
+        self.backend = self.get_parameter("gesture_backend").value
+        self.pose_min_confidence = self.get_parameter("pose_min_landmark_confidence").value
+        self.raised_hand_margin = self.get_parameter("raised_hand_margin").value
+        self.max_frame_age_sec = self.get_parameter("max_frame_age_sec").value
+        if self.backend not in ("hands", "pose"):
+            raise ValueError("gesture_backend must be hands or pose")
+        for name, value in (("pose_min_landmark_confidence", self.pose_min_confidence),
+                            ("raised_hand_margin", self.raised_hand_margin)):
+            if not math.isfinite(value) or not 0 <= value <= 1:
+                raise ValueError(f"{name} must be in [0, 1]")
+        if not math.isfinite(self.max_frame_age_sec) or self.max_frame_age_sec <= 0:
+            raise ValueError("max_frame_age_sec must be finite and positive")
+        if self.confirm_frames < 1:
+            raise ValueError("gesture_confirm_frames must be positive")
+        self._last_stamp_ns = 0
+        self._last_timestamp_ms = -1
+        self._last_frame_at = None
 
         if not MP_AVAILABLE:
-            self.get_logger().error("mediapipe not installed: pip install mediapipe")
-            return
+            raise RuntimeError("Gesture recognition requires mediapipe Tasks and a local model")
 
-        resolved_hand_model_path = self._resolve_model_path(
-            hand_model_path,
-            default_model_filename="hand_landmarker.task",
-            parameter_name="hand_model_path",
+        resolved_model_path = self._resolve_model_path(
+            hand_model_path if self.backend == "hands" else self.get_parameter("pose_model_path").value,
+            default_model_filename=("hand_landmarker.task" if self.backend == "hands"
+                                    else "pose_landmarker_lite.task"),
+            parameter_name="hand_model_path" if self.backend == "hands" else "pose_model_path",
         )
-        if not resolved_hand_model_path:
-            return
+        if not resolved_model_path:
+            raise RuntimeError(f"No readable {self.backend} model configured")
 
         # MediaPipe initialization (Tasks API)
-        self.hands = None
         try:
-            hand_options = HandLandmarkerOptions(
-                base_options=BaseOptions(model_asset_path=resolved_hand_model_path),
-                running_mode=RunningMode.VIDEO,
-                num_hands=num_hands,
-                min_hand_detection_confidence=det_conf,
-                min_hand_presence_confidence=hand_presence_conf,
-                min_tracking_confidence=trk_conf,
-            )
-            self.hands = HandLandmarker.create_from_options(hand_options)
-        except PermissionError as e:
-            self.get_logger().error(
-                f"Permission denied while reading hand model: {resolved_hand_model_path}. {e}"
-            )
-            return
-        except FileNotFoundError as e:
-            self.get_logger().error(
-                f"Hand model file not found: {resolved_hand_model_path}. {e}"
-            )
-            return
-        except OSError as e:
-            self.get_logger().error(
-                f"OS error while opening hand model: {resolved_hand_model_path}. {e}"
-            )
-            return
-        except (ValueError, RuntimeError) as e:
-            self.get_logger().error(
-                f"Failed to load hand model (invalid/corrupted model?): "
-                f"{resolved_hand_model_path}. {e}"
-            )
-            return
+            if self.backend == "hands":
+                self.hands = HandLandmarker.create_from_options(HandLandmarkerOptions(
+                    base_options=BaseOptions(model_asset_path=resolved_model_path),
+                    running_mode=RunningMode.VIDEO,
+                    num_hands=num_hands,
+                    min_hand_detection_confidence=det_conf,
+                    min_hand_presence_confidence=hand_presence_conf,
+                    min_tracking_confidence=trk_conf,
+                ))
+            else:
+                self.pose = PoseLandmarker.create_from_options(PoseLandmarkerOptions(
+                    base_options=BaseOptions(model_asset_path=resolved_model_path),
+                    running_mode=RunningMode.VIDEO,
+                    num_poses=2,  # Detect ambiguity instead of selecting the first person.
+                    min_pose_detection_confidence=0.6,
+                    min_pose_presence_confidence=0.6,
+                    min_tracking_confidence=trk_conf,
+                ))
         except Exception as e:
-            self.get_logger().error(
-                f"Unexpected error while creating HandLandmarker: {e}"
-            )
-            return
+            raise RuntimeError(f"Failed to load {self.backend} model: {resolved_model_path}") from e
 
         # State
         self.is_active: bool = not self.active_on_trigger  # trigger OFF면 항상 활성
@@ -218,7 +238,8 @@ class GestureRecognitionNode(Node):
         annotated_topic = self.get_parameter("topics.annotated_pub").value
 
         # Subscribers
-        self.create_subscription(Image, color_image_topic, self.image_callback, 10)
+        self.create_subscription(Image, color_image_topic, self.image_callback,
+                                 QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT))
         self.create_subscription(
             Bool, interaction_trigger_topic, self._trigger_callback, 10
         )
@@ -279,27 +300,55 @@ class GestureRecognitionNode(Node):
                 self.is_active = False
                 self._gesture_history.clear()
                 self._wrist_x_history.clear()
+                self._last_published_command = None
                 self.get_logger().info("Gesture recognition deactivated by trigger")
 
     def image_callback(self, msg: Image):
         if not self.is_active:
             return
 
+        received_at = time.monotonic()
+        source_stamp = stamp_ns(msg)
+        if source_stamp and source_stamp <= self._last_stamp_ns:
+            return
+        if not self._fresh(msg, received_at):
+            self._gesture_history.clear()
+            self._wrist_x_history.clear()
+            return
+        if source_stamp:
+            self._last_stamp_ns = source_stamp
+        if self._last_frame_at is not None and received_at - self._last_frame_at > self.max_frame_age_sec:
+            self._gesture_history.clear()
+            self._wrist_x_history.clear()
+        self._last_frame_at = received_at
         try:
             cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+            rgb = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+            # MediaPipe VIDEO timestamps must increase even for sub-ms input stamps.
+            timestamp_ms = max(self._last_timestamp_ms + 1, int(received_at * 1000))
+            self._last_timestamp_ms = timestamp_ms
+            landmarker = self.pose if self.backend == "pose" else self.hands
+            results = landmarker.detect_for_video(mp_image, timestamp_ms)
         except Exception as e:
-            self.get_logger().error(f"Failed to convert image: {e}")
+            self._gesture_history.clear()
+            self._wrist_x_history.clear()
+            self.get_logger().error(f"Gesture inference failed: {e}")
             return
-
+        if not self._fresh(msg, received_at):
+            self._gesture_history.clear()
+            self._wrist_x_history.clear()
+            return
+        if self.backend == "pose":
+            gesture = Gesture(raised_hands(results.pose_landmarks, self.pose_min_confidence,
+                                           self.raised_hand_margin))
+            self._gesture_history.append(gesture)
+            confirmed = self._confirm_gesture()
+            self._publish_gesture(confirmed, None, None)
+            if self.visualize:
+                self._safe_publish_annotated(cv_image, None, confirmed, msg)
+            return
         h, w = cv_image.shape[:2]
-        rgb = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-        timestamp_ms = int(
-            msg.header.stamp.sec * 1000 + msg.header.stamp.nanosec / 1_000_000
-        )
-        if timestamp_ms <= 0:
-            timestamp_ms = int(time.monotonic() * 1000)
-        results = self.hands.detect_for_video(mp_image, timestamp_ms)
 
         if not results.hand_landmarks:
             self._gesture_history.append(Gesture.NONE)
@@ -352,6 +401,10 @@ class GestureRecognitionNode(Node):
 
         if self.visualize:
             self._safe_publish_annotated(cv_image, hand_landmarks, confirmed, msg)
+
+    def _fresh(self, msg, received_at):
+        return image_is_fresh(msg, self.get_clock().now().nanoseconds,
+                              received_at, time.monotonic(), self.max_frame_age_sec)
 
     def _classify(self, lm, w: int, h: int, handedness_label: str | None) -> Gesture:
         """
@@ -466,6 +519,9 @@ class GestureRecognitionNode(Node):
             "gesture": gesture.value,
             "direction": direction,
             "timestamp": time.time(),
+            "backend": self.backend,
+            "camera_id": "front",
+            "target_id": None,
         }
         g_msg = String()
         g_msg.data = json.dumps(gesture_data, ensure_ascii=False)
@@ -589,19 +645,24 @@ class GestureRecognitionNode(Node):
     def destroy_node(self):
         if self.hands is not None:
             self.hands.close()
+        if self.pose is not None:
+            self.pose.close()
         super().destroy_node()
 
 
 def main(args=None):
     rclpy.init(args=args)
-    node = GestureRecognitionNode()
+    node = None
     try:
+        node = GestureRecognitionNode()
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
     finally:
-        node.destroy_node()
-        rclpy.shutdown()
+        if node is not None:
+            node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == "__main__":

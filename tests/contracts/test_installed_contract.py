@@ -531,3 +531,32 @@ def test_installed_rgb_profile_has_distinct_front_rear_nodes_and_no_depth_driver
     for package in ("dori_perception", "dori_perception_camera"):
         retired = Path(get_package_prefix(package)) / "lib" / package / "depth_camera_node"
         assert not retired.exists() and not retired.is_symlink()
+
+
+def test_installed_pose_and_tracking_overrides_reach_perception_nodes(no_process_launch):
+    nodes = inspect_launch("dori_bringup", "bringup.launch.py", {
+        "map": str(ROOT / "maps/live_navigation_20261023_1938.yaml"),
+        "enable_gesture": "true", "gesture_backend": "pose",
+        "pose_model_path": "/models/pose.task", "person_tracker": "botsort.yaml",
+        "person_lost_timeout_sec": "3.0", "person_max_inference_fps": "8.0",
+        "perception_max_frame_age_sec": "0.8",
+    })
+    people = []
+    gesture = None
+    for _, executable, groups in nodes:
+        params = {key: value for group in groups if isinstance(group, dict)
+                  for key, value in group.items()}
+        if executable == "person_detection_node":
+            people.append(params)
+        elif executable == "gesture_recognition_node":
+            gesture = params
+    assert len(people) == 2
+    for params in people:
+        assert params['tracker_config'] == 'botsort.yaml'
+        assert params['lost_timeout_sec'] == 3.
+        assert params['max_inference_fps'] == 8.
+        assert params['max_frame_age_sec'] == .8
+    assert gesture['gesture_backend'] == 'pose'
+    assert gesture['pose_model_path'] == '/models/pose.task'
+    assert gesture['active_only_on_trigger'] is True
+    assert gesture['max_frame_age_sec'] == .8

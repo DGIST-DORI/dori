@@ -8,9 +8,16 @@ common:
   use_external_llm: true
   llm_model: gemini-3.5-flash-lite
   enable_gesture: false
+  # Optional raised-hand observations; enable_gesture still requires an active phone session.
+  gesture_backend: hands  # hands or pose
+  # pose_model_path: ${DORI_ROOT}/.state/vision/pose_landmarker_lite.task
   enable_expression: false
   enable_landmark: false
   person_model: yolov8n.pt
+  person_tracker: bytetrack.yaml
+  person_lost_timeout_sec: 5.0
+  person_max_inference_fps: 10.0
+  perception_max_frame_age_sec: 1.0
   # Use a local trained model or a pre-downloaded YOLO model for deployment.
   # person_model: ${DORI_ROOT}/.state/vision/person.pt
 

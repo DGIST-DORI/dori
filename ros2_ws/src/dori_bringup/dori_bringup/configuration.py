@@ -24,7 +24,9 @@ DEFAULTS = dict(
     front_device="/dev/video0", rear_device="/dev/video2", enable_rear_camera="true",
     front_calibration_file="", rear_calibration_file="",
     camera_width="640", camera_height="480", camera_fps="15", camera_pixel_format="MJPG",
-    hand_model_path="", face_model_path="",
+    hand_model_path="", face_model_path="", pose_model_path="", gesture_backend="hands",
+    person_tracker="bytetrack.yaml", person_lost_timeout_sec="5.0",
+    person_max_inference_fps="10.0", perception_max_frame_age_sec="1.0",
     person_model="yolov8n.pt", landmark_model="yolov8n.pt",
     map="", named_goals_file="", use_joystick="false", rviz="false",
     can_interface=CAN_INTERFACE, can_wait_timeout=CAN_WAIT_TIMEOUT,
@@ -40,10 +42,11 @@ CHOICES.update(
     enable_stt=["auto", "true", "false"], enable_perception=["auto", "true", "false"],
     visitor_stt=["azure", "whisper"], stt_audio_input_mode=["auto", "microphone", "topic"],
     tts_playback_mode=["remote_only", "local_only", "publish_only", "local_and_publish"],
+    gesture_backend=["hands", "pose"],
 )
 PATHS = {"map", "named_goals_file", "knowledge_file", "rag_index_dir", "tree_xml_file",
-         "hand_model_path", "face_model_path", "front_calibration_file", "rear_calibration_file"}
-MODELS = {"person_model", "landmark_model", "whisper_model"}
+         "hand_model_path", "face_model_path", "pose_model_path", "front_calibration_file", "rear_calibration_file"}
+MODELS = {"person_model", "landmark_model", "whisper_model", "person_tracker"}
 
 
 def repo_root():

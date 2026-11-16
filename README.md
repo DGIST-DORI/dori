@@ -115,6 +115,9 @@ files using the [camera setup guide](ros2_ws/src/dori_perception_camera/README.m
 
 MediaPipe Task models are only needed when explicitly enabling gesture or
 expression recognition (`enable_gesture:=true` / `enable_expression:=true`):
+Raised-hand pose observations can be selected with `gesture_backend:=pose` and
+`pose_model_path:=/path/to/pose_landmarker_lite.task`; the hand model is then
+unnecessary. See [RGB tracking and gesture configuration](ros2_ws/src/dori_perception/README.md).
 
 1. Create the model asset directory:
 

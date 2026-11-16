@@ -42,6 +42,7 @@ desktop:
     "robot: {real_map: old.yaml}", "common: {map: null}",
     "robot: {startup_timeout: .nan}", "unknown: {}",
     "robot: {map: '${UNKNOWN}/map.yaml'}",
+    "common: {gesture_backend: unsupported}",
 ])
 def test_invalid_config_fails_before_any_process_is_constructed(tmp_path, content):
     config = tmp_path / "bad.yaml"
@@ -67,6 +68,22 @@ def test_checkout_placeholder_and_model_ids_are_resolved_without_environment(tmp
 def test_missing_config_is_not_silently_ignored(tmp_path):
     with pytest.raises(FileNotFoundError):
         resolve(config_file=str(tmp_path / "missing.yaml"))
+
+
+def test_pose_and_tracker_paths_resolve_from_deployment_file(tmp_path):
+    config = tmp_path / "robot.yaml"
+    config.write_text("""common:
+  enable_gesture: true
+  gesture_backend: pose
+  pose_model_path: ./models/pose.task
+  person_tracker: ./trackers/botsort.yaml
+  person_max_inference_fps: 8.0
+""")
+    values = read_config(config, "robot")
+    assert values['gesture_backend'] == 'pose'
+    assert values['pose_model_path'] == str(tmp_path / 'models/pose.task')
+    assert values['person_tracker'] == str(tmp_path / 'trackers/botsort.yaml')
+    assert values['person_max_inference_fps'] == '8.0'
 
 
 def test_shipped_example_resolves_existing_map():
